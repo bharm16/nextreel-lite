@@ -1,8 +1,18 @@
-from flask_login import UserMixin
+import time
+from queue import Queue
 
-from nextreel.scripts.get_user_account import insert_new_user, get_user_login, get_all_watched_movie_details_by_user, \
-    get_all_movies_in_watchlist
-from nextreel.scripts.log_movie_to_account import add_movie_to_watchlist, log_movie_to_account
+import tmdb
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask_login import LoginManager, current_user, login_required, login_user, logout_user, UserMixin
+
+from db_config import db_config, user_db_config
+from scripts.get_user_account import get_user_by_id, get_all_movies_in_watchlist, insert_new_user, get_user_login, \
+    get_all_watched_movie_details_by_user
+from scripts.log_movie_to_account import log_movie_to_account, add_movie_to_watchlist
+from scripts.movie_queue import MovieQueue
+from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher, extract_movie_filter_criteria
+from scripts.sort_and_filter import get_filtered_watched_movies, sort_movies
+from scripts.tmdb_data import get_backdrop_image_for_home
 
 
 class Account(UserMixin):

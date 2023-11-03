@@ -1,8 +1,8 @@
 import imdb
 import pymysql
 
-from nextreel.scripts.db_config_scripts import user_db_config, db_config
-from nextreel.scripts.mysql_query_builder import execute_query, GET_USER_BY_USERNAME, GET_USER_BY_ID, GET_ALL_USERS, \
+from scripts.db_config_scripts import user_db_config, db_config
+from scripts.mysql_query_builder import execute_query, GET_USER_BY_USERNAME, GET_USER_BY_ID, GET_ALL_USERS, \
     INSERT_NEW_USER, GET_WATCHED_MOVIES, GET_WATCHED_MOVIE_POSTERS, GET_ALL_WATCHED_MOVIE_DETAILS_BY_USER, \
     GET_ALL_MOVIES_IN_WATCHLIST, GET_WATCHED_MOVIE_DETAILS
 

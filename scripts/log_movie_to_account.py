@@ -6,9 +6,9 @@ from threading import Lock
 
 import imdb
 
-from nextreel.scripts.db_config_scripts import user_db_config
-from nextreel.scripts.movie import Movie
-from nextreel.scripts.mysql_query_builder import execute_query, QUERY_WATCHED_MOVIE, SELECT_MISSING_TITLE_INFO, \
+from scripts.db_config_scripts import user_db_config
+from scripts.movie import Movie
+from scripts.mysql_query_builder import execute_query, QUERY_WATCHED_MOVIE, SELECT_MISSING_TITLE_INFO, \
     ADD_MOVIE_TO_WATCHLIST, INSERT_WATCHED_MOVIE_DETAIL, INSERT_USER_WATCHLIST_DETAIL, LOG_MOVIE_TO_ACCOUNT, \
     CHECK_TITLE_BASICS
 

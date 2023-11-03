@@ -1,25 +1,19 @@
-# Import required libraries
-import threading
 import time
-
-from queue import Queue, Empty
+from queue import Queue
 
 import tmdb
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
-from flask_login import LoginManager, login_user, login_required, logout_user, current_user
+from flask_login import LoginManager, login_required, login_user, logout_user, current_user
 
-from nextreel.scripts.account import Account
-from nextreel.scripts.db_config_scripts import db_config, user_db_config
-from nextreel.scripts.get_user_account import get_user_by_id, get_all_watched_movie_details_by_user, \
-    get_all_movies_in_watchlist
-from nextreel.scripts.log_movie_to_account import update_title_basics_if_empty
-from nextreel.scripts.movie import Movie
-from nextreel.scripts.movie_queue import MovieQueue
-from nextreel.scripts.person import Person
-from nextreel.scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher, extract_movie_filter_criteria
-from nextreel.scripts.tmdb_data import get_tmdb_id_by_tconst, get_movie_info_by_tmdb_id, get_backdrop_image_for_home
+from db_config import db_config, user_db_config
+from scripts.account import Account
+from scripts.get_user_account import get_user_by_id, get_all_movies_in_watchlist
+from scripts.movie_queue import MovieQueue
+from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher, extract_movie_filter_criteria
+from scripts.sort_and_filter import get_filtered_watched_movies, sort_movies
+from scripts.tmdb_data import get_backdrop_image_for_home
 
-# Initialize Flask app
+
 app = Flask(__name__)
 app.secret_key = 'some_random_secret_key'  # IMPORTANT: Change this in production
 
@@ -128,9 +122,6 @@ def account_settings():
     return render_template('user_account_settings.html')
 
 
-from flask import request, render_template, flash
-from flask_login import login_required, current_user
-from nextreel.scripts.sort_and_filter import sort_movies, get_filtered_watched_movies  # Import the sorting function
 
 
 @app.route('/watched_movies')

@@ -1,7 +1,7 @@
 import sys
 
-from nextreel.scripts.db_config_scripts import db_config
-from nextreel.scripts.mysql_query_builder import get_db_connection, execute_query
+from scripts.db_config_scripts import db_config
+from scripts.mysql_query_builder import get_db_connection, execute_query
 
 print("Python Executable:", sys.executable)
 

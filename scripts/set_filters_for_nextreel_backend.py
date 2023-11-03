@@ -1,4 +1,4 @@
-from nextreel.scripts.mysql_query_builder import execute_query
+from scripts.mysql_query_builder import execute_query
 
 
 def build_parameters(criteria):

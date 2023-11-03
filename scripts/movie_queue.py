@@ -4,12 +4,12 @@ from queue import Queue
 import time
 from flask_login import current_user
 
-from nextreel.db_config import db_config
-from nextreel.scripts.get_user_account import get_all_watched_movie_details_by_user, get_all_movies_in_watchlist
-from nextreel.scripts.log_movie_to_account import update_title_basics_if_empty
-from nextreel.scripts.movie import Movie
-from nextreel.scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher
-from nextreel.scripts.tmdb_data import get_tmdb_id_by_tconst, get_movie_info_by_tmdb_id
+from db_config import db_config
+from scripts.get_user_account import get_all_watched_movie_details_by_user, get_all_movies_in_watchlist
+from scripts.log_movie_to_account import update_title_basics_if_empty
+from scripts.movie import Movie
+from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher
+from scripts.tmdb_data import get_tmdb_id_by_tconst, get_movie_info_by_tmdb_id
 
 
 # Import the required modules and functions from your project
