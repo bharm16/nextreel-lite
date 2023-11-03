@@ -27,3 +27,25 @@
 
 </body>
 </html>
+
+
+<script>
+        function loadMovieWhenReady() {
+            $.getJSON('/movie', function(data) {
+                if (data.status === 'waiting') {
+                    // If the movie isn't ready, check again after some time
+                    setTimeout(loadMovieWhenReady, 1000); // Check every 2 seconds
+                } else {
+                    // If the movie data is ready, load the movie card content
+                    $('#movie-content').html('<!-- Render movie_card.html content with the movie data -->');
+                    // You might need to process 'data' to correctly display it within the movie card.
+                    // This could be done by calling another function that takes 'data' and renders HTML.
+                }
+            });
+        }
+
+        // Call the function when the script loads
+        $(document).ready(function() {
+            loadMovieWhenReady();
+        });
+    </script>

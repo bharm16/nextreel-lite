@@ -50,9 +50,8 @@ current_displayed_movie = None
 def fetch_and_render_movie(movie_queue, current_displayed_movie, previous_movies_stack, criteria=None):
     """Fetch a movie from the given queue and render the movie template."""
     # Check if the queue is empty
-    if movie_queue.empty():
-        print("The movie queue is empty.")
-        return "The movie queue is empty.", 404
+
+
 
     # Fetch the next movie from the queue
     current_movie_data = movie_queue.get()
@@ -73,6 +72,7 @@ def fetch_and_render_movie(movie_queue, current_displayed_movie, previous_movies
 @app.route('/movie')
 def movie():
     global movie_queue, current_displayed_movie, previous_movies_stack  # Declare global variables
+    # Wait for a few seconds to give the thread some time to populate the queue
     return fetch_and_render_movie(movie_queue, current_displayed_movie, previous_movies_stack)
 
 
