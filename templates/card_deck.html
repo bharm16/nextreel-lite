@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <!-- Include Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <!-- Import Merriweather font -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700&display=swap">
+    <style>
+        /* Custom class for 'Next Movie' button color */
+        .btn-next-movie {
+            background-color: #2db830;
+            color: white;
+        }
+
+        /* Custom class for 'Filters' button color */
+        .btn-set-filters {
+            background-color: #2db830;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <!-- Container for buttons -->
+    <div class="container my-4 mb-4">
+        <!-- Row for buttons -->
+        <div class="row justify-content-center mb-4">
+            <!-- Suggest Me Movie Button -->
+            <div class="col-auto">
+                <a class="btn btn-next-movie" href="{{ url_for('movie') }}" role="button">Pick a random movie</a>
+            </div>
+            <!-- Set Filters Button -->
+            <div class="col-auto">
+                <a class="btn btn-set-filters" href="{{ url_for('set_filters') }}" role="button">Set Filters</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
