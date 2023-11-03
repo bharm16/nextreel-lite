@@ -16,7 +16,7 @@ from scripts.tmdb_data import get_backdrop_image_for_home
 app = Flask(__name__)
 app.secret_key = 'some_random_secret_key'  # IMPORTANT: Change this in production
 
-default_movie_tmdb_id = 62  # This is the TMDb ID for the movie "Fight Club"
+default_movie_tmdb_id = 62
 default_backdrop_url = get_backdrop_image_for_home(default_movie_tmdb_id)
 
 

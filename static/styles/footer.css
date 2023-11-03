@@ -1,16 +1,33 @@
-body{margin-top:20px;}
+html, body {
+    height: 100%; /* Ensure the html and body elements take up the full height of the page */
+    margin: 0; /* Remove default margins */
+}
+
+/* Flexbox container for the entire body content */
+.wrapper {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%; /* Make sure the container is at least as tall as the viewport */
+}
+
+/* Your main content should grow and take up available space */
+.content {
+    flex: 1; /* Causes the content to expand and push the footer downward */
+}
+
 .footer_area {
     position: relative;
     z-index: 1;
     overflow: hidden;
-webkit-box-shadow: 0 8px 48px 8px rgba(47, 91, 234, 0.175);
+    webkit-box-shadow: 0 8px 48px 8px rgba(47, 91, 234, 0.175);
     box-shadow: 0 8px 48px 8px rgba(47, 91, 234, 0.175);
-    padding:60px;
+    padding: 60px;
     background-color: #02243FFF;
     color: #fff;
-
-
 }
+
+
+
 .footer_area .row {
     margin-left: -25px;
     margin-right: -25px;
