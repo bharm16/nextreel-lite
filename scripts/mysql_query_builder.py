@@ -2,31 +2,10 @@
 import time
 
 import pymysql
-
-
-# Query to fetch user details based on the username
-GET_USER_BY_USERNAME = "SELECT * FROM user WHERE username=%s"
-
-# Query to fetch user details by ID
-GET_USER_BY_ID = "SELECT * FROM user WHERE id=%s"
-
-# Query to fetch all users
-GET_ALL_USERS = "SELECT * FROM user"
-
-# Query to insert a new user
-INSERT_NEW_USER = "INSERT INTO users (username, email, password) VALUES (%s, %s, %s)"
-
-# Query to fetch watched movie posters for a user
-GET_WATCHED_MOVIE_POSTERS = "SELECT poster_url, tconst FROM watched_movies WHERE user_id = %s"
-
-# Query to fetch watched movies for a user
-GET_WATCHED_MOVIES = "SELECT tconst FROM watched_movies WHERE user_id = %s"
-
-# Query to fetch all watched movie details for a user
-GET_ALL_WATCHED_MOVIE_DETAILS = """
-SELECT * FROM watched_movie_detail 
-WHERE user_id=%s;
-"""
+from urllib.parse import urlparse
+import os
+import mysql.connector
+from flask.cli import load_dotenv
 
 # Query to fetch IMDb details of a watched movie
 GET_WATCHED_MOVIE_DETAILS = """
@@ -48,26 +27,6 @@ WHERE
     `title.basics`.tconst = %s;
 """
 
-# Query to fetch all movies in a user's watchlist
-GET_ALL_MOVIES_IN_WATCHLIST = "SELECT * FROM user_watchlist_detail WHERE user_id=%s"
-
-GET_ALL_WATCHED_MOVIE_DETAILS_BY_USER = """
-SELECT * FROM watched_movie_detail 
-WHERE user_id=%s;
-"""
-
-# sql_queries.py
-
-# Queries for log_movie_to_account function
-LOG_MOVIE_TO_ACCOUNT = "INSERT INTO watched_movies (user_id, tconst, watched_at, username, poster_url) VALUES (%s, %s, %s, %s, %s)"
-INSERT_WATCHED_MOVIE_DETAIL = """
-    INSERT INTO watched_movie_detail (user_id, tconst, title, genres, directors, writers, runtimes, rating, votes, poster_url)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
-"""
-
-# Query for query_watched_movie function
-QUERY_WATCHED_MOVIE = "SELECT * FROM watched_movies WHERE user_id=%s AND tconst=%s"
-
 # Queries for update_title_basics_if_empty function
 CHECK_TITLE_BASICS = "SELECT plot, poster_url, language FROM `title.basics` WHERE tconst=%s;"
 UPDATE_TITLE_BASICS = """
@@ -82,13 +41,6 @@ SELECT_MISSING_TITLE_INFO = """
     FROM `title.basics`
     WHERE (plot IS NULL OR poster_url IS NULL OR language IS NULL)
     AND titleType = 'movie'
-"""
-
-# Queries for add_movie_to_watchlist function
-ADD_MOVIE_TO_WATCHLIST = "INSERT INTO user_watchlist (user_id, tconst, added_at, username, poster_url) VALUES (%s, %s, %s, %s, %s)"
-INSERT_USER_WATCHLIST_DETAIL = """
-    INSERT INTO user_watchlist_detail (user_id, tconst, title, genres, directors, writers, runtimes, rating, votes, poster_url)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 """
 
 # Query to get all movies by an actor
@@ -139,6 +91,69 @@ def get_db_connection(db_config):
     return pymysql.connect(
         host=db_config['host'],
         user=db_config['user'],
-        password=db_config['password'],
-        database=db_config['database']
+        password=db_config['caching_sa_password'],
+        database=db_config['imdb']
     )
+
+
+# First, ensure you have the mysql-connector-python package installed.
+# You can install it via pip:
+# pip install mysql-connector-python
+
+
+# Load environment variables from a .env file if present
+load_dotenv()
+
+
+def create_db_connection():
+    """Create a connection to the JawsDB database."""
+    jawsdb_url = os.getenv('JAWSDB_URL')
+    if not jawsdb_url:
+        raise ValueError("JAWSDB_URL is not set in environment variables.")
+
+    parsed_url = urlparse(jawsdb_url)
+    username = parsed_url.username
+    password = parsed_url.password
+    host = parsed_url.hostname
+    database = parsed_url.path[1:]  # Remove the leading '/' from the path
+    port = parsed_url.port or 3306  # Default to port 3306 if not specified
+
+    connection = mysql.connector.connect(
+        user=username,
+        password=password,
+        host=host,
+        database=database,
+        port=port
+    )
+    return connection
+
+
+def perform_query(connection, query):
+    """Perform a database query and return the results."""
+    cursor = connection.cursor()
+    cursor.execute(query)
+    results = cursor.fetchall()
+    cursor.close()
+    return results
+
+
+# Replace 'your_table_name' with the actual table name you want to query
+# sample_query = "SELECT * FROM your_table_name"
+
+# Main execution
+if __name__ == "__main__":
+    try:
+        # Create a database connection
+        db_connection = create_db_connection()
+
+        # Perform a sample query and print results
+        query_results = execute_query(db_connection, sample_query)
+        for row in query_results:
+            print(row)
+
+        # Close the connection
+        db_connection.close()
+    except mysql.connector.Error as err:
+        print(f"Error: {err}")
+    except Exception as e:
+        print(f"An error occurred: {e}")

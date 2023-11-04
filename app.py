@@ -6,8 +6,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from flask_login import LoginManager, login_required, login_user, logout_user, current_user
 
 from db_config import db_config, user_db_config
-from scripts.account import Account
-from scripts.get_user_account import get_user_by_id, get_all_movies_in_watchlist
+
 from scripts.movie_queue import MovieQueue
 from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher, extract_movie_filter_criteria
 from scripts.sort_and_filter import get_filtered_watched_movies, sort_movies
@@ -15,6 +14,35 @@ from scripts.tmdb_data import get_backdrop_image_for_home
 
 app = Flask(__name__)
 app.secret_key = 'some_random_secret_key'  # IMPORTANT: Change this in production
+
+
+# Your existing database configuration
+user_db_config = {
+    'host': 'localhost',
+    'user': 'root',
+    'password': 'caching_sha2_password',
+    'database': 'imdb'
+}
+
+# Database connection configuration for stackhero-network.com MySQL instance
+stackhero_db_config = {
+    'host': '5ehc1n.stackhero-network.com',   # Hostname provided by Stackhero
+    'user': 'root',                           # Username for the database
+    'password': 'R1Rx8lklCLyb26B787Fr0au4OjuD2jMC',  # Password for the database user
+    'database': 'your_database_name',         # The specific database name to connect to
+    'port': 3306                              # Default MySQL port number
+}
+
+# You might need to replace 'your_database_name' with the actual name of the database you want to connect to.
+
+
+# Convert database configuration to SQLAlchemy database URI
+db_uri = f"mysql://{user_db_config['user']}:{user_db_config['password']}@{user_db_config['host']}/{user_db_config['database']}"
+
+# Configure your app to use MySQL
+app.config['SQLALCHEMY_DATABASE_URI'] = db_uri
+
+
 
 default_movie_tmdb_id = 62
 default_backdrop_url = get_backdrop_image_for_home(default_movie_tmdb_id)
