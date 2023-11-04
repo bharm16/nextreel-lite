@@ -5,40 +5,28 @@ import tmdb
 from flask import Flask, render_template, request
 from flask_login import current_user
 
+from config import Config
 from db_config import db_config
 from scripts.movie_queue import MovieQueue
 from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher, extract_movie_filter_criteria
 from scripts.tmdb_data import get_backdrop_image_for_home
 
+# Initialize Flask app with the imported configurations
 app = Flask(__name__)
-app.secret_key = 'some_random_secret_key'  # IMPORTANT: Change this in production
+app.config.from_object(Config)
 
+# Apply the secret key from config
+app.secret_key = app.config['SECRET_KEY']
 
-# Your existing database configuration
-user_db_config = {
-    'host': 'localhost',
-    'user': 'root',
-    'password': 'caching_sha2_password',
-    'database': 'imdb'
-}
+# Set TMDb API key from config
+tmdb.API_KEY = app.config['TMDB_API_KEY']
 
-# Database connection configuration for stackhero-network.com MySQL instance
-stackhero_db_config = {
-    'host': '5ehc1n.stackhero-network.com',   # Hostname provided by Stackhero
-    'user': 'root',                           # Username for the database
-    'password': 'R1Rx8lklCLyb26B787Fr0au4OjuD2jMC',  # Password for the database user
-    'database': 'your_database_name',         # The specific database name to connect to
-    'port': 3306                              # Default MySQL port number
-}
-
+# Use the database configurations from config.py
+user_db_config = Config.USER_DB_CONFIG
+stackhero_db_config = Config.STACKHERO_DB_CONFIG
 # You might need to replace 'your_database_name' with the actual name of the database you want to connect to.
 
 
-# Convert database configuration to SQLAlchemy database URI
-db_uri = f"mysql://{user_db_config['user']}:{user_db_config['password']}@{user_db_config['host']}/{user_db_config['database']}"
-
-# Configure your app to use MySQL
-app.config['SQLALCHEMY_DATABASE_URI'] = db_uri
 
 
 
@@ -60,7 +48,7 @@ global_criteria = {}  # Start with empty criteria; can be updated dynamically
 tmdb.API_KEY = '1ce9398920594a5521f0d53e9b33c52f'
 
 # Initialize movie queue and its manager
-movie_queue = Queue(maxsize=25)
+movie_queue = Queue(maxsize=40)
 movie_queue_manager = MovieQueue(db_config, movie_queue)
 
 # Optionally check that the thread is alive

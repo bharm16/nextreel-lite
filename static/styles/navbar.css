@@ -1,9 +1,14 @@
+
+
+
+
         /* Custom button styles */
         .btn-custom {
             background-color: #19c20c !important;
             color: #ffffff !important;
             border: none;
             margin-right: 15px;
+            margin-top: 30px;
         }
 
         /* Hover effect for custom buttons */
@@ -19,31 +24,42 @@
         border: none !important;
         max-width: 200px;  /* Adjust as needed */
         max-height: 100px;  /* Adjust as needed */
-        overflow: hidden;
-        display: block;
+        overflow: visible;
+        display: flex;
         text-align: center;  /* Center image horizontally */
         line-height: 100px;  /* Adjust to match height for vertical centering */
         position: relative;  /* Ensure proper stacking context */
+        /*vertical-align: top;*/
 
-        margin-top: -20px;
-    }
+        }
 
     /* Styling for the logo image */
     .navbar img {
         max-height: 200px;  /* Adjust as needed */
         max-width: 200px;  /* Adjust as needed */
-        display: block;  /* Ensure image is block-level */
+        /*display: inline;  !* Ensure image is block-level *!*/
+        margin-top: -25px;
+
+
+
     }
         /* Custom navbar styles */
         .navbar {
             position: sticky;
             z-index: 1000;
 
-            max-height: 200px;
+            max-height: 100px;
 
             color: #343a40;  /* dark text color */
-            margin-top:-15px;
-            background-color: transparent;
+            /*margin-top:-15px;*/
+            background-color: #02243f;
+            display: inline;
+            align-items: center;
+            justify-content: space-between;
+            flex-grow: 1;
+
+                        margin-top: -30px;
+
         }
 
 
@@ -66,15 +82,17 @@
         /* Wrapper for logo button */
         .logo-wrapper {
 
-            vertical-align: top;
-            align-content: baseline;
+            /*vertical-align: top;*/
+            /*align-content: baseline;*/
             max-height: 100px;
             margin-left: -30px;
+
+
         }
 
         /* Wrapper for right-side buttons */
         .button-wrapper {
             display: flex;
 
-            vertical-align: bottom;
+
         }
