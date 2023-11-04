@@ -22,8 +22,9 @@ html, body {
     webkit-box-shadow: 0 8px 48px 8px rgba(47, 91, 234, 0.175);
     box-shadow: 0 8px 48px 8px rgba(47, 91, 234, 0.175);
     padding: 60px;
-    background-color: #02243FFF;
-    color: #fff;
+    background-color: transparent;
+        color: #747794;
+
 }
 
 
@@ -104,6 +105,8 @@ html, body {
 .footer_area .row .col-xl-auto {
     padding-right: 25px;
     padding-left: 25px;
+        color: #747794;
+
 }
 
 .single-footer-widget {
@@ -116,7 +119,7 @@ html, body {
 }
 .single-footer-widget .copywrite-text a:hover,
 .single-footer-widget .copywrite-text a:focus {
-    color: #3f43fd;
+    color: #747794FF;
 }
 .single-footer-widget .widget-title {
     margin-bottom: 1.5rem;
@@ -129,15 +132,20 @@ html, body {
 }
 .single-footer-widget .footer_menu li a:hover,
 .single-footer-widget .footer_menu li a:focus {
-    color: #3f43fd;
+    color: #747794FF;
 }
 .single-footer-widget .footer_menu li:last-child a {
     margin-bottom: 0;
+        color: #747794;
+
 }
 
 .footer_social_area {
     position: relative;
     z-index: 1;
+        color: #747794;
+
+
 }
 .footer_social_area a {
     border-radius: 50%;
@@ -145,7 +153,7 @@ html, body {
     text-align: center;
     width: 40px;
     display: inline-block;
-    background-color: #02243f;
+    background-color: #747794;
     line-height: 40px;
     -webkit-box-shadow: none;
     box-shadow: none;
@@ -153,10 +161,12 @@ html, body {
 }
 .footer_social_area a i {
     line-height: 36px;
+        color: #747794;
+
 }
 .footer_social_area a:hover,
 .footer_social_area a:focus {
-    color: #02243f;
+    color: #747794;
 }
 
 @-webkit-keyframes bi-cycle {
@@ -178,9 +188,24 @@ html, body {
 }
 ol li, ul li {
     list-style: none;
+        color: #747794;
+
 }
 
 ol, ul {
     margin: 0;
     padding: 0;
+        color: #747794;
+
+}
+
+
+.section_padding_0_130{
+            color: #747794;
+
+}
+
+a {
+                color: #747794;
+
 }
