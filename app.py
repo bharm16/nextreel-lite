@@ -2,14 +2,12 @@ import time
 from queue import Queue
 
 import tmdb
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
-from flask_login import LoginManager, login_required, login_user, logout_user, current_user
+from flask import Flask, render_template, request
+from flask_login import current_user
 
-from db_config import db_config, user_db_config
-
+from db_config import db_config
 from scripts.movie_queue import MovieQueue
 from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher, extract_movie_filter_criteria
-from scripts.sort_and_filter import get_filtered_watched_movies, sort_movies
 from scripts.tmdb_data import get_backdrop_image_for_home
 
 app = Flask(__name__)

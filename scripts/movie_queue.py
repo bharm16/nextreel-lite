@@ -5,8 +5,8 @@ import time
 from flask_login import current_user
 
 from db_config import db_config
-from scripts.get_user_account import get_all_watched_movie_details_by_user, get_all_movies_in_watchlist
-from scripts.log_movie_to_account import update_title_basics_if_empty
+
+
 from scripts.movie import Movie
 from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher
 from scripts.tmdb_data import get_tmdb_id_by_tconst, get_movie_info_by_tmdb_id
@@ -15,10 +15,6 @@ from scripts.tmdb_data import get_tmdb_id_by_tconst, get_movie_info_by_tmdb_id
 # Import the required modules and functions from your project
 
 
-def _get_user_data():
-    watched_movies = set([movie['tconst'] for movie in get_all_watched_movie_details_by_user(current_user.id)])
-    watchlist_movies = set([movie['tconst'] for movie in get_all_movies_in_watchlist(current_user.id)])
-    return watched_movies, watchlist_movies
 
 
 class MovieQueue:
@@ -64,9 +60,6 @@ class MovieQueue:
         while not self.stop_thread:
             print("Running the populate_movie_queue loop...")
 
-            # If the user is authenticated, update watched and watchlist movies
-            if current_user and current_user.is_authenticated:
-                watched_movies, watchlist_movies = _get_user_data()
 
             # Check if the queue size is less than 2 and populate accordingly
             if self.queue.qsize() < 2:
@@ -132,14 +125,7 @@ class MovieQueue:
                     self.queue.put(movie_data_imdb)
                     # print("Added movie to movie queue.")
 
-                    # Update the database if title basics are empty
-                    update_title_basics_if_empty(
-                        tconst,
-                        movie_data_imdb['plot'],
-                        movie_data_imdb['poster_url'],
-                        movie_data_imdb['languages'],
-                        self.db_config
-                    )
+
                     # print("Updated title basics if they were empty.")
                 else:
                     print("Movie does not pass the watched and watchlist check.")

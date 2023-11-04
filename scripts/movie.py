@@ -3,11 +3,9 @@ import random
 import imdb
 import tmdbsimple as tmdb
 from scripts.db_config_scripts import db_config
-from scripts.mysql_query_builder import get_db_connection
 from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher
 
-# Initialize database connection
-get_db_connection(db_config)
+
 
 # Initialize TMDb API Key
 tmdb.API_KEY = '1ce9398920594a5521f0d53e9b33c52f'  # Replace with your actual TMDb API key
