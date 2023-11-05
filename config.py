@@ -1,6 +1,7 @@
 import os
 import pymysql
 import tmdbsimple
+from flask import Config
 # Removed the conflicting import of Config from flask
 from pymysql.cursors import DictCursor
 from flask.cli import load_dotenv
@@ -17,6 +18,18 @@ if not api_key:
 tmdbsimple.API_KEY = api_key
 
 class Config:
+
+    @staticmethod
+    def get_project_root():
+        # This assumes that if the script is moved, it is still within the project structure.
+        # Adjust the number of '..' based on the script's depth in the project structure.
+        return os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+
+    @staticmethod
+    def get_ssl_cert_path():
+        project_root = Config.get_project_root()
+        return os.getenv('SSL_CERT_PATH') or os.path.join(project_root, 'isrgroot.pem')
+
     # Database configurations
     STACKHERO_DB_CONFIG = {
         'host': os.getenv('STACKHERO_DB_HOST'),
@@ -39,6 +52,9 @@ class Config:
 
     SECRET_KEY = os.getenv('FLASK_SECRET_KEY')
     TMDB_API_KEY = os.getenv('TMDB_API_KEY')
+
+    # Usage
+
 
 
 def create_connection():
@@ -80,3 +96,11 @@ if connection:
 else:
     # Print if the connection was not successful
     print("Database connection could not be established.")
+
+
+# Usage
+project_root = Config.get_project_root()
+ssl_cert_path = Config.get_ssl_cert_path()
+
+print(f"Project Root: {project_root}")
+print(f"SSL Cert Path: {ssl_cert_path}")

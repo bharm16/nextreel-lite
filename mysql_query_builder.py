@@ -9,8 +9,11 @@ from flask.cli import load_dotenv
 
 from config import create_connection, Config
 
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
+
 print(f"Current working directory: {os.getcwd()}")
-print(f"Resolved SSL certificate path: {Config.SSL_CERT_PATH}")
+# print(f"Resolved SSL certificate path: {Config.SSL_CERT_PATH}")
 
 # Query to fetch IMDb details of a watched movie
 GET_WATCHED_MOVIE_DETAILS = """
@@ -64,8 +67,7 @@ WHERE primaryName = %s
 LIMIT 1
 """
 
-import time
-from config import create_connection
+
 
 
 def execute_query(query, params=None, fetch='one'):
