@@ -23,5 +23,7 @@ class Config:
         'user': os.getenv('STACKHERO_DB_USER'),
         'password': os.getenv('STACKHERO_DB_PASSWORD'),
         'database': os.getenv('STACKHERO_DB_NAME'),
-        'port': int(os.getenv('STACKHERO_DB_PORT'))
+        'port': int(os.getenv('STACKHERO_DB_PORT')) if os.getenv('STACKHERO_DB_PORT') else 3306
+        # Replace 3306 with Stackhero's default port if different
     }
+
