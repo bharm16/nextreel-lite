@@ -28,9 +28,6 @@ stackhero_db_config = Config.STACKHERO_DB_CONFIG
 # You might need to replace 'your_database_name' with the actual name of the database you want to connect to.
 
 
-
-
-
 default_movie_tmdb_id = 62
 default_backdrop_url = get_backdrop_image_for_home(default_movie_tmdb_id)
 
@@ -64,8 +61,6 @@ current_displayed_movie = None
 def fetch_and_render_movie(movie_queue, current_displayed_movie, previous_movies_stack, criteria=None):
     """Fetch a movie from the given queue and render the movie template."""
     # Check if the queue is empty
-
-
 
     # Fetch the next movie from the queue
     current_movie_data = movie_queue.get()
@@ -170,16 +165,25 @@ def previous_movie():
                            previous_count=len(previous_movies_stack))
 
 
-# Route for setting filters
+import time
+
+
 @app.route('/setFilters')
 def set_filters():
-    print("entering setFilters")
+    start_time = time.time()
+    print("Entering setFilters")
+
     movie_queue_manager.stop_populate_thread()
+    # Log the time taken to stop the populate thread
+    print(f"Stopping populate thread took {time.time() - start_time} seconds")
+
     movie_queue_manager.empty_queue()
-    movie_queue_manager.is_thread_alive()
+    # Log the time taken to empty the queue
+    print(f"Emptying queue took {time.time() - start_time} seconds")
 
-    print(f"Current size of the movie queue: {movie_queue_manager.queue.qsize()}")
+    # Add more logging statements for other operations...
 
+    print(f"Total time taken for setFilters: {time.time() - start_time} seconds")
     # Render the filter settings template
     return render_template('set_filters.html')
 
