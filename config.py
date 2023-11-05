@@ -1,6 +1,7 @@
 import os
 import pymysql
 import tmdbsimple
+# Removed the conflicting import of Config from flask
 from pymysql.cursors import DictCursor
 from flask.cli import load_dotenv
 
@@ -15,13 +16,7 @@ if not api_key:
 # Initialize the tmdb API with the key fetched from the environment
 tmdbsimple.API_KEY = api_key
 
-
 class Config:
-    # SSL certificate path from an environment variable or a relative path
-    SSL_CERT_PATH = os.getenv('SSL_CERT_PATH', 'certs/isrgroot.pem')
-    SECRET_KEY = os.getenv('FLASK_SECRET_KEY')
-    TMDB_API_KEY = os.getenv('TMDB_API_KEY')
-
     # Database configurations
     STACKHERO_DB_CONFIG = {
         'host': os.getenv('STACKHERO_DB_HOST'),
@@ -31,24 +26,22 @@ class Config:
         'port': int(os.getenv('STACKHERO_DB_PORT')) if os.getenv('STACKHERO_DB_PORT') else 3306
     }
 
+    # Define PROJECT_ROOT using the environment variable or fallback to a default
+    PROJECT_ROOT = os.getenv('PROJECT_ROOT', '/Users/bryceharmon/Desktop/nextreel-lite')
+    SSL_CERT_PATH = os.path.join(PROJECT_ROOT, 'isrgroot.pem')
 
-# SSL certificate path
-SSL_CERT_PATH = "/Users/bryceharmon/Desktop/isrgroot.pem"
-
+    SECRET_KEY = os.getenv('FLASK_SECRET_KEY')
+    TMDB_API_KEY = os.getenv('TMDB_API_KEY')
 
 def create_connection():
     ssl_config = None
 
-    # Only add SSL configuration if SSL_CERT_PATH is provided
-    if Config.SSL_CERT_PATH:
-        # Assuming the current working directory is the root of your project
-        # Update the path to the certificate if your project structure is different
-        ssl_cert_full_path = os.path.join(os.getcwd(), Config.SSL_CERT_PATH)
-
-        if not os.path.isfile(ssl_cert_full_path):
-            print(f"SSL certificate file not found at {ssl_cert_full_path}")
-            return None
-        ssl_config = {'ca': ssl_cert_full_path}
+    # Check if the SSL certificate file exists at the specified path
+    if os.path.isfile(Config.SSL_CERT_PATH):
+        ssl_config = {'ca': Config.SSL_CERT_PATH}
+    else:
+        print(f"SSL certificate file not found at {Config.SSL_CERT_PATH}")
+        return None
 
     print(f"Attempting to connect to the database with SSL configuration: {ssl_config}")
 
@@ -65,16 +58,9 @@ def create_connection():
         )
         print("Database connection established successfully.")
         return connection
-
     except pymysql.MySQLError as err:
         print(f"Error: '{err}'")
         return None
-
-
-# Example usage
-print("Starting the database connection process.")
-connection = create_connection()
-
 
 # Example usage
 print("Starting the database connection process.")

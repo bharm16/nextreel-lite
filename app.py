@@ -46,7 +46,6 @@ global_movie_fetcher = ImdbRandomMovieFetcher(stackhero_db_config)
 global_criteria = {}  # Start with empty criteria; can be updated dynamically
 
 # Set your TMDb API key
-tmdb.API_KEY = '1ce9398920594a5521f0d53e9b33c52f'
 
 # Initialize movie queue and its manager
 movie_queue = Queue(maxsize=40)

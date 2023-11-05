@@ -7,7 +7,10 @@ import os
 import mysql.connector
 from flask.cli import load_dotenv
 
-from config import create_connection
+from config import create_connection, Config
+
+print(f"Current working directory: {os.getcwd()}")
+print(f"Resolved SSL certificate path: {Config.SSL_CERT_PATH}")
 
 # Query to fetch IMDb details of a watched movie
 GET_WATCHED_MOVIE_DETAILS = """
@@ -39,7 +42,7 @@ UPDATE_TITLE_BASICS = """
 
 # Query for update_missing_title_info function
 SELECT_MISSING_TITLE_INFO = """
-    SELECT tconst
+SELECT tconst
     FROM `title.basics`
     WHERE (plot IS NULL OR poster_url IS NULL OR language IS NULL)
     AND titleType = 'movie'
@@ -61,27 +64,68 @@ WHERE primaryName = %s
 LIMIT 1
 """
 
+import time
+from config import create_connection
+
 
 def execute_query(query, params=None, fetch='one'):
-    start_time = time.time()  # Start the timer
+    # Start the timer to measure the execution time of the query
+    start_time = time.time()
 
-    # Establish a database connection using the create_connection function from your config
+    # Try to establish a database connection
     conn = create_connection()
+    if not conn:
+        # If connection is not established, return None or raise an error
+        print("Failed to establish database connection.")
+        return None
 
-    with conn.cursor() as cursor:
-        cursor.execute(query, params)
+    try:
+        # Create a cursor and execute the query
+        with conn.cursor() as cursor:
+            cursor.execute(query, params)
 
-        if fetch == 'one':
-            result = cursor.fetchone()
-        elif fetch == 'all':
-            result = cursor.fetchall()
-        elif fetch == 'none':  # For queries like INSERT, UPDATE, DELETE
-            conn.commit()
-            result = None
+            # Fetch the result based on the fetch type
+            if fetch == 'one':
+                result = cursor.fetchone()
+            elif fetch == 'all':
+                result = cursor.fetchall()
+            elif fetch == 'none':
+                # For queries that do not require data fetching
+                conn.commit()
+                result = None
+            else:
+                raise ValueError(f"Invalid fetch parameter: {fetch}")
 
-    end_time = time.time()  # Stop the timer
-    elapsed_time = end_time - start_time  # Calculate elapsed time
-    # print(f"Execution time for query: {elapsed_time:.5f} seconds")
+        # Stop the timer and calculate the elapsed time
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        # Optionally, you can print or log the execution time
+        # print(f"Execution time for query: {elapsed_time:.5f} seconds")
 
-    conn.close()
-    return result
+        return result
+
+    except Exception as e:
+        # If an error occurs during the query execution, print or log the error
+        print(f"An error occurred while executing the query: {e}")
+        return None
+
+    finally:
+        # Ensure that the connection is closed even if an error occurs
+        if conn:
+            conn.close()
+
+
+# Code to test the execute_query function
+
+# A test parameter for the query
+test_tconst = 'tt0111161'  # Replace with a valid tconst value from your database
+
+# Call the function with the GET_WATCHED_MOVIE_DETAILS query
+result = execute_query(GET_WATCHED_MOVIE_DETAILS, params=(test_tconst,), fetch='one')
+
+# Check if the result is not None
+if result:
+    print("Query executed successfully.")
+    print(result)
+else:
+    print("Query execution failed or returned no results.")
