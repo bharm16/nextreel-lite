@@ -48,7 +48,7 @@ global_criteria = {}  # Start with empty criteria; can be updated dynamically
 # Set your TMDb API key
 
 # Initialize movie queue and its manager
-movie_queue = Queue(maxsize=40)
+movie_queue = Queue(maxsize=25)
 movie_queue_manager = MovieQueue(stackhero_db_config, movie_queue)
 
 # Optionally check that the thread is alive
