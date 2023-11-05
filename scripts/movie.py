@@ -2,7 +2,7 @@ import random
 
 import imdb
 import tmdbsimple as tmdb
-from scripts.db_config_scripts import db_config
+
 from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher
 
 

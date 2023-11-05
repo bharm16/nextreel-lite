@@ -4,9 +4,7 @@ from queue import Queue
 import time
 from flask_login import current_user
 
-from db_config import db_config
-
-
+from config import Config
 from scripts.movie import Movie
 from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher
 from scripts.tmdb_data import get_tmdb_id_by_tconst, get_movie_info_by_tmdb_id
@@ -137,7 +135,7 @@ def main():
     movie_queue = Queue()
 
     # Initialize the MovieQueue object
-    movie_queue_manager = MovieQueue(db_config, movie_queue)
+    movie_queue_manager = MovieQueue(Config.STACKHERO_DB_CONFIG, movie_queue)
 
     # Setting your specific criteria
     criteria = {

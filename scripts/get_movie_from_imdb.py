@@ -1,20 +1,20 @@
 import sys
 
-from scripts.db_config_scripts import db_config
-from scripts.mysql_query_builder import get_db_connection, execute_query
+from config import create_connection
+from scripts.mysql_query_builder import execute_query
 
 print("Python Executable:", sys.executable)
 
 
-get_db_connection(db_config)
+connection = create_connection()
 
 
-def get_random_row_value(db_config, table_name, column_name):
+def get_random_row_value(config, table_name, column_name):
     """Fetch a random row's value from a specific table and column."""
     # SQL query to get a random row directly
     row_query = f"SELECT * FROM `{table_name}` ORDER BY RAND() LIMIT 1"
     # Execute the query and get the row
-    random_row = execute_query(db_config, row_query)
+    random_row = execute_query(row_query)
     return random_row
 
 

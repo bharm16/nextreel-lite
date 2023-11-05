@@ -1,15 +1,12 @@
 import random
 
-import pymysql
+from config import create_connection
 
 
-def get_random_row_value(db_config, table_name, column_name):
-    connection = pymysql.connect(
-        host=db_config['host'],
-        user=db_config['user'],
-        password=db_config['password'],
-        database=db_config['database']
-    )
+# Function to get a random row's value from a specific table and column
+def get_random_row_value(table_name, column_name):
+    # Establish a database connection
+    connection = create_connection()
 
     try:
         with connection.cursor() as cursor:
@@ -31,16 +28,14 @@ def get_random_row_value(db_config, table_name, column_name):
 
         return dict(zip(column_names, random_row))
     finally:
+        # Ensure the connection is closed
         connection.close()
 
 
-def get_rating_by_tconst(db_config, tconst):
-    connection = pymysql.connect(
-        host=db_config['host'],
-        user=db_config['user'],
-        password=db_config['password'],
-        database=db_config['database']
-    )
+# Function to get the rating by tconst
+def get_rating_by_tconst(tconst):
+    # Use the same connection function
+    connection = create_connection()
 
     try:
         with connection.cursor() as cursor:
@@ -50,31 +45,23 @@ def get_rating_by_tconst(db_config, tconst):
 
         return rating_info
     finally:
+        # Ensure the connection is closed
         connection.close()
 
 
 # Example usage
-db_config = {
-    'host': 'localhost',
-    'user': 'root',
-    'password': 'caching_sha2_password',
-    'database': 'imdb'
-}
-random_row = get_random_row_value(db_config, 'title.basics', 'tconst')
-print(random_row)
+try:
+    # Get a random row from the 'title.basics' table
+    random_row = get_random_row_value('title.basics', 'tconst')
+    print(random_row)
 
-tconst = random_row['tconst']
-rating_info = get_rating_by_tconst(db_config, tconst)
-print(f"Rating information for tconst {tconst}:")
-print(rating_info)
-
-
-def get_db_connection():
-    conn = pymysql.connect(
-        database="imdb",
-        user="root",
-        password="caching_sha2_password",
-        host="localhost",
-        port=3306
-    )
-    return conn
+    if random_row:
+        tconst = random_row['tconst']
+        # Get the rating info for the tconst
+        rating_info = get_rating_by_tconst(tconst)
+        print(f"Rating information for tconst {tconst}:")
+        print(rating_info)
+    else:
+        print("No random row was found.")
+except Exception as e:
+    print(f"An error occurred: {e}")

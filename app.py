@@ -5,8 +5,9 @@ import tmdb
 from flask import Flask, render_template, request
 from flask_login import current_user
 
+import config
 from config import Config
-from db_config import db_config
+
 from scripts.movie_queue import MovieQueue
 from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher, extract_movie_filter_criteria
 from scripts.tmdb_data import get_backdrop_image_for_home
@@ -22,7 +23,7 @@ app.secret_key = app.config['SECRET_KEY']
 tmdb.API_KEY = app.config['TMDB_API_KEY']
 
 # Use the database configurations from config.py
-user_db_config = Config.USER_DB_CONFIG
+# user_db_config = Config.USER_DB_CONFIG
 stackhero_db_config = Config.STACKHERO_DB_CONFIG
 # You might need to replace 'your_database_name' with the actual name of the database you want to connect to.
 
@@ -41,7 +42,7 @@ def inject_default_backdrop_url():
 
 
 # Define global variables to hold the movie fetcher and criteria
-global_movie_fetcher = ImdbRandomMovieFetcher(db_config)
+global_movie_fetcher = ImdbRandomMovieFetcher(stackhero_db_config)
 global_criteria = {}  # Start with empty criteria; can be updated dynamically
 
 # Set your TMDb API key
@@ -49,7 +50,7 @@ tmdb.API_KEY = '1ce9398920594a5521f0d53e9b33c52f'
 
 # Initialize movie queue and its manager
 movie_queue = Queue(maxsize=40)
-movie_queue_manager = MovieQueue(db_config, movie_queue)
+movie_queue_manager = MovieQueue(stackhero_db_config, movie_queue)
 
 # Optionally check that the thread is alive
 print("Is populate_thread alive?", movie_queue_manager.is_thread_alive())
@@ -129,7 +130,7 @@ def filtered_movie_endpoint():
     global_criteria = new_criteria
 
     # Initialize a new movie queue and its manager with the updated filter criteria
-    movie_queue_manager = MovieQueue(db_config, movie_queue, global_criteria)
+    movie_queue_manager = MovieQueue(stackhero_db_config, movie_queue, global_criteria)
 
     # Debugging
     print("Extracted criteria:", new_criteria)

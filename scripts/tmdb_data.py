@@ -1,9 +1,12 @@
+import os
+
 import tmdbsimple as tmdb
 
 from scripts.movie import fetch_images_from_tmdb
 
-# Initialize API Key
-tmdb.API_KEY = '1ce9398920594a5521f0d53e9b33c52f'
+api_key = os.getenv('TMDB_API_KEY')
+tmdb.API_KEY = api_key
+
 
 
 # Function to fetch TMDb ID using IMDb tconst

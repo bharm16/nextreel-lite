@@ -7,6 +7,8 @@ import os
 import mysql.connector
 from flask.cli import load_dotenv
 
+from config import create_connection
+
 # Query to fetch IMDb details of a watched movie
 GET_WATCHED_MOVIE_DETAILS = """
 SELECT 
@@ -60,45 +62,26 @@ LIMIT 1
 """
 
 
-def execute_query(db_config, query, params=None, fetch='one'):
+def execute_query(query, params=None, fetch='one'):
     start_time = time.time()  # Start the timer
 
-    conn = pymysql.connect(**db_config)
-    cursor = conn.cursor(pymysql.cursors.DictCursor)
+    # Establish a database connection using the create_connection function from your config
+    conn = create_connection()
 
-    cursor.execute(query, params)
+    with conn.cursor() as cursor:
+        cursor.execute(query, params)
 
-    if fetch == 'one':
-        result = cursor.fetchone()
-    elif fetch == 'all':
-        result = cursor.fetchall()
-    elif fetch == 'none':  # For queries like INSERT, UPDATE, DELETE
-        conn.commit()
-        result = None
+        if fetch == 'one':
+            result = cursor.fetchone()
+        elif fetch == 'all':
+            result = cursor.fetchall()
+        elif fetch == 'none':  # For queries like INSERT, UPDATE, DELETE
+            conn.commit()
+            result = None
 
     end_time = time.time()  # Stop the timer
     elapsed_time = end_time - start_time  # Calculate elapsed time
-
     # print(f"Execution time for query: {elapsed_time:.5f} seconds")
 
-    cursor.close()
     conn.close()
     return result
-
-
-def get_db_connection(db_config):
-    """Establish a connection to the database."""
-    return pymysql.connect(
-        host=db_config['host'],
-        user=db_config['user'],
-        password=db_config['caching_sa_password'],
-        database=db_config['imdb']
-    )
-
-
-# First, ensure you have the mysql-connector-python package installed.
-# You can install it via pip:
-# pip install mysql-connector-python
-
-
-

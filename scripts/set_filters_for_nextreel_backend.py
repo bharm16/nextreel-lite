@@ -1,5 +1,7 @@
 from scripts.mysql_query_builder import execute_query
+from config import Config
 
+dbconfig = Config.STACKHERO_DB_CONFIG
 
 def build_parameters(criteria):
     """Construct the list of parameters for the SQL query based on given criteria."""
@@ -29,7 +31,7 @@ def build_genre_conditions(criteria, parameters):
 
 def build_base_query():
     return """
-  SELECT tb.*
+    SELECT tb.*
     FROM `title.basics` tb
     JOIN `title.ratings` tr ON tb.tconst = tr.tconst
     WHERE tb.startYear BETWEEN %s AND %s
@@ -41,9 +43,9 @@ def build_base_query():
 
 
 class ImdbRandomMovieFetcher:
-    def __init__(self, db_config):
+    def __init__(self, dbconfig):
         """Initialize with database configuration."""
-        self.db_config = db_config
+        self.dbconfig = dbconfig
 
     def fetch_random_movies25(self, criteria):
         """Fetch 25 random movie rows based on given criteria."""
@@ -67,14 +69,14 @@ class ImdbRandomMovieFetcher:
         print("Query Parameters:", parameters)
 
         # Execute the query and fetch the random rows
-        random_rows = execute_query(self.db_config, full_query, parameters, fetch='all')
+        random_rows = execute_query(full_query, parameters, fetch='all')
 
-        # if random_rows:
-        #     print("Fetched 25 random movies:")
-        #     for i, row in enumerate(random_rows):
-        #         print(f"Row {i + 1}: {row}")
-        # else:
-        #     print("No movies found based on the given criteria.")
+        if random_rows:
+            print("Fetched 25 random movies:")
+            for i, row in enumerate(random_rows):
+                print(f"Row {i + 1}: {row}")
+        else:
+            print("No movies found based on the given criteria.")
 
         return random_rows if random_rows else None
 
@@ -99,7 +101,7 @@ class ImdbRandomMovieFetcher:
         print("Query Parameters:", parameters)
 
         # Execute the query and fetch the random row
-        random_row = execute_query(self.db_config, full_query, parameters)
+        random_row = execute_query(self.dbconfig, full_query, parameters)
 
         return random_row if random_row else None
 
@@ -146,10 +148,10 @@ def extract_movie_filter_criteria(form_data):
 
 # Example usage
 if __name__ == "__main__":
-    db_config = {'host': 'localhost',
-                 'user': 'root',
-                 'password': 'caching_sha2_password',
-                 'database': 'imdb'}
+    # db_config = {'host': 'localhost',
+    #              'user': 'root',
+    #              'password': 'caching_sha2_password',
+    #              'database': 'imdb'}
 
     criteria = {'min_year': 2000,
                 'max_year': 2020,
@@ -160,17 +162,17 @@ if __name__ == "__main__":
                 'language': 'en',
                 'genres': ['Action', 'Drama']}
 
-    fetcher = ImdbRandomMovieFetcher(db_config)
+    fetcher = ImdbRandomMovieFetcher(dbconfig)
     random_row = fetcher.fetch_random_movie(criteria)
     print("Random Movie Row:", random_row)
 
     # Test fetching 25 random movies
     random_rows = fetcher.fetch_random_movies25(criteria)
 
-    # # Debugging: Print the fetched rows
-    # if random_rows:
-    #     print("Fetched 25 random movies:")
-    #     for i, row in enumerate(random_rows):
-    #         print(f"Row {i + 1}: {row}")
-    # else:
-    #     print("No movies found based on the given criteria.")
+    # Debugging: Print the fetched rows
+    if random_rows:
+        print("Fetched 25 random movies:")
+        for i, row in enumerate(random_rows):
+            print(f"Row {i + 1}: {row}")
+    else:
+        print("No movies found based on the given criteria.")
