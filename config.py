@@ -26,12 +26,20 @@ class Config:
         'port': int(os.getenv('STACKHERO_DB_PORT')) if os.getenv('STACKHERO_DB_PORT') else 3306
     }
 
-    # Define PROJECT_ROOT using the environment variable or fallback to a default
-    PROJECT_ROOT = os.getenv('PROJECT_ROOT', '/Users/bryceharmon/Desktop/nextreel-lite')
-    SSL_CERT_PATH = os.path.join(PROJECT_ROOT, 'isrgroot.pem')
+    # Check if running on Heroku by looking for a unique Heroku environment variable
+    if os.getenv('DYNO'):
+        # If running on Heroku, set the PROJECT_ROOT to '/app'
+        PROJECT_ROOT = '/app'
+    else:
+        # If not running on Heroku, use the local development path or another environment variable
+        PROJECT_ROOT = os.getenv('PROJECT_ROOT', '/Users/bryceharmon/Desktop/nextreel-lite')
+
+    # SSL_CERT_PATH can be set through an environment variable or determined based on the PROJECT_ROOT
+    SSL_CERT_PATH = os.getenv('SSL_CERT_PATH') or os.path.join(PROJECT_ROOT, 'isrgroot.pem')
 
     SECRET_KEY = os.getenv('FLASK_SECRET_KEY')
     TMDB_API_KEY = os.getenv('TMDB_API_KEY')
+
 
 def create_connection():
     ssl_config = None

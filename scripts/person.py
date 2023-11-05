@@ -3,7 +3,7 @@ from concurrent.futures.thread import ThreadPoolExecutor
 import imdb
 
 from scripts.movie import Movie
-from scripts.mysql_query_builder import GET_NCONST_FROM_ACTOR_NAME_QUERY, execute_query, \
+from mysql_query_builder import GET_NCONST_FROM_ACTOR_NAME_QUERY, execute_query, \
     GET_ALL_MOVIES_BY_ACTOR_QUERY
 
 

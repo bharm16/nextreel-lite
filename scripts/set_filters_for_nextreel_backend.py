@@ -1,4 +1,4 @@
-from scripts.mysql_query_builder import execute_query
+from mysql_query_builder import execute_query
 from config import Config
 
 dbconfig = Config.STACKHERO_DB_CONFIG

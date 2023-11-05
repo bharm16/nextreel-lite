@@ -1,7 +1,7 @@
 import sys
 
 from config import create_connection
-from scripts.mysql_query_builder import execute_query
+from mysql_query_builder import execute_query
 
 print("Python Executable:", sys.executable)
 
