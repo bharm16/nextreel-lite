@@ -1,27 +1,29 @@
+import os
+
 import pymysql
 
 import config
 
 
-# db_config = {
-#     'host': 'localhost',
-#     'user': 'root',
-#     'password': 'caching_sha2_password',
-#     'database': 'imdb'
-# }
-#
-# user_db_config = {
-#     'host': 'localhost',
-#     'user': 'root',
-#     'password': 'caching_sha2_password',
-#     'database': 'UserAccounts'
-# }
+print(f"Current working directory before change: {os.getcwd()}")
+
+# Use os.path.dirname to go up one level from the current script's directory
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# Now change the working directory to the parent directory
+os.chdir(parent_dir)
+
+# Finally, print the new working directory to confirm the change
+print(f"Current working directory after change: {os.getcwd()}")
+
+
+
 
 
 def show_create_statements_for_all_tables(db_config):
     try:
         # Connecting to the database
-        conn = pymysql.connect(**db_config)
+        conn = config.create_connection()
         print(f"Connected to database: {db_config['database']}")
 
         cursor = conn.cursor()
