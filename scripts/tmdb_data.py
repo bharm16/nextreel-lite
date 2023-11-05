@@ -8,7 +8,6 @@ api_key = os.getenv('TMDB_API_KEY')
 tmdb.API_KEY = api_key
 
 
-
 # Function to fetch TMDb ID using IMDb tconst
 def get_tmdb_id_by_tconst(tconst):
     find = tmdb.Find(tconst)
@@ -53,6 +52,7 @@ def get_backdrop_image_for_home(tmdb_id):
             backdrop_url = get_full_image_url(backdrops[0])  # Using the first backdrop image
             return backdrop_url
     return None
+
 
 # Modify this function to return all backdrop images
 def get_all_backdrop_images(tmdb_id):
