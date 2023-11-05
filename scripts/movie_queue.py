@@ -3,21 +3,18 @@ import queue
 import threading
 from queue import Queue
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 from config import Config
 from scripts.movie import Movie
 from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher
 from scripts.tmdb_data import get_tmdb_id_by_tconst, get_movie_info_by_tmdb_id
 
-
 # Use os.path.dirname to go up one level from the current script's directory
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Now change the working directory to the parent directory
 os.chdir(parent_dir)
-
-
-# Import the required modules and functions from your project
 
 
 class MovieQueue:
@@ -77,67 +74,57 @@ class MovieQueue:
     def is_thread_alive(self):
         return self.populate_thread.is_alive()
 
+    def fetch_and_enqueue_movie(self, tconst):
+        """Fetch and enqueue movie data in a thread-safe manner."""
+        with self.lock:
+            if self.stop_thread:
+                # If the stopping flag is set, do not continue fetching
+                return
+            # Check if the queue size is at capacity
+            if self.queue.qsize() >= 10:
+                return
+
+        # Fetch the movie data
+        movie = Movie(tconst, self.db_config)
+        movie_data_imdb = movie.get_movie_data()
+
+        # Fetch additional movie data from TMDb
+        tmdb_id = get_tmdb_id_by_tconst(tconst)
+        movie_data_tmdb = get_movie_info_by_tmdb_id(tmdb_id)
+
+        # Combine the IMDb and TMDb data
+        movie_data = {
+            'IMDb': movie_data_imdb,
+            'TMDb': movie_data_tmdb
+        }
+        movie_data_imdb['backdrop_path'] = movie_data_tmdb.get('backdrop_path', None)
+
+        # Enqueue the movie data
+        with self.lock:
+            self.queue.put(movie_data_imdb)
+
     def load_movies_into_queue(self, watched_movies, watchlist_movies):
         # Fetch a batch of 25 movies based on the criteria
         rows = self.movie_fetcher.fetch_random_movies25(self.criteria)
-        # print(f"Fetched {len(rows)} movies.")
 
-        # If there are rows to process
-        if rows:
-            # Iterate through each row
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            futures = []
             for row in rows:
-                # Acquire the lock and check the stop_thread flag
-                with self.lock:
-                    if self.stop_thread:
-                        print("Stopping populate_movie_queue because stop_thread is True.")
-                        return  # Stop the current operation
-
-                # Get the tconst value from the row
                 tconst = row['tconst'] if row else None
-                # print(f"Processing movie with tconst: {tconst}")
-
-                # Check if the movie is not in watched or watchlist sets
                 if tconst and (tconst not in watched_movies) and (tconst not in watchlist_movies):
-                    # print("Movie passes the watched and watchlist check.")
+                    # Submit the task to the ThreadPoolExecutor
+                    future = executor.submit(self.fetch_and_enqueue_movie, tconst)
+                    futures.append(future)
 
-                    # Wait until the queue size drops below 10
-                    while self.queue.qsize() >= 10:
-                        # print("Queue size is 10 or more, waiting...")
-                        time.sleep(1)  # Wait for 1 second before re-checking
-
-                    # Create a Movie object and fetch its IMDb data
-                    movie = Movie(tconst, self.db_config)
-                    movie_data_imdb = movie.get_movie_data()
-
-                    # Fetch additional movie data from TMDb
-                    tmdb_id = get_tmdb_id_by_tconst(tconst)
-                    movie_data_tmdb = get_movie_info_by_tmdb_id(tmdb_id)
-
-                    # Combine the IMDb and TMDb data
-                    movie_data = {
-                        'IMDb': movie_data_imdb,
-                        'TMDb': movie_data_tmdb
-                    }
-                    movie_data_imdb['backdrop_path'] = movie_data_tmdb.get('backdrop_path', None)
-
-                    # Add the movie data to the queue
-                    self.queue.put(movie_data_imdb)
-                    # print("Added movie to movie queue.")
-
-                    # print("Updated title basics if they were empty.")
-                else:
-                    print("Movie does not pass the watched and watchlist check.")
+            # Wait for all futures to complete
+            for future in futures:
+                future.result()
 
 
 def main():
-    # Assuming db_config is a dictionary containing your DB settings
-
     movie_queue = Queue()
-
-    # Initialize the MovieQueue object
     movie_queue_manager = MovieQueue(Config.STACKHERO_DB_CONFIG, movie_queue)
 
-    # Setting your specific criteria
     criteria = {
         "min_year": 1900,
         "max_year": 2023,
