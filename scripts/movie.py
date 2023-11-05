@@ -1,3 +1,4 @@
+import os
 import random
 
 import imdb
@@ -10,6 +11,12 @@ from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher
 tmdb.API_KEY = '1ce9398920594a5521f0d53e9b33c52f'  # Replace with your actual TMDb API key
 
 db_config = config.Config.STACKHERO_DB_CONFIG
+
+# Use os.path.dirname to go up one level from the current script's directory
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# Now change the working directory to the parent directory
+os.chdir(parent_dir)
 
 
 def get_tmdb_id_by_tconst(tconst):

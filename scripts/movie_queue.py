@@ -1,3 +1,4 @@
+import os
 import queue
 import threading
 from queue import Queue
@@ -7,6 +8,13 @@ from config import Config
 from scripts.movie import Movie
 from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher
 from scripts.tmdb_data import get_tmdb_id_by_tconst, get_movie_info_by_tmdb_id
+
+
+# Use os.path.dirname to go up one level from the current script's directory
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# Now change the working directory to the parent directory
+os.chdir(parent_dir)
 
 
 # Import the required modules and functions from your project
