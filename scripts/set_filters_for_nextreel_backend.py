@@ -1,7 +1,15 @@
+import os
+
 from mysql_query_builder import execute_query
 from config import Config
 
 dbconfig = Config.STACKHERO_DB_CONFIG
+
+# Use os.path.dirname to go up one level from the current script's directory
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# Now change the working directory to the parent directory
+os.chdir(parent_dir)
 
 def build_parameters(criteria):
     """Construct the list of parameters for the SQL query based on given criteria."""

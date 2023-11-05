@@ -3,12 +3,13 @@ import random
 import imdb
 import tmdbsimple as tmdb
 
+import config
 from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher
-
-
 
 # Initialize TMDb API Key
 tmdb.API_KEY = '1ce9398920594a5521f0d53e9b33c52f'  # Replace with your actual TMDb API key
+
+db_config = config.Config.STACKHERO_DB_CONFIG
 
 
 def get_tmdb_id_by_tconst(tconst):
@@ -33,7 +34,6 @@ def get_cast_info_by_tmdb_id(tmdb_id):
             'character': character_name  # Include the character name
         })
     return cast_info
-
 
 
 def get_full_image_url(profile_path, size='w185'):
@@ -245,7 +245,8 @@ def main(criteria):
     # Print cast information line by line
     print("Cast Information:")
     for cast_member in movie_data.get("cast", []):
-        print(f"Name: {cast_member['name']}, Character: {cast_member['character']}, Image URL: {cast_member['image_url']}")
+        print(
+            f"Name: {cast_member['name']}, Character: {cast_member['character']}, Image URL: {cast_member['image_url']}")
 
 
 if __name__ == "__main__":

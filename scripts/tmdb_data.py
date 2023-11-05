@@ -7,6 +7,13 @@ from scripts.movie import fetch_images_from_tmdb
 api_key = os.getenv('TMDB_API_KEY')
 tmdb.API_KEY = api_key
 
+# Use os.path.dirname to go up one level from the current script's directory
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# Now change the working directory to the parent directory
+os.chdir(parent_dir)
+
+
 
 # Function to fetch TMDb ID using IMDb tconst
 def get_tmdb_id_by_tconst(tconst):

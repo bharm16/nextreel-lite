@@ -1,4 +1,5 @@
 import logging
+import os
 import threading
 import time
 
@@ -9,6 +10,13 @@ from mysql_query_builder import execute_query
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
+
+# Use os.path.dirname to go up one level from the current script's directory
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# Now change the working directory to the parent directory
+os.chdir(parent_dir)
+
 
 
 # Function to identify the language of a title
@@ -135,13 +143,7 @@ lang_map = {
 # Note: Some languages are not supported by langdetect and have been commented out.
 
 
-# Database connection setup
-db_config = {
-    'host': 'localhost',
-    'user': 'root',
-    'password': 'caching_sha2_password',
-    'database': 'imdb'
-}
+
 
 
 # Method to get DB connection (from get_movie_from_imdb.py)

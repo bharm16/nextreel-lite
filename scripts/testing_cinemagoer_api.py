@@ -1,4 +1,13 @@
+import os
+
 from imdb import Cinemagoer
+
+# Use os.path.dirname to go up one level from the current script's directory
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# Now change the working directory to the parent directory
+os.chdir(parent_dir)
+
 
 # create an instance of the Cinemagoer class
 ia = Cinemagoer()

@@ -1,9 +1,17 @@
+import os
 import sys
 
 from config import create_connection
 from mysql_query_builder import execute_query
 
 print("Python Executable:", sys.executable)
+
+# Use os.path.dirname to go up one level from the current script's directory
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# Now change the working directory to the parent directory
+os.chdir(parent_dir)
+
 
 
 connection = create_connection()

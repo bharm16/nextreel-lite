@@ -2,7 +2,6 @@ import queue
 import threading
 from queue import Queue
 import time
-from flask_login import current_user
 
 from config import Config
 from scripts.movie import Movie
@@ -11,8 +10,6 @@ from scripts.tmdb_data import get_tmdb_id_by_tconst, get_movie_info_by_tmdb_id
 
 
 # Import the required modules and functions from your project
-
-
 
 
 class MovieQueue:
@@ -57,7 +54,6 @@ class MovieQueue:
         # Loop infinitely, but check the stop_thread flag at each iteration
         while not self.stop_thread:
             print("Running the populate_movie_queue loop...")
-
 
             # Check if the queue size is less than 2 and populate accordingly
             if self.queue.qsize() < 2:
@@ -109,8 +105,6 @@ class MovieQueue:
                     tmdb_id = get_tmdb_id_by_tconst(tconst)
                     movie_data_tmdb = get_movie_info_by_tmdb_id(tmdb_id)
 
-
-
                     # Combine the IMDb and TMDb data
                     movie_data = {
                         'IMDb': movie_data_imdb,
@@ -118,11 +112,9 @@ class MovieQueue:
                     }
                     movie_data_imdb['backdrop_path'] = movie_data_tmdb.get('backdrop_path', None)
 
-
                     # Add the movie data to the queue
                     self.queue.put(movie_data_imdb)
                     # print("Added movie to movie queue.")
-
 
                     # print("Updated title basics if they were empty.")
                 else:
@@ -156,7 +148,6 @@ def main():
     movie_queue_manager.stop_populate_thread()
 
     movie_queue_manager.empty_queue()
-
 
     # Check if the thread is still alive
     print(f"Is thread still alive? {movie_queue_manager.is_thread_alive()}")
