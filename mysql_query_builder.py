@@ -1,13 +1,8 @@
 # queries.py
+import os
 import time
 
-import pymysql
-from urllib.parse import urlparse
-import os
-import mysql.connector
-from flask.cli import load_dotenv
-
-from config import create_connection, Config
+from config import create_connection
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 

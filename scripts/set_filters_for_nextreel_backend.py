@@ -6,11 +6,14 @@ from config import Config
 dbconfig = Config.STACKHERO_DB_CONFIG
 
 # Use os.path.dirname to go up one level from the current script's directory
+# Use os.path.dirname to go up one level from the current script's directory
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Now change the working directory to the parent directory
 os.chdir(parent_dir)
 
+# Finally, print the new working directory to confirm the change
+print(f"Current working directory after change: {os.getcwd()}")
 def build_parameters(criteria):
     """Construct the list of parameters for the SQL query based on given criteria."""
     # Note: Added "LIKE" clause for the language
@@ -153,34 +156,34 @@ def extract_movie_filter_criteria(form_data):
 
     return criteria
 
-
-# Example usage
-if __name__ == "__main__":
-    # db_config = {'host': 'localhost',
-    #              'user': 'root',
-    #              'password': 'caching_sha2_password',
-    #              'database': 'imdb'}
-
-    criteria = {'min_year': 2000,
-                'max_year': 2020,
-                'min_rating': 7,
-                'max_rating': 10,
-                'min_votes': 10000,
-                'title_type': 'movie',
-                'language': 'en',
-                'genres': ['Action', 'Drama']}
-
-    fetcher = ImdbRandomMovieFetcher(dbconfig)
-    random_row = fetcher.fetch_random_movie(criteria)
-    print("Random Movie Row:", random_row)
-
-    # Test fetching 25 random movies
-    random_rows = fetcher.fetch_random_movies25(criteria)
-
-    # Debugging: Print the fetched rows
-    if random_rows:
-        print("Fetched 25 random movies:")
-        for i, row in enumerate(random_rows):
-            print(f"Row {i + 1}: {row}")
-    else:
-        print("No movies found based on the given criteria.")
+#
+# # Example usage
+# if __name__ == "__main__":
+#     # db_config = {'host': 'localhost',
+#     #              'user': 'root',
+#     #              'password': 'caching_sha2_password',
+#     #              'database': 'imdb'}
+#
+#     criteria = {'min_year': 2000,
+#                 'max_year': 2020,
+#                 'min_rating': 7,
+#                 'max_rating': 10,
+#                 'min_votes': 10000,
+#                 'title_type': 'movie',
+#                 'language': 'en',
+#                 'genres': ['Action', 'Drama']}
+#
+#     fetcher = ImdbRandomMovieFetcher(dbconfig)
+#     random_row = fetcher.fetch_random_movie(criteria)
+#     print("Random Movie Row:", random_row)
+#
+#     # Test fetching 25 random movies
+#     random_rows = fetcher.fetch_random_movies25(criteria)
+#
+#     # Debugging: Print the fetched rows
+#     if random_rows:
+#         print("Fetched 25 random movies:")
+#         for i, row in enumerate(random_rows):
+#             print(f"Row {i + 1}: {row}")
+#     else:
+#         print("No movies found based on the given criteria.")

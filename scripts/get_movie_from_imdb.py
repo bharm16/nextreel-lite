@@ -12,6 +12,8 @@ parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Now change the working directory to the parent directory
 os.chdir(parent_dir)
 
+# Finally, print the new working directory to confirm the change
+print(f"Current working directory after change: {os.getcwd()}")
 
 
 connection = create_connection()

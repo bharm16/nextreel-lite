@@ -3,13 +3,14 @@ import random
 
 from config import create_connection
 
-
 # Use os.path.dirname to go up one level from the current script's directory
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Now change the working directory to the parent directory
 os.chdir(parent_dir)
 
+# Finally, print the new working directory to confirm the change
+print(f"Current working directory after change: {os.getcwd()}")
 
 
 # Function to get a random row's value from a specific table and column

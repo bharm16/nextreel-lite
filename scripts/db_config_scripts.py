@@ -5,7 +5,7 @@ import pymysql
 import config
 
 
-print(f"Current working directory before change: {os.getcwd()}")
+# print(f"Current working directory before change: {os.getcwd()}")
 
 # Use os.path.dirname to go up one level from the current script's directory
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
