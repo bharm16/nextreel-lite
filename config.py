@@ -17,6 +17,8 @@ tmdbsimple.API_KEY = api_key
 
 
 class Config:
+    # SSL certificate path from an environment variable or a relative path
+    SSL_CERT_PATH = os.getenv('SSL_CERT_PATH', 'certs/isrgroot.pem')
     SECRET_KEY = os.getenv('FLASK_SECRET_KEY')
     TMDB_API_KEY = os.getenv('TMDB_API_KEY')
 
@@ -35,17 +37,23 @@ SSL_CERT_PATH = "/Users/bryceharmon/Desktop/isrgroot.pem"
 
 
 def create_connection():
-    # Define SSL configuration
-    ssl_config = {'ca': SSL_CERT_PATH}
+    ssl_config = None
 
-    # Print the SSL configuration for debugging
+    # Only add SSL configuration if SSL_CERT_PATH is provided
+    if Config.SSL_CERT_PATH:
+        # Assuming the current working directory is the root of your project
+        # Update the path to the certificate if your project structure is different
+        ssl_cert_full_path = os.path.join(os.getcwd(), Config.SSL_CERT_PATH)
+
+        if not os.path.isfile(ssl_cert_full_path):
+            print(f"SSL certificate file not found at {ssl_cert_full_path}")
+            return None
+        ssl_config = {'ca': ssl_cert_full_path}
+
     print(f"Attempting to connect to the database with SSL configuration: {ssl_config}")
 
     try:
-        # Print before attempting to connect
         print("Establishing database connection...")
-
-        # Establish a secure connection using the SSL configuration
         connection = pymysql.connect(
             host=Config.STACKHERO_DB_CONFIG['host'],
             user=Config.STACKHERO_DB_CONFIG['user'],
@@ -55,15 +63,17 @@ def create_connection():
             cursorclass=DictCursor,
             ssl=ssl_config
         )
-
-        # Print after successful connection
         print("Database connection established successfully.")
         return connection
 
     except pymysql.MySQLError as err:
-        # Print the error if connection fails
         print(f"Error: '{err}'")
         return None
+
+
+# Example usage
+print("Starting the database connection process.")
+connection = create_connection()
 
 
 # Example usage
