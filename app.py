@@ -42,6 +42,6 @@ def filtered_movie_endpoint():
 
 # ... Include additional routes and logic as needed ...
 
-if __name__ == "__main__":
-    # Run the Flask app
-    app.run(debug=True)
+# if __name__ == "__main__":
+#     # Run the Flask app
+#     app.run(debug=True)
