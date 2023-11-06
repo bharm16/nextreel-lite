@@ -15,6 +15,7 @@ parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(parent_dir)
 print(f"Current working directory after change: {os.getcwd()}")
 
+
 class MovieQueue:
     _instance = None  # Class attribute to store the singleton instance
 
@@ -71,8 +72,6 @@ class MovieQueue:
             print(f"Emptied the movie queue.")
 
     def populate(self):
-        watched_movies = set()
-        watchlist_movies = set()
         last_message = ""  # Keep track of the last printed message to avoid repetition
 
         while not self.stop_thread:
@@ -92,7 +91,7 @@ class MovieQueue:
 
                 # Load more movies if the queue size is less than 2
                 if current_queue_size < 2:
-                    self.load_movies_into_queue(watched_movies, watchlist_movies)
+                    self.load_movies_into_queue()
 
                 time.sleep(1)  # Sleep before the next iteration
 
@@ -137,14 +136,14 @@ class MovieQueue:
             # Print the title of the movie instead of the tconst
             print(f"Enqueued movie '{movie_data_imdb.get('title', 'N/A')}' with tconst: {tconst}")
 
-    def load_movies_into_queue(self, watched_movies, watchlist_movies):
+    def load_movies_into_queue(self):
         rows = self.movie_fetcher.fetch_random_movies25(self.criteria)
 
         with ThreadPoolExecutor(max_workers=5) as executor:
             futures = []
             for row in rows:
                 tconst = row['tconst'] if row else None
-                if tconst and tconst not in watched_movies and tconst not in watchlist_movies:
+                if tconst:
                     future = executor.submit(self.fetch_and_enqueue_movie, tconst)
                     futures.append(future)
 
@@ -163,6 +162,7 @@ class MovieQueue:
             self.populate_thread = threading.Thread(target=self.populate)
             self.populate_thread.daemon = True
             self.populate_thread.start()
+
 
 def main():
     movie_queue = Queue()
@@ -185,6 +185,7 @@ def main():
     movie_queue_manager.empty_queue()
 
     print(f"Is the MovieQueue thread still alive? {movie_queue_manager.is_thread_alive()}")
+
 
 if __name__ == "__main__":
     main()
