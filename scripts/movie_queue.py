@@ -94,7 +94,7 @@ class MovieQueue:
         with self.lock:
             if self.stop_thread:
                 return
-            if self.queue.qsize() >= 20:
+            if self.queue.qsize() >= 10:
                 return
 
         # Fetch movie data from IMDb

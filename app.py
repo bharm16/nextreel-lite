@@ -47,7 +47,7 @@ global_criteria = {}  # Start with empty criteria; can be updated dynamically
 # Set your TMDb API key
 
 # Initialize movie queue and its manager
-movie_queue = Queue(maxsize=25)
+movie_queue = Queue(maxsize=15)
 movie_queue_manager = MovieQueue(stackhero_db_config, movie_queue)
 
 # Optionally check that the thread is alive
@@ -129,33 +129,36 @@ def previous_movie():
 
 @app.route('/filtered_movie', methods=['POST'])
 def filtered_movie_endpoint():
-    global movie_queue_manager  # Ensure you're modifying the global instance
-
+    global global_criteria, movie_queue_manager
     # Extract new filter criteria from the form
     new_criteria = extract_movie_filter_criteria(request.form)
 
-    # Update global criteria
+    # Update the global criteria with the new filters
     global_criteria = new_criteria
 
-    # Stop the existing movie queue thread before creating a new one
+    # If the movie fetch thread is alive, we stop it before creating a new one with the updated criteria
     if movie_queue_manager.is_thread_alive():
         movie_queue_manager.stop_populate_thread()  # Signal the thread to stop
         movie_queue_manager.populate_thread.join()  # Wait for the thread to finish
 
-    # Empty the queue to clear any movies from the old criteria
+    # Empty the movie queue to remove movies that don't match the new criteria
     movie_queue_manager.empty_queue()
 
-    # Initialize a new movie queue and its manager with the updated filter criteria
+    # Create a new movie queue manager with the updated filter criteria
     movie_queue_manager = MovieQueue(stackhero_db_config, movie_queue, global_criteria)
 
-    # Debugging
+    # For debugging purposes, we print out the new criteria and check if the thread is alive
     print("Extracted criteria:", new_criteria)
     print("Is populate_thread alive after restarting?", movie_queue_manager.is_thread_alive())
 
-    # Wait for a few seconds to give the thread some time to populate the queue
+    # We give the thread a few seconds to populate the queue with movies that match the new criteria
     time.sleep(5)
 
-    return fetch_and_render_movie(movie_queue, previous_movies_stack, criteria=new_criteria)
+    # We return the rendered movie without passing any arguments since it now relies on global state
+    return fetch_and_render_movie()
+
+# Rest of the code remains unchanged...
+
 
 
 @app.route('/')

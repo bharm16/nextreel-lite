@@ -73,7 +73,7 @@ class ImdbRandomMovieFetcher:
         # Complete the query by appending the genre conditions, if any
         # Changed LIMIT 1 to LIMIT 25 to fetch 25 rows instead of 1
         full_query = base_query + (
-            f" AND ({genre_conditions[0]})" if genre_conditions else "") + " ORDER BY RAND() LIMIT 25"
+            f" AND ({genre_conditions[0]})" if genre_conditions else "") + " ORDER BY RAND() LIMIT 15"
 
         # Debugging lines to print the generated SQL query and parameters
         print("Generated SQL Query:", full_query)
