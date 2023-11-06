@@ -1,3 +1,5 @@
+import logging
+import queue
 import time
 from queue import Queue
 
@@ -58,58 +60,71 @@ previous_movies_stack = []
 current_displayed_movie = None
 
 
-def fetch_and_render_movie(movie_queue, current_displayed_movie, previous_movies_stack, criteria=None):
-    """Fetch a movie from the given queue and render the movie template."""
-    # Check if the queue is empty
+# Helper function to fetch and render a movie
+def fetch_and_render_movie():
+    global current_displayed_movie, previous_movies_stack
+    if current_displayed_movie is None and not movie_queue.empty():
+        current_displayed_movie = movie_queue.get()
+        print(f"Fetched new movie: {current_displayed_movie['title']}")
+    elif current_displayed_movie is None:
+        print("Queue is empty, and no current movie is displayed.")
+        # Handle the empty queue scenario, perhaps by rendering a different template or showing a message
+        return render_template('no_movie.html')
 
-    # Fetch the next movie from the queue
-    current_movie_data = movie_queue.get()
-
-    # Update the global current_displayed_movie
-    current_displayed_movie = current_movie_data
-
-    # Append the current displayed movie to the previous_movies_stack
-    previous_movies_stack.append(current_movie_data)
-
-    # Render the movie template, also passing the length of previous_movies_stack for UI control
     return render_template('movie.html',
-                           movie=current_movie_data,
-
+                           movie=current_displayed_movie,
                            previous_count=len(previous_movies_stack))
 
 
+# Route for displaying the current movie or the next movie in the queue
 @app.route('/movie')
 def movie():
-    global movie_queue, current_displayed_movie, previous_movies_stack  # Declare global variables
-    # Wait for a few seconds to give the thread some time to populate the queue
-    return fetch_and_render_movie(movie_queue, current_displayed_movie, previous_movies_stack)
+    return fetch_and_render_movie()
 
 
+# Route for displaying the next movie
 @app.route('/next_movie', methods=['GET', 'POST'])
 def next_movie():
-    global current_displayed_movie  # Declare global variables
-
-    # Append the current displayed movie to the previous_movies_stack
-    if current_displayed_movie is not None:
+    global current_displayed_movie, previous_movies_stack, future_movies_stack
+    if current_displayed_movie:
         previous_movies_stack.append(current_displayed_movie)
+        print(f"Moved current movie to previous stack: {current_displayed_movie['title']}")
 
-    next_movie_data = None
-
-    # Check if future_movies_stack has any movies to go forward to
     if future_movies_stack:
-        next_movie_data = future_movies_stack.pop()
+        # If there are movies in the future stack, use the last one as the next movie
+        current_displayed_movie = future_movies_stack.pop()
+        print(f"Retrieved next movie from future stack: {current_displayed_movie['title']}")
+    elif not movie_queue.empty():
+        # Otherwise, fetch the next movie from the queue
+        current_displayed_movie = movie_queue.get()
+        print(f"Fetched next movie from queue: {current_displayed_movie['title']}")
     else:
-        # If no future movies, get a new movie from the queue
-        next_movie_data = movie_queue.get()
+        # If both the future stack and the queue are empty, handle that scenario
+        current_displayed_movie = None
+        print("No movies in future stack and queue is empty.")
+        # You could render a different template or show a message here as well
 
-    # Update the current displayed movie
-    current_displayed_movie = next_movie_data
+    return fetch_and_render_movie()
 
-    # Render the movie template, also passing the length of previous_movies_stack for UI control
-    return render_template('movie.html',
-                           movie=next_movie_data,
-                           current_user=current_user,
-                           previous_count=len(previous_movies_stack))
+
+# Route for moving to the previous movie
+@app.route('/previous_movie', methods=['GET', 'POST'])
+def previous_movie():
+    global current_displayed_movie, previous_movies_stack, future_movies_stack
+    if current_displayed_movie:
+        # Move the current movie to the future stack when going back to a previous movie
+        future_movies_stack.append(current_displayed_movie)
+        print(f"Moved current movie to future stack: {current_displayed_movie['title']}")
+
+    if previous_movies_stack:
+        # Retrieve the last movie from the previous stack
+        current_displayed_movie = previous_movies_stack.pop()
+        print(f"Retrieved previous movie: {current_displayed_movie['title']}")
+    else:
+        print("No previous movies to retrieve.")
+        # Handle the case where there are no previous movies
+
+    return fetch_and_render_movie()
 
 
 @app.route('/filtered_movie', methods=['POST'])
@@ -140,7 +155,7 @@ def filtered_movie_endpoint():
     # Wait for a few seconds to give the thread some time to populate the queue
     time.sleep(5)
 
-    return fetch_and_render_movie(movie_queue, current_displayed_movie, previous_movies_stack, criteria=new_criteria)
+    return fetch_and_render_movie(movie_queue, previous_movies_stack, criteria=new_criteria)
 
 
 @app.route('/')
@@ -152,24 +167,6 @@ def home():
 global last_displayed_movie
 
 
-@app.route('/previous_movie', methods=['GET', 'POST'])
-def previous_movie():
-    global current_displayed_movie, future_movies_stack  # Declare global variables
-
-    # Append the current displayed movie to the future_movies_stack
-    if current_displayed_movie is not None:
-        future_movies_stack.append(current_displayed_movie)
-
-    # Pop the previous movie from previous_movies_stack
-    previous_movie_data = previous_movies_stack.pop()
-
-    # Update the current displayed movie
-    current_displayed_movie = previous_movie_data
-
-    # Render the movie template, also passing the length of previous_movies_stack for UI control
-    return render_template('movie.html',
-                           movie=previous_movie_data,
-                           previous_count=len(previous_movies_stack))
 
 
 import time
