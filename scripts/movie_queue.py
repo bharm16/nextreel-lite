@@ -16,11 +16,23 @@ os.chdir(parent_dir)
 print(f"Current working directory after change: {os.getcwd()}")
 
 class MovieQueue:
-    _instance_count = 0  # Class-level variable to count instances
+    _instance = None  # Class attribute to store the singleton instance
+
+    def __new__(cls, *args, **kwargs):
+        # Overriding __new__ to control the instantiation process
+        if cls._instance is None:
+            # If no instance has been created, instantiate the class and assign to _instance
+            cls._instance = super(MovieQueue, cls).__new__(cls)
+            # The __initialized attribute helps to avoid re-initializing the instance
+            cls._instance.__initialized = False
+        return cls._instance  # Return the single instance
 
     def __init__(self, db_config, queue, criteria=None):
-        self.__class__._instance_count += 1  # Increment the instance count
-        self.instance_id = self.__class__._instance_count  # Instance-specific identifier
+        # Return if the instance has already been initialized
+        if self.__initialized:
+            return
+
+        # Below is the original initialization code
         self.db_config = db_config
         self.queue = queue
         self.movie_fetcher = ImdbRandomMovieFetcher(self.db_config)
@@ -28,20 +40,24 @@ class MovieQueue:
         self.stop_thread = False
         self.lock = threading.Lock()
 
-        print(f"MovieQueue instance {self.instance_id} created with criteria: {self.criteria}")
+        print(f"MovieQueue instance created with criteria: {self.criteria}")
 
-        # Initialize the populate thread here
-        self.populate_thread = threading.Thread(target=self.populate)
-        self.populate_thread.daemon = True
-        self.populate_thread.start()
+        # Initialize the populate thread here if it hasn't been started yet
+        if not hasattr(self, 'populate_thread'):
+            self.populate_thread = threading.Thread(target=self.populate)
+            self.populate_thread.daemon = True
+            self.populate_thread.start()
+
+        # Mark the instance as initialized
+        self.__initialized = True
 
     def set_criteria(self, new_criteria):
         self.criteria = new_criteria
-        print(f"MovieQueue instance {self.instance_id} criteria set to: {self.criteria}")
+        print(f"MovieQueue criteria set to: {self.criteria}")
 
     def stop_populate_thread(self):
         with self.lock:
-            print(f"MovieQueue instance {self.instance_id}: Stopping the populate thread...")
+            print(f"Stopping the populate thread...")
             self.stop_thread = True
         self.populate_thread.join()
 
@@ -52,7 +68,7 @@ class MovieQueue:
                     self.queue.get_nowait()
                 except queue.Empty:
                     break
-            print(f"MovieQueue instance {self.instance_id}: Emptied the movie queue.")
+            print(f"Emptied the movie queue.")
 
     def populate(self):
         watched_movies = set()
@@ -63,10 +79,10 @@ class MovieQueue:
             try:
                 current_queue_size = self.queue.qsize()
                 current_message = (
-                    f"MovieQueue instance {self.instance_id}: Running the populate_movie_queue loop...\n"
-                    f"MovieQueue instance {self.instance_id}: Queue size is {'below threshold, loading more movies...' if current_queue_size < 2 else 'sufficient.'}\n"
-                    f"MovieQueue instance {self.instance_id} current queue size: {current_queue_size}\n"
-                    f"MovieQueue instance {self.instance_id} queue contents: {[item.get('title', 'N/A') for item in list(self.queue.queue)]}"
+                    f"Running the populate_movie_queue loop...\n"
+                    f"Queue size is {'below threshold, loading more movies...' if current_queue_size < 2 else 'sufficient.'}\n"
+                    f"Current queue size: {current_queue_size}\n"
+                    f"Queue contents: {[item.get('title', 'N/A') for item in list(self.queue.queue)]}"
                 )
 
                 # Only print the message if it's different from the last message
@@ -81,14 +97,14 @@ class MovieQueue:
                 time.sleep(1)  # Sleep before the next iteration
 
             except Exception as e:
-                error_message = f"MovieQueue instance {self.instance_id}: Exception occurred in populate: {e}"
+                error_message = f"Exception occurred in populate: {e}"
                 # Print the error message only if it's a new message
                 if error_message != last_message:
                     print(error_message)
                     last_message = error_message
                 time.sleep(5)  # Optionally add a back-off sleep
 
-        print(f"MovieQueue instance {self.instance_id}: Exiting the populate thread...")
+        print("Exiting the populate thread...")
 
     def is_thread_alive(self):
         return self.populate_thread.is_alive()
@@ -119,7 +135,7 @@ class MovieQueue:
             # Put the IMDb data on the queue
             self.queue.put(movie_data_imdb)
             # Print the title of the movie instead of the tconst
-            print(f"MovieQueue instance {self.instance_id}: Enqueued movie '{movie_data_imdb.get('title', 'N/A')}' with tconst: {tconst}")
+            print(f"Enqueued movie '{movie_data_imdb.get('title', 'N/A')}' with tconst: {tconst}")
 
     def load_movies_into_queue(self, watched_movies, watchlist_movies):
         rows = self.movie_fetcher.fetch_random_movies25(self.criteria)
@@ -134,6 +150,19 @@ class MovieQueue:
 
             for future in futures:
                 future.result()
+
+    def update_criteria_and_reset(self, new_criteria):
+        # Update the criteria without creating a new instance
+        self.set_criteria(new_criteria)
+        # Empty the queue to clear movies that don't match the new criteria
+        self.empty_queue()
+        # Reset the stop flag in case it was set to True
+        self.stop_thread = False
+        # If the populate thread is not alive, restart it
+        if not self.populate_thread.is_alive():
+            self.populate_thread = threading.Thread(target=self.populate)
+            self.populate_thread.daemon = True
+            self.populate_thread.start()
 
 def main():
     movie_queue = Queue()
@@ -155,7 +184,7 @@ def main():
     movie_queue_manager.stop_populate_thread()
     movie_queue_manager.empty_queue()
 
-    print(f"Is MovieQueue instance {movie_queue_manager.instance_id} thread still alive? {movie_queue_manager.is_thread_alive()}")
+    print(f"Is the MovieQueue thread still alive? {movie_queue_manager.is_thread_alive()}")
 
 if __name__ == "__main__":
     main()

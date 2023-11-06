@@ -129,33 +129,26 @@ def previous_movie():
 
 @app.route('/filtered_movie', methods=['POST'])
 def filtered_movie_endpoint():
-    global global_criteria, movie_queue_manager
+    global global_criteria
     # Extract new filter criteria from the form
     new_criteria = extract_movie_filter_criteria(request.form)
 
     # Update the global criteria with the new filters
     global_criteria = new_criteria
 
-    # If the movie fetch thread is alive, we stop it before creating a new one with the updated criteria
-    if movie_queue_manager.is_thread_alive():
-        movie_queue_manager.stop_populate_thread()  # Signal the thread to stop
-        movie_queue_manager.populate_thread.join()  # Wait for the thread to finish
-
-    # Empty the movie queue to remove movies that don't match the new criteria
-    movie_queue_manager.empty_queue()
-
-    # Create a new movie queue manager with the updated filter criteria
-    movie_queue_manager = MovieQueue(stackhero_db_config, movie_queue, global_criteria)
+    # Update the existing movie queue manager with the new filter criteria
+    movie_queue_manager.update_criteria_and_reset(global_criteria)
 
     # For debugging purposes, we print out the new criteria and check if the thread is alive
     print("Extracted criteria:", new_criteria)
-    print("Is populate_thread alive after restarting?", movie_queue_manager.is_thread_alive())
+    print("Is populate_thread alive after updating criteria?", movie_queue_manager.is_thread_alive())
 
     # We give the thread a few seconds to populate the queue with movies that match the new criteria
     time.sleep(5)
 
     # We return the rendered movie without passing any arguments since it now relies on global state
     return fetch_and_render_movie()
+
 
 # Rest of the code remains unchanged...
 
