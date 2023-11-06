@@ -69,7 +69,7 @@ def fetch_and_render_movie():
     elif current_displayed_movie is None:
         print("Queue is empty, and no current movie is displayed.")
         # Handle the empty queue scenario, perhaps by rendering a different template or showing a message
-        return render_template('no_movie.html')
+        return render_template('movie.html')
 
     return render_template('movie.html',
                            movie=current_displayed_movie,
@@ -181,7 +181,9 @@ def set_filters():
     # Log the time taken to empty the queue
     print(f"Emptying queue took {time.time() - start_time} seconds")
 
-    # Add more logging statements for other operations...
+    # Reset the current displayed movie since filters are being changed and the queue is being emptied
+    current_displayed_movie = None  # This will clear the current movie
+    print("Current displayed movie has been reset due to filter change.")
 
     print(f"Total time taken for setFilters: {time.time() - start_time} seconds")
     # Render the filter settings template
