@@ -28,6 +28,8 @@ class MovieQueue:
         self.stop_thread = False
         self.lock = threading.Lock()
 
+        print(f"MovieQueue instance {self.instance_id} created with criteria: {self.criteria}")
+
         # Initialize the populate thread here
         self.populate_thread = threading.Thread(target=self.populate)
         self.populate_thread.daemon = True
@@ -35,6 +37,7 @@ class MovieQueue:
 
     def set_criteria(self, new_criteria):
         self.criteria = new_criteria
+        print(f"MovieQueue instance {self.instance_id} criteria set to: {self.criteria}")
 
     def stop_populate_thread(self):
         with self.lock:
