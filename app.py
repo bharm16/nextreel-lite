@@ -1,6 +1,11 @@
 from flask import Flask, request, render_template
 import config
 
+# Import the MovieManager class here to avoid circular imports
+from movie_manager import MovieManager
+
+# Create an instance of MovieManager with the database configuration
+movie_manager = MovieManager(config.Config.STACKHERO_DB_CONFIG)
 
 def create_app():
     # Create the Flask application
@@ -8,10 +13,7 @@ def create_app():
     # Load configuration from the config object
     app.config.from_object(config.Config)
 
-    # Import the MovieManager class here to avoid circular imports
-    from movie_manager import MovieManager
-    # Create an instance of MovieManager with the database configuration
-    movie_manager = MovieManager(config.Config.STACKHERO_DB_CONFIG)
+
 
     # Define your Flask routes within the factory function
     @app.route('/')
@@ -53,4 +55,4 @@ if __name__ == "__main__":
     # Use the application factory function to create the app instance
     app = create_app()
     # Run the Flask app with debug turned on (only for development)
-    app.run(debug=True)
+    app.run(debug=True, use_reloader=False)
