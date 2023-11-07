@@ -7,13 +7,12 @@ from movie_manager import MovieManager
 # Create an instance of MovieManager with the database configuration
 movie_manager = MovieManager(config.Config.STACKHERO_DB_CONFIG)
 
+
 def create_app():
     # Create the Flask application
     app = Flask(__name__)
     # Load configuration from the config object
     app.config.from_object(config.Config)
-
-
 
     # Define your Flask routes within the factory function
     @app.route('/')

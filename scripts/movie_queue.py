@@ -20,7 +20,7 @@ logging.basicConfig(level=logging.INFO)
 
 from config import Config
 from scripts.movie import get_tmdb_id_by_tconst, Movie
-from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher
+from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher, fetcher
 from scripts.tmdb_data import get_movie_info_by_tmdb_id
 
 # Set the working directory to the parent directory
@@ -123,7 +123,7 @@ class MovieQueue:
             logging.info(f"Enqueued movie '{movie_data_imdb.get('title', 'N/A')}' with tconst: {tconst}")
 
     def load_movies_into_queue(self):
-        rows = self.movie_fetcher.fetch_random_movies25(self.criteria)
+        rows = fetcher.fetch_random_movies25(self.criteria)
         with ThreadPoolExecutor(max_workers=5) as executor:
             futures = [executor.submit(self.fetch_and_enqueue_movie, row['tconst']) for row in rows if row]
             for future in futures:
