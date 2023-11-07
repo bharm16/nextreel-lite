@@ -200,9 +200,28 @@ class Movie:
         await self.store_movie_data(movie_data_imdb)
         return self.movie_data
 
+    async def get_full_image_url(profile_path, size='w185'):
+        base_url = "https://image.tmdb.org/t/p/"
+        return f"{base_url}{size}{profile_path}"
+
+    async def get_random_backdrop_url(backdrops):
+        """
+        Asynchronously selects a random backdrop URL from a list of backdrops.
+
+        Args:
+            backdrops (list): List of backdrop image file paths.
+
+        Returns:
+            str: The full URL of a randomly selected backdrop, or None if no backdrops are available.
+        """
+        if backdrops:
+            random_backdrop = random.choice(backdrops)  # Randomly select a backdrop
+            return await Movie.get_full_image_url(random_backdrop)  # Assume this is now an async function
+        else:
+            return None
+
     async def close(self):
         self.executor.shutdown(wait=True)
-
 
 
 # Main function with async execution
@@ -255,7 +274,9 @@ async def main():
         # Print additional cast information
         print("\nCast Information:")
         for cast_member in movie_data.get("cast", []):
-            print(f"Name: {cast_member['name']}, Character: {cast_member['character']}, Image URL: {cast_member['image_url']}")
+            print(
+                f"Name: {cast_member['name']}, Character: {cast_member['character']}, Image URL: {cast_member['image_url']}")
+
 
 # Ensure asyncio.run is called if this script is the main one being run
 if __name__ == "__main__":
