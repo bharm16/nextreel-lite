@@ -81,10 +81,6 @@ async def execute_query(query, params=None, fetch='one'):
         conn.close()
 
 
-
-
-
-
 # Convert the ImdbRandomMovieFetcher class methods to async
 class ImdbRandomMovieFetcher:
     def __init__(self, dbconfig):

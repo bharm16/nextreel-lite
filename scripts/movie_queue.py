@@ -5,7 +5,7 @@ from asyncio import Queue
 from config import Config
 # Assume these scripts have been converted to async versions
 from scripts.movie import get_tmdb_id_by_tconst, Movie
-from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher, fetcher
+from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher
 from scripts.tmdb_data import get_movie_info_by_tmdb_id
 
 # Configure logging
@@ -15,6 +15,7 @@ logging.basicConfig(level=logging.INFO)
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(parent_dir)
 logging.debug(f"Current working directory after change: {os.getcwd()}")
+
 
 class MovieQueue:
     _instance = None
@@ -102,7 +103,7 @@ class MovieQueue:
             logging.info(f"Enqueued movie '{movie_data_imdb.get('title', 'N/A')}' with tconst: {tconst}")
 
     async def load_movies_into_queue(self):
-        rows = await fetcher.fetch_random_movies25(self.criteria)  # This should be an async call
+        rows = await self.movie_fetcher.fetch_random_movies25(self.criteria)  # This should be an async call
         tasks = [self.fetch_and_enqueue_movie(row['tconst']) for row in rows if row]
         await asyncio.gather(*tasks)
 
@@ -111,6 +112,7 @@ class MovieQueue:
         await self.empty_queue()
         self.populate_task = asyncio.create_task(self.populate())
         logging.info("Populate task restarted")
+
 
 async def main():
     movie_queue = Queue()
@@ -132,6 +134,12 @@ async def main():
 
     await asyncio.sleep(5)  # Allow time for the queue to populate
 
+    # Let's log the contents of the queue to see the loaded movies
+    logging.info("Movies loaded into the queue:")
+    while not movie_queue.empty():
+        movie = await movie_queue.get()
+        logging.info(f"Movie Title: {movie.get('title', 'N/A')}, tconst: {movie.get('tconst', 'N/A')}")
+
     await movie_queue_manager.stop_populate_task()
     await movie_queue_manager.empty_queue()
 
@@ -139,3 +147,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
