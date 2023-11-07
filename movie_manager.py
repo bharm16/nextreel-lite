@@ -1,10 +1,11 @@
 import asyncio
+import logging
 import time
 from queue import Queue
 
 import httpx
 
-
+from config import Config
 from scripts.movie_queue import MovieQueue
 from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher, extract_movie_filter_criteria
 from flask import redirect, url_for
@@ -40,7 +41,7 @@ class MovieManager:
         self.default_movie_tmdb_id = 62
         self.default_backdrop_url = None  # Initialize with None
         # Initiate the process of setting the default backdrop URL asynchronously
-        asyncio.run(self.set_default_backdrop_url())
+        # asyncio.run(self.set_default_backdrop_url())
 
     async def set_default_backdrop_url(self):
         # Create an instance of the HTTP client
@@ -49,86 +50,84 @@ class MovieManager:
             self.default_backdrop_url = await get_backdrop_image_for_home(self.default_movie_tmdb_id, client)
 
     async def fetch_and_render_movie(self, template_name='movie.html'):
-        while self.current_displayed_movie is None or 'backdrop_path' not in self.current_displayed_movie or not \
-                self.current_displayed_movie['backdrop_path']:
+        # This loop continues until a movie with a backdrop is found or the queue is empty
+        while True:
             if self.movie_queue.empty():
-                # Redirect to a different endpoint if the queue is empty
-                # This endpoint should handle rendering or further redirection as needed
+                # Queue is empty, so return None to indicate that there is no movie to display
                 print("Queue is empty, and no current movie is displayed with a valid backdrop image.")
-                return redirect(url_for('movie'))  # 'no_movie_endpoint' is an example endpoint name
+                return None
 
-            # Get the next movie from the queue
-            self.current_displayed_movie = await self.movie_queue.get()  # Assuming this is an async operation
+            # Assuming movie_queue.get is an async operation; otherwise, it needs to be adapted.
+            self.current_displayed_movie = await self.movie_queue.get()
             print(f"Fetched new movie: {self.current_displayed_movie['title']}")
 
-            # If the fetched movie has a backdrop, break the loop and proceed to render or redirect
+            # Check if the fetched movie has a backdrop, if so, render the movie
             if 'backdrop_path' in self.current_displayed_movie and self.current_displayed_movie['backdrop_path']:
-                break
+                # Render the template with the movie data and return it
+                return await render_template(template_name,
+                                             movie=self.current_displayed_movie,
+                                             previous_count=len(self.previous_movies_stack))
             else:
-                # Log the movie that was skipped because it lacked a backdrop
+                # If the movie lacks a backdrop image, log and set the current movie to None
                 print(f"Skipping movie '{self.current_displayed_movie['title']}' due to missing backdrop image.")
                 self.current_displayed_movie = None  # Reset to force the while loop to continue
 
-        # Now we are sure we have a movie with a backdrop image, render the template with the movie object
-        return render_template(template_name,
-                               movie=self.current_displayed_movie,
-                               previous_count=len(self.previous_movies_stack))
-
-    def next_movie(self):
+    async def next_movie(self):
         if self.current_displayed_movie:
             self.previous_movies_stack.append(self.current_displayed_movie)
-            print(f"Moved current movie to previous stack: {self.current_displayed_movie['title']}")
+            logging.info(f"Moved current movie to previous stack: {self.current_displayed_movie['title']}")
 
         if self.future_movies_stack:
             self.current_displayed_movie = self.future_movies_stack.pop()
-            print(f"Retrieved next movie from future stack: {self.current_displayed_movie['title']}")
+            logging.info(f"Retrieved next movie from future stack: {self.current_displayed_movie['title']}")
         elif not self.movie_queue.empty():
-            self.current_displayed_movie = self.movie_queue.get()
-            print(f"Fetched next movie from queue: {self.current_displayed_movie['title']}")
+            self.current_displayed_movie = await self.movie_queue.get()  # Use await here
+            logging.info(f"Fetched next movie from queue: {self.current_displayed_movie['title']}")
         else:
             self.current_displayed_movie = None
-            print("No movies in future stack and queue is empty.")
+            logging.info("No movies in future stack and queue is empty.")
 
-        return self.fetch_and_render_movie()
+        return await self.fetch_and_render_movie()
 
-    def previous_movie(self):
+    async def previous_movie(self):
         if self.current_displayed_movie:
             self.future_movies_stack.append(self.current_displayed_movie)
-            print(f"Moved current movie to future stack: {self.current_displayed_movie['title']}")
+            logging.info(f"Moved current movie to future stack: {self.current_displayed_movie['title']}")
 
         if self.previous_movies_stack:
             self.current_displayed_movie = self.previous_movies_stack.pop()
-            print(f"Retrieved previous movie: {self.current_displayed_movie['title']}")
+            logging.info(f"Retrieved previous movie: {self.current_displayed_movie['title']}")
         else:
-            print("No previous movies to retrieve.")
+            logging.info("No previous movies to retrieve.")
 
-        return self.fetch_and_render_movie()
+        return await self.fetch_and_render_movie()
 
-    def update_criteria(self, new_criteria):
+    async def update_criteria(self, new_criteria):
         self.criteria = new_criteria
-        self.movie_queue_manager.update_criteria_and_reset(self.criteria)
-        print("Criteria updated:", self.criteria)
+        await self.movie_queue_manager.update_criteria_and_reset(self.criteria)  # Use await here
+        logging.info("Criteria updated: %s", self.criteria)
 
-    def set_filters(self):
-        start_time = time.time()
-        print("Entering setFilters")
+    async def set_filters(self):
+        start_time = asyncio.get_event_loop().time()
+        logging.info("Entering setFilters")
 
-        self.movie_queue_manager.stop_populate_task()
-        print(f"Stopping populate thread took {time.time() - start_time} seconds")
+        await self.movie_queue_manager.stop_populate_task()  # Use await here
+        logging.info(f"Stopping populate task took {asyncio.get_event_loop().time() - start_time} seconds")
 
-        self.movie_queue_manager.empty_queue()
-        print(f"Emptying queue took {time.time() - start_time} seconds")
+        await self.movie_queue_manager.empty_queue()  # Use await here
+        logging.info(f"Emptying queue took {asyncio.get_event_loop().time() - start_time} seconds")
 
         self.current_displayed_movie = None
-        print("Current displayed movie has been reset due to filter change.")
+        logging.info("Current displayed movie has been reset due to filter change.")
 
-        print(f"Total time taken for setFilters: {time.time() - start_time} seconds")
-        return render_template('set_filters.html')
+        logging.info(f"Total time taken for setFilters: {asyncio.get_event_loop().time() - start_time} seconds")
+        return await render_template('set_filters.html')  # If render_template is async compatible
 
-    def home(self):
-        return render_template('home.html', default_backdrop_url=self.default_backdrop_url)
+    async def home(self):
+        return await render_template('home.html',
+                                     default_backdrop_url=self.default_backdrop_url)  # If render_template is async compatible
 
-    def filtered_movie(self, form_data):
+    async def filtered_movie(self, form_data):
         # Extract new filter criteria from the form
         new_criteria = extract_movie_filter_criteria(form_data)
 
@@ -136,14 +135,55 @@ class MovieManager:
         self.criteria = new_criteria
 
         # Update the existing movie queue manager with the new filter criteria
-        self.movie_queue_manager.update_criteria_and_reset(self.criteria)
+        await self.movie_queue_manager.update_criteria_and_reset(self.criteria)  # Use await here
 
-        # For debugging purposes, print out the new criteria and check if the thread is alive
-        print("Extracted criteria:", new_criteria)
-        print("Is populate_thread alive after updating criteria?", self.movie_queue_manager.is_thread_alive())
+        # For debugging purposes, log out the new criteria
+        logging.info("Extracted criteria: %s", new_criteria)
 
-        # We give the thread a few seconds to populate the queue with movies that match the new criteria
-        time.sleep(5)
+        # We give the queue a few seconds to populate with movies that match the new criteria
+        await asyncio.sleep(5)  # Non-blocking sleep
 
         # Return the rendered movie
-        return self.fetch_and_render_movie()
+        return await self.fetch_and_render_movie()
+
+
+# ... Your existing code ...
+
+# The main function for testing
+async def main():
+
+    dbconfig = Config.STACKHERO_DB_CONFIG
+
+    # Initialize the MovieManager with the database configuration
+    movie_manager = MovieManager(dbconfig)
+
+    # Test setting default backdrop URL
+    await movie_manager.set_default_backdrop_url()
+    logging.info(f"Default backdrop URL set to: {movie_manager.default_backdrop_url}")
+
+    # Test fetching and rendering a movie
+    rendered_movie = await movie_manager.fetch_and_render_movie()
+    logging.info(f"Rendered movie: {rendered_movie}")
+
+    # Test updating criteria
+    new_criteria = {
+        'min_year': 2000,
+        'max_year': 2023,
+        'min_rating': 7.0,
+        'max_rating': 10,
+        'genres': ['Comedy', 'Romance']
+    }
+    await movie_manager.update_criteria(new_criteria)
+
+    # Test getting the next movie
+    next_movie_render = await movie_manager.next_movie()
+    logging.info(f"Next movie rendered: {next_movie_render}")
+
+    # Test getting the previous movie
+    prev_movie_render = await movie_manager.previous_movie()
+    logging.info(f"Previous movie rendered: {prev_movie_render}")
+
+
+# Run the main function
+if __name__ == "__main__":
+    asyncio.run(main())

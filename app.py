@@ -22,10 +22,16 @@ def create_app():
         # Use the home method from MovieManager
         return await movie_manager.home()
 
+    # Quart route handler that uses fetch_and_render_movie
     @app.route('/movie')
     async def movie():
-        # Display the current movie or the next movie in the queue
-        return await movie_manager.fetch_and_render_movie()
+        movie_or_none = await movie_manager.fetch_and_render_movie()
+        if movie_or_none is None:
+            # Redirect to a fallback route or return a message when the queue is empty
+            return redirect(url_for('home'))  # Replace with your actual fallback route
+        else:
+            # If there's a movie to display, return the rendered template
+            return movie_or_none
 
     @app.route('/next_movie', methods=['GET', 'POST'])
     async def next_movie():
