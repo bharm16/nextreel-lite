@@ -167,7 +167,10 @@ async def main():
     dbconfig = Config.STACKHERO_DB_CONFIG
     fetcher = ImdbRandomMovieFetcher(dbconfig)
     movies = await fetcher.fetch_movies_by_criteria(criteria)
-    print(movies)
+
+    # Iterate over the movies and print each movie on a new line with a counter
+    for counter, movie in enumerate(movies, start=1):  # start=1 begins the counter at 1
+        print(f"Movie {counter}: {movie}")  # This will print the movie number and its details
 
 
 # Example usage
