@@ -1,4 +1,7 @@
 import os
+import ssl
+
+import aiomysql
 import pymysql
 import tmdbsimple
 from flask import Config
@@ -53,7 +56,58 @@ class Config:
     SECRET_KEY = os.getenv('FLASK_SECRET_KEY')
     TMDB_API_KEY = os.getenv('TMDB_API_KEY')
 
+
+
+
+
+
+
     # Usage
+
+
+async def create_aiomysql_connection():
+    # Check if the SSL certificate file exists and create an SSL context if it does
+    ssl_ctx = None
+    if os.path.isfile(Config.get_ssl_cert_path()):
+        ssl_ctx = ssl.create_default_context(cafile=Config.get_ssl_cert_path())
+    else:
+        print(f"SSL certificate file not found at {Config.get_ssl_cert_path()}")
+        return None
+
+    print(f"Attempting to connect to the database with SSL configuration.")
+
+    try:
+        print("Establishing database connection...")
+        # Pass the ssl_ctx object instead of the dictionary
+        connection = await aiomysql.connect(
+            host=Config.STACKHERO_DB_CONFIG['host'],
+            user=Config.STACKHERO_DB_CONFIG['user'],
+            password=Config.STACKHERO_DB_CONFIG['password'],
+            db=Config.STACKHERO_DB_CONFIG['database'],
+            port=Config.STACKHERO_DB_CONFIG['port'],
+            ssl=ssl_ctx,
+            cursorclass=aiomysql.DictCursor
+        )
+        print("Database connection established successfully.")
+        return connection
+    except Exception as e:
+        print(f"Error: '{e}'")
+        return None
+
+
+
+
+async def main():
+    # Your main logic here
+    print("Starting the database connection process.")
+
+    connection = await create_aiomysql_connection()
+    # Rest of your code
+    print(connection)
+
+
+
+
 
 
 
@@ -85,6 +139,14 @@ def create_connection():
     except pymysql.MySQLError as err:
         print(f"Error: '{err}'")
         return None
+
+
+
+
+
+
+
+
 
 # Example usage
 print("Starting the database connection process.")

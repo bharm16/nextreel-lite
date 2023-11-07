@@ -1,27 +1,15 @@
 import os
-import queue
-import threading
-from queue import Queue
-import time
-from concurrent.futures import ThreadPoolExecutor
+import asyncio
 import logging
-
-# # Configure logging at the start of your script
-# logging.basicConfig(
-#     level=logging.DEBUG,  # Set to DEBUG to capture all levels of log messages
-#     format='%(asctime)s - %(levelname)s - %(message)s',
-#     datefmt='%Y-%m-%d %H:%M:%S',
-#     filename='/Users/bryceharmon/Desktop/logfile.log',  # Set the path to your desired log file
-#     filemode='a'  # Append mode, which allows logging to be added to the same file across different runs
-# )
-
-# Replace all print statements with logging
-logging.basicConfig(level=logging.INFO)
-
+from asyncio import Queue
 from config import Config
+# Assume these scripts have been converted to async versions
 from scripts.movie import get_tmdb_id_by_tconst, Movie
 from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher, fetcher
 from scripts.tmdb_data import get_movie_info_by_tmdb_id
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
 
 # Set the working directory to the parent directory
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -43,106 +31,88 @@ class MovieQueue:
             self.queue = queue
             self.movie_fetcher = ImdbRandomMovieFetcher(self.db_config)
             self.criteria = criteria or {}
-            self.stop_thread = False
-            self.lock = threading.Lock()
+            self.lock = asyncio.Lock()  # Use asyncio.Lock for async code
             logging.info(f"MovieQueue instance created with criteria: {self.criteria}")
-
-            if not hasattr(self, 'populate_thread'):
-                self.populate_thread = threading.Thread(target=self.populate)
-                self.populate_thread.daemon = True
-                self.populate_thread.start()
-                logging.info("Populate thread started")
+            self.populate_task = None  # Will hold the asyncio Task for populating the queue
             self._initialized = True
 
-    def set_criteria(self, new_criteria):
-        with self.lock:
+    async def set_criteria(self, new_criteria):
+        async with self.lock:
             self.criteria = new_criteria
             logging.info(f"MovieQueue criteria updated to: {self.criteria}")
 
-    def stop_populate_thread(self):
-        with self.lock:
-            self.stop_thread = True
-            logging.info("Signal sent to stop the populate thread")
+    async def stop_populate_task(self):
+        if self.populate_task:
+            self.populate_task.cancel()
+            try:
+                await self.populate_task
+            except asyncio.CancelledError:
+                logging.info("Populate task cancelled")
+            logging.info("Populate task stopped")
 
-        self.populate_thread.join()
-        logging.info("Populate thread joined")
-
-    def empty_queue(self):
-        with self.lock:
+    async def empty_queue(self):
+        async with self.lock:
             while not self.queue.empty():
-                try:
-                    self.queue.get_nowait()
-                except queue.Empty:
-                    break
+                await self.queue.get()
             logging.info("Movie queue emptied")
 
-    def populate(self):
-        while not self.stop_thread:
+    async def populate(self):
+        while True:
             try:
                 current_queue_size = self.queue.qsize()
                 if current_queue_size < 5:
                     logging.info("Current queue size is below threshold, loading more movies...")
-                    self.load_movies_into_queue()
+                    await self.load_movies_into_queue()
                 else:
                     logging.info(f"Queue size is sufficient: {current_queue_size}")
 
-                time.sleep(1)
+                await asyncio.sleep(1)  # Non-blocking sleep
+            except asyncio.CancelledError:
+                # If the task gets cancelled, stop the loop
+                logging.info("Populate task has been cancelled")
+                break
             except Exception as e:
                 logging.exception(f"Exception occurred in populate: {e}")
-                time.sleep(5)
+                await asyncio.sleep(5)
 
-        logging.info("Exiting the populate thread")
+    def is_task_running(self):
+        running = self.populate_task and not self.populate_task.done()
+        logging.info(f"Populate task running: {running}")
+        return running
 
-    def is_thread_alive(self):
-        alive = self.populate_thread.is_alive()
-        logging.info(f"Populate thread alive: {alive}")
-        return alive
-
-    def fetch_and_enqueue_movie(self, tconst):
-        with self.lock:
-            if self.stop_thread:
-                logging.info("Stop thread flag is set, exiting fetch_and_enqueue_movie")
-                return
+    async def fetch_and_enqueue_movie(self, tconst):
+        async with self.lock:
             if self.queue.qsize() >= 10:
                 # Queue is full, log the movie queue content for debugging
                 logging.info("Queue is full. Here are the current movies in the queue for debugging:")
-                # Take a snapshot of the queue for logging to prevent modification during iteration
-                queue_snapshot = list(self.queue.queue)
+                # Take a snapshot of the queue for logging
+                queue_snapshot = list(self.queue._queue)
                 for movie in queue_snapshot:
                     logging.info(f"Movie Title: {movie.get('title', 'N/A')}, tconst: {movie.get('tconst', 'N/A')}")
                 return
 
         movie = Movie(tconst, self.db_config)
-        movie_data_imdb = movie.get_movie_data()
-        tmdb_id = get_tmdb_id_by_tconst(tconst)
-        movie_data_tmdb = get_movie_info_by_tmdb_id(tmdb_id)
+        movie_data_imdb = await movie.get_movie_data()  # This should be an async call
+        tmdb_id = await get_tmdb_id_by_tconst(tconst)  # This should be an async call
+        movie_data_tmdb = await get_movie_info_by_tmdb_id(tmdb_id)  # This should be an async call
         movie_data_imdb['backdrop_path'] = movie_data_tmdb.get('backdrop_path', None)
 
-        with self.lock:
-            self.queue.put(movie_data_imdb)
+        async with self.lock:
+            await self.queue.put(movie_data_imdb)
             logging.info(f"Enqueued movie '{movie_data_imdb.get('title', 'N/A')}' with tconst: {tconst}")
 
-    def load_movies_into_queue(self):
-        rows = fetcher.fetch_random_movies25(self.criteria)
-        with ThreadPoolExecutor(max_workers=5) as executor:
-            futures = [executor.submit(self.fetch_and_enqueue_movie, row['tconst']) for row in rows if row]
-            for future in futures:
-                try:
-                    future.result()
-                except Exception as e:
-                    logging.info(f"An error occurred when loading movies into queue: {e}")
+    async def load_movies_into_queue(self):
+        rows = await fetcher.fetch_random_movies25(self.criteria)  # This should be an async call
+        tasks = [self.fetch_and_enqueue_movie(row['tconst']) for row in rows if row]
+        await asyncio.gather(*tasks)
 
-    def update_criteria_and_reset(self, new_criteria):
-        self.set_criteria(new_criteria)
-        self.empty_queue()
-        self.stop_thread = False
-        if not self.populate_thread.is_alive():
-            self.populate_thread = threading.Thread(target=self.populate)
-            self.populate_thread.daemon = True
-            self.populate_thread.start()
-            logging.info("Populate thread restarted")
+    async def update_criteria_and_reset(self, new_criteria):
+        await self.set_criteria(new_criteria)
+        await self.empty_queue()
+        self.populate_task = asyncio.create_task(self.populate())
+        logging.info("Populate task restarted")
 
-def main():
+async def main():
     movie_queue = Queue()
     movie_queue_manager = MovieQueue(Config.STACKHERO_DB_CONFIG, movie_queue)
 
@@ -155,14 +125,17 @@ def main():
         "language": "en",
         "genres": ["Action", "Drama"]
     }
-    movie_queue_manager.set_criteria(criteria)
+    await movie_queue_manager.set_criteria(criteria)
 
-    time.sleep(5)  # Allow time for the queue to populate
+    # Start the populate task
+    movie_queue_manager.populate_task = asyncio.create_task(movie_queue_manager.populate())
 
-    movie_queue_manager.stop_populate_thread()
-    movie_queue_manager.empty_queue()
+    await asyncio.sleep(5)  # Allow time for the queue to populate
 
-    logging.info(f"Is the MovieQueue thread still alive? {movie_queue_manager.is_thread_alive()}")
+    await movie_queue_manager.stop_populate_task()
+    await movie_queue_manager.empty_queue()
+
+    logging.info(f"Is the MovieQueue task still running? {movie_queue_manager.is_task_running()}")
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

@@ -1,7 +1,6 @@
 import os
 
-from mysql_query_builder import execute_query
-from config import Config
+from config import Config, create_aiomysql_connection
 
 dbconfig = Config.STACKHERO_DB_CONFIG
 
@@ -55,110 +54,64 @@ def build_base_query():
     """
 
 
+# Async database query execution function
+async def execute_query(query, params=None, fetch='one'):
+    conn = await create_aiomysql_connection()
+    if not conn:
+        print("Failed to establish database connection.")
+        return None
+
+    try:
+        async with conn.cursor() as cursor:
+            await cursor.execute(query, params)
+            if fetch == 'one':
+                result = await cursor.fetchone()
+            elif fetch == 'all':
+                result = await cursor.fetchall()
+            elif fetch == 'none':
+                await conn.commit()
+                result = None
+            else:
+                raise ValueError(f"Invalid fetch parameter: {fetch}")
+        return result
+    except Exception as e:
+        print(f"An error occurred while executing the query: {e}")
+        return None
+    finally:
+        conn.close()
 
 
+
+
+
+
+# Convert the ImdbRandomMovieFetcher class methods to async
 class ImdbRandomMovieFetcher:
     def __init__(self, dbconfig):
-        """Initialize with database configuration."""
         self.dbconfig = dbconfig
 
-    def fetch_movies_by_criteria(self, criteria):
-        """
-        Fetch all movie rows based on given criteria.
-
-        :param criteria: A dictionary containing key-value pairs of the criteria
-                         to use for fetching movies.
-        :return: A list of movie rows or None if no movies are found.
-        """
-
-        # Build the base query, parameters, and genre conditions
+    async def fetch_movies_by_criteria(self, criteria):
         base_query = build_base_query()
         parameters = build_parameters(criteria)
         genre_conditions = build_genre_conditions(criteria, parameters)
+        full_query = base_query + (f" AND ({genre_conditions[0]})" if genre_conditions else "")
+        return await execute_query(full_query, parameters, 'all')
 
-        # Debugging: Print the criteria and parameters
-        print("Criteria passed to fetch_movies_by_criteria:", criteria)
-        print("Parameters built for SQL query:", parameters)
-
-        # Complete the query by appending the genre conditions, if any
-        # Removed the ORDER BY RAND() and LIMIT clauses to fetch all matching rows
-        full_query = base_query + (
-            f" AND ({genre_conditions[0]})" if genre_conditions else "")
-
-        # Debugging lines to print the generated SQL query and parameters
-        print("Generated SQL Query:", full_query)
-        print("Query Parameters:", parameters)
-
-        # Execute the query and fetch the rows
-        matching_rows = execute_query(full_query, parameters, fetch='all')
-
-        # Debugging: Print the fetched movies or a message if none were found
-        if matching_rows:
-            print(f"Fetched {len(matching_rows)} movies:")
-            for i, row in enumerate(matching_rows):
-                print(f"Row {i + 1}: {row}")
-        else:
-            print("No movies found based on the given criteria.")
-
-        return matching_rows if matching_rows else None
-
-    def fetch_random_movies25(self, criteria):
-        """Fetch 25 random movie rows based on given criteria."""
-
-        # Build the base query, parameters, and genre conditions
+    async def fetch_random_movies25(self, criteria):
         base_query = build_base_query()
         parameters = build_parameters(criteria)
         genre_conditions = build_genre_conditions(criteria, parameters)
-
-        # Debugging: Print the criteria and parameters
-        print("Criteria passed to fetch_random_movie:", criteria)
-        print("Parameters built for SQL query:", parameters)
-
-        # Complete the query by appending the genre conditions, if any
-        # Changed LIMIT 1 to LIMIT 25 to fetch 25 rows instead of 1
         full_query = base_query + (
             f" AND ({genre_conditions[0]})" if genre_conditions else "") + " ORDER BY RAND() LIMIT 15"
+        return await execute_query(full_query, parameters, 'all')
 
-        # Debugging lines to print the generated SQL query and parameters
-        print("Generated SQL Query:", full_query)
-        print("Query Parameters:", parameters)
-
-        # Execute the query and fetch the random rows
-        random_rows = execute_query(full_query, parameters, fetch='all')
-
-        # if random_rows:
-        #     print("Fetched 25 random movies:")
-        #     for i, row in enumerate(random_rows):
-        #         print(f"Row {i + 1}: {row}")
-        # else:
-        #     print("No movies found based on the given criteria.")
-
-        return random_rows if random_rows else None
-
-    def fetch_random_movie(self, criteria):
-        """Fetch a random movie row based on given criteria."""
-
-        # Build the base query, parameters, and genre conditions
+    async def fetch_random_movie(self, criteria):
         base_query = build_base_query()
         parameters = build_parameters(criteria)
         genre_conditions = build_genre_conditions(criteria, parameters)
-
-        # Debugging: Print the criteria and parameters
-        print("Criteria passed to fetch_random_movie:", criteria)
-        print("Parameters built for SQL query:", parameters)
-
-        # Complete the query by appending the genre conditions, if any
         full_query = base_query + (
             f" AND ({genre_conditions[0]})" if genre_conditions else "") + " ORDER BY RAND() LIMIT 1"
-
-        # Debugging lines to print the generated SQL query and parameters
-        print("Generated SQL Query:", full_query)
-        print("Query Parameters:", parameters)
-
-        # Execute the query and fetch the random row
-        random_row = execute_query(self.dbconfig, full_query, parameters)
-
-        return random_row if random_row else None
+        return await execute_query(full_query, parameters)
 
 
 def extract_movie_filter_criteria(form_data):
@@ -201,10 +154,7 @@ def extract_movie_filter_criteria(form_data):
     return criteria
 
 
-#
-# Example usage
-if __name__ == "__main__":
-
+async def main():
     criteria = {'min_year': 2000,
                 'max_year': 2020,
                 'min_rating': 7,
@@ -215,31 +165,13 @@ if __name__ == "__main__":
                 'genres': ['Action', 'Drama']}
 
     dbconfig = Config.STACKHERO_DB_CONFIG
-
-    # Create an instance of the movie fetcher with the database configuration
     fetcher = ImdbRandomMovieFetcher(dbconfig)
+    movies = await fetcher.fetch_movies_by_criteria(criteria)
+    print(movies)
 
-    # Fetch movies based on criteria
-    movies = fetcher.fetch_movies_by_criteria(criteria)
-    if movies:
-        print(f"Fetched {len(movies)} movies:")
-        for i, movie in enumerate(movies):
-            print(f"Movie {i + 1}: {movie}")
-    else:
-        print("No movies found based on the given criteria.")
 
-#
-#     fetcher = ImdbRandomMovieFetcher(dbconfig)
-#     random_row = fetcher.fetch_random_movie(criteria)
-#     print("Random Movie Row:", random_row)
-#
-#     # Test fetching 25 random movies
-#     random_rows = fetcher.fetch_random_movies25(criteria)
-#
-#     # Debugging: Print the fetched rows
-#     if random_rows:
-#         print("Fetched 25 random movies:")
-#         for i, row in enumerate(random_rows):
-#             print(f"Row {i + 1}: {row}")
-#     else:
-#         print("No movies found based on the given criteria.")
+# Example usage
+if __name__ == "__main__":
+    import asyncio
+
+    asyncio.run(main())
