@@ -4,6 +4,19 @@ import threading
 from queue import Queue
 import time
 from concurrent.futures import ThreadPoolExecutor
+import logging
+
+# Configure logging at the start of your script
+logging.basicConfig(
+    level=logging.DEBUG,  # Set to DEBUG to capture all levels of log messages
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+    filename='/Users/bryceharmon/Desktop/logfile.log',  # Set the path to your desired log file
+    filemode='a'  # Append mode, which allows logging to be added to the same file across different runs
+)
+
+# Replace all print statements with logging
+logger = logging.getLogger(__name__)
 
 from config import Config
 from scripts.movie import get_tmdb_id_by_tconst, Movie
@@ -13,54 +26,46 @@ from scripts.tmdb_data import get_movie_info_by_tmdb_id
 # Set the working directory to the parent directory
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(parent_dir)
-print(f"Current working directory after change: {os.getcwd()}")
-
+logger.debug(f"Current working directory after change: {os.getcwd()}")
 
 class MovieQueue:
-    _instance = None  # Class attribute to store the singleton instance
+    _instance = None
 
     def __new__(cls, *args, **kwargs):
-        # Overriding __new__ to control the instantiation process
-        if cls._instance is None:
-            # If no instance has been created, instantiate the class and assign to _instance
+        if not isinstance(cls._instance, cls):
             cls._instance = super(MovieQueue, cls).__new__(cls)
-            # The __initialized attribute helps to avoid re-initializing the instance
-            cls._instance.__initialized = False
-        return cls._instance  # Return the single instance
+            logger.debug("Creating a new instance of MovieQueue")
+        return cls._instance
 
     def __init__(self, db_config, queue, criteria=None):
-        # Return if the instance has already been initialized
-        if self.__initialized:
-            return
+        if not hasattr(self, '_initialized'):
+            self.db_config = db_config
+            self.queue = queue
+            self.movie_fetcher = ImdbRandomMovieFetcher(self.db_config)
+            self.criteria = criteria or {}
+            self.stop_thread = False
+            self.lock = threading.Lock()
+            logger.info(f"MovieQueue instance created with criteria: {self.criteria}")
 
-        # Below is the original initialization code
-        self.db_config = db_config
-        self.queue = queue
-        self.movie_fetcher = ImdbRandomMovieFetcher(self.db_config)
-        self.criteria = criteria or {}  # Use the provided criteria or an empty dict
-        self.stop_thread = False
-        self.lock = threading.Lock()
-
-        print(f"MovieQueue instance created with criteria: {self.criteria}")
-
-        # Initialize the populate thread here if it hasn't been started yet
-        if not hasattr(self, 'populate_thread'):
-            self.populate_thread = threading.Thread(target=self.populate)
-            self.populate_thread.daemon = True
-            self.populate_thread.start()
-
-        # Mark the instance as initialized
-        self.__initialized = True
+            if not hasattr(self, 'populate_thread'):
+                self.populate_thread = threading.Thread(target=self.populate)
+                self.populate_thread.daemon = True
+                self.populate_thread.start()
+                logger.debug("Populate thread started")
+            self._initialized = True
 
     def set_criteria(self, new_criteria):
-        self.criteria = new_criteria
-        print(f"MovieQueue criteria set to: {self.criteria}")
+        with self.lock:
+            self.criteria = new_criteria
+            logger.info(f"MovieQueue criteria updated to: {self.criteria}")
 
     def stop_populate_thread(self):
         with self.lock:
-            print(f"Stopping the populate thread...")
             self.stop_thread = True
+            logger.debug("Signal sent to stop the populate thread")
+
         self.populate_thread.join()
+        logger.debug("Populate thread joined")
 
     def empty_queue(self):
         with self.lock:
@@ -69,100 +74,68 @@ class MovieQueue:
                     self.queue.get_nowait()
                 except queue.Empty:
                     break
-            print(f"Emptied the movie queue.")
+            logger.info("Movie queue emptied")
 
     def populate(self):
-        last_message = ""  # Keep track of the last printed message to avoid repetition
-
         while not self.stop_thread:
             try:
                 current_queue_size = self.queue.qsize()
-                current_message = (
-                    f"Running the populate_movie_queue loop...\n"
-                    f"Queue size is {'below threshold, loading more movies...' if current_queue_size < 2 else 'sufficient.'}\n"
-                    f"Current queue size: {current_queue_size}\n"
-                    f"Queue contents: {[item.get('title', 'N/A') for item in list(self.queue.queue)]}"
-                )
-
-                # Only print the message if it's different from the last message
-                if current_message != last_message:
-                    print(current_message)
-                    last_message = current_message  # Update the last message
-
-                # Load more movies if the queue size is less than 2
                 if current_queue_size < 2:
+                    logger.debug("Current queue size is below threshold, loading more movies...")
                     self.load_movies_into_queue()
+                else:
+                    logger.debug(f"Queue size is sufficient: {current_queue_size}")
 
-                time.sleep(1)  # Sleep before the next iteration
-
+                time.sleep(1)
             except Exception as e:
-                error_message = f"Exception occurred in populate: {e}"
-                # Print the error message only if it's a new message
-                if error_message != last_message:
-                    print(error_message)
-                    last_message = error_message
-                time.sleep(5)  # Optionally add a back-off sleep
+                logger.exception(f"Exception occurred in populate: {e}")
+                time.sleep(5)
 
-        print("Exiting the populate thread...")
+        logger.info("Exiting the populate thread")
 
     def is_thread_alive(self):
-        return self.populate_thread.is_alive()
+        alive = self.populate_thread.is_alive()
+        logger.debug(f"Populate thread alive: {alive}")
+        return alive
 
     def fetch_and_enqueue_movie(self, tconst):
         with self.lock:
             if self.stop_thread:
+                logger.debug("Stop thread flag is set, exiting fetch_and_enqueue_movie")
                 return
             if self.queue.qsize() >= 10:
+                logger.debug("Queue size is at or exceeds the limit, not fetching new movie")
                 return
 
-        # Fetch movie data from IMDb
         movie = Movie(tconst, self.db_config)
         movie_data_imdb = movie.get_movie_data()
-
-        # Fetch movie data from TMDb
         tmdb_id = get_tmdb_id_by_tconst(tconst)
         movie_data_tmdb = get_movie_info_by_tmdb_id(tmdb_id)
-
-        # Merge IMDb and TMDb data
-        movie_data = {
-            'IMDb': movie_data_imdb,
-            'TMDb': movie_data_tmdb
-        }
         movie_data_imdb['backdrop_path'] = movie_data_tmdb.get('backdrop_path', None)
 
         with self.lock:
-            # Put the IMDb data on the queue
             self.queue.put(movie_data_imdb)
-            # Print the title of the movie instead of the tconst
-            print(f"Enqueued movie '{movie_data_imdb.get('title', 'N/A')}' with tconst: {tconst}")
+            logger.info(f"Enqueued movie '{movie_data_imdb.get('title', 'N/A')}' with tconst: {tconst}")
 
     def load_movies_into_queue(self):
         rows = self.movie_fetcher.fetch_random_movies25(self.criteria)
-
         with ThreadPoolExecutor(max_workers=5) as executor:
-            futures = []
-            for row in rows:
-                tconst = row['tconst'] if row else None
-                if tconst:
-                    future = executor.submit(self.fetch_and_enqueue_movie, tconst)
-                    futures.append(future)
-
+            futures = [executor.submit(self.fetch_and_enqueue_movie, row['tconst']) for row in rows if row]
             for future in futures:
-                future.result()
+                try:
+                    future.result()
+                except Exception as e:
+                    logger.exception(f"An error occurred when loading movies into queue: {e}")
 
     def update_criteria_and_reset(self, new_criteria):
-        # Update the criteria without creating a new instance
         self.set_criteria(new_criteria)
-        # Empty the queue to clear movies that don't match the new criteria
         self.empty_queue()
-        # Reset the stop flag in case it was set to True
         self.stop_thread = False
-        # If the populate thread is not alive, restart it
         if not self.populate_thread.is_alive():
             self.populate_thread = threading.Thread(target=self.populate)
             self.populate_thread.daemon = True
             self.populate_thread.start()
-
+            logger.debug("Populate thread restarted")
 
 def main():
     movie_queue = Queue()
@@ -184,8 +157,7 @@ def main():
     movie_queue_manager.stop_populate_thread()
     movie_queue_manager.empty_queue()
 
-    print(f"Is the MovieQueue thread still alive? {movie_queue_manager.is_thread_alive()}")
-
+    logger.info(f"Is the MovieQueue thread still alive? {movie_queue_manager.is_thread_alive()}")
 
 if __name__ == "__main__":
     main()
