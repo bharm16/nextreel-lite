@@ -1,7 +1,7 @@
 import time
 from queue import Queue
 
-from flask import render_template
+from flask import render_template, redirect, url_for
 
 from scripts.movie_queue import MovieQueue
 from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher, extract_movie_filter_criteria
@@ -20,14 +20,32 @@ class MovieManager:
         self.default_movie_tmdb_id = 62
         self.default_backdrop_url = get_backdrop_image_for_home(self.default_movie_tmdb_id)
 
+    from flask import redirect, url_for
+
+    # ... rest of your code ...
+
     def fetch_and_render_movie(self, template_name='movie.html'):
-        if self.current_displayed_movie is None and not self.movie_queue.empty():
+        while self.current_displayed_movie is None or 'backdrop_path' not in self.current_displayed_movie or not \
+        self.current_displayed_movie['backdrop_path']:
+            if self.movie_queue.empty():
+                # Redirect to a different endpoint if the queue is empty
+                # This endpoint should handle rendering or further redirection as needed
+                print("Queue is empty, and no current movie is displayed with a valid backdrop image.")
+                return redirect(url_for('movie'))  # 'no_movie_endpoint' is an example endpoint name
+
+            # Get the next movie from the queue
             self.current_displayed_movie = self.movie_queue.get()
             print(f"Fetched new movie: {self.current_displayed_movie['title']}")
-        elif self.current_displayed_movie is None:
-            print("Queue is empty, and no current movie is displayed.")
-            return render_template(template_name)
 
+            # If the fetched movie has a backdrop, break the loop and proceed to render or redirect
+            if 'backdrop_path' in self.current_displayed_movie and self.current_displayed_movie['backdrop_path']:
+                break
+            else:
+                # Log the movie that was skipped because it lacked a backdrop
+                print(f"Skipping movie '{self.current_displayed_movie['title']}' due to missing backdrop image.")
+                self.current_displayed_movie = None  # Reset to force the while loop to continue
+
+        # Now we are sure we have a movie with a backdrop image, render the template with the movie object
         return render_template(template_name,
                                movie=self.current_displayed_movie,
                                previous_count=len(self.previous_movies_stack))

@@ -80,7 +80,7 @@ class MovieQueue:
         while not self.stop_thread:
             try:
                 current_queue_size = self.queue.qsize()
-                if current_queue_size < 2:
+                if current_queue_size < 5:
                     logging.info("Current queue size is below threshold, loading more movies...")
                     self.load_movies_into_queue()
                 else:
