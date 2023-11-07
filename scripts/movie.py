@@ -1,10 +1,17 @@
 import os
 import random
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
+
 import httpx
+import imdb
 
 import config
-from scripts.set_filters_for_nextreel_backend import AsyncImdbRandomMovieFetcher
+
+from imdb import Cinemagoer
+
+from config import Config
+from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher, dbconfig
 
 # Replace with your actual TMDb API key
 TMDB_API_KEY = '1ce9398920594a5521f0d53e9b33c52f'
@@ -119,15 +126,32 @@ async def get_credits_by_tmdb_id(tmdb_id, client):
     }
 
 
+def get_movie(imdbId):
+    """Blocking function that gets movie data from IMDb."""
+    ia = imdb.Cinemagoer()
+    # Ensure imdbId is a string before passing to get_movie
+    movie_data = ia.get_movie(str(imdbId))
+    return movie_data
+
+
 class Movie:
-    def __init__(self, tconst, db_config):
+    def __init__(self, tconst, db_config, client):
         self.tconst = tconst
         self.db_config = db_config
+        self.client = client  # Assign the passed client to self.client
+
         self.movie_data = {}
+        self.executor = ThreadPoolExecutor()  # This will run blocking calls in separate threads
+        self.ia = Cinemagoer()  # Create an instance of the Cinemagoer class
 
     async def fetch_info_from_imdb(self):
-        # Implement this method using an async IMDb library or async HTTP requests
-        pass
+        """Fetch movie information from IMDb using an async wrapper."""
+        imdbId = int(self.tconst[2:])
+        # Run the blocking function get_movie in the executor
+        movie_data = await asyncio.get_event_loop().run_in_executor(
+            self.executor, get_movie, imdbId
+        )
+        return movie_data
 
     async def store_movie_data(self, movie):
         """
@@ -177,28 +201,62 @@ class Movie:
         return self.movie_data
 
     async def close(self):
-        await self.client.aclose()
+        self.executor.shutdown(wait=True)
+
+
 
 # Main function with async execution
-async def main(criteria):
-    client = await get_http_client()
-    movie_fetcher = AsyncImdbRandomMovieFetcher(config.Config.STACKHERO_DB_CONFIG)  # Must be an async version
-    row = await movie_fetcher.fetch_random_movie(criteria)
-    if not row:
-        print("No movies found based on the given criteria.")
-        return
+async def main():
+    db_config = Config.STACKHERO_DB_CONFIG  # Assuming you have a db_config defined
 
-    movie = Movie(row['tconst'], config.Config.STACKHERO_DB_CONFIG)
-    movie_data = await movie.get_movie_data(client)
-    print(movie_data)
-    # ... rest of the main function ...
-
-    await client.aclose()
-
-
-# Entry point for the script
-if __name__ == "__main__":
+    # Define criteria for movie selection
     criteria = {
-        # ... criteria dictionary ...
+        "min_year": 1900,
+        "max_year": 2023,
+        "min_rating": 7.0,
+        "max_rating": 10,
+        "title_type": "movie",
+        "language": "en",
+        "genres": ["Action", "Drama"]
     }
-    asyncio.run(main(criteria))
+
+    # Create an instance of the HTTP client
+    async with httpx.AsyncClient() as client:
+        # Instantiate your movie fetcher class
+        fetcher = ImdbRandomMovieFetcher(db_config)
+
+        # Fetch a random movie based on criteria
+        row = await fetcher.fetch_random_movie(criteria)
+
+        if not row:
+            print("No movies found based on the given criteria.")
+            return
+
+        # Pass the client to the Movie constructor
+        movie = Movie(row['tconst'], db_config, client)
+        movie_data = await movie.get_movie_data()
+
+        # Print movie data
+        print(movie_data)
+
+        # Iterate through posters
+        for image in movie_data["images"].get('posters', []):
+            print(image)
+
+        # Print cast information
+        print("\nCast Information:")
+        for cast_member in movie_data.get("cast", []):
+            print(f"Name: {cast_member['name']}, Image URL: {cast_member['image_url']}")
+
+        # Print trailers
+        print("\nTrailers:")
+        print(movie_data.get("trailer", []))
+
+        # Print additional cast information
+        print("\nCast Information:")
+        for cast_member in movie_data.get("cast", []):
+            print(f"Name: {cast_member['name']}, Character: {cast_member['character']}, Image URL: {cast_member['image_url']}")
+
+# Ensure asyncio.run is called if this script is the main one being run
+if __name__ == "__main__":
+    asyncio.run(main())
