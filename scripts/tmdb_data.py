@@ -1,5 +1,7 @@
+import asyncio
 import os
 
+import httpx
 import tmdbsimple as tmdb
 
 from scripts.movie import fetch_images_from_tmdb
@@ -17,19 +19,27 @@ os.chdir(parent_dir)
 print(f"Current working directory after change: {os.getcwd()}")
 
 
-# Function to fetch TMDb ID using IMDb tconst
-def get_tmdb_id_by_tconst(tconst):
-    find = tmdb.Find(tconst)
-    response = find.info(external_source='imdb_id')
-    tmdb_id = response['movie_results'][0]['id'] if response['movie_results'] else None
+# Async function to fetch TMDb ID using IMDb tconst
+async def get_tmdb_id_by_tconst(tconst, client):
+    url = f"https://api.themoviedb.org/3/find/{tconst}"
+    params = {
+        'api_key': api_key,
+        'external_source': 'imdb_id'
+    }
+    response = await client.get(url, params=params)
+    response.raise_for_status()  # This will raise an exception for HTTP error responses
+    data = response.json()
+    tmdb_id = data['movie_results'][0]['id'] if data['movie_results'] else None
     return tmdb_id
 
 
-# Function to fetch movie information by TMDb ID
-def get_movie_info_by_tmdb_id(tmdb_id):
-    movie = tmdb.Movies(tmdb_id)
-    response = movie.info()
-    return response
+# Async function to fetch movie information by TMDb ID
+async def get_movie_info_by_tmdb_id(tmdb_id, client):
+    url = f"https://api.themoviedb.org/3/movie/{tmdb_id}"
+    params = {'api_key': api_key}
+    response = await client.get(url, params=params)
+    response.raise_for_status()
+    return response.json()
 
 
 # Function to fetch cast information by TMDb ID
@@ -45,36 +55,27 @@ def get_full_image_url(profile_path, size='original'):
     return f"{base_url}{size}{profile_path}"
 
 
-# Function to get a backdrop image for the homepage
-# Function to get a backdrop image for the homepage
-def get_backdrop_image_for_home(tmdb_id):
-    # Check if a corresponding TMDb ID exists
+async def get_backdrop_image_for_home(tmdb_id, client):
+    """Asynchronously gets a backdrop image for the homepage."""
     if tmdb_id:
-        # Use the fetch_images_from_tmdb function to get image data
-        image_data = fetch_images_from_tmdb(tmdb_id)
-
-        # Check if there are any backdrop images
+        image_data = await fetch_images_from_tmdb(tmdb_id, client)
         backdrops = image_data.get('backdrops', [])
-
-        # If backdrop images exist, return the first one (or a random one if you prefer)
         if backdrops:
-            backdrop_url = get_full_image_url(backdrops[0])  # Using the first backdrop image
+            backdrop_url = await get_full_image_url(backdrops[0]['file_path'])  # Using the first backdrop image
             return backdrop_url
     return None
 
 
-# Modify this function to return all backdrop images
-def get_all_backdrop_images(tmdb_id):
+async def get_all_backdrop_images(tmdb_id, client):
+    """Asynchronously gets all backdrop images."""
     if tmdb_id:
-        image_data = fetch_images_from_tmdb(tmdb_id)
+        image_data = await fetch_images_from_tmdb(tmdb_id, client)
         backdrops = image_data.get('backdrops', [])
-        if backdrops:
-            # Create a list to hold all backdrop URLs
-            all_backdrop_urls = []
-            for backdrop in backdrops:
-                backdrop_url = get_full_image_url(backdrop)
-                all_backdrop_urls.append(backdrop_url)
-            return all_backdrop_urls
+        all_backdrop_urls = []
+        for backdrop in backdrops:
+            backdrop_url = await get_full_image_url(backdrop['file_path'])
+            all_backdrop_urls.append(backdrop_url)
+        return all_backdrop_urls
     return None
 
 
@@ -85,50 +86,38 @@ class TmdbMovieInfo:
         tmdb.API_KEY = self.api_key
 
 
-# Main function
-def main(api_key, tconst):
-    # Initialize TMDb info
-    tmdb_info = TmdbMovieInfo(api_key)
+async def main(api_key, tconst):
+    async with httpx.AsyncClient() as client:
+        tmdb_info = TmdbMovieInfo(api_key)
+        tmdb_id = await tmdb_info.get_tmdb_id_by_tconst(tconst, client)
 
-    # Fetch TMDb ID
-    # tmdb_id = get_tmdb_id_by_tconst(tconst)
-    tmdb_id = 62
+        if tmdb_id:
+            movie_info = await tmdb_info.get_movie_info_by_tmdb_id(tmdb_id, client)
+            print("Movie Information from TMDb:", movie_info)
 
-    if tmdb_id:
-        # Fetch and display movie information
-        movie_info = get_movie_info_by_tmdb_id(tmdb_id)
-        print("Movie Information from TMDb:", movie_info)
+            cast_info = await tmdb_info.get_cast_info_by_tmdb_id(tmdb_id, client)
+            print("Cast Information:")
+            for cast_member in cast_info:
+                print(f"{cast_member['name']} as {cast_member['character']}")
+                profile_path = cast_member.get('profile_path')
+                if profile_path:
+                    image_url = await tmdb_info.get_full_image_url(profile_path)
+                    print(f"Image URL: {image_url}")
+                else:
+                    print("Image not available")
 
-        # Fetch and display cast information
-        cast_info = get_cast_info_by_tmdb_id(tmdb_id)
-        print("Cast Information:")
-        for cast_member in cast_info:
-            print(f"{cast_member['name']} as {cast_member['character']}")
-
-            # Fetch and display cast image URL
-            profile_path = cast_member.get('profile_path')
-            if profile_path:
-                image_url = get_full_image_url(profile_path)
-                print(f"Image URL: {image_url}")
+            all_backdrops = await tmdb_info.get_all_backdrop_images(tmdb_id, client)
+            if all_backdrops:
+                print("All backdrop images:")
+                for backdrop in all_backdrops:
+                    print(backdrop)
             else:
-                print("Image not available")
-
-            # Fix here: pass tmdb_id instead of movie_info to get the backdrop image
-
-        all_backdrops = get_all_backdrop_images(tmdb_id)
-        if all_backdrops:
-            print("All backdrop images:")
-            for backdrop in all_backdrops:
-                print(backdrop)
+                print("No backdrop images found.")
         else:
-            print("No backdrop images found.")
-
-    else:
-        print("TMDb ID not found.")
+            print("TMDb ID not found.")
 
 
-# Example usage
 if __name__ == "__main__":
     api_key = '1ce9398920594a5521f0d53e9b33c52f'  # Replace with your actual TMDb API key
     tconst = 'tt0111161'  # Replace with the IMDb tconst you have
-    main(api_key, tconst)
+    asyncio.run(main(api_key, tconst))
