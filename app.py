@@ -1,4 +1,6 @@
 from flask import Flask, request, render_template
+from quart import Quart, render_template, url_for, redirect
+
 import config
 
 # Import the MovieManager class here to avoid circular imports
@@ -10,40 +12,40 @@ movie_manager = MovieManager(config.Config.STACKHERO_DB_CONFIG)
 
 def create_app():
     # Create the Flask application
-    app = Flask(__name__)
+    app = Quart(__name__)
     # Load configuration from the config object
     app.config.from_object(config.Config)
 
     # Define your Flask routes within the factory function
     @app.route('/')
-    def home():
+    async def home():
         # Use the home method from MovieManager
-        return movie_manager.home()
+        return await movie_manager.home()
 
     @app.route('/movie')
-    def movie():
+    async def movie():
         # Display the current movie or the next movie in the queue
-        return movie_manager.fetch_and_render_movie()
+        return await movie_manager.fetch_and_render_movie()
 
     @app.route('/next_movie', methods=['GET', 'POST'])
-    def next_movie():
+    async def next_movie():
         # Display the next movie
-        return movie_manager.next_movie()
+        return await movie_manager.next_movie()
 
     @app.route('/previous_movie', methods=['GET', 'POST'])
-    def previous_movie():
+    async def previous_movie():
         # Go back to the previous movie
-        return movie_manager.previous_movie()
+        return await movie_manager.previous_movie()
 
     @app.route('/setFilters')
-    def set_filters():
+    async def set_filters():
         # Set or update filters
-        return movie_manager.set_filters()
+        return await movie_manager.set_filters()
 
     @app.route('/filtered_movie', methods=['POST'])
-    def filtered_movie_endpoint():
+    async def filtered_movie_endpoint():
         # Handle the filtered movie request
-        return movie_manager.filtered_movie(request.form)
+        return await movie_manager.filtered_movie(request.form)
 
     # ... Include additional routes and logic as needed ...
 

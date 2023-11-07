@@ -1,11 +1,31 @@
+import asyncio
 import time
 from queue import Queue
 
-from flask import render_template, redirect, url_for
+import httpx
+
 
 from scripts.movie_queue import MovieQueue
 from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher, extract_movie_filter_criteria
-from scripts.tmdb_data import get_backdrop_image_for_home
+from flask import redirect, url_for
+
+# Update imports for async handling
+from quart import Quart, render_template, redirect, url_for
+
+
+# This function should be async because it performs an HTTP request
+async def get_backdrop_image_for_home(tmdb_id, client):
+    # Perform your HTTP request here to get the backdrop image using the provided client
+    # I'm assuming you have an existing function that fetches the backdrop image data.
+    # Here's a simplified example:
+    url = f"https://api.themoviedb.org/3/movie/{tmdb_id}/images"
+    params = {'api_key': '1ce9398920594a5521f0d53e9b33c52f'}  # Replace with your actual API key
+    response = await client.get(url, params=params)
+    response.raise_for_status()
+    data = response.json()
+    if data['backdrops']:
+        return data['backdrops'][0]['file_path']  # Return the path of the first backdrop image
+    return None
 
 
 class MovieManager:
@@ -18,15 +38,19 @@ class MovieManager:
         self.previous_movies_stack = []
         self.current_displayed_movie = None
         self.default_movie_tmdb_id = 62
-        self.default_backdrop_url = get_backdrop_image_for_home(self.default_movie_tmdb_id)
+        self.default_backdrop_url = None  # Initialize with None
+        # Initiate the process of setting the default backdrop URL asynchronously
+        asyncio.run(self.set_default_backdrop_url())
 
-    from flask import redirect, url_for
+    async def set_default_backdrop_url(self):
+        # Create an instance of the HTTP client
+        async with httpx.AsyncClient() as client:
+            # Now pass the client to the get_backdrop_image_for_home function
+            self.default_backdrop_url = await get_backdrop_image_for_home(self.default_movie_tmdb_id, client)
 
-    # ... rest of your code ...
-
-    def fetch_and_render_movie(self, template_name='movie.html'):
+    async def fetch_and_render_movie(self, template_name='movie.html'):
         while self.current_displayed_movie is None or 'backdrop_path' not in self.current_displayed_movie or not \
-        self.current_displayed_movie['backdrop_path']:
+                self.current_displayed_movie['backdrop_path']:
             if self.movie_queue.empty():
                 # Redirect to a different endpoint if the queue is empty
                 # This endpoint should handle rendering or further redirection as needed
@@ -34,7 +58,7 @@ class MovieManager:
                 return redirect(url_for('movie'))  # 'no_movie_endpoint' is an example endpoint name
 
             # Get the next movie from the queue
-            self.current_displayed_movie = self.movie_queue.get()
+            self.current_displayed_movie = await self.movie_queue.get()  # Assuming this is an async operation
             print(f"Fetched new movie: {self.current_displayed_movie['title']}")
 
             # If the fetched movie has a backdrop, break the loop and proceed to render or redirect
@@ -89,7 +113,7 @@ class MovieManager:
         start_time = time.time()
         print("Entering setFilters")
 
-        self.movie_queue_manager.stop_populate_thread()
+        self.movie_queue_manager.stop_populate_task()
         print(f"Stopping populate thread took {time.time() - start_time} seconds")
 
         self.movie_queue_manager.empty_queue()

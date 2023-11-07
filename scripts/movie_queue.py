@@ -2,6 +2,10 @@ import os
 import asyncio
 import logging
 from asyncio import Queue
+
+import httpx
+from httpx import AsyncClient
+
 from config import Config
 # Assume these scripts have been converted to async versions
 from scripts.movie import get_tmdb_id_by_tconst, Movie
@@ -81,7 +85,7 @@ class MovieQueue:
         logging.info(f"Populate task running: {running}")
         return running
 
-    async def fetch_and_enqueue_movie(self, tconst):
+    async def fetch_and_enqueue_movie(self, tconst, client):
         async with self.lock:
             if self.queue.qsize() >= 10:
                 # Queue is full, log the movie queue content for debugging
@@ -92,10 +96,10 @@ class MovieQueue:
                     logging.info(f"Movie Title: {movie.get('title', 'N/A')}, tconst: {movie.get('tconst', 'N/A')}")
                 return
 
-        movie = Movie(tconst, self.db_config)
+        movie = Movie(tconst, self.db_config, client)
         movie_data_imdb = await movie.get_movie_data()  # This should be an async call
-        tmdb_id = await get_tmdb_id_by_tconst(tconst)  # This should be an async call
-        movie_data_tmdb = await get_movie_info_by_tmdb_id(tmdb_id)  # This should be an async call
+        tmdb_id = await get_tmdb_id_by_tconst(tconst, client)  # Pass the client here
+        movie_data_tmdb = await get_movie_info_by_tmdb_id(tmdb_id,client)  # This should be an async call
         movie_data_imdb['backdrop_path'] = movie_data_tmdb.get('backdrop_path', None)
 
         async with self.lock:
@@ -103,9 +107,11 @@ class MovieQueue:
             logging.info(f"Enqueued movie '{movie_data_imdb.get('title', 'N/A')}' with tconst: {tconst}")
 
     async def load_movies_into_queue(self):
-        rows = await self.movie_fetcher.fetch_random_movies25(self.criteria)  # This should be an async call
-        tasks = [self.fetch_and_enqueue_movie(row['tconst']) for row in rows if row]
-        await asyncio.gather(*tasks)
+        async with httpx.AsyncClient() as client:
+            rows = await self.movie_fetcher.fetch_random_movies25(self.criteria, client=client)  # Pass the client here
+            tasks = [self.fetch_and_enqueue_movie(row['tconst'], client) for row in rows if
+                     row]  # Pass the client to each task
+            await asyncio.gather(*tasks)
 
     async def update_criteria_and_reset(self, new_criteria):
         await self.set_criteria(new_criteria)
@@ -145,6 +151,6 @@ async def main():
 
     logging.info(f"Is the MovieQueue task still running? {movie_queue_manager.is_task_running()}")
 
+
 if __name__ == "__main__":
     asyncio.run(main())
-

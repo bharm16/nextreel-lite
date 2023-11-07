@@ -93,7 +93,7 @@ class ImdbRandomMovieFetcher:
         full_query = base_query + (f" AND ({genre_conditions[0]})" if genre_conditions else "")
         return await execute_query(full_query, parameters, 'all')
 
-    async def fetch_random_movies25(self, criteria):
+    async def fetch_random_movies25(self, criteria,client):
         base_query = build_base_query()
         parameters = build_parameters(criteria)
         genre_conditions = build_genre_conditions(criteria, parameters)
@@ -101,7 +101,7 @@ class ImdbRandomMovieFetcher:
             f" AND ({genre_conditions[0]})" if genre_conditions else "") + " ORDER BY RAND() LIMIT 15"
         return await execute_query(full_query, parameters, 'all')
 
-    async def fetch_random_movie(self, criteria):
+    async def fetch_random_movie(self, criteria,client):
         base_query = build_base_query()
         parameters = build_parameters(criteria)
         genre_conditions = build_genre_conditions(criteria, parameters)
