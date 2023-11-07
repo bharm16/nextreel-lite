@@ -55,4 +55,5 @@ if __name__ == "__main__":
     # Use the application factory function to create the app instance
     app = create_app()
     # Run the Flask app with debug turned on (only for development)
-    app.run(debug=True, use_reloader=False)
+    # app.run(debug=True, use_reloader=False)
+    app.run()
