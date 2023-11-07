@@ -6,14 +6,14 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 import logging
 
-# Configure logging at the start of your script
-logging.basicConfig(
-    level=logging.DEBUG,  # Set to DEBUG to capture all levels of log messages
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S',
-    filename='/Users/bryceharmon/Desktop/logfile.log',  # Set the path to your desired log file
-    filemode='a'  # Append mode, which allows logging to be added to the same file across different runs
-)
+# # Configure logging at the start of your script
+# logging.basicConfig(
+#     level=logging.DEBUG,  # Set to DEBUG to capture all levels of log messages
+#     format='%(asctime)s - %(levelname)s - %(message)s',
+#     datefmt='%Y-%m-%d %H:%M:%S',
+#     filename='/Users/bryceharmon/Desktop/logfile.log',  # Set the path to your desired log file
+#     filemode='a'  # Append mode, which allows logging to be added to the same file across different runs
+# )
 
 # Replace all print statements with logging
 logger = logging.getLogger(__name__)
