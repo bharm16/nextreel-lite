@@ -33,7 +33,7 @@ class MovieManager:
     def __init__(self, db_config):
         self.movie_fetcher = ImdbRandomMovieFetcher(db_config)
         self.criteria = {}
-        self.movie_queue = Queue(maxsize=15)
+        self.movie_queue = asyncio.Queue(maxsize=15)  # Use asyncio.Queue for async compatibility
         self.movie_queue_manager = MovieQueue(db_config, self.movie_queue)
         self.future_movies_stack = []
         self.previous_movies_stack = []
@@ -41,7 +41,11 @@ class MovieManager:
         self.default_movie_tmdb_id = 62
         self.default_backdrop_url = None  # Initialize with None
         # Initiate the process of setting the default backdrop URL asynchronously
-        # asyncio.run(self.set_default_backdrop_url())
+
+    async def start(self):
+        # Now it's safe to start asynchronous tasks because this method should be called from an async context
+        await self.movie_queue_manager.populate()  # Start populating the queue
+        await self.set_default_backdrop_url()  # Set the default backdrop URL
 
     async def set_default_backdrop_url(self):
         # Create an instance of the HTTP client
@@ -151,13 +155,15 @@ class MovieManager:
 
 # The main function for testing
 async def main():
+    movie_manager = MovieManager(Config.STACKHERO_DB_CONFIG)
+    await movie_manager.start()
 
     dbconfig = Config.STACKHERO_DB_CONFIG
 
     # Initialize the MovieManager with the database configuration
     movie_manager = MovieManager(dbconfig)
-
-    # Test setting default backdrop URL
+    # await movie_manager.movie_queue_manager.populate()  # Start the population task
+    # # Test setting default backdrop URL
     await movie_manager.set_default_backdrop_url()
     logging.info(f"Default backdrop URL set to: {movie_manager.default_backdrop_url}")
 
@@ -173,6 +179,7 @@ async def main():
         'max_rating': 10,
         'genres': ['Comedy', 'Romance']
     }
+
     await movie_manager.update_criteria(new_criteria)
 
     # Test getting the next movie

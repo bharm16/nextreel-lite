@@ -41,6 +41,7 @@ class MovieQueue:
             self.populate_task = None  # Will hold the asyncio Task for populating the queue
             self._initialized = True
 
+
     async def set_criteria(self, new_criteria):
         async with self.lock:
             self.criteria = new_criteria
