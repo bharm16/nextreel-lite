@@ -1,17 +1,13 @@
 import asyncio
 import logging
-import time
-from queue import Queue
 
 import httpx
+# Update imports for async handling
+from quart import render_template
 
 from config import Config
 from scripts.movie_queue import MovieQueue
 from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher, extract_movie_filter_criteria
-from flask import redirect, url_for
-
-# Update imports for async handling
-from quart import Quart, render_template, redirect, url_for
 
 
 # This function should be async because it performs an HTTP request
