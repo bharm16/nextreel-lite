@@ -1,22 +1,15 @@
 from quart import Quart, request, redirect, url_for
-
 import config
 from movie_manager import MovieManager
 
-# Create an instance of MovieManager with the database configuration
-movie_manager = MovieManager(config.Config.STACKHERO_DB_CONFIG)
-
-
-async def create_app():
+def create_app():
     # Create the Quart application
     app = Quart(__name__)
-    # Load configuration from the config object
     app.config.from_object(config.Config)
 
-    # Start any required asynchronous tasks here
-    await movie_manager.start()  # Replace `start` with an appropriate async init function
+    # Initialize the MovieManager with the database configuration
+    movie_manager = MovieManager(config.Config.STACKHERO_DB_CONFIG)
 
-    # Define your Quart routes within the factory function
     @app.route('/')
     async def home():
         # Use the home method from MovieManager
@@ -24,10 +17,11 @@ async def create_app():
 
     @app.route('/movie')
     async def movie():
+        # Fetch and render a movie
         movie_or_none = await movie_manager.fetch_and_render_movie()
         if movie_or_none is None:
             # Redirect to a fallback route or return a message when the queue is empty
-            return redirect(url_for('home'))  # Replace with your actual fallback route
+            return redirect(url_for('home'))
         else:
             # If there's a movie to display, return the rendered template
             return movie_or_none
@@ -52,12 +46,9 @@ async def create_app():
         # Handle the filtered movie request
         return await movie_manager.filtered_movie(request.form)
 
+    # Add other routes and functionalities as needed
+
     return app
 
-
-if __name__ == "__main__":
-    # Since create_app is an async function, we need to run it with asyncio
-    import asyncio
-    app = asyncio.run(create_app())
-    # Run the Quart app with debug turned on (only for development)
-    app.run(port=5000, debug=True)
+# This is the entry point for running the app with an ASGI server like Hypercorn
+app = create_app()
