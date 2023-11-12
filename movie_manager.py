@@ -50,27 +50,23 @@ class MovieManager:
             self.default_backdrop_url = await get_backdrop_image_for_home(self.default_movie_tmdb_id, client)
 
     async def fetch_and_render_movie(self, template_name='movie.html'):
-        # This loop continues until a movie with a backdrop is found or the queue is empty
         while True:
+            logging.info(f"Checking queue size: {self.movie_queue.qsize()}")
             if self.movie_queue.empty():
-                # Queue is empty, so return None to indicate that there is no movie to display
                 print("Queue is empty, and no current movie is displayed with a valid backdrop image.")
                 return None
 
-            # Assuming movie_queue.get is an async operation; otherwise, it needs to be adapted.
             self.current_displayed_movie = await self.movie_queue.get()
             print(f"Fetched new movie: {self.current_displayed_movie['title']}")
 
-            # Check if the fetched movie has a backdrop, if so, render the movie
             if 'backdrop_path' in self.current_displayed_movie and self.current_displayed_movie['backdrop_path']:
-                # Render the template with the movie data and return it
                 return await render_template(template_name,
                                              movie=self.current_displayed_movie,
                                              previous_count=len(self.previous_movies_stack))
             else:
-                # If the movie lacks a backdrop image, log and set the current movie to None
                 print(f"Skipping movie '{self.current_displayed_movie['title']}' due to missing backdrop image.")
-                self.current_displayed_movie = None  # Reset to force the while loop to continue
+                self.current_displayed_movie = None
+
 
     async def next_movie(self):
         if self.current_displayed_movie:
@@ -151,19 +147,13 @@ class MovieManager:
 
 # The main function for testing
 async def main():
-    movie_manager = MovieManager(Config.STACKHERO_DB_CONFIG)
+    dbconfig = Config.STACKHERO_DB_CONFIG
+    movie_manager = MovieManager(dbconfig)
     await movie_manager.start()
 
-    dbconfig = Config.STACKHERO_DB_CONFIG
+    await asyncio.sleep(10)  # Wait for queue to populate
+    logging.info(f"Queue size after waiting: {movie_manager.movie_queue.qsize()}")
 
-    # Initialize the MovieManager with the database configuration
-    movie_manager = MovieManager(dbconfig)
-    # await movie_manager.movie_queue_manager.populate()  # Start the population task
-    # # Test setting default backdrop URL
-    await movie_manager.set_default_backdrop_url()
-    logging.info(f"Default backdrop URL set to: {movie_manager.default_backdrop_url}")
-
-    # Test fetching and rendering a movie
     rendered_movie = await movie_manager.fetch_and_render_movie()
     logging.info(f"Rendered movie: {rendered_movie}")
 
@@ -175,8 +165,6 @@ async def main():
         'max_rating': 10,
         'genres': ['Comedy', 'Romance']
     }
-
-    await movie_manager.update_criteria(new_criteria)
 
     # Test getting the next movie
     next_movie_render = await movie_manager.next_movie()
