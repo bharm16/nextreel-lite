@@ -49,7 +49,8 @@ def create_app():
     @app.route('/filtered_movie', methods=['POST'])
     async def filtered_movie_endpoint():
         logging.info("Applying movie filters")
-        return await movie_manager.filtered_movie(request.form)
+        form_data = await request.form  # Await the form data
+        return await movie_manager.filtered_movie(form_data)
 
     return app
 

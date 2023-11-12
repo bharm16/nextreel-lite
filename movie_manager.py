@@ -106,10 +106,6 @@ class MovieManager:
 
         return await self.fetch_and_render_movie()
 
-    async def update_criteria(self, new_criteria):
-        self.criteria = new_criteria
-        await self.movie_queue_manager.update_criteria_and_reset(self.criteria)  # Use await here
-        logging.info("Criteria updated: %s", self.criteria)
 
     async def set_filters(self):
         start_time = asyncio.get_event_loop().time()
@@ -131,6 +127,13 @@ class MovieManager:
         return await render_template('home.html',
                                      default_backdrop_url=self.default_backdrop_url)  # If render_template is async compatible
 
+    # async def update_criteria(self, new_criteria):
+    #     self.criteria = new_criteria
+    #     await self.movie_queue_manager.update_criteria_and_reset(self.criteria)  # Use await here
+    #     logging.info("Criteria updated: %s", self.criteria)
+    #     # Restart the population task after updating the criteria
+    #     self.movie_queue_manager.populate_task = asyncio.create_task(self.movie_queue_manager.populate())
+
     async def filtered_movie(self, form_data):
         # Extract new filter criteria from the form
         new_criteria = extract_movie_filter_criteria(form_data)
@@ -138,20 +141,28 @@ class MovieManager:
         # Update the instance criteria with the new filters
         self.criteria = new_criteria
 
-        # Update the existing movie queue manager with the new filter criteria
-        await self.movie_queue_manager.update_criteria_and_reset(self.criteria)  # Use await here
+        # Stop any existing population tasks
+        await self.movie_queue_manager.stop_populate_task()
 
-        # For debugging purposes, log out the new criteria
-        logging.info("Extracted criteria: %s", new_criteria)
+        # Empty the current movie queue
+        await self.movie_queue_manager.empty_queue()
 
-        # We give the queue a few seconds to populate with movies that match the new criteria
-        await asyncio.sleep(5)  # Non-blocking sleep
+        # Update the movie queue manager with the new criteria
+        await self.movie_queue_manager.set_criteria(self.criteria)
+
+        # Restart the movie population task with the new criteria
+        self.movie_queue_manager.populate_task = asyncio.create_task(self.movie_queue_manager.populate())
+
+        # Log the updated criteria for debugging purposes
+        logging.info("Criteria updated and movie queue repopulating with new criteria: %s", self.criteria)
+
+        # Give the queue a few seconds to populate with movies that match the new criteria
+        await asyncio.sleep(20)  # Non-blocking sleep
 
         # Return the rendered movie
         return await self.fetch_and_render_movie()
 
 
-# ... Your existing code ...
 
 # The main function for testing
 async def main():
