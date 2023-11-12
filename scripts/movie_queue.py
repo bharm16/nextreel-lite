@@ -65,7 +65,7 @@ class MovieQueue:
             try:
                 if self.queue.qsize() >= max_queue_size:
                     logging.info(f"Queue has reached maximum size of {max_queue_size}, stopping populate task.")
-                    break
+                    break  # Breaking out of the loop when max size is reached
 
                 current_queue_size = self.queue.qsize()
                 if current_queue_size < 5:
@@ -74,7 +74,7 @@ class MovieQueue:
                 else:
                     logging.info(f"Queue size sufficient: {current_queue_size}")
 
-                await asyncio.sleep(1)
+                await asyncio.sleep(1)  # Non-blocking sleep
             except asyncio.CancelledError:
                 logging.info("Populate task has been cancelled")
                 break

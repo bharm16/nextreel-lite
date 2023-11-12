@@ -10,6 +10,9 @@ from scripts.movie_queue import MovieQueue
 from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher, extract_movie_filter_criteria
 
 
+
+
+
 # This function should be async because it performs an HTTP request
 async def get_backdrop_image_for_home(tmdb_id, client):
     # Perform your HTTP request here to get the backdrop image using the provided client
@@ -37,6 +40,11 @@ class MovieManager:
         self.default_movie_tmdb_id = 62
         self.default_backdrop_url = None  # Initialize with None
         # Initiate the process of setting the default backdrop URL asynchronously
+
+    async def start_population_task(self):
+        if not self.movie_queue_manager.is_task_running():
+            self.movie_queue_manager.populate_task = asyncio.create_task(self.movie_queue_manager.populate())
+            logging.info("Started movie queue population task.")
 
     async def start(self):
         # Now it's safe to start asynchronous tasks because this method should be called from an async context

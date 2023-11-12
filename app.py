@@ -10,6 +10,10 @@ def create_app():
 
     movie_manager = MovieManager(config.Config.STACKHERO_DB_CONFIG)
 
+    @app.before_serving
+    async def startup():
+        await movie_manager.start_population_task()
+
     @app.route('/')
     async def home():
         logging.info("Accessing home page")
