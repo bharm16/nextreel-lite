@@ -7,7 +7,7 @@ from config import create_connection
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 
-print(f"Current working directory: {os.getcwd()}")
+# print(f"Current working directory: {os.getcwd()}")
 # print(f"Resolved SSL certificate path: {Config.SSL_CERT_PATH}")
 
 # Query to fetch IMDb details of a watched movie

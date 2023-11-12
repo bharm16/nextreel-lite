@@ -9,7 +9,7 @@ parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(parent_dir)
 
 # Finally, print the new working directory to confirm the change
-print(f"Current working directory after change: {os.getcwd()}")
+# print(f"Current working directory after change: {os.getcwd()}")
 
 # create an instance of the Cinemagoer class
 ia = Cinemagoer()
