@@ -6,7 +6,6 @@ from config import create_connection
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-
 # print(f"Current working directory: {os.getcwd()}")
 # print(f"Resolved SSL certificate path: {Config.SSL_CERT_PATH}")
 
@@ -61,8 +60,6 @@ SELECT nconst FROM `name.basics`
 WHERE primaryName = %s
 LIMIT 1
 """
-
-
 
 
 def execute_query(query, params=None, fetch='one'):
