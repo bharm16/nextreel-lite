@@ -9,6 +9,7 @@ from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher, ext
 # Configure logging for better debugging
 logging.basicConfig(level=logging.INFO)
 
+
 # Function to get the backdrop image for the home page
 async def get_backdrop_image_for_home(tmdb_id, client):
     logging.info("Entering get_backdrop_image_for_home")
@@ -22,6 +23,7 @@ async def get_backdrop_image_for_home(tmdb_id, client):
         return data['backdrops'][0]['file_path']
     logging.info("No backdrop image found")
     return None
+
 
 # MovieManager class
 class MovieManager:
@@ -60,7 +62,8 @@ class MovieManager:
                 return None
             self.current_displayed_movie = await self.movie_queue.get()
             if 'backdrop_path' in self.current_displayed_movie and self.current_displayed_movie['backdrop_path']:
-                return await render_template(template_name, movie=self.current_displayed_movie, previous_count=len(self.previous_movies_stack))
+                return await render_template(template_name, movie=self.current_displayed_movie,
+                                             previous_count=len(self.previous_movies_stack))
             logging.info("Movie skipped due to missing backdrop image")
 
     async def next_movie(self):
@@ -112,6 +115,7 @@ class MovieManager:
         await asyncio.sleep(20)  # Giving time for queue to populate
         return await self.fetch_and_render_movie()
 
+
 # Main function for testing...
 async def main():
     dbconfig = Config.STACKHERO_DB_CONFIG
@@ -121,6 +125,7 @@ async def main():
     rendered_movie = await movie_manager.fetch_and_render_movie()
     next_movie_render = await movie_manager.next_movie()
     prev_movie_render = await movie_manager.previous_movie()
+
 
 if __name__ == "__main__":
     asyncio.run(main())

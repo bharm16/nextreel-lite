@@ -4,7 +4,7 @@ import os
 from asyncio import Queue
 import httpx
 from config import Config
-from scripts.movie import Movie, Find, TMDB_API_KEY
+from scripts.movie import Movie, Find, TMDB_API_KEY, by_imdb_id
 from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher
 
 # Configure logging for better clarity
@@ -89,34 +89,31 @@ class MovieQueue:
         logging.info(f"Populate task running: {running}")
         return running
 
-    async def fetch_and_enqueue_movie(self, tconst, client):
+    async def fetch_and_enqueue_movie(self, tconst):
         # Fetch and enqueue a single movie
         async with self.lock:
             if self.queue.qsize() >= 10:
                 logging.info("Queue is full. Current movies in the queue:")
                 queue_snapshot = list(self.queue._queue)
                 for movie in queue_snapshot:
-                    logging.info(f"Movie Title: {movie.get('title', 'N/A')}, tconst: {movie.get('tconst', 'N/A')}")
+                    logging.info(f"Movie Title: {movie.get('title')}, tconst: {movie.get('tconst')}")
                 return
 
-        find = Find(TMDB_API_KEY)  # Creating an instance of Find
-        tmdb_id = await find.by_imdb_id(tconst)  # Using the by_imdb_id method
+        movie = Movie(tconst, self.db_config)
+        movie_data_tmdb = await movie.get_movie_data()  # Fetches data using TMDB ID via the Movie class
 
-        if tmdb_id:
-            movie = Movie(tconst, self.db_config)
-            movie_data_tmdb = await movie.get_movie_data()  # Assuming this method fetches data using TMDB ID
-
+        if movie_data_tmdb:
             async with self.lock:
                 await self.queue.put(movie_data_tmdb)
-                logging.info(f"Enqueued movie '{movie_data_tmdb.get('title', 'N/A')}' with tconst: {tconst}")
+                logging.info(f"Enqueued movie '{movie_data_tmdb.get('title')}' with tconst: {tconst}")
         else:
-            logging.warning(f"No TMDB ID found for tconst: {tconst}")
+            logging.warning(f"No movie data found for tconst: {tconst}")
 
     async def load_movies_into_queue(self):
         # Load multiple movies into the queue
         async with httpx.AsyncClient() as client:
             rows = await self.movie_fetcher.fetch_random_movies25(self.criteria, client=client)
-            tasks = [self.fetch_and_enqueue_movie(row['tconst'], client) for row in rows if row]
+            tasks = [self.fetch_and_enqueue_movie(row['tconst']) for row in rows if row]
             await asyncio.gather(*tasks)
 
     async def update_criteria_and_reset(self, new_criteria):
@@ -147,10 +144,6 @@ async def main():
 
     await asyncio.sleep(5)  # Allow time for the queue to populate
 
-    logging.info("Movies loaded into the queue:")
-    while not movie_queue.empty():
-        movie = await movie_queue.get()
-        logging.info(f"Movie Title: {movie.get('title', 'N/A')}, tconst: {movie.get('tconst', 'N/A')}")
 
     await movie_queue_manager.stop_populate_task()
     await movie_queue_manager.empty_queue()

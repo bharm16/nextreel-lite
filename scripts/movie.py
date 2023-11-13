@@ -2,11 +2,13 @@ import os
 import random
 import asyncio
 import httpx
+from tmdbsimple import find
 
 import config
 from config import Config
 from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher, execute_query
-from scripts.tmdb_data import get_tmdb_id_by_tconst
+from scripts.tmdb_data import fetch_images_from_tmdb, get_movie_info_by_tmdb_id, fetch_videos_from_tmdb, \
+    get_credits_by_tmdb_id, get_video_url_by_tmdb_id, get_cast_info_by_tmdb_id
 
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(parent_dir)
@@ -46,6 +48,23 @@ async def fetch_movie_ratings(tconst):
 TMDB_API_KEY = '1ce9398920594a5521f0d53e9b33c52f'
 TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/"
 
+# Replace with your actual TMDb API key
+TMDB_API_BASE_URL = "https://api.themoviedb.org/3"
+
+
+# Async HTTP client setup
+
+
+# Async TMDb operations
+async def get_tmdb_id_by_tconst(tconst, client):
+    response = await client.get(
+        f"{TMDB_API_BASE_URL}/find/{tconst}",
+        params={"api_key": TMDB_API_KEY, "external_source": "imdb_id"}
+    )
+    response.raise_for_status()
+    data = response.json()
+    return data['movie_results'][0]['id'] if data['movie_results'] else None
+
 
 class TMDB:
     BASE_URL = "https://api.themoviedb.org/3"
@@ -53,7 +72,6 @@ class TMDB:
     def __init__(self, api_key):
         self.api_key = api_key
         self.client = httpx.AsyncClient()  # Initialize the HTTP client
-
 
     async def _GET(self, path, params={}):
         """Send an asynchronous GET request to the TMDB API."""
@@ -78,24 +96,21 @@ class TMDB:
             return None
 
         # Make sure to close the client when it's no longer needed
+
     async def close(self):
         await self.client.aclose()
 
 
-
+async def by_imdb_id(imdb_id):
+    """Asynchronously find a movie by IMDb ID."""
+    async with httpx.AsyncClient() as client:
+        tmdb_id = await get_tmdb_id_by_tconst(imdb_id, client)
+        return tmdb_id
 
 
 class Find(TMDB):
     def __init__(self, api_key):
         super().__init__(api_key)
-
-    async def by_imdb_id(self, imdb_id):
-        """Asynchronously find a movie by IMDb ID."""
-        async with httpx.AsyncClient() as client:
-            tmdb_id = await get_tmdb_id_by_tconst(imdb_id, client)
-            return tmdb_id
-
-
 
 
 class Movies(TMDB):
@@ -119,96 +134,79 @@ class Movies(TMDB):
         return await self._GET(f"movie/{tmdb_id}/videos")
 
 
-
-
-
 class Movie:
     def __init__(self, tconst, db_config):
-        self.tconst = tconst  # tconst is a string
+        self.tconst = tconst
         self.db_config = db_config
         self.movie_data = {}
-        print(self.tconst)
-        # self.numVotes = movie_data_from_db.get('numVotes', 'N/A')  # Safely extract numVotes
-        self.db_config = db_config
-        self.movie_data = {}
-
-    # ... rest of your methods ...
 
     async def get_movie_data(self):
-        find = Find(TMDB_API_KEY)
-        movies = Movies(TMDB_API_KEY)
+        async with httpx.AsyncClient() as client:
+            tmdb_id = await get_tmdb_id_by_tconst(self.tconst, client)
 
-        tmdb_id = await find.by_imdb_id(self.tconst)
+            # if not tmdb_id:
+            #     return None
 
-        if not tmdb_id:
-            await find.close()
-            return None
+            # Fetch cast and crew information from TMDb
+            tmdb_credits = await get_credits_by_tmdb_id(tmdb_id, client)
 
-        movie_info = await movies.movie_info(tmdb_id)
-        movie_credits = await movies.credits(tmdb_id)
-        movie_images = await movies.images(tmdb_id)
-        movie_videos = await movies.videos(tmdb_id)
+            # Fetch a trailer URL from TMDb
+            tmdb_movie_trailer = await get_video_url_by_tmdb_id(tmdb_id, client)
 
-        # Extracting director and writer names
-        directors = [crew['name'] for crew in movie_credits.get('crew', []) if crew['job'] == 'Director']
-        writers = [crew['name'] for crew in movie_credits.get('crew', []) if crew['job'] == 'Writer']
+            tmdb_cast_info_result = await get_cast_info_by_tmdb_id(tmdb_id, client)
+            tmdb_cast_info = tmdb_cast_info_result[:10] if tmdb_cast_info_result else []
 
-        # Fetch ratings from the IMDb database
-        ratings_data = await fetch_movie_ratings(self.tconst)
-        if ratings_data:
-            self.movie_data["averageRating"] = ratings_data["averageRating"]
-            self.movie_data["numVotes"] = ratings_data["numVotes"]
-        else:
-            self.movie_data["averageRating"] = 'N/A'
-            self.movie_data["numVotes"] = 'N/A'
+            # Fetch image information from TMDb
+            tmdb_image_info = await fetch_images_from_tmdb(tmdb_id, client)
 
-        # Forming movie data dictionary
-        self.movie_data = {
-            "title": movie_info.get('title', 'N/A'),
-            "imdb_id": self.tconst,  # Using tconst as IMDb ID
-            "tmdb_id": tmdb_id,  # Using TMDB ID instead of IMDb ID
-            "genres": ', '.join([genre['name'] for genre in movie_info.get('genres', ['N/A'])]),
-            "directors": ', '.join(directors),
-            "writers": ', '.join(writers),
-            "runtimes": movie_info.get('runtime', 'N/A'),
-            "countries": ', '.join([country['name'] for country in movie_info.get('production_countries', ['N/A'])]),
-            "languages": movie_info.get('original_language', 'N/A'),
-            "rating": movie_info.get('vote_average', 'N/A'),
-            # "votes": movie_info.get('vote_count', 'N/A'),
-            "votes": self.movie_data.get('numVotes', 'N/A'),  # Use the numVotes from the fetched data
+            # Fetch additional movie details
+            movie_info = await get_movie_info_by_tmdb_id(tmdb_id, client)
 
-            "plot": movie_info.get('overview', 'N/A'),
-            "poster_url": f"{TMDB_IMAGE_BASE_URL}w500{movie_info.get('poster_path')}" if movie_info.get(
-                'poster_path') else None,
-            "year": movie_info.get('release_date', 'N/A')[:4] if movie_info.get('release_date') else 'N/A',
-            "cast": [{"name": cast['name'], "character": cast['character']} for cast in
-                     movie_credits.get('cast', [])[:10]],  # Limit to 10
-            "images": {
-                "posters": [f"{TMDB_IMAGE_BASE_URL}w185{img['file_path']}" for img in movie_images.get('posters', [])],
-                "backdrops": [f"{TMDB_IMAGE_BASE_URL}w185{img['file_path']}" for img in
-                              movie_images.get('backdrops', [])]
-            },
-            "trailer": next(
-                (f"https://www.youtube.com/watch?v={video['key']}" for video in movie_videos.get('results', []) if
-                 video['site'] == 'YouTube' and video['type'] == 'Trailer'), None),
-            "credits": {
-                "cast": movie_credits.get('cast', []),
-                "crew": movie_credits.get('crew', [])
+            # Fetch ratings from the IMDb database
+            ratings_data = await fetch_movie_ratings(self.tconst)
+            if ratings_data:
+                self.movie_data["averageRating"] = ratings_data["averageRating"]
+                self.movie_data["numVotes"] = ratings_data["numVotes"]
+            else:
+                self.movie_data["averageRating"] = 'N/A'
+                self.movie_data["numVotes"] = 'N/A'
+
+
+            directors = [crew['name'] for crew in tmdb_credits.get('crew', []) if crew['job'] == 'Director']
+            writers = [crew['name'] for crew in tmdb_credits.get('crew', []) if crew['job'] == 'Writer']
+
+
+            # Forming movie data dictionary
+            self.movie_data = {
+                "title": movie_info.get('title', 'N/A'),
+                "imdb_id": self.tconst,
+                "tmdb_id": tmdb_id,
+                "genres": ', '.join([genre['name'] for genre in movie_info.get('genres', ['N/A'])]),
+                "directors": ', '.join([crew['name'] for crew in tmdb_credits.get('crew', []) if crew['job'] == 'Director']),
+                "writers": ', '.join([crew['name'] for crew in tmdb_credits.get('crew', []) if crew['job'] == 'Writer']),
+                "runtimes": movie_info.get('runtime', 'N/A'),
+                "countries": ', '.join([country['name'] for country in movie_info.get('production_countries', ['N/A'])]),
+                "languages": movie_info.get('original_language', 'N/A'),
+                "rating": movie_info.get('vote_average', 'N/A'),
+                "votes": self.movie_data.get('numVotes', 'N/A'),
+                "plot": movie_info.get('overview', 'N/A'),
+                "poster_url": f"{TMDB_IMAGE_BASE_URL}w500{movie_info.get('poster_path')}" if movie_info.get('poster_path') else None,
+                "year": movie_info.get('release_date', 'N/A')[:4] if movie_info.get('release_date') else 'N/A',
+                "cast": tmdb_cast_info,
+                "images": tmdb_image_info,
+                "trailer": tmdb_movie_trailer,
+                "credits": tmdb_credits
             }
-        }
 
-        await find.close()
-        await movies.close()
-        return self.movie_data
+            return self.movie_data
 
     async def close(self):
-        # Add any cleanup code here if necessary
         pass
 
+# Continue with the main() function and other parts of the script
 
-# Main function with async execution
-# Main function with async execution
-# Main function with async execution
+
+
 async def main():
     db_config = Config.STACKHERO_DB_CONFIG  # Assuming you have a db_config defined
 
@@ -240,10 +238,7 @@ async def main():
         else:
             print("Tconst not found in movie data.")
 
+
 if __name__ == "__main__":
     asyncio.run(main())
 
-
-# Ensure asyncio.run is called if this script is the main one being run
-if __name__ == "__main__":
-    asyncio.run(main())
