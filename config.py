@@ -20,6 +20,7 @@ if not api_key:
 # Initialize the tmdb API with the key fetched from the environment
 tmdbsimple.API_KEY = api_key
 
+
 class Config:
 
     @staticmethod
@@ -56,12 +57,6 @@ class Config:
     SECRET_KEY = os.getenv('FLASK_SECRET_KEY')
     TMDB_API_KEY = os.getenv('TMDB_API_KEY')
 
-
-
-
-
-
-
     # Usage
 
 
@@ -95,8 +90,6 @@ async def create_aiomysql_connection():
         return None
 
 
-
-
 async def main():
     # Your main logic here
     print("Starting the database connection process.")
@@ -104,11 +97,6 @@ async def main():
     connection = await create_aiomysql_connection()
     # Rest of your code
     print(connection)
-
-
-
-
-
 
 
 def create_connection():
@@ -141,13 +129,6 @@ def create_connection():
         return None
 
 
-
-
-
-
-
-
-
 # Example usage
 print("Starting the database connection process.")
 connection = create_connection()
@@ -158,7 +139,6 @@ if connection:
 else:
     # Print if the connection was not successful
     print("Database connection could not be established.")
-
 
 # Usage
 project_root = Config.get_project_root()
