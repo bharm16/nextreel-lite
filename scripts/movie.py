@@ -6,6 +6,7 @@ import httpx
 import config
 from config import Config
 from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher, execute_query
+from scripts.tmdb_data import get_tmdb_id_by_tconst
 
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(parent_dir)
@@ -51,7 +52,8 @@ class TMDB:
 
     def __init__(self, api_key):
         self.api_key = api_key
-        self.client = httpx.AsyncClient()
+        self.client = httpx.AsyncClient()  # Initialize the HTTP client
+
 
     async def _GET(self, path, params={}):
         """Send an asynchronous GET request to the TMDB API."""
@@ -60,8 +62,27 @@ class TMDB:
         response.raise_for_status()
         return response.json()
 
+    async def get_movie_by_tmdb_id(self, tmdb_id):
+        """Get a movie by its TMDb ID."""
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{self.BASE_URL}/movie/{tmdb_id}", params={"api_key": self.api_key})
+            response.raise_for_status()
+            return response.json()
+
+    async def fetch_movie_details(self, tmdb_id):
+        try:
+            movie_details = await self.get_movie_by_tmdb_id(tmdb_id)
+            return movie_details
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            return None
+
+        # Make sure to close the client when it's no longer needed
     async def close(self):
         await self.client.aclose()
+
+
+
 
 
 class Find(TMDB):
@@ -70,7 +91,11 @@ class Find(TMDB):
 
     async def by_imdb_id(self, imdb_id):
         """Asynchronously find a movie by IMDb ID."""
-        return await self._GET(f"find/{imdb_id}", {"external_source": "imdb_id"})
+        async with httpx.AsyncClient() as client:
+            tmdb_id = await get_tmdb_id_by_tconst(imdb_id, client)
+            return tmdb_id
+
+
 
 
 class Movies(TMDB):
@@ -94,29 +119,7 @@ class Movies(TMDB):
         return await self._GET(f"movie/{tmdb_id}/videos")
 
 
-class Movies(TMDB):
-    def __init__(self, api_key):
-        super().__init__(api_key)
 
-    def movie_info(self, tmdb_id):
-        """Get information about a movie by its TMDB ID."""
-        response = self._GET(f"movie/{tmdb_id}")
-        return response
-
-    def credits(self, tmdb_id):
-        """Get credits for the movie."""
-        response = self._GET(f"movie/{tmdb_id}/credits")
-        return response
-
-    def images(self, tmdb_id):
-        """Get images for the movie."""
-        response = self._GET(f"movie/{tmdb_id}/images")
-        return response
-
-    def videos(self, tmdb_id):
-        """Get videos for the movie."""
-        response = self._GET(f"movie/{tmdb_id}/videos")
-        return response
 
 
 class Movie:
@@ -127,15 +130,13 @@ class Movie:
         self.db_config = db_config
         self.movie_data = {}
 
-
     # ... rest of your methods ...
 
     async def get_movie_data(self):
         find = Find(TMDB_API_KEY)
         movies = Movies(TMDB_API_KEY)
 
-        tmdb_find_result = await find.by_imdb_id(self.tconst)
-        tmdb_id = tmdb_find_result["movie_results"][0]["id"] if tmdb_find_result["movie_results"] else None
+        tmdb_id = await find.by_imdb_id(self.tconst)
 
         if not tmdb_id:
             await find.close()
@@ -231,6 +232,8 @@ async def main():
         movie = Movie(movie_data_from_db, db_config)
         movie_data = await movie.get_movie_data()
         print(movie_data)
+
+
 # Ensure asyncio.run is called if this script is the main one being run
 if __name__ == "__main__":
     asyncio.run(main())

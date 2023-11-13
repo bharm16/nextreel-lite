@@ -15,6 +15,7 @@ parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(parent_dir)
 logging.debug(f"Current working directory after change: {os.getcwd()}")
 
+
 class MovieQueue:
     _instance = None
 
@@ -99,11 +100,10 @@ class MovieQueue:
                 return
 
         find = Find(TMDB_API_KEY)  # Creating an instance of Find
-        tmdb_find_result = await find.by_imdb_id(tconst)  # Using the by_imdb_id method
-        tmdb_id = tmdb_find_result["movie_results"][0]["id"] if tmdb_find_result["movie_results"] else None
+        tmdb_id = await find.by_imdb_id(tconst)  # Using the by_imdb_id method
 
         if tmdb_id:
-            movie = Movie(tconst, self.db_config, client)
+            movie = Movie(tconst, self.db_config)
             movie_data_tmdb = await movie.get_movie_data()  # Assuming this method fetches data using TMDB ID
 
             async with self.lock:
@@ -111,8 +111,6 @@ class MovieQueue:
                 logging.info(f"Enqueued movie '{movie_data_tmdb.get('title', 'N/A')}' with tconst: {tconst}")
         else:
             logging.warning(f"No TMDB ID found for tconst: {tconst}")
-
-
 
     async def load_movies_into_queue(self):
         # Load multiple movies into the queue
@@ -127,6 +125,7 @@ class MovieQueue:
         await self.empty_queue()
         self.populate_task = asyncio.create_task(self.populate())
         logging.info("Populate task restarted")
+
 
 async def main():
     # Main function for testing...
@@ -157,6 +156,7 @@ async def main():
     await movie_queue_manager.empty_queue()
 
     logging.info(f"Is the MovieQueue task still running? {movie_queue_manager.is_task_running()}")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -4,7 +4,6 @@ import os
 import httpx
 import tmdbsimple as tmdb
 
-from scripts.movie import fetch_images_from_tmdb
 
 api_key = os.getenv('TMDB_API_KEY')
 tmdb.API_KEY = api_key
