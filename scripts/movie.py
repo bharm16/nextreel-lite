@@ -86,10 +86,16 @@ class Movies(TMDB):
 
 
 class Movie:
-    def __init__(self, tconst, db_config):
-        self.tconst = tconst
+    def __init__(self, movie_data_from_db, db_config):
+        self.db_data = movie_data_from_db  # Store the entire row data
+        self.tconst = movie_data_from_db['tconst']
+        self.numVotes = movie_data_from_db.get('numVotes', 'N/A')  # Safely extract numVotes
         self.db_config = db_config
         self.movie_data = {}
+        print(self.db_data)
+        print(self.numVotes)
+
+    # ... rest of your methods ...
 
     async def get_movie_data(self):
         find = Find(TMDB_API_KEY)
@@ -107,11 +113,12 @@ class Movie:
         movie_images = await movies.images(tmdb_id)
         movie_videos = await movies.videos(tmdb_id)
 
-
-
         # Extracting director and writer names
         directors = [crew['name'] for crew in movie_credits.get('crew', []) if crew['job'] == 'Director']
         writers = [crew['name'] for crew in movie_credits.get('crew', []) if crew['job'] == 'Writer']
+
+        # Use the movie data from the database
+        num_votes = self.db_data.get('numVotes', 'N/A')
 
         # Forming movie data dictionary
         self.movie_data = {
@@ -125,7 +132,9 @@ class Movie:
             "countries": ', '.join([country['name'] for country in movie_info.get('production_countries', ['N/A'])]),
             "languages": movie_info.get('original_language', 'N/A'),
             "rating": movie_info.get('vote_average', 'N/A'),
-            "votes": movie_info.get('vote_count', 'N/A'),
+            # "votes": movie_info.get('vote_count', 'N/A'),
+            "votes": num_votes, # Use the numVotes from the fetched data
+
             "plot": movie_info.get('overview', 'N/A'),
             "poster_url": f"{TMDB_IMAGE_BASE_URL}w500{movie_info.get('poster_path')}" if movie_info.get(
                 'poster_path') else None,
@@ -170,22 +179,19 @@ async def main():
         "language": "en",
         "genres": ["Action", "Drama"]
     }
+
     async with httpx.AsyncClient() as client:
         fetcher = ImdbRandomMovieFetcher(db_config)
-        row = await fetcher.fetch_random_movie(criteria, client)
+        await fetcher.fetch_random_movie(criteria, client)
 
-        if not row:
+        if not fetcher.last_fetched_movie:
             print("No movies found based on the given criteria.")
             return
 
-        movie = Movie(row['tconst'], db_config)
+        # Create the Movie instance with the fetched data
+        movie = Movie(fetcher.last_fetched_movie, db_config)
         movie_data = await movie.get_movie_data()
         print(movie_data)
-
-
-# Ensure asyncio.run is called if this script is the main one being run
-if __name__ == "__main__":
-    asyncio.run(main())
 
 # Ensure asyncio.run is called if this script is the main one being run
 if __name__ == "__main__":
