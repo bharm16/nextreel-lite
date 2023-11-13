@@ -123,9 +123,11 @@ class Movies(TMDB):
 
 
 class Movie:
-    def __init__(self, movie_data_from_db, db_config):
-        self.db_data = movie_data_from_db  # Store the entire row data
-        self.tconst = movie_data_from_db['tconst']
+    def __init__(self, tconst, db_config):
+        self.tconst = tconst  # tconst is a string
+        self.db_config = db_config
+        self.movie_data = {}
+        print(self.tconst)
         # self.numVotes = movie_data_from_db.get('numVotes', 'N/A')  # Safely extract numVotes
         self.db_config = db_config
         self.movie_data = {}
@@ -206,6 +208,7 @@ class Movie:
 
 # Main function with async execution
 # Main function with async execution
+# Main function with async execution
 async def main():
     db_config = Config.STACKHERO_DB_CONFIG  # Assuming you have a db_config defined
 
@@ -228,10 +231,17 @@ async def main():
             print("No movies found based on the given criteria.")
             return
 
-        # Create the Movie instance with the fetched data
-        movie = Movie(movie_data_from_db, db_config)
-        movie_data = await movie.get_movie_data()
-        print(movie_data)
+        # Assuming movie_data_from_db contains 'tconst' key
+        if 'tconst' in movie_data_from_db:
+            tconst = movie_data_from_db['tconst']
+            movie = Movie(tconst, db_config)
+            movie_data = await movie.get_movie_data()
+            print(movie_data)
+        else:
+            print("Tconst not found in movie data.")
+
+if __name__ == "__main__":
+    asyncio.run(main())
 
 
 # Ensure asyncio.run is called if this script is the main one being run

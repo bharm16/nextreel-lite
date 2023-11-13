@@ -4,6 +4,7 @@ from quart import Quart, request, redirect, url_for
 import config
 from movie_manager import MovieManager
 
+
 def create_app():
     app = Quart(__name__)
     app.config.from_object(config.Config)
@@ -53,5 +54,6 @@ def create_app():
         return await movie_manager.filtered_movie(form_data)
 
     return app
+
 
 app = create_app()
