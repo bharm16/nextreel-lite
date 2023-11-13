@@ -123,11 +123,10 @@ class Movie:
     def __init__(self, movie_data_from_db, db_config):
         self.db_data = movie_data_from_db  # Store the entire row data
         self.tconst = movie_data_from_db['tconst']
-        self.numVotes = movie_data_from_db.get('numVotes', 'N/A')  # Safely extract numVotes
+        # self.numVotes = movie_data_from_db.get('numVotes', 'N/A')  # Safely extract numVotes
         self.db_config = db_config
         self.movie_data = {}
-        print(self.db_data)
-        print(self.numVotes)
+
 
     # ... rest of your methods ...
 
@@ -222,18 +221,16 @@ async def main():
 
     async with httpx.AsyncClient() as client:
         fetcher = ImdbRandomMovieFetcher(db_config)
-        await fetcher.fetch_random_movie(criteria, client)
+        movie_data_from_db = await fetcher.fetch_random_movie(criteria, client)
 
-        if not fetcher.last_fetched_movie:
+        if not movie_data_from_db:
             print("No movies found based on the given criteria.")
             return
 
         # Create the Movie instance with the fetched data
-        movie = Movie(fetcher.last_fetched_movie, db_config)
+        movie = Movie(movie_data_from_db, db_config)
         movie_data = await movie.get_movie_data()
         print(movie_data)
-
-
 # Ensure asyncio.run is called if this script is the main one being run
 if __name__ == "__main__":
     asyncio.run(main())

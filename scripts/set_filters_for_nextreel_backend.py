@@ -1,13 +1,23 @@
 import os
+
 from config import Config, create_aiomysql_connection
 
 dbconfig = Config.STACKHERO_DB_CONFIG
 
+# Use os.path.dirname to go up one level from the current script's directory
+# Use os.path.dirname to go up one level from the current script's directory
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# Now change the working directory to the parent directory
 os.chdir(parent_dir)
+
+# Finally, print the new working directory to confirm the change
+# print(f"Current working directory after change: {os.getcwd()}")
 
 
 def build_parameters(criteria):
+    """Construct the list of parameters for the SQL query based on given criteria."""
+    # Note: Added "LIKE" clause for the language
     language = "%" + criteria.get('language', 'en') + "%"
     parameters = [
         criteria.get('min_year', 1900),
@@ -16,12 +26,13 @@ def build_parameters(criteria):
         criteria.get('max_rating', 10),
         criteria.get('min_votes', 100000),
         criteria.get('title_type', 'movie'),
-        language
+        language  # added this line
     ]
     return parameters
 
 
 def build_genre_conditions(criteria, parameters):
+    """Construct the genre conditions for the SQL query."""
     genre_conditions = []
     genres = criteria.get('genres')
     if genres:
@@ -39,18 +50,11 @@ def build_base_query():
     AND tr.averagerating BETWEEN %s AND %s
     AND tr.numVotes >= %s
     AND tb.titleType = %s
-    AND tb.language LIKE %s
+    AND tb.language LIKE %s  -- Changed this line
     """
 
 
-def build_ratings_query():
-    return """
-    SELECT tr.tconst, tr.averageRating, tr.numVotes
-    FROM `title.ratings` tr
-    WHERE tr.tconst = %s
-    """
-
-
+# Async database query execution function
 async def execute_query(query, params=None, fetch='one'):
     conn = await create_aiomysql_connection()
     if not conn:
@@ -77,76 +81,49 @@ async def execute_query(query, params=None, fetch='one'):
         conn.close()
 
 
-
-
-
+# Convert the ImdbRandomMovieFetcher class methods to async
 class ImdbRandomMovieFetcher:
     def __init__(self, dbconfig):
         self.dbconfig = dbconfig
-        self.last_fetched_movies = None
-        self.last_fetched_random_movies = None
-
-    async def fetch_movie_ratings(self, tconst):
-        query = build_ratings_query()
-        result = await execute_query(query, [tconst], fetch='one')
-
-        if result:
-            try:
-                # Accessing result as a dictionary
-                ratings_data = {
-                    "tconst": result['tconst'],
-                    "averageRating": result['averageRating'] if result['averageRating'] is not None else 'N/A',
-                    "numVotes": result['numVotes'] if result['numVotes'] is not None else 'N/A'
-                }
-                return ratings_data
-            except KeyError as e:
-                print(f"Error in fetch_movie_ratings: {e}")
-                print(f"Result missing expected key: {result}")
-                return None
-        else:
-            print(f"No ratings found for tconst: {tconst}")
-            return None
 
     async def fetch_movies_by_criteria(self, criteria):
         base_query = build_base_query()
         parameters = build_parameters(criteria)
         genre_conditions = build_genre_conditions(criteria, parameters)
         full_query = base_query + (f" AND ({genre_conditions[0]})" if genre_conditions else "")
-        result = await execute_query(full_query, parameters, 'all')
-        if result:
-            self.last_fetched_movies = [await self.fetch_movie_ratings(movie['tconst']) for movie in result]
-            print(self.last_fetched_movies)
+        return await execute_query(full_query, parameters, 'all')
 
-        return result
-
-    async def fetch_random_movies25(self, criteria, client):
+    async def fetch_random_movies25(self, criteria,client):
         base_query = build_base_query()
         parameters = build_parameters(criteria)
         genre_conditions = build_genre_conditions(criteria, parameters)
         full_query = base_query + (
             f" AND ({genre_conditions[0]})" if genre_conditions else "") + " ORDER BY RAND() LIMIT 15"
-        result = await execute_query(full_query, parameters, 'all')
-        if result:
-            self.last_fetched_random_movies = [await self.fetch_movie_ratings(movie['tconst']) for movie in result]
-            print(self.last_fetched_movies)
+        return await execute_query(full_query, parameters, 'all')
 
-        return result
-
-    async def fetch_random_movie(self, criteria, client):
+    async def fetch_random_movie(self, criteria,client):
         base_query = build_base_query()
         parameters = build_parameters(criteria)
         genre_conditions = build_genre_conditions(criteria, parameters)
         full_query = base_query + (
             f" AND ({genre_conditions[0]})" if genre_conditions else "") + " ORDER BY RAND() LIMIT 1"
-        result = await execute_query(full_query, parameters)
-        if result:
-            self.last_fetched_movie = await self.fetch_movie_ratings(result['tconst'])
-            print(self.last_fetched_movie)
-        return self.last_fetched_movie
+        return await execute_query(full_query, parameters)
 
 
 def extract_movie_filter_criteria(form_data):
+    """
+    Extract filter criteria from the form data.
+
+
+
+    Returns:
+        dict: Dictionary containing the filter criteria.
+    """
+
+    # Initialize an empty criteria dictionary
     criteria = {}
+
+    # Handling various other criteria (year, IMDb score, number of votes)
     if form_data.get('year_min'):
         criteria['min_year'] = int(form_data.get('year_min'))
     if form_data.get('year_max'):
@@ -157,25 +134,42 @@ def extract_movie_filter_criteria(form_data):
         criteria['max_rating'] = float(form_data.get('imdb_score_max'))
     if form_data.get('num_votes_min'):
         criteria['min_votes'] = int(form_data.get('num_votes_min'))
+
+    # Handling genre criteria
     genres = form_data.getlist('genres[]')
     if genres:
         criteria['genres'] = genres
-    criteria['language'] = form_data.get('language', 'en')
+
+    # Handling language criteria
+    if form_data.get('language'):
+        criteria['language'] = form_data.get('language')
+    else:
+        print("defaulting to english")
+        criteria['language'] = 'en'  # Default to English
+
     return criteria
 
 
 async def main():
-    criteria = {'min_year': 2000, 'max_year': 2020, 'min_rating': 7, 'max_rating': 10, 'min_votes': 10000,
-                'title_type': 'movie', 'language': 'en', 'genres': ['Action', 'Drama']}
+    criteria = {'min_year': 2000,
+                'max_year': 2020,
+                'min_rating': 7,
+                'max_rating': 10,
+                'min_votes': 10000,
+                'title_type': 'movie',
+                'language': 'en',
+                'genres': ['Action', 'Drama']}
+
     dbconfig = Config.STACKHERO_DB_CONFIG
     fetcher = ImdbRandomMovieFetcher(dbconfig)
-    await fetcher.fetch_movies_by_criteria(criteria)
+    movies = await fetcher.fetch_movies_by_criteria(criteria)
+
+    # Iterate over the movies and print each movie on a new line with a counter
+    for counter, movie in enumerate(movies, start=1):  # start=1 begins the counter at 1
+        print(f"Movie {counter}: {movie}")  # This will print the movie number and its details
 
 
-
-
-
-
+# Example usage
 if __name__ == "__main__":
     import asyncio
 
