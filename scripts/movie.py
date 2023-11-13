@@ -1,17 +1,17 @@
-import os
-import random
 import asyncio
-import httpx
-from tmdbsimple import find
+import os
 
-import config
+import httpx
+
 from config import Config
-from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher, execute_query
-from scripts.tmdb_data import fetch_images_from_tmdb, get_movie_info_by_tmdb_id, fetch_videos_from_tmdb, \
-    get_credits_by_tmdb_id, get_video_url_by_tmdb_id, get_cast_info_by_tmdb_id
+from mysql_query_builder import DatabaseQueryExecutor
+from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher
+from scripts.tmdb_data import fetch_images_from_tmdb, get_movie_info_by_tmdb_id, get_credits_by_tmdb_id, \
+    get_video_url_by_tmdb_id, get_cast_info_by_tmdb_id
 
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(parent_dir)
+
 
 
 def build_ratings_query():
@@ -22,26 +22,6 @@ def build_ratings_query():
     """
 
 
-async def fetch_movie_ratings(tconst):
-    query = build_ratings_query()
-    result = await execute_query(query, [tconst], fetch='one')
-
-    if result:
-        try:
-            # Accessing result as a dictionary
-            ratings_data = {
-                "tconst": result['tconst'],
-                "averageRating": result['averageRating'] if result['averageRating'] is not None else 'N/A',
-                "numVotes": result['numVotes'] if result['numVotes'] is not None else 'N/A'
-            }
-            return ratings_data
-        except KeyError as e:
-            print(f"Error in fetch_movie_ratings: {e}")
-            print(f"Result missing expected key: {result}")
-            return None
-    else:
-        print(f"No ratings found for tconst: {tconst}")
-        return None
 
 
 # Replace with your actual TMDb API key
@@ -101,37 +81,37 @@ class TMDB:
         await self.client.aclose()
 
 
-async def by_imdb_id(imdb_id):
-    """Asynchronously find a movie by IMDb ID."""
-    async with httpx.AsyncClient() as client:
-        tmdb_id = await get_tmdb_id_by_tconst(imdb_id, client)
-        return tmdb_id
+# async def by_imdb_id(imdb_id):
+#     """Asynchronously find a movie by IMDb ID."""
+#     async with httpx.AsyncClient() as client:
+#         tmdb_id = await get_tmdb_id_by_tconst(imdb_id, client)
+#         return tmdb_id
 
 
-class Find(TMDB):
-    def __init__(self, api_key):
-        super().__init__(api_key)
+# class Find(TMDB):
+#     def __init__(self, api_key):
+#         super().__init__(api_key)
+#
 
-
-class Movies(TMDB):
-    def __init__(self, api_key):
-        super().__init__(api_key)
-
-    async def movie_info(self, tmdb_id):
-        """Get information about a movie by its TMDB ID."""
-        return await self._GET(f"movie/{tmdb_id}")
-
-    async def credits(self, tmdb_id):
-        """Get credits for the movie."""
-        return await self._GET(f"movie/{tmdb_id}/credits")
-
-    async def images(self, tmdb_id):
-        """Get images for the movie."""
-        return await self._GET(f"movie/{tmdb_id}/images")
-
-    async def videos(self, tmdb_id):
-        """Get videos for the movie."""
-        return await self._GET(f"movie/{tmdb_id}/videos")
+# class Movies(TMDB):
+#     def __init__(self, api_key):
+#         super().__init__(api_key)
+#
+#     async def movie_info(self, tmdb_id):
+#         """Get information about a movie by its TMDB ID."""
+#         return await self._GET(f"movie/{tmdb_id}")
+#
+#     async def credits(self, tmdb_id):
+#         """Get credits for the movie."""
+#         return await self._GET(f"movie/{tmdb_id}/credits")
+#
+#     async def images(self, tmdb_id):
+#         """Get images for the movie."""
+#         return await self._GET(f"movie/{tmdb_id}/images")
+#
+#     async def videos(self, tmdb_id):
+#         """Get videos for the movie."""
+#         return await self._GET(f"movie/{tmdb_id}/videos")
 
 
 class Movie:
@@ -139,6 +119,28 @@ class Movie:
         self.tconst = tconst
         self.db_config = db_config
         self.movie_data = {}
+        self.query_executor = DatabaseQueryExecutor(db_config)  # Corrected here
+
+    async def fetch_movie_ratings(self, tconst):
+        query = build_ratings_query()
+        result = await self.query_executor.execute_async_query(query, [tconst], fetch='one')
+
+        if result:
+            try:
+                # Accessing result as a dictionary
+                ratings_data = {
+                    "tconst": result['tconst'],
+                    "averageRating": result['averageRating'] if result['averageRating'] is not None else 'N/A',
+                    "numVotes": result['numVotes'] if result['numVotes'] is not None else 'N/A'
+                }
+                return ratings_data
+            except KeyError as e:
+                print(f"Error in fetch_movie_ratings: {e}")
+                print(f"Result missing expected key: {result}")
+                return None
+        else:
+            print(f"No ratings found for tconst: {tconst}")
+            return None
 
     async def get_movie_data(self):
         async with httpx.AsyncClient() as client:
@@ -163,7 +165,7 @@ class Movie:
             movie_info = await get_movie_info_by_tmdb_id(tmdb_id, client)
 
             # Fetch ratings from the IMDb database
-            ratings_data = await fetch_movie_ratings(self.tconst)
+            ratings_data = await self.fetch_movie_ratings(self.tconst)
             if ratings_data:
                 self.movie_data["averageRating"] = ratings_data["averageRating"]
                 self.movie_data["numVotes"] = ratings_data["numVotes"]
