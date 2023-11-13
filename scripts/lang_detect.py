@@ -1,12 +1,8 @@
 import logging
 import os
-import threading
-import time
 
-from langdetect import detect
 import pymysql
-
-from mysql_query_builder import execute_query
+from langdetect import detect
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)

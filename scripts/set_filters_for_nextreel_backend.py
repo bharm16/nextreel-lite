@@ -1,6 +1,6 @@
 import os
 
-from config import Config, create_aiomysql_connection
+from config import Config, DatabaseConnection
 
 dbconfig = Config.STACKHERO_DB_CONFIG
 
@@ -54,9 +54,12 @@ def build_base_query():
     """
 
 
-# Async database query execution function
+db_connection = DatabaseConnection(Config.STACKHERO_DB_CONFIG)
+
+
+# Modify the execute_query function to use the DatabaseConnection
 async def execute_query(query, params=None, fetch='one'):
-    conn = await create_aiomysql_connection()
+    conn = await db_connection.create_async_connection()
     if not conn:
         print("Failed to establish database connection.")
         return None
@@ -167,6 +170,13 @@ async def main():
     # Iterate over the movies and print each movie on a new line with a counter
     for counter, movie in enumerate(movies, start=1):  # start=1 begins the counter at 1
         print(f"Movie {counter}: {movie}")  # This will print the movie number and its details
+
+
+
+
+
+
+
 
 
 # Example usage

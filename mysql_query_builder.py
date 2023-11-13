@@ -1,8 +1,5 @@
 # queries.py
 import os
-import time
-
-from config import create_connection
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
@@ -61,65 +58,82 @@ WHERE primaryName = %s
 LIMIT 1
 """
 
+from config import Config, DatabaseConnection
 
-def execute_query(query, params=None, fetch='one'):
-    # Start the timer to measure the execution time of the query
-    start_time = time.time()
 
-    # Try to establish a database connection
-    conn = create_connection()
-    if not conn:
-        # If connection is not established, return None or raise an error
-        print("Failed to establish database connection.")
-        return None
+class DatabaseQueryExecutor:
+    def __init__(self, db_config):
+        self.db_connection = DatabaseConnection(db_config)
 
-    try:
-        # Create a cursor and execute the query
-        with conn.cursor() as cursor:
-            cursor.execute(query, params)
+    async def execute_async_query(self, query, params=None, fetch='one'):
+        conn = await self.db_connection.create_async_connection()
+        if not conn:
+            return None
 
-            # Fetch the result based on the fetch type
-            if fetch == 'one':
-                result = cursor.fetchone()
-            elif fetch == 'all':
-                result = cursor.fetchall()
-            elif fetch == 'none':
-                # For queries that do not require data fetching
-                conn.commit()
-                result = None
-            else:
-                raise ValueError(f"Invalid fetch parameter: {fetch}")
-
-        # Stop the timer and calculate the elapsed time
-        end_time = time.time()
-        elapsed_time = end_time - start_time
-        # Optionally, you can print or log the execution time
-        # print(f"Execution time for query: {elapsed_time:.5f} seconds")
-
-        return result
-
-    except Exception as e:
-        # If an error occurs during the query execution, print or log the error
-        print(f"An error occurred while executing the query: {e}")
-        return None
-
-    finally:
-        # Ensure that the connection is closed even if an error occurs
-        if conn:
+        try:
+            async with conn.cursor() as cursor:
+                await cursor.execute(query, params)
+                if fetch == 'one':
+                    return await cursor.fetchone()
+                elif fetch == 'all':
+                    return await cursor.fetchall()
+                elif fetch == 'none':
+                    await conn.commit()
+                    return None
+                else:
+                    raise ValueError(f"Invalid fetch parameter: {fetch}")
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            return None
+        finally:
             conn.close()
 
+    def execute_sync_query(self, query, params=None, fetch='one'):
+        conn = self.db_connection.create_sync_connection()
+        if not conn:
+            return None
 
-# Code to test the execute_query function
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute(query, params)
+                if fetch == 'one':
+                    return cursor.fetchone()
+                elif fetch == 'all':
+                    return cursor.fetchall()
+                elif fetch == 'none':
+                    conn.commit()
+                    return None
+                else:
+                    raise ValueError(f"Invalid fetch parameter: {fetch}")
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            return None
+        finally:
+            if conn:
+                conn.close()
 
-# A test parameter for the query
-test_tconst = 'tt0111161'  # Replace with a valid tconst value from your database
+# Test the DatabaseQueryExecutor class
+if __name__ == "__main__":
+    db_config = Config.STACKHERO_DB_CONFIG
+    query_executor = DatabaseQueryExecutor(db_config)
 
-# Call the function with the GET_WATCHED_MOVIE_DETAILS query
-result = execute_query(GET_WATCHED_MOVIE_DETAILS, params=(test_tconst,), fetch='one')
+    test_tconst = 'tt0111161'  # Replace with a valid tconst value from your database
+    # Test the synchronous query execution
+    sync_result = query_executor.execute_sync_query(GET_WATCHED_MOVIE_DETAILS, params=(test_tconst,), fetch='one')
+    if sync_result:
+        print("Sync Query executed successfully.")
+        print(sync_result)
+    else:
+        print("Sync Query execution failed or returned no results.")
 
-# Check if the result is not None
-if result:
-    print("Query executed successfully.")
-    print(result)
-else:
-    print("Query execution failed or returned no results.")
+    # Test the asynchronous query execution
+    async def async_query():
+        async_result = await query_executor.execute_async_query(GET_WATCHED_MOVIE_DETAILS, params=(test_tconst,), fetch='one')
+        if async_result:
+            print("Async Query executed successfully.")
+            print(async_result)
+        else:
+            print("Async Query execution failed or returned no results.")
+
+    import asyncio
+    asyncio.run(async_query())
