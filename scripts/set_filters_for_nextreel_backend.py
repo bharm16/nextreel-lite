@@ -1,6 +1,7 @@
 import os
 
 from config import Config, DatabaseConnection
+from mysql_query_builder import DatabaseQueryExecutor
 
 dbconfig = Config.STACKHERO_DB_CONFIG
 
@@ -10,6 +11,7 @@ parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Now change the working directory to the parent directory
 os.chdir(parent_dir)
+
 
 # Finally, print the new working directory to confirm the change
 # print(f"Current working directory after change: {os.getcwd()}")
@@ -58,59 +60,36 @@ db_connection = DatabaseConnection(Config.STACKHERO_DB_CONFIG)
 
 
 # Modify the execute_query function to use the DatabaseConnection
-async def execute_query(query, params=None, fetch='one'):
-    conn = await db_connection.create_async_connection()
-    if not conn:
-        print("Failed to establish database connection.")
-        return None
-
-    try:
-        async with conn.cursor() as cursor:
-            await cursor.execute(query, params)
-            if fetch == 'one':
-                result = await cursor.fetchone()
-            elif fetch == 'all':
-                result = await cursor.fetchall()
-            elif fetch == 'none':
-                await conn.commit()
-                result = None
-            else:
-                raise ValueError(f"Invalid fetch parameter: {fetch}")
-        return result
-    except Exception as e:
-        print(f"An error occurred while executing the query: {e}")
-        return None
-    finally:
-        conn.close()
 
 
 # Convert the ImdbRandomMovieFetcher class methods to async
 class ImdbRandomMovieFetcher:
     def __init__(self, dbconfig):
         self.dbconfig = dbconfig
+        self.db_query_executor = DatabaseQueryExecutor(dbconfig)  # Use dbconfig directly
 
     async def fetch_movies_by_criteria(self, criteria):
         base_query = build_base_query()
         parameters = build_parameters(criteria)
         genre_conditions = build_genre_conditions(criteria, parameters)
         full_query = base_query + (f" AND ({genre_conditions[0]})" if genre_conditions else "")
-        return await execute_query(full_query, parameters, 'all')
+        return await self.db_query_executor.execute_async_query(full_query, parameters, 'all')
 
-    async def fetch_random_movies25(self, criteria,client):
+    async def fetch_random_movies25(self, criteria, client):
         base_query = build_base_query()
         parameters = build_parameters(criteria)
         genre_conditions = build_genre_conditions(criteria, parameters)
         full_query = base_query + (
             f" AND ({genre_conditions[0]})" if genre_conditions else "") + " ORDER BY RAND() LIMIT 15"
-        return await execute_query(full_query, parameters, 'all')
+        return await self.db_query_executor.execute_async_query(full_query, parameters, 'all')
 
-    async def fetch_random_movie(self, criteria,client):
+    async def fetch_random_movie(self, criteria, client):
         base_query = build_base_query()
         parameters = build_parameters(criteria)
         genre_conditions = build_genre_conditions(criteria, parameters)
         full_query = base_query + (
             f" AND ({genre_conditions[0]})" if genre_conditions else "") + " ORDER BY RAND() LIMIT 1"
-        return await execute_query(full_query, parameters)
+        return await self.db_query_executor.execute_async_query(full_query, parameters)
 
 
 def extract_movie_filter_criteria(form_data):
@@ -170,13 +149,6 @@ async def main():
     # Iterate over the movies and print each movie on a new line with a counter
     for counter, movie in enumerate(movies, start=1):  # start=1 begins the counter at 1
         print(f"Movie {counter}: {movie}")  # This will print the movie number and its details
-
-
-
-
-
-
-
 
 
 # Example usage
