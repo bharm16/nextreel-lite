@@ -4,7 +4,7 @@ import os
 from asyncio import Queue
 import httpx
 from config import Config
-from scripts.movie import Movie, Find, TMDB_API_KEY, by_imdb_id
+from scripts.movie import Movie, TMDB_API_KEY
 from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher
 
 # Configure logging for better clarity
@@ -143,7 +143,6 @@ async def main():
     movie_queue_manager.populate_task = asyncio.create_task(movie_queue_manager.populate())
 
     await asyncio.sleep(5)  # Allow time for the queue to populate
-
 
     await movie_queue_manager.stop_populate_task()
     await movie_queue_manager.empty_queue()

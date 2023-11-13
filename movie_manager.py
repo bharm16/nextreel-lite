@@ -5,24 +5,13 @@ from quart import render_template
 from config import Config
 from scripts.movie_queue import MovieQueue
 from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher, extract_movie_filter_criteria
+from scripts.tmdb_data import get_backdrop_image_for_home, get_all_backdrop_images
 
 # Configure logging for better debugging
 logging.basicConfig(level=logging.INFO)
 
 
 # Function to get the backdrop image for the home page
-async def get_backdrop_image_for_home(tmdb_id, client):
-    logging.info("Entering get_backdrop_image_for_home")
-    url = f"https://api.themoviedb.org/3/movie/{tmdb_id}/images"
-    params = {'api_key': Config.TMDB_API_KEY}
-    response = await client.get(url, params=params)
-    response.raise_for_status()
-    data = response.json()
-    if data['backdrops']:
-        logging.info("Backdrop image found")
-        return data['backdrops'][0]['file_path']
-    logging.info("No backdrop image found")
-    return None
 
 
 # MovieManager class
@@ -56,15 +45,19 @@ class MovieManager:
 
     async def fetch_and_render_movie(self, template_name='movie.html'):
         logging.info("Fetching and rendering movie")
-        while True:
-            if self.movie_queue.empty():
-                logging.info("Movie queue is empty")
-                return None
-            self.current_displayed_movie = await self.movie_queue.get()
-            if 'backdrop_path' in self.current_displayed_movie and self.current_displayed_movie['backdrop_path']:
-                return await render_template(template_name, movie=self.current_displayed_movie,
-                                             previous_count=len(self.previous_movies_stack))
-            logging.info("Movie skipped due to missing backdrop image")
+        async with httpx.AsyncClient() as client:
+            while True:
+                if self.movie_queue.empty():
+                    logging.info("Movie queue is empty")
+                    return None
+                self.current_displayed_movie = await self.movie_queue.get()
+                tmdb_id = self.current_displayed_movie.get('tmdb_id')
+                backdrop_url = await get_backdrop_image_for_home(tmdb_id, client)
+                if backdrop_url:
+                    self.current_displayed_movie['backdrop_url'] = backdrop_url
+                    return await render_template(template_name, movie=self.current_displayed_movie,
+                                                 previous_count=len(self.previous_movies_stack))
+                logging.info("Movie skipped due to missing backdrop image")
 
     async def next_movie(self):
         logging.info("Fetching next movie")

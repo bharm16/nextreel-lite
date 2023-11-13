@@ -1,9 +1,9 @@
 import asyncio
 import os
+import random
 
 import httpx
 import tmdbsimple as tmdb
-
 
 api_key = os.getenv('TMDB_API_KEY')
 tmdb.API_KEY = api_key
@@ -146,15 +146,20 @@ def get_full_image_url(profile_path, size='original'):
     base_url = "https://image.tmdb.org/t/p/"
     return f"{base_url}{size}{profile_path}"
 
+
 async def get_backdrop_image_for_home(tmdb_id, client):
-    """Asynchronously gets a backdrop image for the homepage."""
+    """Asynchronously gets a single backdrop image for the homepage."""
     if tmdb_id:
         image_data = await fetch_images_from_tmdb(tmdb_id, client)
         backdrops = image_data.get('backdrops', [])
         if backdrops:
-            backdrop_url = get_full_image_url(backdrops[0]['file_path'])  # Removed 'await'
-            return backdrop_url
+            # Ensure the first item in backdrops is a dictionary and has the 'file_path' key
+            first_backdrop = backdrops[0]
+            if isinstance(first_backdrop, dict) and 'file_path' in first_backdrop:
+                backdrop_url = get_full_image_url(first_backdrop['file_path'])
+                return backdrop_url
     return None
+
 
 async def get_all_backdrop_images(tmdb_id, client):
     """Asynchronously gets all backdrop images."""
@@ -162,6 +167,7 @@ async def get_all_backdrop_images(tmdb_id, client):
         image_data = await fetch_images_from_tmdb(tmdb_id, client)
         backdrops = image_data.get('backdrops', [])
         all_backdrop_urls = []
+        print(all_backdrop_urls)
 
         for backdrop in backdrops:
             # Check if backdrop is a dictionary and contains the 'file_path' key
@@ -179,6 +185,20 @@ async def get_all_backdrop_images(tmdb_id, client):
     return None
 
 
+async def get_backdrop_for_movie(tmdb_id, client):
+    """
+    Asynchronously gets a random backdrop image for a movie.
+    """
+    all_backdrop_urls = await get_all_backdrop_images(tmdb_id, client)
+    print(all_backdrop_urls)
+    if all_backdrop_urls:
+        # Randomly select one backdrop URL from the list
+
+        return random.choice(all_backdrop_urls)
+
+    return None
+
+
 # Class for managing TMDb movie information
 class TmdbMovieInfo:
     def __init__(self, api_key):
@@ -188,7 +208,6 @@ class TmdbMovieInfo:
 
 async def main(api_key, tconst):
     async with httpx.AsyncClient() as client:
-        tmdb_info = TmdbMovieInfo(api_key)
         tmdb_id = await get_tmdb_id_by_tconst(tconst, client)
 
         if tmdb_id:
