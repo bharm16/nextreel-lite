@@ -5,7 +5,41 @@ import httpx
 
 import config
 from config import Config
-from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher
+from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher, execute_query
+
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+os.chdir(parent_dir)
+
+
+def build_ratings_query():
+    return """
+    SELECT tr.tconst, tr.averageRating, tr.numVotes
+    FROM `title.ratings` tr
+    WHERE tr.tconst = %s
+    """
+
+
+async def fetch_movie_ratings(tconst):
+    query = build_ratings_query()
+    result = await execute_query(query, [tconst], fetch='one')
+
+    if result:
+        try:
+            # Accessing result as a dictionary
+            ratings_data = {
+                "tconst": result['tconst'],
+                "averageRating": result['averageRating'] if result['averageRating'] is not None else 'N/A',
+                "numVotes": result['numVotes'] if result['numVotes'] is not None else 'N/A'
+            }
+            return ratings_data
+        except KeyError as e:
+            print(f"Error in fetch_movie_ratings: {e}")
+            print(f"Result missing expected key: {result}")
+            return None
+    else:
+        print(f"No ratings found for tconst: {tconst}")
+        return None
+
 
 # Replace with your actual TMDb API key
 TMDB_API_KEY = '1ce9398920594a5521f0d53e9b33c52f'
@@ -117,8 +151,14 @@ class Movie:
         directors = [crew['name'] for crew in movie_credits.get('crew', []) if crew['job'] == 'Director']
         writers = [crew['name'] for crew in movie_credits.get('crew', []) if crew['job'] == 'Writer']
 
-        # Use the movie data from the database
-        num_votes = self.db_data.get('numVotes', 'N/A')
+        # Fetch ratings from the IMDb database
+        ratings_data = await fetch_movie_ratings(self.tconst)
+        if ratings_data:
+            self.movie_data["averageRating"] = ratings_data["averageRating"]
+            self.movie_data["numVotes"] = ratings_data["numVotes"]
+        else:
+            self.movie_data["averageRating"] = 'N/A'
+            self.movie_data["numVotes"] = 'N/A'
 
         # Forming movie data dictionary
         self.movie_data = {
@@ -133,7 +173,7 @@ class Movie:
             "languages": movie_info.get('original_language', 'N/A'),
             "rating": movie_info.get('vote_average', 'N/A'),
             # "votes": movie_info.get('vote_count', 'N/A'),
-            "votes": num_votes, # Use the numVotes from the fetched data
+            "votes": self.movie_data.get('numVotes', 'N/A'),  # Use the numVotes from the fetched data
 
             "plot": movie_info.get('overview', 'N/A'),
             "poster_url": f"{TMDB_IMAGE_BASE_URL}w500{movie_info.get('poster_path')}" if movie_info.get(
@@ -192,6 +232,7 @@ async def main():
         movie = Movie(fetcher.last_fetched_movie, db_config)
         movie_data = await movie.get_movie_data()
         print(movie_data)
+
 
 # Ensure asyncio.run is called if this script is the main one being run
 if __name__ == "__main__":
