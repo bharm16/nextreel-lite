@@ -15,17 +15,17 @@ os.chdir(parent_dir)
 # Finally, print the new working directory to confirm the change
 # print(f"Current working directory after change: {os.getcwd()}")
 
-
-connection = create_connection()
-
-
-def get_random_row_value(table_name):
-    """Fetch a random row's value from a specific table and column."""
-    # SQL query to get a random row directly
-    row_query = f"SELECT * FROM `{table_name}` ORDER BY RAND() LIMIT 1"
-    # Execute the query and get the row
-    random_row = execute_query(row_query)
-    return random_row
+#
+# connection = create_connection()
+#
+#
+# def get_random_row_value(table_name):
+#     """Fetch a random row's value from a specific table and column."""
+#     # SQL query to get a random row directly
+#     row_query = f"SELECT * FROM `{table_name}` ORDER BY RAND() LIMIT 1"
+#     # Execute the query and get the row
+#     random_row = execute_query(row_query)
+#     return random_row
 
 
 # def main(criteria):
