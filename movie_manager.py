@@ -1,20 +1,17 @@
 import asyncio
 import logging
 import httpx
+import random
 from quart import render_template
 from config import Config
 from scripts.movie_queue import MovieQueue
 from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher, extract_movie_filter_criteria
-from scripts.tmdb_data import get_backdrop_image_for_home, get_all_backdrop_images
+from scripts.tmdb_data import get_all_backdrop_images
 
 # Configure logging for better debugging
 logging.basicConfig(level=logging.INFO)
 
 
-# Function to get the backdrop image for the home page
-
-
-# MovieManager class
 class MovieManager:
     def __init__(self, db_config):
         logging.info("Initializing MovieManager")
@@ -41,7 +38,8 @@ class MovieManager:
     async def set_default_backdrop_url(self):
         logging.info("Setting default backdrop URL")
         async with httpx.AsyncClient() as client:
-            self.default_backdrop_url = await get_backdrop_image_for_home(self.default_movie_tmdb_id, client)
+            all_backdrops = await get_all_backdrop_images(self.default_movie_tmdb_id, client)
+            self.default_backdrop_url = self.select_one_backdrop(all_backdrops)
 
     async def fetch_and_render_movie(self, template_name='movie.html'):
         logging.info("Fetching and rendering movie")
@@ -52,12 +50,19 @@ class MovieManager:
                     return None
                 self.current_displayed_movie = await self.movie_queue.get()
                 tmdb_id = self.current_displayed_movie.get('tmdb_id')
-                backdrop_url = await get_backdrop_image_for_home(tmdb_id, client)
-                if backdrop_url:
-                    self.current_displayed_movie['backdrop_url'] = backdrop_url
+                all_backdrops = await get_all_backdrop_images(tmdb_id, client)
+
+                selected_backdrop_url = self.select_one_backdrop(all_backdrops)
+                if selected_backdrop_url:
+                    self.current_displayed_movie['backdrop_url'] = selected_backdrop_url
                     return await render_template(template_name, movie=self.current_displayed_movie,
                                                  previous_count=len(self.previous_movies_stack))
                 logging.info("Movie skipped due to missing backdrop image")
+
+    def select_one_backdrop(self, backdrops):
+        if not backdrops:
+            return None
+        return random.choice(backdrops)
 
     async def next_movie(self):
         logging.info("Fetching next movie")
