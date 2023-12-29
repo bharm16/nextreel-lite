@@ -6,12 +6,10 @@ import httpx
 from config import Config
 from mysql_query_builder import DatabaseQueryExecutor
 from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher
-from scripts.tmdb_data import fetch_images_from_tmdb, get_movie_info_by_tmdb_id, get_credits_by_tmdb_id, \
-    get_video_url_by_tmdb_id, get_cast_info_by_tmdb_id
+from scripts.tmdb_data import TMDbHelper
 
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(parent_dir)
-
 
 
 def build_ratings_query():
@@ -20,8 +18,6 @@ def build_ratings_query():
     FROM `title.ratings` tr
     WHERE tr.tconst = %s
     """
-
-
 
 
 # Replace with your actual TMDb API key
@@ -120,6 +116,7 @@ class Movie:
         self.db_config = db_config
         self.movie_data = {}
         self.query_executor = DatabaseQueryExecutor(db_config)  # Corrected here
+        self.tmdb_helper = TMDbHelper(TMDB_API_KEY)  # Initialize TMDbHelper
 
     async def fetch_movie_ratings(self, tconst):
         query = build_ratings_query()
@@ -143,70 +140,64 @@ class Movie:
             return None
 
     async def get_movie_data(self):
-        async with httpx.AsyncClient() as client:
-            tmdb_id = await get_tmdb_id_by_tconst(self.tconst, client)
+        tmdb_id = await self.tmdb_helper.get_tmdb_id_by_tconst(self.tconst)
 
-            # if not tmdb_id:
-            #     return None
+        if not tmdb_id:
+            return None
 
-            # Fetch cast and crew information from TMDb
-            tmdb_credits = await get_credits_by_tmdb_id(tmdb_id, client)
+        movie_info = await self.tmdb_helper.get_movie_info_by_tmdb_id(tmdb_id)
+        tmdb_credits = await self.tmdb_helper.get_credits_by_tmdb_id(tmdb_id)
+        tmdb_movie_trailer = await self.tmdb_helper.get_video_url_by_tmdb_id(tmdb_id)
+        tmdb_cast_info_result = await self.tmdb_helper.get_cast_info_by_tmdb_id(tmdb_id)
+        tmdb_cast_info = tmdb_cast_info_result[:10] if tmdb_cast_info_result else []  # Limit to 10 cast members
+        tmdb_image_info = await self.tmdb_helper.get_images_by_tmdb_id(tmdb_id)
+        ratings_data = await self.fetch_movie_ratings(self.tconst)
 
-            # Fetch a trailer URL from TMDb
-            tmdb_movie_trailer = await get_video_url_by_tmdb_id(tmdb_id, client)
-
-            tmdb_cast_info_result = await get_cast_info_by_tmdb_id(tmdb_id, client)
-            tmdb_cast_info = tmdb_cast_info_result[:10] if tmdb_cast_info_result else []
-
-            # Fetch image information from TMDb
-            tmdb_image_info = await fetch_images_from_tmdb(tmdb_id, client)
-
-            # Fetch additional movie details
-            movie_info = await get_movie_info_by_tmdb_id(tmdb_id, client)
-
-            # Fetch ratings from the IMDb database
-            ratings_data = await self.fetch_movie_ratings(self.tconst)
-            if ratings_data:
-                self.movie_data["averageRating"] = ratings_data["averageRating"]
-                self.movie_data["numVotes"] = ratings_data["numVotes"]
-            else:
-                self.movie_data["averageRating"] = 'N/A'
-                self.movie_data["numVotes"] = 'N/A'
+        backdrop_url = tmdb_image_info['backdrops'][0] if tmdb_image_info.get('backdrops') else None
+        print(backdrop_url)
 
 
-            directors = [crew['name'] for crew in tmdb_credits.get('crew', []) if crew['job'] == 'Director']
-            writers = [crew['name'] for crew in tmdb_credits.get('crew', []) if crew['job'] == 'Writer']
+        if ratings_data:
+            self.movie_data["averageRating"] = ratings_data["averageRating"]
+            self.movie_data["numVotes"] = ratings_data["numVotes"]
+        else:
+            self.movie_data["averageRating"] = 'N/A'
+            self.movie_data["numVotes"] = 'N/A'
 
+        directors = [crew['name'] for crew in tmdb_credits.get('crew', []) if crew['job'] == 'Director']
+        writers = [crew['name'] for crew in tmdb_credits.get('crew', []) if crew['job'] == 'Writer']
 
-            # Forming movie data dictionary
-            self.movie_data = {
-                "title": movie_info.get('title', 'N/A'),
-                "imdb_id": self.tconst,
-                "tmdb_id": tmdb_id,
-                "genres": ', '.join([genre['name'] for genre in movie_info.get('genres', ['N/A'])]),
-                "directors": ', '.join([crew['name'] for crew in tmdb_credits.get('crew', []) if crew['job'] == 'Director']),
-                "writers": ', '.join([crew['name'] for crew in tmdb_credits.get('crew', []) if crew['job'] == 'Writer']),
-                "runtimes": movie_info.get('runtime', 'N/A'),
-                "countries": ', '.join([country['name'] for country in movie_info.get('production_countries', ['N/A'])]),
-                "languages": movie_info.get('original_language', 'N/A'),
-                "rating": movie_info.get('vote_average', 'N/A'),
-                "votes": self.movie_data.get('numVotes', 'N/A'),
-                "plot": movie_info.get('overview', 'N/A'),
-                "poster_url": f"{TMDB_IMAGE_BASE_URL}w500{movie_info.get('poster_path')}" if movie_info.get('poster_path') else None,
-                "year": movie_info.get('release_date', 'N/A')[:4] if movie_info.get('release_date') else 'N/A',
-                "cast": tmdb_cast_info,
-                "images": tmdb_image_info,
-                "trailer": tmdb_movie_trailer,
-                "credits": tmdb_credits
-            }
+        self.movie_data = {
+            "title": movie_info.get('title', 'N/A'),
+            "imdb_id": self.tconst,
+            "tmdb_id": tmdb_id,
+            "genres": ', '.join([genre['name'] for genre in movie_info.get('genres', ['N/A'])]),
+            "directors": ', '.join(directors),
+            "writers": ', '.join(writers),
+            "runtimes": movie_info.get('runtime', 'N/A'),
+            "countries": ', '.join([country['name'] for country in movie_info.get('production_countries', ['N/A'])]),
+            "languages": movie_info.get('original_language', 'N/A'),
+            "rating": movie_info.get('vote_average', 'N/A'),
+            "votes": self.movie_data.get('numVotes', 'N/A'),
+            "plot": movie_info.get('overview', 'N/A'),
+            "poster_url": f"{TMDB_IMAGE_BASE_URL}w500{movie_info.get('poster_path')}" if movie_info.get(
+                'poster_path') else None,
+            "year": movie_info.get('release_date', 'N/A')[:4] if movie_info.get('release_date') else 'N/A',
+            "cast": tmdb_cast_info,
+            "images": tmdb_image_info,
+            "trailer": tmdb_movie_trailer,
+            "credits": tmdb_credits,
+            "backdrop_url": backdrop_url,  # Add backdrop URL here
 
-            return self.movie_data
+        }
+
+        return self.movie_data
 
     async def close(self):
         pass
 
-# Continue with the main() function and other parts of the script
 
+# Continue with the main() function and other parts of the script
 
 
 async def main():
@@ -243,4 +234,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
