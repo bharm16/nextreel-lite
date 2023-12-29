@@ -90,9 +90,10 @@ class MovieQueue:
         return running
 
     async def fetch_and_enqueue_movie(self, tconst):
+
         # Fetch and enqueue a single movie
         async with self.lock:
-            if self.queue.qsize() >= 10:
+            if self.queue.qsize() == 15:
                 logging.info("Queue is full. Current movies in the queue:")
                 queue_snapshot = list(self.queue._queue)
                 for movie in queue_snapshot:
