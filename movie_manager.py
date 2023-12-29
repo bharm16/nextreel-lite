@@ -53,14 +53,18 @@ class MovieManager:
                     logging.info("Movie queue is empty")
                     return None
                 self.current_displayed_movie = await self.movie_queue.get()
-                tmdb_id = self.current_displayed_movie.get('tmdb_id')
-                # all_backdrops = await get_all_backdrop_images(tmdb_id, client)
+                print(f"Fetched new movie: {self.current_displayed_movie['title']}")
 
-                selected_backdrop_url = self.set_default_backdrop
-                if selected_backdrop_url:
-                    self.current_displayed_movie['backdrop_url'] = selected_backdrop_url
-                    return await render_template(template_name, movie=self.current_displayed_movie,
+                if 'backdrop_url' in self.current_displayed_movie and self.current_displayed_movie['backdrop_url']:
+                    return await render_template(template_name,
+                                                 movie=self.current_displayed_movie,
                                                  previous_count=len(self.previous_movies_stack))
+
+                # selected_backdrop_url = self.set_default_backdrop
+                # if selected_backdrop_url:
+                #     self.current_displayed_movie['backdrop_url'] = selected_backdrop_url
+                #     return await render_template(template_name, movie=self.current_displayed_movie,
+                #                                  previous_count=len(self.previous_movies_stack))
                 logging.info("Movie skipped due to missing backdrop image")
 
     # def select_one_backdrop(self, backdrops):
