@@ -4,9 +4,10 @@ import httpx
 import random
 from quart import render_template
 from config import Config
+from scripts.movie import Movie
 from scripts.movie_queue import MovieQueue
 from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher, extract_movie_filter_criteria
-from scripts.tmdb_data import get_all_backdrop_images
+from scripts.tmdb_data import TMDbHelper, TMDB_API_KEY
 
 # Configure logging for better debugging
 logging.basicConfig(level=logging.INFO)
@@ -24,45 +25,58 @@ class MovieManager:
         self.current_displayed_movie = None
         self.default_movie_tmdb_id = 62
         self.default_backdrop_url = None
+        self.tmdb_helper = TMDbHelper(TMDB_API_KEY)  # Initialize TMDbHelper
 
     async def start_population_task(self):
         logging.info("Starting population task")
         if not self.movie_queue_manager.is_task_running():
             self.movie_queue_manager.populate_task = asyncio.create_task(self.movie_queue_manager.populate())
 
+    async def set_default_backdrop(self):
+        image_data = await self.tmdb_helper.get_images_by_tmdb_id(self.default_movie_tmdb_id)
+        backdrops = image_data['backdrops']
+        if backdrops:
+            self.default_backdrop_url = self.tmdb_helper.get_full_image_url(backdrops[0])
+        else:
+            self.default_backdrop_url = None
+
     async def start(self):
         logging.info("Starting MovieManager")
         await self.start_population_task()
-        await self.set_default_backdrop_url()
+        await self.set_default_backdrop()
 
-    async def set_default_backdrop_url(self):
-        logging.info("Setting default backdrop URL")
-        async with httpx.AsyncClient() as client:
-            all_backdrops = await get_all_backdrop_images(self.default_movie_tmdb_id, client)
-            self.default_backdrop_url = self.select_one_backdrop(all_backdrops)
+    # async def set_default_backdrop_url(self):
+    #     logging.info("Setting default backdrop URL")
+    #     async with httpx.AsyncClient() as client:
+    #         all_backdrops = await get_all_backdrop_images(self.default_movie_tmdb_id, client)
+    #         self.default_backdrop_url = self.select_one_backdrop(all_backdrops)
 
     async def fetch_and_render_movie(self, template_name='movie.html'):
         logging.info("Fetching and rendering movie")
-        async with httpx.AsyncClient() as client:
-            while True:
-                if self.movie_queue.empty():
-                    logging.info("Movie queue is empty")
-                    return None
-                self.current_displayed_movie = await self.movie_queue.get()
-                tmdb_id = self.current_displayed_movie.get('tmdb_id')
-                all_backdrops = await get_all_backdrop_images(tmdb_id, client)
 
-                selected_backdrop_url = self.select_one_backdrop(all_backdrops)
-                if selected_backdrop_url:
-                    self.current_displayed_movie['backdrop_url'] = selected_backdrop_url
-                    return await render_template(template_name, movie=self.current_displayed_movie,
+        while True:
+            if self.movie_queue.empty():
+                logging.info("Movie queue is empty")
+                return None
+
+            movie_data_from_queue = await self.movie_queue.get()
+            if 'tconst' in movie_data_from_queue:
+                tconst = movie_data_from_queue['tconst']
+                movie = Movie(tconst, self.db_config)  # Assuming db_config is accessible here
+                movie_data = await movie.get_movie_data()
+
+                if movie_data and movie_data.get('backdrop_url'):
+                    return await render_template(template_name, movie=movie_data,
                                                  previous_count=len(self.previous_movies_stack))
-                logging.info("Movie skipped due to missing backdrop image")
+                else:
+                    logging.info(f"Movie with tconst '{tconst}' skipped due to missing backdrop image or data")
+            else:
+                logging.info(f"Movie data in queue is missing 'tconst' and was skipped")
 
-    def select_one_backdrop(self, backdrops):
-        if not backdrops:
-            return None
-        return random.choice(backdrops)
+    # def select_one_backdrop(self, backdrops):
+    #     if not backdrops:
+    #         return None
+    #     return random.choice(backdrops)
 
     async def next_movie(self):
         logging.info("Fetching next movie")
@@ -120,9 +134,9 @@ async def main():
     movie_manager = MovieManager(dbconfig)
     await movie_manager.start()
     await asyncio.sleep(10)  # Wait for queue to populate
-    rendered_movie = await movie_manager.fetch_and_render_movie()
-    next_movie_render = await movie_manager.next_movie()
-    prev_movie_render = await movie_manager.previous_movie()
+    # rendered_movie = await movie_manager.fetch_and_render_movie()
+    # next_movie_render = await movie_manager.next_movie()
+    # prev_movie_render = await movie_manager.previous_movie()
 
 
 if __name__ == "__main__":

@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 
 import httpx
@@ -7,6 +8,12 @@ from config import Config
 from mysql_query_builder import DatabaseQueryExecutor
 from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher
 from scripts.tmdb_data import TMDbHelper
+
+# Configure logging for better debugging
+logging.basicConfig(level=logging.INFO)
+
+# Set httpx logging level to ERROR to reduce verbosity
+logging.getLogger("httpx").setLevel(logging.ERROR)
 
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(parent_dir)
@@ -77,39 +84,6 @@ class TMDB:
         await self.client.aclose()
 
 
-# async def by_imdb_id(imdb_id):
-#     """Asynchronously find a movie by IMDb ID."""
-#     async with httpx.AsyncClient() as client:
-#         tmdb_id = await get_tmdb_id_by_tconst(imdb_id, client)
-#         return tmdb_id
-
-
-# class Find(TMDB):
-#     def __init__(self, api_key):
-#         super().__init__(api_key)
-#
-
-# class Movies(TMDB):
-#     def __init__(self, api_key):
-#         super().__init__(api_key)
-#
-#     async def movie_info(self, tmdb_id):
-#         """Get information about a movie by its TMDB ID."""
-#         return await self._GET(f"movie/{tmdb_id}")
-#
-#     async def credits(self, tmdb_id):
-#         """Get credits for the movie."""
-#         return await self._GET(f"movie/{tmdb_id}/credits")
-#
-#     async def images(self, tmdb_id):
-#         """Get images for the movie."""
-#         return await self._GET(f"movie/{tmdb_id}/images")
-#
-#     async def videos(self, tmdb_id):
-#         """Get videos for the movie."""
-#         return await self._GET(f"movie/{tmdb_id}/videos")
-
-
 class Movie:
     def __init__(self, tconst, db_config):
         self.tconst = tconst
@@ -154,8 +128,10 @@ class Movie:
         ratings_data = await self.fetch_movie_ratings(self.tconst)
 
         backdrop_url = tmdb_image_info['backdrops'][0] if tmdb_image_info.get('backdrops') else None
-        print(backdrop_url)
+        # print(backdrop_url)
 
+        # Custom logging for title, tconst, and backdrop image
+        logging.info(f"Title: {movie_info.get('title', 'N/A')}, tconst: {self.tconst}, Backdrop URL: {backdrop_url}")
 
         if ratings_data:
             self.movie_data["averageRating"] = ratings_data["averageRating"]
@@ -227,7 +203,7 @@ async def main():
             tconst = movie_data_from_db['tconst']
             movie = Movie(tconst, db_config)
             movie_data = await movie.get_movie_data()
-            print(movie_data)
+            # print(movie_data)
         else:
             print("Tconst not found in movie data.")
 
