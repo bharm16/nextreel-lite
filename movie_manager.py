@@ -42,12 +42,12 @@ class MovieManager:
 
     async def start(self):
         logging.info("Starting MovieManager")
-        await self.start_population_task()
+        await self.movie_queue_manager.populate()  # Start populating the queue
         await self.set_default_backdrop()
 
     async def fetch_and_render_movie(self, template_name='movie.html'):
         logging.info("Fetching and rendering movie")
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient():
             while True:
                 if self.movie_queue.empty():
                     logging.info("Movie queue is empty")

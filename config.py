@@ -42,7 +42,7 @@ class DatabaseConnection:
 
     async def create_async_connection(self):
         try:
-            print("Establishing asynchronous database connection...")
+            # print("Establishing asynchronous database connection...")
             connection = await aiomysql.connect(
                 host=self.db_config['host'],
                 user=self.db_config['user'],
@@ -52,7 +52,7 @@ class DatabaseConnection:
                 ssl=self.ssl_ctx,
                 cursorclass=aiomysql.DictCursor
             )
-            print("Asynchronous database connection established successfully.")
+            # print("Asynchronous database connection established successfully.")
             return connection
         except Exception as e:
             print(f"Asynchronous connection error: '{e}'")
@@ -89,7 +89,7 @@ if sync_conn:
 async def main():
     async_conn = await db_connection.create_async_connection()
     if async_conn:
-        print("Asynchronous database connection established.")
+        # print("Asynchronous database connection established.")
         async_conn.close()
 
 

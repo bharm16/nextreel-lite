@@ -64,12 +64,12 @@ class MovieQueue:
         max_queue_size = 15
         while True:
             try:
-                if self.queue.qsize() >= max_queue_size:
+                if self.queue.qsize() == max_queue_size:
                     logging.info(f"Queue has reached maximum size of {max_queue_size}, stopping populate task.")
                     break
 
                 current_queue_size = self.queue.qsize()
-                if current_queue_size < 5:
+                if current_queue_size < 10:
                     logging.info("Queue size below threshold, loading more movies...")
                     await self.load_movies_into_queue()
                 else:
@@ -106,7 +106,7 @@ class MovieQueue:
         if movie_data_tmdb:
             async with self.lock:
                 await self.queue.put(movie_data_tmdb)
-                logging.info(f"Enqueued movie '{movie_data_tmdb.get('title')}' with tconst: {tconst}")
+                # logging.info(f"Enqueued movie '{movie_data_tmdb.get('title')}' with tconst: {tconst}")
         else:
             logging.warning(f"No movie data found for tconst: {tconst}")
 
