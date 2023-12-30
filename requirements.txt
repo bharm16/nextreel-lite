@@ -72,4 +72,10 @@ Werkzeug==2.3.6
 WTForms
 zipp
 gunicorn==20.1.0
-
+Quart
+httpcore
+httpx
+Hypercorn
+aiofiles
+aiomysql
+taskgroup
