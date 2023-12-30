@@ -18,7 +18,7 @@ class MovieManager:
         logging.info("Initializing MovieManager")
         self.movie_fetcher = ImdbRandomMovieFetcher(db_config)
         self.criteria = {}
-        self.movie_queue = asyncio.Queue(maxsize=15)
+        self.movie_queue = asyncio.Queue(maxsize=20)
         self.movie_queue_manager = MovieQueue(db_config, self.movie_queue)
         self.future_movies_stack = []
         self.previous_movies_stack = []
@@ -46,7 +46,7 @@ class MovieManager:
         await self.set_default_backdrop()
 
     async def fetch_and_render_movie(self, template_name='movie.html'):
-        logging.info("Fetching and rendering movie")
+        # logging.info("Fetching and rendering movie")
         if not self.current_displayed_movie:
             logging.info("No current movie to display")
             return None
@@ -62,7 +62,7 @@ class MovieManager:
         return None
 
     async def next_movie(self):
-        logging.info("Fetching next movie")
+        # logging.info("Fetching next movie")
         if self.current_displayed_movie:
             self.previous_movies_stack.append(self.current_displayed_movie)
         if self.future_movies_stack:
@@ -75,7 +75,7 @@ class MovieManager:
 
         return await self.fetch_and_render_movie()
     async def previous_movie(self):
-        logging.info("Fetching previous movie")
+        # logging.info("Fetching previous movie")
         if self.current_displayed_movie:
             self.future_movies_stack.append(self.current_displayed_movie)
         if self.previous_movies_stack:

@@ -3,6 +3,8 @@ import logging
 import os
 from asyncio import Queue
 import httpx
+from quart import current_app
+
 from config import Config
 from scripts.movie import Movie, TMDB_API_KEY
 from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher
@@ -63,18 +65,19 @@ class MovieQueue:
 
     async def populate(self):
         max_queue_size = 15
+        max_queue_size_with_buffer = 20
         while True:
             try:
                 if self.queue.qsize() == max_queue_size:
                     logging.info(f"Queue has reached maximum size of {max_queue_size}, stopping populate task.")
-                    break
+                    # break
 
                 current_queue_size = self.queue.qsize()
-                if current_queue_size < 10:
+                if current_queue_size <= 1:
                     logging.info("Queue size below threshold, loading more movies...")
                     await self.load_movies_into_queue()
-                else:
-                    logging.info(f"Queue size sufficient: {current_queue_size}")
+                # else:
+                #     logging.info(f"Queue size sufficient: {current_queue_size}")
 
                 await asyncio.sleep(1)  # Non-blocking sleep to prevent hogging the CPU
             except asyncio.CancelledError:
@@ -115,18 +118,20 @@ class MovieQueue:
             logging.warning(f"No movie data found for tconst: {tconst}")
 
     async def load_movies_into_queue(self):
-        # Load multiple movies into the queue
-        async with httpx.AsyncClient() as client:
-            rows = await self.movie_fetcher.fetch_random_movies25(self.criteria, client=client)
+        # Ensures that the httpx client and tasks are created within Quart's event loop
+        async with current_app.app_context():
+            async with httpx.AsyncClient() as client:
+                rows = await self.movie_fetcher.fetch_random_movies25(self.criteria, client=client)
+                number_of_rows = len(rows)
+                logging.info(f"Number of movies fetched: {number_of_rows}")
 
-            # Get the number of rows
-            number_of_rows = len(rows)
+                tasks = []
+                for row in rows:
+                    if row:
+                        task = asyncio.create_task(self.fetch_and_enqueue_movie(row['tconst']))
+                        tasks.append(task)
 
-            # You can log or use the number of rows as needed
-            logging.info(f"Number of movies fetched: {number_of_rows}")
-
-            tasks = [self.fetch_and_enqueue_movie(row['tconst']) for row in rows if row]
-            await asyncio.gather(*tasks)
+                await asyncio.gather(*tasks)
 
     async def update_criteria_and_reset(self, new_criteria):
         # Update the criteria and reset the queue
