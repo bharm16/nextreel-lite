@@ -47,30 +47,19 @@ class MovieManager:
 
     async def fetch_and_render_movie(self, template_name='movie.html'):
         logging.info("Fetching and rendering movie")
-        async with httpx.AsyncClient():
-            while True:
-                if self.movie_queue.empty():
-                    logging.info("Movie queue is empty")
-                    return None
-                self.current_displayed_movie = await self.movie_queue.get()
-                print(f"Fetched new movie: {self.current_displayed_movie['title']}")
+        if not self.current_displayed_movie:
+            logging.info("No current movie to display")
+            return None
 
-                if 'backdrop_url' in self.current_displayed_movie and self.current_displayed_movie['backdrop_url']:
-                    return await render_template(template_name,
-                                                 movie=self.current_displayed_movie,
-                                                 previous_count=len(self.previous_movies_stack))
+        # Check if the current movie has a backdrop URL, and if so, render it
+        if 'backdrop_url' in self.current_displayed_movie and self.current_displayed_movie['backdrop_url']:
+            return await render_template(template_name,
+                                         movie=self.current_displayed_movie,
+                                         previous_count=len(self.previous_movies_stack))
 
-                # selected_backdrop_url = self.set_default_backdrop
-                # if selected_backdrop_url:
-                #     self.current_displayed_movie['backdrop_url'] = selected_backdrop_url
-                #     return await render_template(template_name, movie=self.current_displayed_movie,
-                #                                  previous_count=len(self.previous_movies_stack))
-                logging.info("Movie skipped due to missing backdrop image")
-
-    # def select_one_backdrop(self, backdrops):
-    #     if not backdrops:
-    #         return None
-    #     return random.choice(backdrops)
+        # If the movie does not have a backdrop URL, log this and return None
+        logging.info("Movie skipped due to missing backdrop image")
+        return None
 
     async def next_movie(self):
         logging.info("Fetching next movie")
@@ -79,12 +68,12 @@ class MovieManager:
         if self.future_movies_stack:
             self.current_displayed_movie = self.future_movies_stack.pop()
         elif not self.movie_queue.empty():
+            logging.info("Pulling movie from movie queue")  # Added logging
             self.current_displayed_movie = await self.movie_queue.get()
         else:
             self.current_displayed_movie = None
 
         return await self.fetch_and_render_movie()
-
     async def previous_movie(self):
         logging.info("Fetching previous movie")
         if self.current_displayed_movie:

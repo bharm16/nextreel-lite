@@ -131,7 +131,7 @@ class Movie:
         # print(backdrop_url)
 
         # Custom logging for title, tconst, and backdrop image
-        logging.info(f"Title: {movie_info.get('title', 'N/A')}, tconst: {self.tconst}, Backdrop URL: {backdrop_url}")
+        # logging.info(f"Title: {movie_info.get('title', 'N/A')}, tconst: {self.tconst}, Backdrop URL: {backdrop_url}")
 
         if ratings_data:
             self.movie_data["averageRating"] = ratings_data["averageRating"]

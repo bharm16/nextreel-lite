@@ -37,6 +37,7 @@ class MovieQueue:
             logging.info(f"MovieQueue instance created with criteria: {self.criteria}")
             self.populate_task = None  # Async task for populating the queue
             self._initialized = True
+            self.movie_enqueue_count = 0  # Add a counter for movies enqueued
 
     async def set_criteria(self, new_criteria):
         async with self.lock:
@@ -106,7 +107,10 @@ class MovieQueue:
         if movie_data_tmdb:
             async with self.lock:
                 await self.queue.put(movie_data_tmdb)
-                # logging.info(f"Enqueued movie '{movie_data_tmdb.get('title')}' with tconst: {tconst}")
+                self.movie_enqueue_count += 1  # Increment the counter
+
+                logging.info(f" [{self.movie_enqueue_count}] Enqueued movie '{movie_data_tmdb.get('title')}' with "
+                             f"tconst: {tconst}")
         else:
             logging.warning(f"No movie data found for tconst: {tconst}")
 
@@ -114,6 +118,13 @@ class MovieQueue:
         # Load multiple movies into the queue
         async with httpx.AsyncClient() as client:
             rows = await self.movie_fetcher.fetch_random_movies25(self.criteria, client=client)
+
+            # Get the number of rows
+            number_of_rows = len(rows)
+
+            # You can log or use the number of rows as needed
+            logging.info(f"Number of movies fetched: {number_of_rows}")
+
             tasks = [self.fetch_and_enqueue_movie(row['tconst']) for row in rows if row]
             await asyncio.gather(*tasks)
 
@@ -125,31 +136,31 @@ class MovieQueue:
         logging.info("Populate task restarted")
 
 
-async def main():
-    # Main function for testing...
-    movie_queue = Queue()
-    movie_queue_manager = MovieQueue(Config.STACKHERO_DB_CONFIG, movie_queue)
-
-    criteria = {
-        "min_year": 1900,
-        "max_year": 2023,
-        "min_rating": 7.0,
-        "max_rating": 10,
-        "title_type": "movie",
-        "language": "en",
-        "genres": ["Action", "Drama"]
-    }
-    await movie_queue_manager.set_criteria(criteria)
-
-    movie_queue_manager.populate_task = asyncio.create_task(movie_queue_manager.populate())
-
-    await asyncio.sleep(5)  # Allow time for the queue to populate
-
-    await movie_queue_manager.stop_populate_task()
-    await movie_queue_manager.empty_queue()
-
-    logging.info(f"Is the MovieQueue task still running? {movie_queue_manager.is_task_running()}")
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
+# async def main():
+#     # Main function for testing...
+#     movie_queue = Queue()
+#     movie_queue_manager = MovieQueue(Config.STACKHERO_DB_CONFIG, movie_queue)
+#
+#     criteria = {
+#         "min_year": 1900,
+#         "max_year": 2023,
+#         "min_rating": 7.0,
+#         "max_rating": 10,
+#         "title_type": "movie",
+#         "language": "en",
+#         "genres": ["Action", "Drama"]
+#     }
+#     await movie_queue_manager.set_criteria(criteria)
+#
+#     movie_queue_manager.populate_task = asyncio.create_task(movie_queue_manager.populate())
+#
+#     await asyncio.sleep(5)  # Allow time for the queue to populate
+#
+#     await movie_queue_manager.stop_populate_task()
+#     await movie_queue_manager.empty_queue()
+#
+#     logging.info(f"Is the MovieQueue task still running? {movie_queue_manager.is_task_running()}")
+#
+#
+# if __name__ == "__main__":
+#     asyncio.run(main())
