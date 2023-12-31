@@ -26,11 +26,22 @@ class MovieManager:
         self.default_movie_tmdb_id = 62
         self.default_backdrop_url = None
         self.tmdb_helper = TMDbHelper(TMDB_API_KEY)  # Initialize TMDbHelper
+        self.user_queues = {}  # Dictionary to store movie queues per user
 
-    async def start_population_task(self):
-        logging.info("Starting population task")
-        if not self.movie_queue_manager.is_task_running():
-            self.movie_queue_manager.populate_task = asyncio.create_task(self.movie_queue_manager.populate())
+    async def get_user_queue(self, user_id):
+        if user_id not in self.user_queues:
+            self.user_queues[user_id] = asyncio.Queue(maxsize=20)
+        return self.user_queues[user_id]
+
+    async def start_population_task(self, user_id):
+        queue = await self.get_user_queue(user_id)
+        if not queue.is_task_running():
+            queue.populate_task = asyncio.create_task(queue.populate())
+
+    # async def start_population_task(self):
+    #     logging.info("Starting population task")
+    #     if not self.movie_queue_manager.is_task_running():
+    #         self.movie_queue_manager.populate_task = asyncio.create_task(self.movie_queue_manager.populate())
 
     async def set_default_backdrop(self):
         image_data = await self.tmdb_helper.get_images_by_tmdb_id(self.default_movie_tmdb_id)
@@ -40,75 +51,157 @@ class MovieManager:
         else:
             self.default_backdrop_url = None
 
-    async def start(self):
-        logging.info("Starting MovieManager")
-        await self.movie_queue_manager.populate()  # Start populating the queue
-        await self.set_default_backdrop()
+    async def start_for_user(self, user_id):
+        logging.info("Starting MovieManager for user: {}".format(user_id))
+        await self.start_population_task(user_id)  # Start populating the queue for a specific user
+        await self.set_default_backdrop()  # This remains the same for all users
 
-    async def fetch_and_render_movie(self, template_name='movie.html'):
-        # logging.info("Fetching and rendering movie")
-        if not self.current_displayed_movie:
-            logging.info("No current movie to display")
+    # async def start(self):
+    #     logging.info("Starting MovieManager")
+    #     await self.movie_queue_manager.populate()  # Start populating the queue
+    #     await self.set_default_backdrop()
+
+    async def fetch_and_render_movie(self, user_id, template_name='movie.html'):
+        user_queue = await self.get_user_queue(user_id)
+        if user_queue.empty():
+            logging.info("No current movie to display for user_id: {}".format(user_id))
             return None
 
+        current_displayed_movie = await user_queue.get()  # Get the current movie for the user
+
         # Check if the current movie has a backdrop URL, and if so, render it
-        if 'backdrop_url' in self.current_displayed_movie and self.current_displayed_movie['backdrop_url']:
+        if 'backdrop_url' in current_displayed_movie and current_displayed_movie['backdrop_url']:
             return await render_template(template_name,
-                                         movie=self.current_displayed_movie,
+                                         movie=current_displayed_movie,
                                          previous_count=len(self.previous_movies_stack))
 
         # If the movie does not have a backdrop URL, log this and return None
-        logging.info("Movie skipped due to missing backdrop image")
+        logging.info("Movie skipped due to missing backdrop image for user_id: {}".format(user_id))
         return None
 
-    async def next_movie(self):
-        # logging.info("Fetching next movie")
-        if self.current_displayed_movie:
-            self.previous_movies_stack.append(self.current_displayed_movie)
-        if self.future_movies_stack:
-            self.current_displayed_movie = self.future_movies_stack.pop()
-        elif not self.movie_queue.empty():
-            logging.info("Pulling movie from movie queue")  # Added logging
-            self.current_displayed_movie = await self.movie_queue.get()
+    # async def fetch_and_render_movie(self, template_name='movie.html'):
+    #     # logging.info("Fetching and rendering movie")
+    #     if not self.current_displayed_movie:
+    #         logging.info("No current movie to display")
+    #         return None
+    #
+    #     # Check if the current movie has a backdrop URL, and if so, render it
+    #     if 'backdrop_url' in self.current_displayed_movie and self.current_displayed_movie['backdrop_url']:
+    #         return await render_template(template_name,
+    #                                      movie=self.current_displayed_movie,
+    #                                      previous_count=len(self.previous_movies_stack))
+    #
+    #     # If the movie does not have a backdrop URL, log this and return None
+    #     logging.info("Movie skipped due to missing backdrop image")
+    #     return None
+
+    # async def next_movie(self):
+    #     # logging.info("Fetching next movie")
+    #     if self.current_displayed_movie:
+    #         self.previous_movies_stack.append(self.current_displayed_movie)
+    #     if self.future_movies_stack:
+    #         self.current_displayed_movie = self.future_movies_stack.pop()
+    #     elif not self.movie_queue.empty():
+    #         logging.info("Pulling movie from movie queue")  # Added logging
+    #         self.current_displayed_movie = await self.movie_queue.get()
+    #     else:
+    #         self.current_displayed_movie = None
+    #
+    #     return await self.fetch_and_render_movie()
+
+    async def next_movie(self, user_id):
+        user_queue = await self.get_user_queue(user_id)
+        if user_queue.empty():
+            logging.info(f"No more movies in queue for user_id: {user_id}")
+            return None
+
+        if self.future_movies_stack[user_id]:
+            self.current_displayed_movie[user_id] = self.future_movies_stack[user_id].pop()
         else:
-            self.current_displayed_movie = None
+            self.current_displayed_movie[user_id] = await user_queue.get()
 
-        return await self.fetch_and_render_movie()
-    async def previous_movie(self):
-        # logging.info("Fetching previous movie")
-        if self.current_displayed_movie:
-            self.future_movies_stack.append(self.current_displayed_movie)
-        if self.previous_movies_stack:
-            self.current_displayed_movie = self.previous_movies_stack.pop()
+        return await self.fetch_and_render_movie(user_id)
+
+    # async def previous_movie(self):
+    #     # logging.info("Fetching previous movie")
+    #     if self.current_displayed_movie:
+    #         self.future_movies_stack.append(self.current_displayed_movie)
+    #     if self.previous_movies_stack:
+    #         self.current_displayed_movie = self.previous_movies_stack.pop()
+    #     else:
+    #         self.current_displayed_movie = None
+    #
+    #     return await self.fetch_and_render_movie()
+
+    async def previous_movie(self, user_id):
+        if self.previous_movies_stack[user_id]:
+            self.future_movies_stack[user_id].append(self.current_displayed_movie[user_id])
+            self.current_displayed_movie[user_id] = self.previous_movies_stack[user_id].pop()
         else:
-            self.current_displayed_movie = None
+            logging.info(f"No previous movies for user_id: {user_id}")
+            return None
 
-        return await self.fetch_and_render_movie()
+        return await self.fetch_and_render_movie(user_id)
 
-    async def set_filters(self):
-        logging.info("Setting filters")
+    # async def set_filters(self):
+    #     logging.info("Setting filters")
+    #     start_time = asyncio.get_event_loop().time()
+    #     await self.movie_queue_manager.stop_populate_task()
+    #     await self.movie_queue_manager.empty_queue()
+    #     self.current_displayed_movie = None
+    #     logging.info(f"Filters set in {asyncio.get_event_loop().time() - start_time} seconds")
+    #     return await render_template('set_filters.html')
+
+    async def set_filters(self, user_id):
+        logging.info(f"Setting filters for user_id: {user_id}")
         start_time = asyncio.get_event_loop().time()
-        await self.movie_queue_manager.stop_populate_task()
-        await self.movie_queue_manager.empty_queue()
-        self.current_displayed_movie = None
-        logging.info(f"Filters set in {asyncio.get_event_loop().time() - start_time} seconds")
+
+        # Assuming movie_queue_manager can handle user-specific tasks
+        await self.movie_queue_manager.stop_populate_task(user_id)
+        await self.movie_queue_manager.empty_queue(user_id)
+
+        self.current_displayed_movie[user_id] = None
+        logging.info(f"Filters set for user_id: {user_id} in {asyncio.get_event_loop().time() - start_time} seconds")
         return await render_template('set_filters.html')
 
-    async def home(self):
-        logging.info("Accessing home")
+    # async def home(self):
+    #     logging.info("Accessing home")
+    #     return await render_template('home.html', default_backdrop_url=self.default_backdrop_url)
+
+    async def home(self, user_id):
+        logging.info(f"Accessing home for user_id: {user_id}")
+        # Include any user-specific data if needed. Otherwise, keep it as is.
         return await render_template('home.html', default_backdrop_url=self.default_backdrop_url)
 
-    async def filtered_movie(self, form_data):
-        logging.info("Filtering movie")
+    async def filtered_movie(self, user_id, form_data):
+        logging.info(f"Filtering movie for user_id: {user_id}")
         new_criteria = extract_movie_filter_criteria(form_data)
-        self.criteria = new_criteria
-        await self.movie_queue_manager.stop_populate_task()
-        await self.movie_queue_manager.empty_queue()
-        await self.movie_queue_manager.set_criteria(self.criteria)
-        self.movie_queue_manager.populate_task = asyncio.create_task(self.movie_queue_manager.populate())
-        logging.info("Criteria updated, repopulating movie queue")
+
+        # Assuming the movie_queue_manager can handle user-specific tasks
+        await self.movie_queue_manager.stop_populate_task(user_id)
+        await self.movie_queue_manager.empty_queue(user_id)
+        await self.movie_queue_manager.set_criteria(user_id, new_criteria)
+
+        # Start populating the movie queue for this user with the new criteria
+        self.movie_queue_manager.populate_task[user_id] = asyncio.create_task(
+            self.movie_queue_manager.populate(user_id)
+        )
+
+        logging.info(f"Criteria updated for user_id: {user_id}, repopulating movie queue")
         await asyncio.sleep(20)  # Giving time for queue to populate
-        return await self.fetch_and_render_movie()
+        return await self.fetch_and_render_movie(user_id)
+
+    # async def filtered_movie(self, form_data):
+    #     logging.info("Filtering movie")
+    #     new_criteria = extract_movie_filter_criteria(form_data)
+    #     self.criteria = new_criteria
+    #     await self.movie_queue_manager.stop_populate_task()
+    #     await self.movie_queue_manager.empty_queue()
+    #     await self.movie_queue_manager.set_criteria(self.criteria)
+    #     self.movie_queue_manager.populate_task = asyncio.create_task(self.movie_queue_manager.populate())
+    #     logging.info("Criteria updated, repopulating movie queue")
+    #     await asyncio.sleep(20)  # Giving time for queue to populate
+    #     return await self.fetch_and_render_movie()
 
 
 # Main function for testing...
