@@ -44,6 +44,9 @@ class MovieQueue:
             logging.info(f"MovieQueue instance created with criteria: {self.criteria}")
             self.populate_task = None
             self._initialized = True
+            self.movie_enqueue_count = {}  # Initialize movie_enqueue_count dictionary
+            self.populate_tasks = {}  # Initialize populate_tasks dictionary
+            # self.movie_enqueue_count[user_id] = 0
 
     # def __init__(self, db_config, queue, criteria=None):
     #     # Avoid reinitialization if already initialized
@@ -64,11 +67,14 @@ class MovieQueue:
     #         logging.info(f"MovieQueue criteria updated to: {self.criteria}")
 
     async def set_criteria(self, user_id, new_criteria):
-        if user_id not in self.locks:  # Corrected from self.lock to self.locks
+        if user_id not in self.locks:
             self.locks[user_id] = asyncio.Lock()
 
         async with self.locks[user_id]:
             self.criteria[user_id] = new_criteria
+            # Initialize movie enqueue count for the user if not already initialized
+            if user_id not in self.movie_enqueue_count:
+                self.movie_enqueue_count[user_id] = 0
             logging.info(f"MovieQueue criteria updated for user {user_id} to: {new_criteria}")
 
     # async def stop_populate_task(self):
@@ -147,7 +153,7 @@ class MovieQueue:
                     # break  # Uncomment if you want to stop the task after reaching max size
 
                 current_queue_size = self.queues[user_id].qsize()
-                if current_queue_size <= max_queue_size - max_queue_size_with_buffer:
+                if current_queue_size <= 1:
                     logging.info(f"Queue size for user {user_id} below threshold, loading more movies...")
                     await self.load_movies_into_queue(user_id)
                 # else:
@@ -225,7 +231,11 @@ class MovieQueue:
         if movie_data_tmdb:
             async with self.lock:
                 await user_queue.put(movie_data_tmdb)
-                self.movie_enqueue_count[user_id] += 1  # Increment the counter for the specific user
+                # Safely increment the counter for the specific user
+                if user_id in self.movie_enqueue_count:
+                    self.movie_enqueue_count[user_id] += 1
+                else:
+                    self.movie_enqueue_count[user_id] = 1
 
                 logging.info(
                     f" [{self.movie_enqueue_count[user_id]}] Enqueued movie '{movie_data_tmdb.get('title')}' for user {user_id} with tconst: {tconst}")
@@ -249,21 +259,24 @@ class MovieQueue:
     #             await asyncio.gather(*tasks)
 
     async def load_movies_into_queue(self, user_id):
-        # Ensures that the httpx client and tasks are created within Quart's event loop
-        async with current_app.app_context():
-            async with httpx.AsyncClient() as client:
-                rows = await self.movie_fetcher.fetch_random_movies25(self.criteria, client=client)
-                number_of_rows = len(rows)
-                logging.info(f"Number of movies fetched: {number_of_rows}")
+        # Use httpx.AsyncClient directly without relying on current_app.app_context
+        async with httpx.AsyncClient() as client:
+            # Fetch movies based on the criteria
+            # Ensure that self.movie_fetcher is already initialized with the necessary configuration
+            rows = await self.movie_fetchers[user_id].fetch_random_movies25(self.criteria[user_id], client=client)
+            number_of_rows = len(rows)
+            logging.info(f"Number of movies fetched: {number_of_rows}")
 
-                tasks = []
-                for row in rows:
-                    if row:
-                        # Pass user_id to fetch_and_enqueue_movie
-                        task = asyncio.create_task(self.fetch_and_enqueue_movie(row['tconst'], user_id))
-                        tasks.append(task)
+            # Create tasks to enqueue each movie
+            tasks = []
+            for row in rows:
+                if row:
+                    # Pass user_id to fetch_and_enqueue_movie
+                    task = asyncio.create_task(self.fetch_and_enqueue_movie(row['tconst'], user_id))
+                    tasks.append(task)
 
-                await asyncio.gather(*tasks)
+            # Gather all tasks to run them concurrently
+            await asyncio.gather(*tasks)
 
     # async def update_criteria_and_reset(self, new_criteria):
     #     # Update the criteria and reset the queue
@@ -285,15 +298,10 @@ logging.basicConfig(level=logging.INFO)
 
 
 async def main():
-    # Main function for testing...
-    user_id = "user123"  # Example user ID for testing
+    db_config = Config.STACKHERO_DB_CONFIG
+    user_ids = ["user1", "user2", "user3"]  # Simulated user IDs for testing
 
-    movie_queues = {}  # Dictionary to hold queues for each user
-    movie_queue_manager = {}  # Dictionary to hold MovieQueue managers for each user
-
-    # Create a queue and a MovieQueue manager for the user
-    movie_queues[user_id] = Queue()
-    movie_queue_manager[user_id] = MovieQueue(Config.STACKHERO_DB_CONFIG, movie_queues[user_id])
+    movie_queues = {user_id: MovieQueue(db_config, Queue()) for user_id in user_ids}
 
     criteria = {
         "min_year": 1900,
@@ -304,19 +312,32 @@ async def main():
         "language": "en",
         "genres": ["Action", "Drama"]
     }
-    await movie_queue_manager[user_id].set_criteria(user_id, criteria)  # Pass user_id and criteria
 
-    movie_queue_manager[user_id].populate_task = asyncio.create_task(movie_queue_manager[user_id].populate(user_id))  # Pass user_id
+    for user_id in user_ids:
+        await movie_queues[user_id].set_criteria(user_id, criteria)
+        movie_queues[user_id].populate_task = asyncio.create_task(movie_queues[user_id].populate(user_id))
+        logging.info(f"Started populate task for {user_id}")
 
-    await asyncio.sleep(5)  # Allow time for the queue to populate
+    # Immediate check after starting populate tasks
+    for user_id in user_ids:
+        is_running = movie_queues[user_id].is_task_running(user_id)
+        logging.info(f"Immediate check - Populate task for {user_id} running: {is_running}")
 
-    await movie_queue_manager[user_id].stop_populate_task(user_id)  # Pass user_id
-    await movie_queue_manager[user_id].empty_queue(user_id)  # Pass user_id
+    await asyncio.sleep(10)  # Allow time for queues to start populating
 
-    logging.info(f"Is the MovieQueue task still running? {movie_queue_manager[user_id].is_task_running(user_id)}")  # Pass user_id
+    # Check status after some time
+    for user_id in user_ids:
+        is_running = movie_queues[user_id].is_task_running(user_id)
+        logging.info(f"Delayed check - Populate task for {user_id} running: {is_running}")
+
+    # Stop and empty queues
+    for user_id in user_ids:
+        await movie_queues[user_id].stop_populate_task(user_id)
+        await movie_queues[user_id].empty_queue(user_id)
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 # async def main():

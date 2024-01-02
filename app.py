@@ -12,11 +12,11 @@ def create_app():
     app = Quart(__name__)
     app.config.from_object(config.Config)
 
-    app.secret_key = "your_secret_key_here"  # Change this to a random secret key
-    # Jf4KXU4yF-IQryEAcUHJtA
-
+    # Set a random secret key (important for session security)
+    app.secret_key = secrets.token_urlsafe(16)
+    #
     # Initialize Session
-    session(app)
+    Session(app)
 
     movie_manager = MovieManager(config.Config.STACKHERO_DB_CONFIG)
 
@@ -30,20 +30,16 @@ def create_app():
 
     @app.route('/')
     async def home():
-        # Check if 'user_id' is already in the session
-        if 'user_id' not in session:
-            # Generate a new, secure user_id and store it in the session
-            session['user_id'] = secrets.token_urlsafe(16)
-
-        user_id = session['user_id']
+        # Ensure user_id is in the session
+        user_id = session.get('user_id', secrets.token_urlsafe(16))
+        session['user_id'] = user_id
         logging.info(f"Accessing home page for user_id: {user_id}")
-
-        # Call the movie_manager's home method with the user_id
         return await movie_manager.home(user_id)
 
     @app.route('/movie')
     async def movie():
-        user_id = session['user_id']  # Assuming the user is already in the session
+        user_id = session.get('user_id', secrets.token_urlsafe(16))
+        session['user_id'] = user_id
         logging.info("Fetching a movie")
         movie_or_none = await movie_manager.fetch_and_render_movie(user_id)
         if movie_or_none is None:

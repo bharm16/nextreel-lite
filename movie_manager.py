@@ -37,7 +37,7 @@ class MovieManager:
             self.movie_queues[user_id] = MovieQueue(self.db_config, queue)
         return self.movie_queues[user_id]
 
-    async def start_population_task(self, user_id):
+    async def start_population_task(self, user_id=None):
         movie_queue = await self.get_user_movie_queue(user_id)
         if not movie_queue.is_task_running(user_id):  # Pass user_id to is_task_running
             movie_queue.populate_task = asyncio.create_task(movie_queue.populate(user_id))
@@ -58,6 +58,7 @@ class MovieManager:
     async def start_for_user(self, user_id):
         logging.info("Starting MovieManager for user: {}".format(user_id))
         await self.start_population_task(user_id)  # Start populating the queue for a specific user
+        await self.movie_queue_manager.populate(user_id)  # Start populating the queue
         await self.set_default_backdrop()  # This remains the same for all users
 
     # async def start(self):
@@ -66,7 +67,7 @@ class MovieManager:
     #     await self.set_default_backdrop()
 
     async def fetch_and_render_movie(self, user_id, template_name='movie.html'):
-        user_queue = await self.get_user_queue(user_id)
+        user_queue = await self.get_user_movie_queue(user_id)
         if user_queue.empty():
             logging.info("No current movie to display for user_id: {}".format(user_id))
             return None
@@ -114,7 +115,7 @@ class MovieManager:
     #     return await self.fetch_and_render_movie()
 
     async def next_movie(self, user_id):
-        user_queue = await self.get_user_queue(user_id)
+        user_queue = await self.get_user_movie_queue(user_id)
         if user_queue.empty():
             logging.info(f"No more movies in queue for user_id: {user_id}")
             return None
