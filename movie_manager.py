@@ -14,7 +14,7 @@ logging.basicConfig(level=logging.INFO)
 
 
 class MovieManager:
-    def __init__(self, db_config):
+    def __init__(self, db_config, user_id=None):  # Add user_id as a parameter
         logging.info("Initializing MovieManager")
         self.movie_fetcher = ImdbRandomMovieFetcher(db_config)
         self.criteria = {}
@@ -27,16 +27,20 @@ class MovieManager:
         self.default_backdrop_url = None
         self.tmdb_helper = TMDbHelper(TMDB_API_KEY)  # Initialize TMDbHelper
         self.user_queues = {}  # Dictionary to store movie queues per user
+        self.user_id = user_id  # Store the user_id
+        self.movie_queues = {}  # Dictionary to store MovieQueue instances per user
+        self.db_config = db_config  # Ensure this attribute is initialized
 
-    async def get_user_queue(self, user_id):
-        if user_id not in self.user_queues:
-            self.user_queues[user_id] = asyncio.Queue(maxsize=20)
-        return self.user_queues[user_id]
+    async def get_user_movie_queue(self, user_id):
+        if user_id not in self.movie_queues:
+            queue = asyncio.Queue(maxsize=20)
+            self.movie_queues[user_id] = MovieQueue(self.db_config, queue)
+        return self.movie_queues[user_id]
 
     async def start_population_task(self, user_id):
-        queue = await self.get_user_queue(user_id)
-        if not queue.is_task_running():
-            queue.populate_task = asyncio.create_task(queue.populate())
+        movie_queue = await self.get_user_movie_queue(user_id)
+        if not movie_queue.is_task_running(user_id):  # Pass user_id to is_task_running
+            movie_queue.populate_task = asyncio.create_task(movie_queue.populate(user_id))
 
     # async def start_population_task(self):
     #     logging.info("Starting population task")
@@ -204,16 +208,42 @@ class MovieManager:
     #     return await self.fetch_and_render_movie()
 
 
-# Main function for testing...
+# Simulated user IDs for testing
+user_ids = ["user1", "user2", "user3"]
+
+
 async def main():
     dbconfig = Config.STACKHERO_DB_CONFIG
-    movie_manager = MovieManager(dbconfig)
-    await movie_manager.start()
-    await asyncio.sleep(10)  # Wait for queue to populate
-    # rendered_movie = await movie_manager.fetch_and_render_movie()
-    # next_movie_render = await movie_manager.next_movie()
-    # prev_movie_render = await movie_manager.previous_movie()
+    user_ids = ["user1", "user2", "user3"]
+    movie_managers = {user_id: MovieManager(dbconfig, user_id) for user_id in user_ids}
+
+    # Starting the MovieManager for each user
+    for user_id, manager in movie_managers.items():
+        await manager.start_for_user(user_id)
+        print(f"Started MovieManager for user: {user_id}")
+
+    # Simulate interactions for each user
+    for user_id, manager in movie_managers.items():
+        await asyncio.sleep(2)  # Wait for queue to populate
+        # You can add specific user interactions here, like fetching movies
+        # Example: rendered_movie = await manager.fetch_and_render_movie()
+        # next_movie_render = await manager.next_movie()
+        # prev_movie_render = await manager.previous_movie()
 
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+# # Main function for testing...
+# async def main():
+#     dbconfig = Config.STACKHERO_DB_CONFIG
+#     movie_manager = MovieManager(dbconfig)
+#     await movie_manager.start()
+#     await asyncio.sleep(10)  # Wait for queue to populate
+#     # rendered_movie = await movie_manager.fetch_and_render_movie()
+#     # next_movie_render = await movie_manager.next_movie()
+#     # prev_movie_render = await movie_manager.previous_movie()
+
+
+# if __name__ == "__main__":
+#     asyncio.run(main())
