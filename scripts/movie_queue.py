@@ -36,10 +36,27 @@ class MovieQueue:
             self.movie_fetcher = ImdbRandomMovieFetcher(self.db_config)
             self.criteria = criteria or {}
             self.lock = asyncio.Lock()
+            self.locks = {}  # Initialize locks dictionary
+            self.queues = {}  # Initialize queues dictionary
+            self.movie_fetchers = {}  # Initialize movie_fetchers dictionary
+            self.populate_tasks = {}  # Initialize populate_tasks dictionary
+            self.movie_enqueue_count = {}  # Initialize movie_enqueue_count dictionary
             logging.info(f"MovieQueue instance created with criteria: {self.criteria}")
-            self.populate_task = None  # Async task for populating the queue
+            self.populate_task = None
             self._initialized = True
-            self.movie_enqueue_count = 0  # Add a counter for movies enqueued
+
+    # def __init__(self, db_config, queue, criteria=None):
+    #     # Avoid reinitialization if already initialized
+    #     if not hasattr(self, '_initialized'):
+    #         self.db_config = db_config
+    #         self.queue = queue
+    #         self.movie_fetcher = ImdbRandomMovieFetcher(self.db_config)
+    #         self.criteria = criteria or {}
+    #         self.lock = asyncio.Lock()
+    #         logging.info(f"MovieQueue instance created with criteria: {self.criteria}")
+    #         self.populate_task = None  # Async task for populating the queue
+    #         self._initialized = True
+    #         self.movie_enqueue_count = 0  # Add a counter for movies enqueued
 
     # async def set_criteria(self, new_criteria):
     #     async with self.lock:
@@ -47,7 +64,7 @@ class MovieQueue:
     #         logging.info(f"MovieQueue criteria updated to: {self.criteria}")
 
     async def set_criteria(self, user_id, new_criteria):
-        if user_id not in self.locks:
+        if user_id not in self.locks:  # Corrected from self.lock to self.locks
             self.locks[user_id] = asyncio.Lock()
 
         async with self.locks[user_id]:
@@ -88,10 +105,6 @@ class MovieQueue:
             while not self.queues[user_id].empty():
                 await self.queues[user_id].get()
             logging.info(f"Movie queue for user {user_id} emptied")
-
-
-
-
 
     # async def populate(self):
     #     max_queue_size = 15
@@ -265,6 +278,46 @@ class MovieQueue:
         await self.empty_queue(user_id)  # empty_queue method needs to be updated to accept user_id
         self.populate_task[user_id] = asyncio.create_task(self.populate(user_id))  # populate method also needs user_id
         logging.info("Populate task restarted for user_id: {}".format(user_id))
+
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+
+
+async def main():
+    # Main function for testing...
+    user_id = "user123"  # Example user ID for testing
+
+    movie_queues = {}  # Dictionary to hold queues for each user
+    movie_queue_manager = {}  # Dictionary to hold MovieQueue managers for each user
+
+    # Create a queue and a MovieQueue manager for the user
+    movie_queues[user_id] = Queue()
+    movie_queue_manager[user_id] = MovieQueue(Config.STACKHERO_DB_CONFIG, movie_queues[user_id])
+
+    criteria = {
+        "min_year": 1900,
+        "max_year": 2023,
+        "min_rating": 7.0,
+        "max_rating": 10,
+        "title_type": "movie",
+        "language": "en",
+        "genres": ["Action", "Drama"]
+    }
+    await movie_queue_manager[user_id].set_criteria(user_id, criteria)  # Pass user_id and criteria
+
+    movie_queue_manager[user_id].populate_task = asyncio.create_task(movie_queue_manager[user_id].populate(user_id))  # Pass user_id
+
+    await asyncio.sleep(5)  # Allow time for the queue to populate
+
+    await movie_queue_manager[user_id].stop_populate_task(user_id)  # Pass user_id
+    await movie_queue_manager[user_id].empty_queue(user_id)  # Pass user_id
+
+    logging.info(f"Is the MovieQueue task still running? {movie_queue_manager[user_id].is_task_running(user_id)}")  # Pass user_id
+
+if __name__ == "__main__":
+    asyncio.run(main())
+
 
 # async def main():
 #     # Main function for testing...
