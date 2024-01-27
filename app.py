@@ -43,15 +43,18 @@ def create_app():
         user_id = session.get('user_id')
         return await movie_manager.home(user_id)
 
-    @app.route('/movie')
-    async def movie():
-        logging.info("Fetching a movie")
-        movie_or_none = await movie_manager.fetch_and_render_movie()
-        if movie_or_none is None:
-            logging.warning("Movie queue is empty, redirecting to home")
-            return redirect(url_for('home'))
-        else:
-            return movie_or_none
+    # @app.route('/movie')
+    # async def movie():
+    #     logging.info("Fetching a movie")
+    #     user_id = session.get('user_id')
+    #     current_displayed_movie = movie_manager.get_current_displayed_movie(user_id)
+    #
+    #     movie_or_none = await movie_manager.fetch_and_render_movie()
+    #     if movie_or_none is None:
+    #         logging.warning("Movie queue is empty, redirecting to home")
+    #         return redirect(url_for('home'))
+    #     else:
+    #         return movie_or_none
 
     @app.route('/next_movie', methods=['GET', 'POST'])
     async def next_movie():
