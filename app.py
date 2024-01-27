@@ -1,4 +1,5 @@
 import logging
+import sys
 import uuid
 
 import redis
@@ -33,6 +34,16 @@ def create_app():
                 logging.info(f"Existing user_id found: {session['user_id']}")
         except Exception as e:
             logging.error(f"Error in session management: {e}")
+
+        req_size = sys.getsizeof(await request.get_data())
+        logging.info(f"Request Size: {req_size} bytes")
+
+        # Existing user session handling
+        if 'user_id' not in session:
+            session['user_id'] = str(uuid.uuid4())
+            logging.info(f"New user_id generated: {session['user_id']}")
+        else:
+            logging.info(f"Existing user_id found: {session['user_id']}")
 
     @app.before_serving
     async def startup():
