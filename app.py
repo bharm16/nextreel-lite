@@ -41,8 +41,7 @@ def create_app():
     @app.route('/')
     async def home():
         user_id = session.get('user_id')
-        logging.info(f"Accessing home page with user_id: {user_id}")
-        return await movie_manager.home()
+        return await movie_manager.home(user_id)
 
     @app.route('/movie')
     async def movie():
@@ -56,14 +55,16 @@ def create_app():
 
     @app.route('/next_movie', methods=['GET', 'POST'])
     async def next_movie():
-        logging.info("Requesting next movie")
-        response = await movie_manager.next_movie()
+        user_id = session.get('user_id')
+        logging.info(f"Requesting next movie for user_id: {user_id}")
+        response = await movie_manager.next_movie(user_id)
         return response if response else ('No more movies', 200)
 
     @app.route('/previous_movie', methods=['GET', 'POST'])
     async def previous_movie():
-        logging.info("Requesting previous movie")
-        response = await movie_manager.previous_movie()
+        user_id = session.get('user_id')
+        logging.info(f"Requesting previous movie for user_id: {user_id}")
+        response = await movie_manager.previous_movie(user_id)
         return response if response else ('No previous movies', 200)
 
     @app.route('/setFilters')
@@ -77,7 +78,34 @@ def create_app():
         form_data = await request.form  # Await the form data
         return await movie_manager.filtered_movie(form_data)
 
+    # Usage in a web application context
+    # Define a function to get or create user criteria
+    def get_user_criteria():
+        # Example static criteria, modify as needed
+        return {"min_year": 1900, "max_year": 2023, "min_rating": 7.0, "genres": ["Action", "Comedy"]}
+
+        # Route to handle new user access
+
+    @app.route('/handle_new_user')
+    async def handle_new_user():
+        user_id = session.get('user_id', str(uuid.uuid4()))  # Generate new user_id if not exists
+        session['user_id'] = user_id  # Save user_id to session
+        criteria = get_user_criteria()  # Get criteria for the user
+
+        # Initialize user's movie queue with criteria in MovieManager
+        await movie_manager.movie_queue_manager.add_user(user_id, criteria)
+        logging.info(f"New user handled with user_id: {user_id}")
+
+        # Redirect to the home page or another appropriate page
+        return redirect(url_for('home'))
+
     return app
+
+
+def get_current_user_id():
+    # Retrieve user_id from session or another source
+    user_id = session.get('user_id')
+    return user_id
 
 
 app = create_app()
