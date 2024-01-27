@@ -140,15 +140,20 @@ class MovieManager:
 
     async def previous_movie(self, user_id):
         prev_stack, future_stack = self._get_user_stacks(user_id)
-        current_displayed_movie = None
 
-        if future_stack:
-            current_displayed_movie = future_stack.pop()
-        elif prev_stack:
-            current_displayed_movie = prev_stack.pop()
+        # If there is a currently displayed movie, push it to the future stack
+        if self.current_displayed_movie:
+            future_stack.append(self.current_displayed_movie)
+
+        if prev_stack:
+            # Pop the last movie from the previous stack and set it as the current displayed movie
+            self.current_displayed_movie = prev_stack.pop()
+        else:
+            # If there are no previous movies, set the current displayed movie to None
+            self.current_displayed_movie = None
 
         # Render the movie or handle the case where there's no movie to display
-        return await self.fetch_and_render_movie(current_displayed_movie, user_id)  # Include user_id here
+        return await self.fetch_and_render_movie(self.current_displayed_movie, user_id)
 
     async def set_filters(self):
         logging.info("Setting filters")
