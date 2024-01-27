@@ -1,6 +1,10 @@
 import logging
+import uuid
 
-from quart import Quart, request, redirect, url_for
+import redis
+from quart import Quart, request, redirect, url_for, session
+from quart_session import Session
+
 import config
 from movie_manager import MovieManager
 
@@ -8,8 +12,27 @@ from movie_manager import MovieManager
 def create_app():
     app = Quart(__name__)
     app.config.from_object(config.Config)
+    app.config['SESSION_TYPE'] = 'redis'
+    # app.config['SESSION_URI'] = redis.from_url('redis://localhost:6379')
+    Session(app)
+
+    # app.config['SESSION_URI'] = 'redis://:password@localhost:6379'
+
+    # Initialize Session Management
 
     movie_manager = MovieManager(config.Config.STACKHERO_DB_CONFIG)
+
+    @app.before_request
+    async def before_request():
+        try:
+            if 'user_id' not in session:
+                # Generate a new UUID if not present
+                session['user_id'] = str(uuid.uuid4())
+                logging.info(f"New user_id generated: {session['user_id']}")
+            else:
+                logging.info(f"Existing user_id found: {session['user_id']}")
+        except Exception as e:
+            logging.error(f"Error in session management: {e}")
 
     @app.before_serving
     async def startup():
@@ -17,7 +40,8 @@ def create_app():
 
     @app.route('/')
     async def home():
-        logging.info("Accessing home page")
+        user_id = session.get('user_id')
+        logging.info(f"Accessing home page with user_id: {user_id}")
         return await movie_manager.home()
 
     @app.route('/movie')

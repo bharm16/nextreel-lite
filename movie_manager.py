@@ -27,15 +27,6 @@ class MovieManager:
         self.default_backdrop_url = None
         self.tmdb_helper = TMDbHelper(TMDB_API_KEY)  # Initialize TMDbHelper
 
-    # async def start_population_task(self):
-    #     logging.info("Starting population task")
-    #     if not self.movie_queue_manager.is_task_running():
-    #         self.movie_queue_manager.populate_task = asyncio.create_task(self.movie_queue_manager.populate())
-    #
-    # async def start(self):
-    #     logging.info("Starting MovieManager")
-    #     await self.movie_queue_manager.populate()  # Start populating the queue
-    #     await self.set_default_backdrop()
 
     async def start(self):
         # Log the start of the MovieManager
