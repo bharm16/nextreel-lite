@@ -13,7 +13,7 @@ def create_app():
 
     @app.before_serving
     async def startup():
-        await movie_manager.start_population_task()
+        await movie_manager.start()
 
     @app.route('/')
     async def home():

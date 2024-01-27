@@ -27,10 +27,30 @@ class MovieManager:
         self.default_backdrop_url = None
         self.tmdb_helper = TMDbHelper(TMDB_API_KEY)  # Initialize TMDbHelper
 
-    async def start_population_task(self):
-        logging.info("Starting population task")
+    # async def start_population_task(self):
+    #     logging.info("Starting population task")
+    #     if not self.movie_queue_manager.is_task_running():
+    #         self.movie_queue_manager.populate_task = asyncio.create_task(self.movie_queue_manager.populate())
+    #
+    # async def start(self):
+    #     logging.info("Starting MovieManager")
+    #     await self.movie_queue_manager.populate()  # Start populating the queue
+    #     await self.set_default_backdrop()
+
+    async def start(self):
+        # Log the start of the MovieManager
+        logging.info("Starting MovieManager")
+
+        # Check if the movie queue population task is already running
         if not self.movie_queue_manager.is_task_running():
+            # If not running, create and start the population task
             self.movie_queue_manager.populate_task = asyncio.create_task(self.movie_queue_manager.populate())
+            logging.info("Movie queue population task started")
+
+        # After starting the population task, proceed to set the default backdrop
+        await self.set_default_backdrop()
+        logging.info("Default backdrop set")
+
 
     async def set_default_backdrop(self):
         image_data = await self.tmdb_helper.get_images_by_tmdb_id(self.default_movie_tmdb_id)
@@ -40,10 +60,6 @@ class MovieManager:
         else:
             self.default_backdrop_url = None
 
-    async def start(self):
-        logging.info("Starting MovieManager")
-        await self.movie_queue_manager.populate()  # Start populating the queue
-        await self.set_default_backdrop()
 
     async def fetch_and_render_movie(self, template_name='movie.html'):
         # logging.info("Fetching and rendering movie")
