@@ -1,10 +1,8 @@
 import logging
-import os
 import sys
 import uuid
 
 import aioredis
-import redis
 from quart import Quart, request, redirect, url_for, session
 from quart_session import Session
 
@@ -27,8 +25,7 @@ def create_app():
             ssl=True
         )
         app.config['SESSION_REDIS'] = cache
-
-    Session(app)
+        Session(app)
 
 
 
