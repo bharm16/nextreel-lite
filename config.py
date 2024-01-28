@@ -2,6 +2,7 @@ import os
 import ssl
 import aiomysql
 import pymysql
+import redis
 from pymysql.cursors import DictCursor
 from flask.cli import load_dotenv
 
@@ -23,6 +24,9 @@ class Config:
         'database': os.getenv('STACKHERO_DB_NAME'),
         'port': int(os.getenv('STACKHERO_DB_PORT', 3306))
     }
+
+    # Redis configuration using UPSTASH_REDIS_URL
+    UPSTASH_REDIS_URL = os.getenv('UPSTASH_REDIS_URL')
 
     SECRET_KEY = os.getenv('FLASK_SECRET_KEY')
     TMDB_API_KEY = os.getenv('TMDB_API_KEY')

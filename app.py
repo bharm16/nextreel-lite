@@ -1,7 +1,9 @@
 import logging
+import os
 import sys
 import uuid
 
+import aioredis
 import redis
 from quart import Quart, request, redirect, url_for, session
 from quart_session import Session
@@ -14,11 +16,24 @@ def create_app():
     app = Quart(__name__)
     app.config.from_object(config.Config)
     app.config['SESSION_TYPE'] = 'redis'
-    # app.config['SESSION_URI'] = redis.from_url('redis://localhost:6379')
+
+    @app.before_serving
+    async def setup_redis():
+        # Set up Redis for session management using aioredis
+        cache = await aioredis.Redis(
+            host="us1-helped-boxer-41842.upstash.io",
+            port=41842,
+            password="2c0aa963aca84f82a6f822877cbc2ae8",
+            ssl=True
+        )
+        app.config['SESSION_REDIS'] = cache
+
     Session(app)
 
-    # app.config['SESSION_URI'] = 'redis://:password@localhost:6379'
 
+
+    # app.config['SESSION_URI'] = redis.from_url('redis://localhost:6379')
+    # app.config['SESSION_URI'] = 'redis://:password@localhost:6379'
     # Initialize Session Management
 
     movie_manager = MovieManager(config.Config.STACKHERO_DB_CONFIG)
@@ -44,6 +59,8 @@ def create_app():
             logging.info(f"New user_id generated: {session['user_id']}")
         else:
             logging.info(f"Existing user_id found: {session['user_id']}")
+
+        # Set up Redis for session management using aioredis
 
     @app.before_serving
     async def startup():

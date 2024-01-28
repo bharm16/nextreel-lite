@@ -1,12 +1,9 @@
 import asyncio
 import logging
-import httpx
-import random
+
 from quart import render_template
 
-import app
 from config import Config
-from scripts.movie import Movie
 from scripts.movie_queue import MovieQueue
 from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher, extract_movie_filter_criteria
 from scripts.tmdb_data import TMDbHelper, TMDB_API_KEY
