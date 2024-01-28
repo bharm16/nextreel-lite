@@ -38,6 +38,17 @@ class MovieManager:
         await self.set_default_backdrop()
         logging.info("Default backdrop set")
 
+    async def add_user(self, user_id, criteria):
+        """
+        Add a new user with specific criteria.
+
+        Parameters:
+        user_id (str): Unique identifier for the user.
+        criteria (dict): Criteria to filter movies for the user.
+        """
+        logging.info(f"Adding new user with ID: {user_id} and criteria: {criteria}")
+        await self.movie_queue_manager.add_user(user_id, criteria)
+
     async def home(self,user_id):
         logging.info("Accessing home")
 

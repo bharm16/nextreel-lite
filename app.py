@@ -38,24 +38,47 @@ def create_app():
     @app.before_request
     async def before_request():
         try:
+            # Check if 'user_id' is not in the session
             if 'user_id' not in session:
-                # Generate a new UUID if not present
+                # Generate a new UUID if not present and add it to the session
                 session['user_id'] = str(uuid.uuid4())
                 logging.info(f"New user_id generated: {session['user_id']}")
+
+                # Create and populate a queue for the new user
+                # Define default criteria or fetch it from somewhere if you have personalized criteria logic
+                default_criteria = {"min_year": 1900, "max_year": 2023, "min_rating": 7.0,
+                                    "genres": ["Action", "Comedy"]}
+                await movie_manager.add_user(session['user_id'], default_criteria)
             else:
                 logging.info(f"Existing user_id found: {session['user_id']}")
+
+            # Calculate and log request size
+            req_size = sys.getsizeof(await request.get_data())
+            logging.info(f"Request Size: {req_size} bytes")
         except Exception as e:
             logging.error(f"Error in session management: {e}")
 
-        req_size = sys.getsizeof(await request.get_data())
-        logging.info(f"Request Size: {req_size} bytes")
-
-        # Existing user session handling
-        if 'user_id' not in session:
-            session['user_id'] = str(uuid.uuid4())
-            logging.info(f"New user_id generated: {session['user_id']}")
-        else:
-            logging.info(f"Existing user_id found: {session['user_id']}")
+    # @app.before_request
+    # async def before_request():
+    #     try:
+    #         if 'user_id' not in session:
+    #             # Generate a new UUID if not present
+    #             session['user_id'] = str(uuid.uuid4())
+    #             logging.info(f"New user_id generated: {session['user_id']}")
+    #         else:
+    #             logging.info(f"Existing user_id found: {session['user_id']}")
+    #     except Exception as e:
+    #         logging.error(f"Error in session management: {e}")
+    #
+    #     req_size = sys.getsizeof(await request.get_data())
+    #     logging.info(f"Request Size: {req_size} bytes")
+    #
+    #     # Existing user session handling
+    #     if 'user_id' not in session:
+    #         session['user_id'] = str(uuid.uuid4())
+    #         logging.info(f"New user_id generated: {session['user_id']}")
+    #     else:
+    #         logging.info(f"Existing user_id found: {session['user_id']}")
 
         # Set up Redis for session management using aioredis
 
