@@ -40,7 +40,7 @@
     max-height: 6.25vh; /* 100px approximation to vh */
     color: #343a40;
     background-color: #02243f;
-    display: inline;
+    display: flex;
     align-items: center;
     justify-content: space-between;
     flex-grow: 1;
