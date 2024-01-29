@@ -1,98 +1,71 @@
+/* Custom button styles */
+.btn-custom {
+    background-color: #2bb030 !important;
+    color: #ffffff !important;
+    border: none;
+    margin-right: 0.9375em; /* 15px / 16px */
+    margin-top: 1.875em;    /* 30px / 16px */
+}
 
+/* Hover effect for custom buttons */
+.btn-custom:hover {
+    background-color: #2bb030;
+}
 
+/* Custom logo button styles */
 
+/* Styles for the anchor tag wrapping the image */
+.btn-logo {
+    background: transparent !important;
+    border: none !important;
+    max-width: 12.5em; /* 200px / 16px */
+    max-height: 12.5vh; /* 100px approximation to vh */
+    overflow: visible;
+    display: flex;
+    text-align: center;
+    line-height: 6.25vh; /* 100px / 16px approximation to vh */
+    position: relative;
+}
 
-        /* Custom button styles */
-        .btn-custom {
-            background-color: #2bb030 !important;
-            color: #ffffff !important;
-            border: none;
-            margin-right: 15px;
-            margin-top: 30px;
-        }
+/* Styling for the logo image */
+.navbar img {
+    max-height: 9.375vh; /* 150px approximation to vh */
+    max-width: 9.375em; /* 150px / 16px */
+}
 
-        /* Hover effect for custom buttons */
-        .btn-custom:hover {
-            background-color: #2bb030;
-        }
+/* Custom navbar styles */
+.navbar {
+    position: sticky;
+    z-index: 1000;
+    max-height: 6.25vh; /* 100px approximation to vh */
+    color: #343a40;
+    background-color: #02243f;
+    display: inline;
+    align-items: center;
+    justify-content: space-between;
+    flex-grow: 1;
+    margin-top: -1.875vh; /* 30px approximation to vh */
+}
 
-        /* Custom logo button styles */
+/* Style for nav links */
+.navbar a {
+    color: #343a40;
+}
 
-    /* Styles for the anchor tag wrapping the image */
-    .btn-logo {
-        background: transparent !important;
-        border: none !important;
-        max-width: 200px;  /* Adjust as needed */
-        max-height: 100px;  /* Adjust as needed */
-        overflow: visible;
-        display: flex;
-        text-align: center;  /* Center image horizontally */
-        line-height: 100px;  /* Adjust to match height for vertical centering */
-        position: relative;  /* Ensure proper stacking context */
-        /*vertical-align: top;*/
+.all-navbar-buttons-wrapper {
+    flex-grow: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
 
-        }
+/* Wrapper for logo button */
+.logo-wrapper {
+    max-height: 6.25vh; /* 100px approximation to vh */
+    margin-left: -1.875em; /* 30px / 16px */
+}
 
-    /* Styling for the logo image */
-    .navbar img {
-        max-height: 150px;  /* Adjust as needed */
-        max-width: 150px;  /* Adjust as needed */
-        /*display: inline;  !* Ensure image is block-level *!*/
-        /*margin-top: -25px;*/
-
-
-
-    }
-        /* Custom navbar styles */
-        .navbar {
-            position: sticky;
-            z-index: 1000;
-
-            max-height: 100px;
-
-            color: #343a40;  /* dark text color */
-            /*margin-top:-15px;*/
-            background-color: #02243f;
-            display: inline;
-            align-items: center;
-            justify-content: space-between;
-            flex-grow: 1;
-
-                        margin-top: -30px;
-
-        }
-
-
-
-        /* Style for nav links */
-        .navbar a {
-            color: #343a40;  /* dark text color */
-        }
-
-        .all-navbar-buttons-wrapper {
-            flex-grow: 1;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-
-
-
-        }
-
-        /* Wrapper for logo button */
-        .logo-wrapper {
-
-            /*vertical-align: top;*/
-            /*align-content: baseline;*/
-            max-height: 100px;
-            margin-left: -30px;
-
-
-        }
-
-        /* Wrapper for right-side buttons */
-        .button-wrapper {
-            display: flex;
-
-
-        }
+/* Wrapper for right-side buttons */
+.button-wrapper {
+    display: flex;
+}
