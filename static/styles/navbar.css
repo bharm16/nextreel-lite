@@ -37,7 +37,7 @@
 .navbar {
     position: sticky;
     z-index: 1000;
-    max-height: 6.25vh; /* 100px approximation to vh */
+    max-height: 30.25vh; /* 100px approximation to vh */
     color: #343a40;
     background-color: #02243f;
     display: flex;
