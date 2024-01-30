@@ -23,16 +23,25 @@
             z-index: 2;
         }
 
+         .backdrop-container {
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        align-items: center;
+        min-height: 37.5rem;
+        background-image: url('https://image.tmdb.org/t/p/original/dMrAwwB7PMC4SjgsTbgmEJblaYd.jpg');
+        background-size: cover; /* Cover the entire area of the container */
+        background-position: center center; /* Center the background image */
+        background-repeat: no-repeat; /* Prevent the image from repeating */
+    }
+
+    /* Example Media Query for smaller screens */
+    @media (max-width: 768px) {
         .backdrop-container {
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-end;
-            align-items: center;
-            min-height: 37.5rem; /* Responsive height */
-            background-image: url('https://image.tmdb.org/t/p/original/dMrAwwB7PMC4SjgsTbgmEJblaYd.jpg');
-            background-size: cover; /* Ensure background covers the entire container */
-            background-position: center; /* Center the background image */
+            min-height: 25rem; /* Adjust the height for smaller screens */
+            /* Additional adjustments if needed */
         }
+    }
     </style>
 </head>
 <body>
