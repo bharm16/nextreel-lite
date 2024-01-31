@@ -508,6 +508,84 @@
             margin-bottom: 300px; /* Adjust the value as needed */
         }
 
+
+         /* Adjustments for mobile layout */
+        @media (max-width: 768px) {
+            /* Make the movie details section a flex container */
+            .main-movie-details {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center; /* This will vertically center the items in the container */
+            }
+
+            /* Adjust the movie poster column to come before the title */
+            .movie-poster-col {
+                flex: 0 0 auto; /* Do not grow, do not shrink, and base width on content */
+                width: auto; /* Set to auto so it only takes up as much space as needed */
+                order: -1; /* Order -1 will make it come before elements with order 0 */
+            }
+
+            /* Adjust the movie title to take up the remaining space */
+            .movie-title-col {
+                flex-grow: 1; /* Allow the title to grow to fill remaining space */
+            }
+
+            /* Optionally, reset margins if needed */
+            .movie-poster {
+                margin-top: 0; /* Reset the top margin of the poster if necessary */
+            }
+
+            /* Add more styles if necessary */
+        }
+
+
+
+
+@media (max-width: 768px) {
+    /* Stack elements in a column on smaller screens */
+    .main-movie-details {
+        flex-direction: column;
+    }
+
+    /* Adjust padding for the movie card container */
+    .movie-card-container {
+        padding: 15px;
+    }
+
+    /* Reduce font sizes for readability on smaller screens */
+    .movie-title, .info-title {
+        font-size: 1.5em;
+    }
+
+    /* Ensure images are responsive */
+    .movie-poster, .actor-card img {
+        width: 100%;
+        height: auto;
+    }
+
+    /* Adjust padding and font size of buttons for easier interaction */
+    button, .genre-custom-button, .movie-navigation-buttons {
+        padding: 10px 15px;
+        font-size: 1em;
+    }
+
+    /* Reduce margins and paddings for efficient space utilization */
+    .info-box, .actor-card {
+        margin: 5px;
+        padding: 10px;
+    }
+
+    /* Make cast list scrollable */
+    .cast-list {
+        overflow-x: auto;
+        white-space: nowrap;
+    }
+
+    /* Additional responsive adjustments as necessary */
+    /* ... */
+}
+
+
     </style>
 
 
