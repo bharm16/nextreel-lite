@@ -644,6 +644,45 @@
         display: flex;
         flex-wrap: nowrap;
     }
+
+    .main-movie-details {
+        flex-direction: row;
+    }
+
+    /* Ensure the movie poster takes up full width and is left-aligned */
+    .movie-poster-col {
+        order: -1; /* This ensures the poster appears on the left */
+        max-width: 50%; /* Adjust the width as necessary */
+    }
+
+    /* Adjust the movie details column */
+    .movie-details-col {
+        max-width: 50%; /* Adjust the width as necessary */
+    }
+
+    /* Adjust the movie poster size if necessary */
+    .movie-poster {
+        max-width: 100%;
+        height: auto;
+    }
+
+     .main-movie-details {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+    }
+    .movie-poster-col, .movie-details-col {
+        flex-basis: 100%; /* Take full width of the container */
+    }
+    .movie-poster {
+        max-width: 100%; /* Allow poster to use available width */
+        height: auto; /* Keep the aspect ratio */
+        order: -1; /* Bring poster to the left side */
+    }
+    /* Reset any negative margins that might be causing layout issues */
+    .negative-margin-top {
+        margin-top: 0;
+    }
 }
 
 
@@ -683,11 +722,11 @@
     <!-- Float this row above the backdrop -->
     <div class="row main-movie-details">
         <!-- Your movie details here -->
-        <div class="col-lg-4 col-md-6 text-center position-relative">  <!-- Added position-relative -->
+    <div class="col-12 col-md-4 movie-poster-col">
             <img class="movie-poster" src="{{ movie.poster_url }}" alt="Movie Poster">
         </div>
 
-        <div class="col-lg-8 col-md-6">
+    <div class="col-12 col-md-8 movie-details-col">
             <div class="info-container">
                 <!-- Bootstrap row -->
                 <div class="row">
