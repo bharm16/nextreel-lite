@@ -118,16 +118,31 @@ def create_app():
         response = await movie_manager.previous_movie(user_id)
         return response if response else ('No previous movies', 200)
 
+    # @app.route('/setFilters')
+    # async def set_filters():
+    #     logging.info("Setting filters")
+    #     return await movie_manager.set_filters()
+
     @app.route('/setFilters')
     async def set_filters():
-        logging.info("Setting filters")
-        return await movie_manager.set_filters()
+        user_id = session.get('user_id')  # Extract user_id from session
+        logging.info(f"Setting filters for user_id: {user_id}")
+        # Pass user_id to the set_filters method
+        return await movie_manager.set_filters(user_id)
 
     @app.route('/filtered_movie', methods=['POST'])
     async def filtered_movie_endpoint():
-        logging.info("Applying movie filters")
+        user_id = session.get('user_id')  # Extract user_id from session
+        logging.info(f"Applying movie filters for user_id: {user_id}")
         form_data = await request.form  # Await the form data
-        return await movie_manager.filtered_movie(form_data)
+        # Pass both user_id and form_data to the filtered_movie method
+        return await movie_manager.filtered_movie(user_id, form_data)
+
+    # @app.route('/filtered_movie', methods=['POST'])
+    # async def filtered_movie_endpoint():
+    #     logging.info("Applying movie filters")
+    #     form_data = await request.form  # Await the form data
+    #     return await movie_manager.filtered_movie(form_data)
 
     # Usage in a web application context
     # Define a function to get or create user criteria
