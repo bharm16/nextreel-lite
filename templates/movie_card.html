@@ -542,48 +542,112 @@
 
 
 @media (max-width: 768px) {
-    /* Stack elements in a column on smaller screens */
+    /* General Adjustments */
+    body {
+        padding-bottom: 10vh; /* Reduced padding */
+    }
+
+    /* Movie Details Layout */
     .main-movie-details {
         flex-direction: column;
+        padding-bottom: 6vh; /* Adjust padding */
     }
 
-    /* Adjust padding for the movie card container */
-    .movie-card-container {
-        padding: 15px;
+    /* Info Box */
+    .info-box {
+        margin: 5px 0; /* Adjust margins */
+        padding: 5px; /* Adjust padding */
     }
 
-    /* Reduce font sizes for readability on smaller screens */
-    .movie-title, .info-title {
-        font-size: 1.5em;
+    /* Movie Poster */
+    .movie-poster {
+        max-width: 100%; /* Full width for small screens */
+        margin-top: 0; /* Adjust top margin */
     }
 
-    /* Ensure images are responsive */
-    .movie-poster, .actor-card img {
-        width: 100%;
+    /* Movie Title */
+    .movie-title {
+        font-size: 2em; /* Smaller font size for mobile */
+        padding-bottom: 0; /* Adjust padding */
+    }
+
+    /* Actor Cards */
+    .actor-card {
+        width: 45%; /* Adjust width for smaller screens */
+        margin: 5px; /* Adjust margin */
+    }
+
+    /* Actor Card Image */
+    .actor-card img {
+        max-height: 100%; /* Adjust maximum height */
+    }
+
+    /* Rating and Votes */
+    .rating-votes-wrapper {
+        transform: scale(0.5); /* Scale down the elements */
+        margin: 0 0.5em; /* Adjust margin */
+    }
+
+    /* Cast List */
+    .cast-list {
+        margin-top: 0; /* Adjust top margin */
+        margin-left: 0; /* Adjust left margin */
+    }
+
+    /* Info Container */
+    .info-container {
+        max-width: 100%; /* Full width on smaller screens */
+        margin-top: 0; /* Adjust top margin */
+    }
+
+    /* Navigation Buttons */
+    .movie-navigation-buttons {
+        margin-right: 10px; /* Adjust margin */
+        font-size: 14px; /* Smaller font size */
+    }
+
+    /* Adjustments for Arrow Buttons */
+    .arrow-button {
+        font-size: 20px; /* Smaller arrow size */
+        padding: 8px; /* Adjust padding */
+    }
+
+    /* Cast List Margin */
+    .cast-list-margin {
+        margin-bottom: 150px; /* Adjust bottom margin */
+    }
+
+
+
+    .movie-poster {
+        max-width: 100%; /* Full width within its column */
         height: auto;
     }
 
-    /* Adjust padding and font size of buttons for easier interaction */
-    button, .genre-custom-button, .movie-navigation-buttons {
-        padding: 10px 15px;
-        font-size: 1em;
+    .movie-poster {
+        max-width: 100%; /* Full width within its column */
+        height: auto;
     }
 
-    /* Reduce margins and paddings for efficient space utilization */
-    .info-box, .actor-card {
-        margin: 5px;
-        padding: 10px;
+      .main-movie-details .col-12 {
+        flex: 0 0 50%; /* Each column takes up 50% of the width */
+        max-width: 50%;
     }
 
-    /* Make cast list scrollable */
-    .cast-list {
-        overflow-x: auto;
-        white-space: nowrap;
+    .movie-poster {
+        max-width: 100%; /* Full width within its column */
+        height: auto;
     }
 
-    /* Additional responsive adjustments as necessary */
-    /* ... */
+    /* Ensure the movie details and poster align properly */
+    .main-movie-details {
+        display: flex;
+        flex-wrap: nowrap;
+    }
 }
+
+
+
 
 
     </style>
@@ -621,11 +685,9 @@
         <!-- Your movie details here -->
         <div class="col-lg-4 col-md-6 text-center position-relative">  <!-- Added position-relative -->
             <img class="movie-poster" src="{{ movie.poster_url }}" alt="Movie Poster">
-
-
         </div>
 
-        <div class="col-lg-8 col-md-6 col-sm-10 mx-auto">
+        <div class="col-lg-8 col-md-6">
             <div class="info-container">
                 <!-- Bootstrap row -->
                 <div class="row">
@@ -714,13 +776,6 @@
         </form>
     </div>
 </div>
-
-
-
-
-
-
-
 
 
         </div>
