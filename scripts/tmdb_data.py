@@ -33,7 +33,9 @@ class TMDbHelper:
         self.base_url = "https://api.themoviedb.org/3"
         self.image_base_url = "https://image.tmdb.org/t/p/"
 
-    async def _get(self, endpoint, params={}):
+    async def _get(self, endpoint, params=None):
+        if params is None:
+            params = {}
         async with httpx.AsyncClient() as client:
             url = f"{self.base_url}/{endpoint}"
             params['api_key'] = self.api_key
