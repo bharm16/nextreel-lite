@@ -773,61 +773,61 @@
 
     document.addEventListener("DOMContentLoaded", function() {
         // Function to populate IMDb dropdown
-       // Function to populate IMDb dropdowns
-function populateImdbDropdowns() {
-    // Get the IMDb dropdown elements
-    const imdbDropdownMin = document.getElementById("imdb_score_min");
-    const imdbDropdownMax = document.getElementById("imdb_score_max");
+        // Function to populate IMDb dropdowns
+        function populateImdbDropdowns() {
+            // Get the IMDb dropdown elements
+            const imdbDropdownMin = document.getElementById("imdb_score_min");
+            const imdbDropdownMax = document.getElementById("imdb_score_max");
 
-    // Loop to populate the dropdowns starts from 1 and goes up to 10, incrementing by 0.1 each time
-    for (let i = 1; i <= 10; i += 0.1) {
-        // Round to one decimal place to avoid floating-point issues
-        i = Math.round(i * 10) / 10;
+            // Loop to populate the dropdowns starts from 1 and goes up to 10, incrementing by 0.1 each time
+            for (let i = 1; i <= 10; i += 0.1) {
+                // Round to one decimal place to avoid floating-point issues
+                i = Math.round(i * 10) / 10;
 
-        // Create an option element for Min
-        let optionMin = document.createElement("option");
-        optionMin.value = i;
-        optionMin.innerHTML = i.toFixed(1);
+                // Create an option element for Min
+                let optionMin = document.createElement("option");
+                optionMin.value = i;
+                optionMin.innerHTML = i.toFixed(1);
 
-        // Create an option element for Max
-        let optionMax = document.createElement("option");
-        optionMax.value = i;
-        optionMax.innerHTML = i.toFixed(1);
+                // Create an option element for Max
+                let optionMax = document.createElement("option");
+                optionMax.value = i;
+                optionMax.innerHTML = i.toFixed(1);
 
-        // Append options to dropdowns
-        imdbDropdownMin.appendChild(optionMin);
-        imdbDropdownMax.appendChild(optionMax);
-    }
-    // Set the default values
-imdbDropdownMin.value = 7.0;
-imdbDropdownMax.value = 10.0;
+                // Append options to dropdowns
+                imdbDropdownMin.appendChild(optionMin);
+                imdbDropdownMax.appendChild(optionMax);
+            }
+            // Set the default values
+            imdbDropdownMin.value = 7.0;
+            imdbDropdownMax.value = 10.0;
 
-}
+        }
 
 // Call the function to populate IMDb dropdowns
-populateImdbDropdowns();
+        populateImdbDropdowns();
 
 
 // Function to enforce that max IMDb score is never less than min IMDb score
-function enforceImdbMinMax() {
-    const imdbDropdownMin = document.getElementById("imdb_score_min");
-    const imdbDropdownMax = document.getElementById("imdb_score_max");
+        function enforceImdbMinMax() {
+            const imdbDropdownMin = document.getElementById("imdb_score_min");
+            const imdbDropdownMax = document.getElementById("imdb_score_max");
 
-    imdbDropdownMin.addEventListener("change", function() {
-        if (parseFloat(imdbDropdownMin.value) > parseFloat(imdbDropdownMax.value)) {
-            imdbDropdownMax.value = imdbDropdownMin.value;
-        }
-    });
+            imdbDropdownMin.addEventListener("change", function() {
+                if (parseFloat(imdbDropdownMin.value) > parseFloat(imdbDropdownMax.value)) {
+                    imdbDropdownMax.value = imdbDropdownMin.value;
+                }
+            });
 
-    imdbDropdownMax.addEventListener("change", function() {
-        if (parseFloat(imdbDropdownMax.value) < parseFloat(imdbDropdownMin.value)) {
-            imdbDropdownMin.value = imdbDropdownMax.value;
+            imdbDropdownMax.addEventListener("change", function() {
+                if (parseFloat(imdbDropdownMax.value) < parseFloat(imdbDropdownMin.value)) {
+                    imdbDropdownMin.value = imdbDropdownMax.value;
+                }
+            });
         }
-    });
-}
 
 // Call the function to enforce IMDb min-max relationship
-enforceImdbMinMax();
+        enforceImdbMinMax();
 
 
     });

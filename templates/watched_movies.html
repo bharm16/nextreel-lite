@@ -9,13 +9,13 @@
     <!-- Custom CSS to apply Flexbox -->
     <style>
         /* Define a flex container */
-     .flex-container {
-    display: flex;
-    flex-direction: row;
-    max-width: 100%;  /* Sets the maximum width */
-    max-height: 100vh;  /* Sets the maximum height to the viewport height */
-    overflow: auto;  /* Allows scrolling if content overflows */
-  }
+        .flex-container {
+            display: flex;
+            flex-direction: row;
+            max-width: 100%;  /* Sets the maximum width */
+            max-height: 100vh;  /* Sets the maximum height to the viewport height */
+            overflow: auto;  /* Allows scrolling if content overflows */
+        }
         /* Styling for the filter card container */
         .filter-card-container {
             flex: 1;  /* Take up 1 part of the available space */
@@ -44,57 +44,57 @@
 
 </head>
 <body>
-    {% include 'navbar.html' %}
+{% include 'navbar.html' %}
 
-    <!-- Wrap the filter card and watched movie cards in a flex container -->
-    <div class="flex-container">
-        <!-- Include the filter card inside its container -->
-        <div class="filter-card-container">
-            {% include 'sort_and_filter_card.html' %}
-        </div>
-
-        <!-- New flex container for the dropdown and movie cards -->
-        <div class="sort-and-movies-flex-container">
-            <!-- Container for the Sort by dropdown -->
-            <div class="sort-by-container">
-                <label for="sort-options">Sort by: </label>
-                <select id="sort-options">
-                    <!-- Sorting by Year -->
-                    <optgroup label="Year">
-                        <option value="year_low_to_high">Low to High</option>
-                        <option value="year_high_to_low">High to Low</option>
-                    </optgroup>
-                    <!-- Sorting by IMDb Rating -->
-                    <optgroup label="IMDb Rating">
-                        <option value="imdb_low_to_high">Low to High</option>
-                        <option value="imdb_high_to_low">High to Low</option>
-                    </optgroup>
-                    <!-- Sorting by Vote Count -->
-                    <optgroup label="Vote Count">
-                        <option value="vote_low_to_high">Low to High</option>
-                        <option value="vote_high_to_low">High to Low</option>
-                    </optgroup>
-                </select>
-            </div>
-
-<!-- Include the watched movie cards inside its container -->
-<div class="watched-movie-cards-container flex-container">
-    {% include 'watched_movie_cards.html' %}
-</div>
-
-        </div>
+<!-- Wrap the filter card and watched movie cards in a flex container -->
+<div class="flex-container">
+    <!-- Include the filter card inside its container -->
+    <div class="filter-card-container">
+        {% include 'sort_and_filter_card.html' %}
     </div>
 
-    <!-- Add this JavaScript snippet at the end of your watched_movies.html -->
-    <script>
-        document.addEventListener("DOMContentLoaded", function(){
-            // Listen for changes on dropdown menu
-            document.getElementById('sort-options').addEventListener('change', function() {
-                // Reload the page with the selected sorting option as a query parameter
-                window.location.href = "/watched_movies?sort_by=" + this.value;
-            });
+    <!-- New flex container for the dropdown and movie cards -->
+    <div class="sort-and-movies-flex-container">
+        <!-- Container for the Sort by dropdown -->
+        <div class="sort-by-container">
+            <label for="sort-options">Sort by: </label>
+            <select id="sort-options">
+                <!-- Sorting by Year -->
+                <optgroup label="Year">
+                    <option value="year_low_to_high">Low to High</option>
+                    <option value="year_high_to_low">High to Low</option>
+                </optgroup>
+                <!-- Sorting by IMDb Rating -->
+                <optgroup label="IMDb Rating">
+                    <option value="imdb_low_to_high">Low to High</option>
+                    <option value="imdb_high_to_low">High to Low</option>
+                </optgroup>
+                <!-- Sorting by Vote Count -->
+                <optgroup label="Vote Count">
+                    <option value="vote_low_to_high">Low to High</option>
+                    <option value="vote_high_to_low">High to Low</option>
+                </optgroup>
+            </select>
+        </div>
+
+        <!-- Include the watched movie cards inside its container -->
+        <div class="watched-movie-cards-container flex-container">
+            {% include 'watched_movie_cards.html' %}
+        </div>
+
+    </div>
+</div>
+
+<!-- Add this JavaScript snippet at the end of your watched_movies.html -->
+<script>
+    document.addEventListener("DOMContentLoaded", function(){
+        // Listen for changes on dropdown menu
+        document.getElementById('sort-options').addEventListener('change', function() {
+            // Reload the page with the selected sorting option as a query parameter
+            window.location.href = "/watched_movies?sort_by=" + this.value;
         });
-    </script>
+    });
+</script>
 
 </body>
 </html>

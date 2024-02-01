@@ -49,40 +49,40 @@
         }
 
         /* Info boxes */
-.info-box {
-    margin: 0.93vh 0; /* Responsive vertical margin */
-    border-radius: 0.74vh; /* Responsive border radius */
-    background-color: transparent;  /* Make it transparent */
-    position: relative;  /* Make it a positioned element */
-    z-index: 3;  /* Position it above the background-overlay */
-    font-size: 1em; /* Relative font size */
-    padding-bottom: 0.93vh; /* Responsive padding */
-}
+        .info-box {
+            margin: 0.93vh 0; /* Responsive vertical margin */
+            border-radius: 0.74vh; /* Responsive border radius */
+            background-color: transparent;  /* Make it transparent */
+            position: relative;  /* Make it a positioned element */
+            z-index: 3;  /* Position it above the background-overlay */
+            font-size: 1em; /* Relative font size */
+            padding-bottom: 0.93vh; /* Responsive padding */
+        }
 
 
-/* Movie poster */
-.movie-poster {
-    width: 100%;
-    max-width: 27.78vh;  /* Responsive width */
-    max-height: 41.67vh;  /* Responsive height */
-    border-radius: 0;
-    border: none;  /* Add this line to remove the border */
-    position: relative;  /* Make it a positioned element */
-    z-index: 4;  /* Position it above the background-overlay */
-    margin-top: -11.11vh;  /* Responsive move upwards */
-}
+        /* Movie poster */
+        .movie-poster {
+            width: 100%;
+            max-width: 27.78vh;  /* Responsive width */
+            max-height: 41.67vh;  /* Responsive height */
+            border-radius: 0;
+            border: none;  /* Add this line to remove the border */
+            position: relative;  /* Make it a positioned element */
+            z-index: 4;  /* Position it above the background-overlay */
+            margin-top: -11.11vh;  /* Responsive move upwards */
+        }
 
-.movie-title {
-    /* Existing styles */
-    font-size: 3.6em;  /* No change needed */
-    margin-bottom: 0;
-    padding-bottom: -1.875em;  /* Responsive padding */
-    font-weight: 700;  /* Bold */
-    position: relative;
-    font-family: 'TiemposHeadlineWeb-Bold', Georgia, serif;
-    line-height: 1.2;  /* Decreased line-height */
-    letter-spacing: -0.06em;  /* Negative value to reduce spacing */
-}
+        .movie-title {
+            /* Existing styles */
+            font-size: 3.6em;  /* No change needed */
+            margin-bottom: 0;
+            padding-bottom: -1.875em;  /* Responsive padding */
+            font-weight: 700;  /* Bold */
+            position: relative;
+            font-family: 'TiemposHeadlineWeb-Bold', Georgia, serif;
+            line-height: 1.2;  /* Decreased line-height */
+            letter-spacing: -0.06em;  /* Negative value to reduce spacing */
+        }
 
 
 
@@ -96,24 +96,24 @@
         }
 
         /* Actor Cards with Relative Lengths */
-.actor-card {
-    width: 7.81vw; /* Equivalent to 150px on a 1920px wide viewport */
-    margin: 0; /* Margin remains the same */
-    padding: 0.625em; /* Equivalent to 10px assuming a base font-size of 16px */
-    /* box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1); */
-}
+        .actor-card {
+            width: 7.81vw; /* Equivalent to 150px on a 1920px wide viewport */
+            margin: 0; /* Margin remains the same */
+            padding: 0.625em; /* Equivalent to 10px assuming a base font-size of 16px */
+            /* box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1); */
+        }
 
 
 
 
 
         /* Actor Card Image */
-.actor-card img {
-    width: 100%; /* Full width */
-    height: auto; /* Maintain aspect ratio */
-    object-fit: cover; /* Cover the whole area */
-    max-height: 18.52vh; /* Converted from px to vh based on a 1080px viewport height */
-}
+        .actor-card img {
+            width: 100%; /* Full width */
+            height: auto; /* Maintain aspect ratio */
+            object-fit: cover; /* Cover the whole area */
+            max-height: 18.52vh; /* Converted from px to vh based on a 1080px viewport height */
+        }
 
 
         /* Actor Card Body */
@@ -137,25 +137,25 @@
         }
 
         /* New styles for votes-label */
-.votes-label {
-    font-size: 0.94em; /* Responsive font size */
-    color: #333;
-    text-align: center;
-    background-color: rgba(255, 255, 255, 0.5);
-    border: 2px solid #333;
-    border-radius: 50%;
-    width: 5.21vw; /* Responsive width */
-    height: 9.26vh; /* Responsive height */
-    line-height: normal; /* Override the line-height */
-    margin-left: 0.52vw; /* Responsive margin */
-    display: flex; /* Make it a flex container */
-    justify-content: center; /* Center content horizontally */
-    align-items: center; /* Center content vertically */
-    flex-wrap: wrap; /* Allow items to wrap */
-    flex-direction: column; /* Stack items vertically */
-    overflow: hidden; /* Hide any overflow */
-    white-space: normal; /* Allow line breaks and text wrapping */
-}
+        .votes-label {
+            font-size: 0.94em; /* Responsive font size */
+            color: #333;
+            text-align: center;
+            background-color: rgba(255, 255, 255, 0.5);
+            border: 2px solid #333;
+            border-radius: 50%;
+            width: 5.21vw; /* Responsive width */
+            height: 9.26vh; /* Responsive height */
+            line-height: normal; /* Override the line-height */
+            margin-left: 0.52vw; /* Responsive margin */
+            display: flex; /* Make it a flex container */
+            justify-content: center; /* Center content horizontally */
+            align-items: center; /* Center content vertically */
+            flex-wrap: wrap; /* Allow items to wrap */
+            flex-direction: column; /* Stack items vertically */
+            overflow: hidden; /* Hide any overflow */
+            white-space: normal; /* Allow line breaks and text wrapping */
+        }
 
 
 
@@ -174,24 +174,24 @@
         }
 
 
-/* Make the rating-circle and votes-label the same size */
-.rating-circle, .votes-label {
-    width: 6.25em; /* Converted from 100px to em */
-    height: 6.25em; /* Converted from 100px to em */
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    margin: 0;
-    padding: 0;
-}
+        /* Make the rating-circle and votes-label the same size */
+        .rating-circle, .votes-label {
+            width: 6.25em; /* Converted from 100px to em */
+            height: 6.25em; /* Converted from 100px to em */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0;
+            padding: 0;
+        }
 
-/* Check text alignment and box sizing */
-.rating-circle strong, .votes-label {
-    text-align: center;
-    margin: 0;
-    box-sizing: border-box;
-    line-height: 6.25em; /* Converted from 100px to em, same as the height */
-}
+        /* Check text alignment and box sizing */
+        .rating-circle strong, .votes-label {
+            text-align: center;
+            margin: 0;
+            box-sizing: border-box;
+            line-height: 6.25em; /* Converted from 100px to em, same as the height */
+        }
 
 
         #vote-number, #vote-text {
@@ -205,24 +205,24 @@
         }
 
 
-.action-button {
-    /* Inherit the same styles as .votes-label */
-    /* Any additional styles specific to action buttons can go here */
-}
-.action-button i {
-    margin-bottom: 0.3125em; /* Converted 5px to em */
-}
-.action-button div {
-    font-size: 1.25em; /* Converted 20px to em, assuming base font size is 16px */
-    font-weight: bold;
-}
+        .action-button {
+            /* Inherit the same styles as .votes-label */
+            /* Any additional styles specific to action buttons can go here */
+        }
+        .action-button i {
+            margin-bottom: 0.3125em; /* Converted 5px to em */
+        }
+        .action-button div {
+            font-size: 1.25em; /* Converted 20px to em, assuming base font size is 16px */
+            font-weight: bold;
+        }
 
-/* Add margin to all buttons within .rating-votes-wrapper */
-.rating-votes-wrapper button {
-    display: flex;
-    align-items: center;
-    margin: 0 1.25em; /* Converted 20px to em */
-}
+        /* Add margin to all buttons within .rating-votes-wrapper */
+        .rating-votes-wrapper button {
+            display: flex;
+            align-items: center;
+            margin: 0 1.25em; /* Converted 20px to em */
+        }
 
 
         /* Add some spacing between buttons and genres */
@@ -339,20 +339,20 @@
         }
 
         .backdrop-container {
-    position: relative;  /* Use relative positioning */
-    top: 0;              /* Start from the top */
-    left: 0;             /* Start from the left */
-    right: 0;            /* Take the full width */
-    width: 100%;         /* Make sure it spans the full width */
-    min-height: 46.30vh; /* Minimum height */
-    z-index: -1;         /* Place it behind the content */
+            position: relative;  /* Use relative positioning */
+            top: 0;              /* Start from the top */
+            left: 0;             /* Start from the left */
+            right: 0;            /* Take the full width */
+            width: 100%;         /* Make sure it spans the full width */
+            min-height: 46.30vh; /* Minimum height */
+            z-index: -1;         /* Place it behind the content */
 
-    /* Your background settings */
-    background-image: url('https://image.tmdb.org/t/p/original{{ movie.backdrop_url }}');
-    background-size: cover;  /* Stretch the image to cover the entire container */
-    background-position: top; /* Align the image to the top of the container */
-    background-repeat: no-repeat;  /* Do not repeat the image */
-}
+            /* Your background settings */
+            background-image: url('https://image.tmdb.org/t/p/original{{ movie.backdrop_url }}');
+            background-size: cover;  /* Stretch the image to cover the entire container */
+            background-position: top; /* Align the image to the top of the container */
+            background-repeat: no-repeat;  /* Do not repeat the image */
+        }
 
 
 
@@ -363,7 +363,7 @@
 
         /* New Pseudo-element for gradient overlay */
         .backdrop-container::before {
-             /*background-repeat: no-repeat;*/
+            /*background-repeat: no-repeat;*/
             content: "";
             display: block;
 
@@ -407,8 +407,8 @@
                     rgba(255,255,255,.059) 54.85185185%, rgba(255,255,255,.016) 56.87777778%,
                     rgba(255,255,255,0) 58.51851852%);
             z-index: 1; /* Layer it above the backdrop image but below the content */
-            {#margin-top: -30px;#}
-            {#            margin-bottom: -100px;#}
+        {#margin-top: -30px;#}
+        {#            margin-bottom: -100px;#}
 
         }
         /* New CSS for play button */
@@ -456,60 +456,60 @@
             text-decoration: none;
             display: inline-block;
             font-size: 16px;
-            {#margin: 4px 2px;#}
+        {#margin: 4px 2px;#}
             cursor: pointer;
-            {#border-radius: 12px;#}
-                margin-right: 25px;  /* Add right margin */
+        {#border-radius: 12px;#}
+            margin-right: 25px;  /* Add right margin */
 
         }
 
 
 
-/* This is the new CSS class acting as a flex container */
-.movie-nav-buttons-wrapper {
-    display: flex;  /* Enables flexbox */
-    justify-content: left;  /* Horizontally centers the buttons */
-    align-items: center;  /* Vertically centers the buttons */
-    margin-top: -60px;
-}
+        /* This is the new CSS class acting as a flex container */
+        .movie-nav-buttons-wrapper {
+            display: flex;  /* Enables flexbox */
+            justify-content: left;  /* Horizontally centers the buttons */
+            align-items: center;  /* Vertically centers the buttons */
+            margin-top: -60px;
+        }
 
 
-/* Apply negative margin to the top of the column */
-.negative-margin-top {
-    margin-top: -60px;  /* Replace 40px with the amount you want to move it up */
-}
+        /* Apply negative margin to the top of the column */
+        .negative-margin-top {
+            margin-top: -60px;  /* Replace 40px with the amount you want to move it up */
+        }
 
 
-/* Common styles for both left and right arrow buttons */
-.arrow-button {
-  position: absolute; /* Absolute positioning */
-  top: 0;           /* Center vertically */
-  z-index: 5;         /* Place it above other elements */
-  background-color: rgba(0,0,0,0.5); /* Semi-transparent black background */
-  color: white;       /* White arrow icon */
-  border: none;       /* No border */
-  cursor: pointer;    /* Pointer cursor on hover */
-  font-size: 24px;    /* Font size of the arrow icon */
-  padding: 10px;      /* Padding around the icon */
-}
+        /* Common styles for both left and right arrow buttons */
+        .arrow-button {
+            position: absolute; /* Absolute positioning */
+            top: 0;           /* Center vertically */
+            z-index: 5;         /* Place it above other elements */
+            background-color: rgba(0,0,0,0.5); /* Semi-transparent black background */
+            color: white;       /* White arrow icon */
+            border: none;       /* No border */
+            cursor: pointer;    /* Pointer cursor on hover */
+            font-size: 24px;    /* Font size of the arrow icon */
+            padding: 10px;      /* Padding around the icon */
+        }
 
-/* Positioning for left arrow */
-.left-arrow {
-  left: 0; /* Stick to the left side */
-}
+        /* Positioning for left arrow */
+        .left-arrow {
+            left: 0; /* Stick to the left side */
+        }
 
-/* Positioning for right arrow */
-.right-arrow {
-  right: 0; /* Stick to the right side */
-}
+        /* Positioning for right arrow */
+        .right-arrow {
+            right: 0; /* Stick to the right side */
+        }
 
- /* Custom style for bottom margin of the cast list */
+        /* Custom style for bottom margin of the cast list */
         .cast-list-margin {
             margin-bottom: 300px; /* Adjust the value as needed */
         }
 
 
-         /* Adjustments for mobile layout */
+        /* Adjustments for mobile layout */
         @media (max-width: 768px) {
             /* Make the movie details section a flex container */
             .main-movie-details {
@@ -541,149 +541,149 @@
 
 
 
-@media (max-width: 768px) {
-    /* General Adjustments */
-    body {
-        padding-bottom: 10vh; /* Reduced padding */
-    }
+        @media (max-width: 768px) {
+            /* General Adjustments */
+            body {
+                padding-bottom: 10vh; /* Reduced padding */
+            }
 
-    /* Movie Details Layout */
-    .main-movie-details {
-        flex-direction: column;
-        padding-bottom: 6vh; /* Adjust padding */
-    }
+            /* Movie Details Layout */
+            .main-movie-details {
+                flex-direction: column;
+                padding-bottom: 6vh; /* Adjust padding */
+            }
 
-    /* Info Box */
-    .info-box {
-        margin: 5px 0; /* Adjust margins */
-        padding: 5px; /* Adjust padding */
-    }
+            /* Info Box */
+            .info-box {
+                margin: 5px 0; /* Adjust margins */
+                padding: 5px; /* Adjust padding */
+            }
 
-    /* Movie Poster */
-    .movie-poster {
-        max-width: 100%; /* Full width for small screens */
-        margin-top: 0; /* Adjust top margin */
-    }
+            /* Movie Poster */
+            .movie-poster {
+                max-width: 100%; /* Full width for small screens */
+                margin-top: 0; /* Adjust top margin */
+            }
 
-    /* Movie Title */
-    .movie-title {
-        font-size: 2em; /* Smaller font size for mobile */
-        padding-bottom: 0; /* Adjust padding */
-    }
+            /* Movie Title */
+            .movie-title {
+                font-size: 2em; /* Smaller font size for mobile */
+                padding-bottom: 0; /* Adjust padding */
+            }
 
-    /* Actor Cards */
-    .actor-card {
-        width: 45%; /* Adjust width for smaller screens */
-        margin: 5px; /* Adjust margin */
-    }
+            /* Actor Cards */
+            .actor-card {
+                width: 45%; /* Adjust width for smaller screens */
+                margin: 5px; /* Adjust margin */
+            }
 
-    /* Actor Card Image */
-    .actor-card img {
-        max-height: 100%; /* Adjust maximum height */
-    }
+            /* Actor Card Image */
+            .actor-card img {
+                max-height: 100%; /* Adjust maximum height */
+            }
 
-    /* Rating and Votes */
-    .rating-votes-wrapper {
-        transform: scale(0.5); /* Scale down the elements */
-        margin: 0 0.5em; /* Adjust margin */
-    }
+            /* Rating and Votes */
+            .rating-votes-wrapper {
+                transform: scale(0.5); /* Scale down the elements */
+                margin: 0 0.5em; /* Adjust margin */
+            }
 
-    /* Cast List */
-    .cast-list {
-        margin-top: 0; /* Adjust top margin */
-        margin-left: 0; /* Adjust left margin */
-    }
+            /* Cast List */
+            .cast-list {
+                margin-top: 0; /* Adjust top margin */
+                margin-left: 0; /* Adjust left margin */
+            }
 
-    /* Info Container */
-    .info-container {
-        max-width: 100%; /* Full width on smaller screens */
-        margin-top: 0; /* Adjust top margin */
-    }
+            /* Info Container */
+            .info-container {
+                max-width: 100%; /* Full width on smaller screens */
+                margin-top: 0; /* Adjust top margin */
+            }
 
-    /* Navigation Buttons */
-    .movie-navigation-buttons {
-        margin-right: 10px; /* Adjust margin */
-        font-size: 14px; /* Smaller font size */
-    }
+            /* Navigation Buttons */
+            .movie-navigation-buttons {
+                margin-right: 10px; /* Adjust margin */
+                font-size: 14px; /* Smaller font size */
+            }
 
-    /* Adjustments for Arrow Buttons */
-    .arrow-button {
-        font-size: 20px; /* Smaller arrow size */
-        padding: 8px; /* Adjust padding */
-    }
+            /* Adjustments for Arrow Buttons */
+            .arrow-button {
+                font-size: 20px; /* Smaller arrow size */
+                padding: 8px; /* Adjust padding */
+            }
 
-    /* Cast List Margin */
-    .cast-list-margin {
-        margin-bottom: 150px; /* Adjust bottom margin */
-    }
+            /* Cast List Margin */
+            .cast-list-margin {
+                margin-bottom: 150px; /* Adjust bottom margin */
+            }
 
 
 
-    .movie-poster {
-        max-width: 100%; /* Full width within its column */
-        height: auto;
-    }
+            .movie-poster {
+                max-width: 100%; /* Full width within its column */
+                height: auto;
+            }
 
-    .movie-poster {
-        max-width: 100%; /* Full width within its column */
-        height: auto;
-    }
+            .movie-poster {
+                max-width: 100%; /* Full width within its column */
+                height: auto;
+            }
 
-      .main-movie-details .col-12 {
-        flex: 0 0 50%; /* Each column takes up 50% of the width */
-        max-width: 50%;
-    }
+            .main-movie-details .col-12 {
+                flex: 0 0 50%; /* Each column takes up 50% of the width */
+                max-width: 50%;
+            }
 
-    .movie-poster {
-        max-width: 100%; /* Full width within its column */
-        height: auto;
-    }
+            .movie-poster {
+                max-width: 100%; /* Full width within its column */
+                height: auto;
+            }
 
-    /* Ensure the movie details and poster align properly */
-    .main-movie-details {
-        display: flex;
-        flex-wrap: nowrap;
-    }
+            /* Ensure the movie details and poster align properly */
+            .main-movie-details {
+                display: flex;
+                flex-wrap: nowrap;
+            }
 
-    .main-movie-details {
-        flex-direction: row;
-    }
+            .main-movie-details {
+                flex-direction: row;
+            }
 
-    /* Ensure the movie poster takes up full width and is left-aligned */
-    .movie-poster-col {
-        order: -1; /* This ensures the poster appears on the left */
-        max-width: 50%; /* Adjust the width as necessary */
-    }
+            /* Ensure the movie poster takes up full width and is left-aligned */
+            .movie-poster-col {
+                order: -1; /* This ensures the poster appears on the left */
+                max-width: 50%; /* Adjust the width as necessary */
+            }
 
-    /* Adjust the movie details column */
-    .movie-details-col {
-        max-width: 50%; /* Adjust the width as necessary */
-    }
+            /* Adjust the movie details column */
+            .movie-details-col {
+                max-width: 50%; /* Adjust the width as necessary */
+            }
 
-    /* Adjust the movie poster size if necessary */
-    .movie-poster {
-        max-width: 100%;
-        height: auto;
-    }
+            /* Adjust the movie poster size if necessary */
+            .movie-poster {
+                max-width: 100%;
+                height: auto;
+            }
 
-     .main-movie-details {
-        display: flex;
-        flex-direction: row;
-        align-items: center;
-    }
-    .movie-poster-col, .movie-details-col {
-        flex-basis: 100%; /* Take full width of the container */
-    }
-    .movie-poster {
-        max-width: 100%; /* Allow poster to use available width */
-        height: auto; /* Keep the aspect ratio */
-        order: -1; /* Bring poster to the left side */
-    }
-    /* Reset any negative margins that might be causing layout issues */
-    .negative-margin-top {
-        margin-top: 0;
-    }
-}
+            .main-movie-details {
+                display: flex;
+                flex-direction: row;
+                align-items: center;
+            }
+            .movie-poster-col, .movie-details-col {
+                flex-basis: 100%; /* Take full width of the container */
+            }
+            .movie-poster {
+                max-width: 100%; /* Allow poster to use available width */
+                height: auto; /* Keep the aspect ratio */
+                order: -1; /* Bring poster to the left side */
+            }
+            /* Reset any negative margins that might be causing layout issues */
+            .negative-margin-top {
+                margin-top: 0;
+            }
+        }
 
 
 
@@ -702,7 +702,7 @@
 
 <div class="movie-card-container">
 
-<!-- Previous Movie Button -->
+    <!-- Previous Movie Button -->
     <form method="POST" action="/previous_movie" style="display: inline;">
         <button type="submit" class="arrow-button left-arrow" {% if previous_count == 0 %}disabled{% endif %}>
             <i class="fas fa-arrow-left"></i>
@@ -722,11 +722,11 @@
     <!-- Float this row above the backdrop -->
     <div class="row main-movie-details">
         <!-- Your movie details here -->
-    <div class="col-12 col-md-4 movie-poster-col">
+        <div class="col-12 col-md-4 movie-poster-col">
             <img class="movie-poster" src="{{ movie.poster_url }}" alt="Movie Poster">
         </div>
 
-    <div class="col-12 col-md-8 movie-details-col">
+        <div class="col-12 col-md-8 movie-details-col">
             <div class="info-container">
                 <!-- Bootstrap row -->
                 <div class="row">
@@ -804,17 +804,17 @@
 
 
 
-<div class="row movie-nav-row">
-    <!-- This is the new div acting as a flex container -->
-    <div class="movie-nav-buttons-wrapper">
-        <form method="POST" action="/previous_movie" style="display: inline;">
-            <button type="submit" class="btn movie-navigation-buttons" {% if previous_count == 0 %}disabled{% endif %}>Previous Movie</button>
-        </form>
-        <form method="POST" action="/next_movie" style="display: inline;">
-            <button type="submit" class="btn movie-navigation-buttons">Next Movie</button>
-        </form>
-    </div>
-</div>
+            <div class="row movie-nav-row">
+                <!-- This is the new div acting as a flex container -->
+                <div class="movie-nav-buttons-wrapper">
+                    <form method="POST" action="/previous_movie" style="display: inline;">
+                        <button type="submit" class="btn movie-navigation-buttons" {% if previous_count == 0 %}disabled{% endif %}>Previous Movie</button>
+                    </form>
+                    <form method="POST" action="/next_movie" style="display: inline;">
+                        <button type="submit" class="btn movie-navigation-buttons">Next Movie</button>
+                    </form>
+                </div>
+            </div>
 
 
         </div>
@@ -823,44 +823,44 @@
 
 
     <div class="cast-list-margin">
-    <div class="info-box mb-100">
-        <div class="cast-list">
-            <!-- Create a new flexbox container for the cast -->
-            <div class="d-flex flex-nowrap">
-                <!-- Loop through the list of actors -->
-                {% for actor in movie.cast %}
-                    <div class="m-0.2">  <!-- Added m-2 for margin -->
-                        <!-- Bootstrap Card -->
-                        <div class="card actor-card">
-                            {% if actor.image_url %}
-                                <!-- Actor Image -->
-                                <img src="{{ actor.image_url }}" class="card-img-top" alt="{{ actor.name }}">
-                            {% else %}
-                                <!-- Placeholder if No Image -->
-                                <div class="card-body">
-                                    <p class="card-text">No image available</p>
+        <div class="info-box mb-100">
+            <div class="cast-list">
+                <!-- Create a new flexbox container for the cast -->
+                <div class="d-flex flex-nowrap">
+                    <!-- Loop through the list of actors -->
+                    {% for actor in movie.cast %}
+                        <div class="m-0.2">  <!-- Added m-2 for margin -->
+                            <!-- Bootstrap Card -->
+                            <div class="card actor-card">
+                                {% if actor.image_url %}
+                                    <!-- Actor Image -->
+                                    <img src="{{ actor.image_url }}" class="card-img-top" alt="{{ actor.name }}">
+                                {% else %}
+                                    <!-- Placeholder if No Image -->
+                                    <div class="card-body">
+                                        <p class="card-text">No image available</p>
+                                    </div>
+                                {% endif %}
+                                <!-- Actor Name -->
+                                <div class="card-footer actor-name">
+                                    <small class="text-muted">{{ actor.name }}</small>
                                 </div>
-                            {% endif %}
-                            <!-- Actor Name -->
-                            <div class="card-footer actor-name">
-                                <small class="text-muted">{{ actor.name }}</small>
-                            </div>
 
-                            <div class="card-footer character-name">
-                                <small class="text-muted">{{ actor.character }}</small>
-                            </div>
+                                <div class="card-footer character-name">
+                                    <small class="text-muted">{{ actor.character }}</small>
+                                </div>
 
+                            </div>
                         </div>
-                    </div>
-                {% endfor %}
+                    {% endfor %}
+                </div>
             </div>
         </div>
+        <!-- Existing HTML ... -->
+
+
+
     </div>
-    <!-- Existing HTML ... -->
-
-
-
-</div>
 
 
 </div>
@@ -1041,21 +1041,21 @@
         });
     });
 
-document.addEventListener("DOMContentLoaded", function () {
-  // Capture the left-arrow button and add a click event listener
-  const leftArrowButton = document.getElementById("left-arrow-button");
-  leftArrowButton.addEventListener("click", function () {
-    // Do something for the previous movie
-    // You can programmatically submit the /previous_movie form here
-  });
+    document.addEventListener("DOMContentLoaded", function () {
+        // Capture the left-arrow button and add a click event listener
+        const leftArrowButton = document.getElementById("left-arrow-button");
+        leftArrowButton.addEventListener("click", function () {
+            // Do something for the previous movie
+            // You can programmatically submit the /previous_movie form here
+        });
 
-  // Capture the right-arrow button and add a click event listener
-  const rightArrowButton = document.getElementById("right-arrow-button");
-  rightArrowButton.addEventListener("click", function () {
-    // Do something for the next movie
-    // You can programmatically submit the /next_movie form here
-  });
-});
+        // Capture the right-arrow button and add a click event listener
+        const rightArrowButton = document.getElementById("right-arrow-button");
+        rightArrowButton.addEventListener("click", function () {
+            // Do something for the next movie
+            // You can programmatically submit the /next_movie form here
+        });
+    });
 
 
 

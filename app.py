@@ -80,7 +80,7 @@ def create_app():
     #     else:
     #         logging.info(f"Existing user_id found: {session['user_id']}")
 
-        # Set up Redis for session management using aioredis
+    # Set up Redis for session management using aioredis
 
     @app.before_serving
     async def startup():

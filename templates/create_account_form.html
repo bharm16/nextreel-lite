@@ -27,45 +27,45 @@
 {% include 'navbar.html' %}
 
 
-    <!-- Main content -->
-    <div class="container-fluid">
-        <div class="row main-content bg-success text-center">
-            <div class="col-md-4 text-center company__info">
-                <span class="company__logo"><h2><span class="fa fa-android"></span></h2></span>
-                <!-- Add your logo image here -->
-            </div>
-            <div class="col-md-8 col-xs-12 col-sm-12 login_form ">
-                <div class="container-fluid">
-                    <div class="row">
-                        <h2>Create Account</h2>
-                    </div>
-                    <div class="row">
-                        <!-- Create account form -->
-                        <form action="/register" method="post" class="form-group">
-                            <div class="row">
-                                <input type="username" name="username" id="username" class="form__input form-control form-control-lg" placeholder="Username" required>
-                            </div>
-                            <div class="row">
-                                <input type="email" name="email" id="email" class="form__input form-control form-control-lg" placeholder="Email" required>
-                            </div>
-                            <div class="row">
-                                <input type="password" name="password" id="password" class="form__input form-control form-control-lg" placeholder="Password" required>
-                            </div>
-                            <div class="row">
-                                <input type="password" name="confirm-password" id="confirm-password" class="form__input form-control form-control-lg" placeholder="Confirm Password" required>
-                            </div>
-                            <div class="row">
-                                <input type="submit" value="Sign Up" class="btn btn-primary btn-lg">
-                            </div>
-                        </form>
-                    </div>
-            <div class="mb-3">
-                <p>Already have an account? <a href="/register" class="btn btn-secondary">Login here</a></p>
-            </div>
+<!-- Main content -->
+<div class="container-fluid">
+    <div class="row main-content bg-success text-center">
+        <div class="col-md-4 text-center company__info">
+            <span class="company__logo"><h2><span class="fa fa-android"></span></h2></span>
+            <!-- Add your logo image here -->
+        </div>
+        <div class="col-md-8 col-xs-12 col-sm-12 login_form ">
+            <div class="container-fluid">
+                <div class="row">
+                    <h2>Create Account</h2>
+                </div>
+                <div class="row">
+                    <!-- Create account form -->
+                    <form action="/register" method="post" class="form-group">
+                        <div class="row">
+                            <input type="username" name="username" id="username" class="form__input form-control form-control-lg" placeholder="Username" required>
+                        </div>
+                        <div class="row">
+                            <input type="email" name="email" id="email" class="form__input form-control form-control-lg" placeholder="Email" required>
+                        </div>
+                        <div class="row">
+                            <input type="password" name="password" id="password" class="form__input form-control form-control-lg" placeholder="Password" required>
+                        </div>
+                        <div class="row">
+                            <input type="password" name="confirm-password" id="confirm-password" class="form__input form-control form-control-lg" placeholder="Confirm Password" required>
+                        </div>
+                        <div class="row">
+                            <input type="submit" value="Sign Up" class="btn btn-primary btn-lg">
+                        </div>
+                    </form>
+                </div>
+                <div class="mb-3">
+                    <p>Already have an account? <a href="/register" class="btn btn-secondary">Login here</a></p>
                 </div>
             </div>
         </div>
     </div>
+</div>
 
 {#    <!-- Add the Modal code here -->#}
 {#    <div class="modal fade" id="myModal" role="dialog">#}
@@ -83,7 +83,7 @@
 {#    </div>#}
 
 
-    <!-- Add the Modal code here -->
+<!-- Add the Modal code here -->
 <div class="modal fade" id="myModal" role="dialog">
     <div class="modal-dialog">
         <div class="card">
@@ -101,22 +101,22 @@
 </div>
 
 
-    <!-- JavaScript to automatically show the modal if "ShowModal" is flashed -->
-    <script>
-        // Check if the specific message "ShowModal" is flashed
-        {% with messages = get_flashed_messages() %}
-          {% if "ShowModal" in messages %}
+<!-- JavaScript to automatically show the modal if "ShowModal" is flashed -->
+<script>
+    // Check if the specific message "ShowModal" is flashed
+    {% with messages = get_flashed_messages() %}
+        {% if "ShowModal" in messages %}
             $(document).ready(function() {
                 // Show the modal
                 $('#myModal').modal('show');
             });
-          {% endif %}
-        {% endwith %}
-    </script>
+        {% endif %}
+    {% endwith %}
+</script>
 
- <!-- jQuery -->
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <!-- Bootstrap JS -->
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/5.0.0-alpha1/js/bootstrap.min.js"></script>
+<!-- jQuery -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<!-- Bootstrap JS -->
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/5.0.0-alpha1/js/bootstrap.min.js"></script>
 </body>
 </html>
