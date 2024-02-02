@@ -163,16 +163,28 @@ class MovieManager:
         # Render the movie or handle the case where there's no movie to display
         return await self.fetch_and_render_movie(self.current_displayed_movie, user_id)
 
-    async def set_filters(self):
-        logging.info("Setting filters")
+    # async def set_filters(self):
+    #     logging.info("Setting filters")
+    #     start_time = asyncio.get_event_loop().time()
+    #     await self.movie_queue_manager.stop_populate_task()
+    #     await self.movie_queue_manager.empty_queue()
+    #     self.current_displayed_movie = None
+    #     logging.info(f"Filters set in {asyncio.get_event_loop().time() - start_time} seconds")
+    #     return await render_template('set_filters.html')
+
+    async def set_filters(self, user_id):
+        logging.info(f"Setting filters for user_id: {user_id}")
         start_time = asyncio.get_event_loop().time()
-        await self.movie_queue_manager.stop_populate_task()
-        await self.movie_queue_manager.empty_queue()
+
+        # Stop the populate task and empty the queue for the specified user
+        await self.movie_queue_manager.stop_populate_task(user_id)
+        await self.movie_queue_manager.empty_queue(user_id)
+
+        # Reset the current displayed movie, assuming this needs to be reset for the user
         self.current_displayed_movie = None
-        logging.info(f"Filters set in {asyncio.get_event_loop().time() - start_time} seconds")
+
+        logging.info(f"Filters set for user_id: {user_id} in {asyncio.get_event_loop().time() - start_time} seconds")
         return await render_template('set_filters.html')
-
-
 
     async def filtered_movie(self, form_data):
         logging.info("Filtering movie")
