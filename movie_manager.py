@@ -186,17 +186,32 @@ class MovieManager:
         logging.info(f"Filters set for user_id: {user_id} in {asyncio.get_event_loop().time() - start_time} seconds")
         return await render_template('set_filters.html')
 
-    async def filtered_movie(self, form_data):
-        logging.info("Filtering movie")
+    async def filtered_movie(self, user_id, form_data):
+        logging.info("Filtering movie for user_id: {}".format(user_id))
         new_criteria = extract_movie_filter_criteria(form_data)
-        self.criteria = new_criteria
-        await self.movie_queue_manager.stop_populate_task()
-        await self.movie_queue_manager.empty_queue()
-        await self.movie_queue_manager.set_criteria(self.criteria)
-        self.movie_queue_manager.populate_task = asyncio.create_task(self.movie_queue_manager.populate())
-        logging.info("Criteria updated, repopulating movie queue")
-        await asyncio.sleep(20)  # Giving time for queue to populate
-        return await self.fetch_and_render_movie()
+        # Update criteria specifically for the user
+        await self.movie_queue_manager.set_criteria(user_id, new_criteria)
+
+        # Stop any existing populate task, empty the user's queue, and repopulate based on new criteria
+        await self.movie_queue_manager.stop_populate_task(user_id)
+        await self.movie_queue_manager.empty_queue(user_id)
+
+        # Start repopulating the queue for the user
+        self.movie_queue_manager.populate_task = asyncio.create_task(
+            self.movie_queue_manager.populate(user_id)
+        )
+        logging.info("Criteria updated, repopulating movie queue for user_id: {}".format(user_id))
+
+        # Optionally wait a bit for the queue to start populating
+        await asyncio.sleep(20)  # Adjust this based on your needs
+
+        # Now, fetch the next movie for the user from the updated queue
+        # It's important to call `next_movie` to update `self.current_displayed_movie` correctly
+        await self.next_movie(user_id)
+
+        # Finally, use `self.current_displayed_movie` to render the movie for the user
+        # This ensures the movie displayed is the one updated after filtering
+        return await self.fetch_and_render_movie(self.current_displayed_movie, user_id)
 
 
 # Main function for testing...
