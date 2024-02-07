@@ -104,12 +104,30 @@ def create_app():
     #     else:
     #         return movie_or_none
 
+    import asyncio  # Add this import at the top
+
     @app.route('/next_movie', methods=['GET', 'POST'])
     async def next_movie():
         user_id = session.get('user_id')
         logging.info(f"Requesting next movie for user_id: {user_id}")
-        response = await movie_manager.next_movie(user_id)
-        return response if response else ('No more movies', 200)
+
+        max_attempts = 5  # Max attempts to check for available movies
+        attempt = 0  # Initial attempt count
+        wait_seconds = 2  # Seconds to wait between attempts
+
+        while attempt < max_attempts:
+            response = await movie_manager.next_movie(user_id)
+            if response:
+                return response
+            else:
+                attempt += 1
+                logging.info(
+                    f"No movies available, waiting for {wait_seconds} seconds before retrying... (Attempt {attempt}/{max_attempts})")
+                await asyncio.sleep(wait_seconds)  # Wait for a bit before retrying
+
+        # If we reach here, no movies were available after all attempts
+        logging.warning("No more movies available after multiple attempts, please try again later.")
+        return ('No more movies', 200)
 
     @app.route('/previous_movie', methods=['GET', 'POST'])
     async def previous_movie():
