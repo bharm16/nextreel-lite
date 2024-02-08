@@ -1,3 +1,28 @@
+
+@media (max-width: 768px) {
+    .navbar {
+        flex-direction: column;
+        align-items: stretch; /* Ensure items stretch to full width */
+    }
+    .logo-wrapper, .button-wrapper {
+        margin-left: 0; /* Adjust or remove margins */
+        margin-right: 0;
+        justify-content: center; /* Center content if it looks better */
+    }
+    .btn-custom {
+        margin-top: 0.5em; /* Reduce margin-top on smaller screens */
+    }
+    /* Adjust logo size for smaller screens if needed */
+    .navbar img {
+        max-height: 8vh; /* Adjust based on visual preference */
+    }
+}
+
+
+
+
+
+
 /* Custom button styles */
 .btn-custom {
     background-color: #2bb030 !important;
@@ -33,25 +58,22 @@
     max-width: 9.375em; /* 150px / 16px */
 }
 
-/* Custom navbar styles */
 .navbar {
     position: sticky;
     z-index: 1000;
-    max-height: 30.25vh; /* 100px approximation to vh */
-    color: #343a40;
+    /* max-height: 30.25vh; Consider removing or increasing this if necessary */
+    color: #ffffff; /* Adjusted for visibility */
     background-color: #02243f;
     display: flex;
     align-items: center;
     justify-content: space-between;
     flex-grow: 1;
-    margin-top: -1.875vh; /* 30px approximation to vh */
+    /* margin-top: -1.875vh; Commented out to prevent potential visibility issues */
 }
 
-/* Style for nav links */
 .navbar a {
-    color: #343a40;
+    color: #ffffff; /* Adjusted for better visibility against the dark background */
 }
-
 .all-navbar-buttons-wrapper {
     flex-grow: 1;
     display: flex;
