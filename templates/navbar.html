@@ -2,46 +2,35 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <!-- Style for the navbar buttons -->
-
     <link rel="stylesheet" href="{{ url_for('static', filename='styles/navbar.css') }}">
-
-
 </head>
 <body>
-<nav class="navbar navbar-expand-lg">
+<nav class="navbar navbar-expand-lg navbar-light bg-light"> <!-- Adjusted for better visibility -->
+    <!-- Navbar brand/logo can go here -->
+
+    <!-- Toggler button -->
+    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+    </button>
 
     <div class="collapse navbar-collapse" id="navbarNav">
         <div class="all-navbar-buttons-wrapper">
             <div class="logo-wrapper">
-
-                <!-- Added btn-logo class to the anchor tag wrapping the image -->
                 <a href="{{ url_for('home') }}" class="btn btn-logo">
                     <img src="{{ url_for('static', filename='nextreel-wbg.png') }}">
                 </a>
             </div>
-
-
             <div class="button-wrapper">
-
                 <ul class="navbar-nav ml-auto">
-                    <!-- Display "Set Filters" button always -->
-
                     <li class="nav-item">
                         <a href="/movie" class="btn btn-custom">Pick a Movie</a>
                     </li>
-
                     <li class="nav-item">
                         <a href="/setFilters" class="btn btn-custom">Set Filters</a>
                     </li>
-
-
-
                 </ul>
             </div>
         </div>
-
-
     </div>
 </nav>
 </body>
