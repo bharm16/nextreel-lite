@@ -1,3 +1,4 @@
+import logging
 import os
 
 from config import Config, DatabaseConnection
@@ -12,6 +13,10 @@ parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Now change the working directory to the parent directory
 os.chdir(parent_dir)
 
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(filename)s - %(funcName)s - %(levelname)s - %(message)s'
+)
 
 # Finally, print the new working directory to confirm the change
 # print(f"Current working directory after change: {os.getcwd()}")
@@ -75,7 +80,7 @@ class ImdbRandomMovieFetcher:
         full_query = base_query + (f" AND ({genre_conditions[0]})" if genre_conditions else "")
         return await self.db_query_executor.execute_async_query(full_query, parameters, 'all')
 
-    async def fetch_random_movies25(self, criteria, client):
+    async def fetch_random_movies25(self, criteria):
         base_query = build_base_query()
         parameters = build_parameters(criteria)
         genre_conditions = build_genre_conditions(criteria, parameters)
@@ -83,13 +88,13 @@ class ImdbRandomMovieFetcher:
             f" AND ({genre_conditions[0]})" if genre_conditions else "") + " ORDER BY RAND() LIMIT 15"
         return await self.db_query_executor.execute_async_query(full_query, parameters, 'all')
 
-    async def fetch_random_movie(self, criteria, client):
-        base_query = build_base_query()
-        parameters = build_parameters(criteria)
-        genre_conditions = build_genre_conditions(criteria, parameters)
-        full_query = base_query + (
-            f" AND ({genre_conditions[0]})" if genre_conditions else "") + " ORDER BY RAND() LIMIT 1"
-        return await self.db_query_executor.execute_async_query(full_query, parameters)
+    # async def fetch_random_movie(self, criteria):
+    #     base_query = build_base_query()
+    #     parameters = build_parameters(criteria)
+    #     genre_conditions = build_genre_conditions(criteria, parameters)
+    #     full_query = base_query + (
+    #         f" AND ({genre_conditions[0]})" if genre_conditions else "") + " ORDER BY RAND() LIMIT 1"
+    #     return await self.db_query_executor.execute_async_query(full_query, parameters)
 
 
 def extract_movie_filter_criteria(form_data):

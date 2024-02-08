@@ -10,8 +10,10 @@ from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher
 from scripts.tmdb_data import TMDbHelper
 
 # Configure logging for better debugging
-logging.basicConfig(level=logging.INFO)
-
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(filename)s - %(funcName)s - %(levelname)s - %(message)s'
+)
 # Set httpx logging level to ERROR to reduce verbosity
 logging.getLogger("httpx").setLevel(logging.ERROR)
 
@@ -176,37 +178,37 @@ class Movie:
 # Continue with the main() function and other parts of the script
 
 
-async def main():
-    db_config = Config.STACKHERO_DB_CONFIG  # Assuming you have a db_config defined
-
-    # Define criteria for movie selection
-    criteria = {
-        "min_year": 1900,
-        "max_year": 2023,
-        "min_rating": 7.0,
-        "max_rating": 10,
-        "title_type": "movie",
-        "language": "en",
-        "genres": ["Action", "Drama"]
-    }
-
-    async with httpx.AsyncClient() as client:
-        fetcher = ImdbRandomMovieFetcher(db_config)
-        movie_data_from_db = await fetcher.fetch_random_movie(criteria, client)
-
-        if not movie_data_from_db:
-            print("No movies found based on the given criteria.")
-            return
-
-        # Assuming movie_data_from_db contains 'tconst' key
-        if 'tconst' in movie_data_from_db:
-            tconst = movie_data_from_db['tconst']
-            movie = Movie(tconst, db_config)
-            movie_data = await movie.get_movie_data()
-            # print(movie_data)
-        else:
-            print("Tconst not found in movie data.")
-
+# async def main():
+#     db_config = Config.STACKHERO_DB_CONFIG  # Assuming you have a db_config defined
+#
+#     # Define criteria for movie selection
+#     criteria = {
+#         "min_year": 1900,
+#         "max_year": 2023,
+#         "min_rating": 7.0,
+#         "max_rating": 10,
+#         "title_type": "movie",
+#         "language": "en",
+#         "genres": ["Action", "Drama"]
+#     }
+#
+#     async with httpx.AsyncClient() as client:
+#         fetcher = ImdbRandomMovieFetcher(db_config)
+#         movie_data_from_db = await fetcher.fetch_random_movie(criteria, client)
+#
+#         if not movie_data_from_db:
+#             print("No movies found based on the given criteria.")
+#             return
+#
+#         # Assuming movie_data_from_db contains 'tconst' key
+#         if 'tconst' in movie_data_from_db:
+#             tconst = movie_data_from_db['tconst']
+#             movie = Movie(tconst, db_config)
+#             movie_data = await movie.get_movie_data()
+#             # print(movie_data)
+#         else:
+#             print("Tconst not found in movie data.")
+#
 
 if __name__ == "__main__":
     asyncio.run(main())

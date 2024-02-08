@@ -9,8 +9,10 @@ from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher, ext
 from scripts.tmdb_data import TMDbHelper, TMDB_API_KEY
 
 # Configure logging for better debugging
-logging.basicConfig(level=logging.INFO)
-
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(filename)s - %(funcName)s - %(levelname)s - %(message)s'
+)
 
 class MovieManager:
     def __init__(self, db_config):
@@ -190,11 +192,12 @@ class MovieManager:
         logging.info("Filtering movie for user_id: {}".format(user_id))
         new_criteria = extract_movie_filter_criteria(form_data)
         # Update criteria specifically for the user
-        await self.movie_queue_manager.set_criteria(user_id, new_criteria)
 
         # Stop any existing populate task, empty the user's queue, and repopulate based on new criteria
         await self.movie_queue_manager.stop_populate_task(user_id)
         await self.movie_queue_manager.empty_queue(user_id)
+        await self.movie_queue_manager.set_criteria(user_id, new_criteria)
+
 
         # Start repopulating the queue for the user
         self.movie_queue_manager.populate_task = asyncio.create_task(

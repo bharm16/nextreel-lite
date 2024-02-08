@@ -9,6 +9,11 @@ from quart_session import Session
 import config
 from movie_manager import MovieManager
 
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(filename)s - %(funcName)s - %(levelname)s - %(message)s'
+)
+
 
 def create_app():
     app = Quart(__name__)

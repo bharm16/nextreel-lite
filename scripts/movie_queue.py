@@ -10,8 +10,10 @@ from scripts.movie import Movie, TMDB_API_KEY
 from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher
 
 # Configure logging for better clarity
-logging.basicConfig(level=logging.INFO)
-
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(filename)s - %(funcName)s - %(levelname)s - %(message)s'
+)
 # Set the working directory to the parent directory for relative path resolutions
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(parent_dir)
@@ -170,8 +172,18 @@ class MovieQueue:
                         f"[{self.movie_enqueue_count}] Enqueued movie '{movie_data_tmdb.get('title')}' with tconst: {tconst} for user_id: {user_id}")
 
     async def load_movies_into_queue(self, user_id):
-        async with current_app.app_context(), httpx.AsyncClient() as client:
-            rows = await self.movie_fetcher.fetch_random_movies25(self.criteria, client)
+        # Retrieve user-specific criteria
+        user_criteria = self.user_queues[user_id]['criteria'] if user_id in self.user_queues and 'criteria' in \
+                                                                 self.user_queues[user_id] else {}
+        logging.info(f"Loading movies into queue for user_id: {user_id} with criteria: {user_criteria}")
+
+        async with current_app.app_context(), httpx.AsyncClient():
+            rows = await self.movie_fetcher.fetch_random_movies25(user_criteria)
+            if rows:  # Check if any rows were fetched
+                logging.debug(f"Fetched {len(rows)} movies for user_id: {user_id} based on criteria: {user_criteria}")
+            else:
+                logging.warning(f"No movies fetched for user_id: {user_id} with the given criteria: {user_criteria}")
+
             tasks = [asyncio.create_task(self.fetch_and_enqueue_movie(row['tconst'], user_id)) for row in rows if row]
             await asyncio.gather(*tasks)
 
@@ -187,32 +199,32 @@ class MovieQueue:
             logging.info(f"Populate task restarted for user_id: {user_id}")
 
 
-async def main():
-    # Initialize the MovieQueue
-    movie_queue_manager = MovieQueue(Config.STACKHERO_DB_CONFIG, asyncio.Queue())
-
-    # User-specific criteria
-    user_criteria = {
-        "user1": {"min_year": 1990, "max_year": 2023, "min_rating": 7.0, "max_rating": 10, "title_type": "movie", "language": "en", "genres": ["Action"]},
-        "user2": {"min_year": 1980, "max_year": 2023, "min_rating": 6.0, "max_rating": 10, "title_type": "movie", "language": "en", "genres": ["Comedy"]}
-    }
-
-    # Set criteria and start population tasks for each user
-    for user_id, criteria in user_criteria.items():
-        logging.info(f"Setting criteria for {user_id}: {criteria}")
-        await movie_queue_manager.set_criteria(user_id, criteria)
-        movie_queue_manager.start_populate_task(user_id)
-
-    # Simulate a period of operation
-    # await asyncio.sleep(60)  # Simulate the queue population for 60 seconds
-
-    # Stop population tasks and empty queues for each user
-    for user_id in user_criteria.keys():
-        await movie_queue_manager.stop_populate_task(user_id)
-        await movie_queue_manager.empty_queue(user_id)
-        logging.info(f"Queue for {user_id} stopped and emptied")
-
-    logging.info("All tasks completed")
-
-if __name__ == "__main__":
-    asyncio.run(main())
+# async def main():
+#     # Initialize the MovieQueue
+#     movie_queue_manager = MovieQueue(Config.STACKHERO_DB_CONFIG, asyncio.Queue())
+#
+#     # User-specific criteria
+#     user_criteria = {
+#         "user1": {"min_year": 1990, "max_year": 2023, "min_rating": 7.0, "max_rating": 10, "title_type": "movie", "language": "en", "genres": ["Action"]},
+#         "user2": {"min_year": 1980, "max_year": 2023, "min_rating": 6.0, "max_rating": 10, "title_type": "movie", "language": "en", "genres": ["Comedy"]}
+#     }
+#
+#     # Set criteria and start population tasks for each user
+#     for user_id, criteria in user_criteria.items():
+#         logging.info(f"Setting criteria for {user_id}: {criteria}")
+#         await movie_queue_manager.set_criteria(user_id, criteria)
+#         movie_queue_manager.start_populate_task(user_id)
+#
+#     # Simulate a period of operation
+#     # await asyncio.sleep(60)  # Simulate the queue population for 60 seconds
+#
+#     # Stop population tasks and empty queues for each user
+#     for user_id in user_criteria.keys():
+#         await movie_queue_manager.stop_populate_task(user_id)
+#         await movie_queue_manager.empty_queue(user_id)
+#         logging.info(f"Queue for {user_id} stopped and emptied")
+#
+#     logging.info("All tasks completed")
+#
+# if __name__ == "__main__":
+#     asyncio.run(main())
