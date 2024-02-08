@@ -203,7 +203,7 @@ class MovieManager:
         logging.info("Criteria updated, repopulating movie queue for user_id: {}".format(user_id))
 
         # Optionally wait a bit for the queue to start populating
-        await asyncio.sleep(20)  # Adjust this based on your needs
+        await asyncio.sleep(5)  # Adjust this based on your needs
 
         # Now, fetch the next movie for the user from the updated queue
         # It's important to call `next_movie` to update `self.current_displayed_movie` correctly
