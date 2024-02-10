@@ -43,6 +43,15 @@ class MovieQueue:
             self._initialized = True
             self.movie_enqueue_count = 0  # Add a counter for movies enqueued
             self.user_queues = {}  # Dictionary to store user-specific queues
+            self.stop_flags = {}  # Tracks whether to stop the populate task for each user
+
+    async def set_stop_flag(self, user_id, stop=True):
+        """Sets the stop flag for a given user's populate task."""
+        self.stop_flags[user_id] = stop
+
+    async def check_stop_flag(self, user_id):
+        """Checks if the stop flag is set for a given user's populate task."""
+        return self.stop_flags.get(user_id, False)
 
     async def get_user_queue(self, user_id):
         # Initialize user's queue and criteria if not exists
@@ -58,7 +67,6 @@ class MovieQueue:
             self.user_queues[user_id] = {'queue': asyncio.Queue(maxsize=20), 'criteria': criteria}
             self.user_queues[user_id]['populate_task'] = asyncio.create_task(self.populate(user_id))
             logging.info(f"Added and started population task for new user: {user_id}")
-
 
     async def set_criteria(self, user_id, new_criteria):
         # Ensure the user's queue and criteria are initialized
@@ -85,16 +93,18 @@ class MovieQueue:
             logging.info(f"Populate task started for user_id: {user_id}")
 
     async def stop_populate_task(self, user_id):
+        # Set the stop flag first to signal the task should stop
+        await self.set_stop_flag(user_id, True)
+
         user_queue_info = self.user_queues.get(user_id)
         if user_queue_info and user_queue_info.get('populate_task'):
-            user_queue_info['populate_task'].cancel()
+            user_queue_info['populate_task'].cancel()  # Request cancellation
             try:
-                await user_queue_info['populate_task']
-                logging.info(f"Populate task for user_id {user_id} cancelled")
+                await user_queue_info['populate_task']  # Wait for the task to be cancelled
             except asyncio.CancelledError:
-                logging.info(f"Populate task for user_id {user_id} stopped")
-
-
+                logging.info(f"Populate task for user_id {user_id} cancelled.")
+            finally:
+                logging.info(f"Finalizing stop for user_id {user_id}.")
 
     async def empty_queue(self, user_id):
         user_queue_info = self.user_queues.get(user_id)
@@ -119,8 +129,12 @@ class MovieQueue:
                     await asyncio.sleep(10)
                     continue
 
-                # Load more movies if the queue size is below a threshold
+                # Before potentially loading more movies, check the stop flag again
                 if current_queue_size <= 1:
+                    if await self.check_stop_flag(user_id):  # Check the stop flag again here
+                        logging.info(f"Abort loading more movies for user_id: {user_id} due to stop signal.")
+                        break  # Exit the loop if stop is requested
+
                     logging.info(f"Queue size below threshold for user_id: {user_id}, loading more movies...")
                     await self.load_movies_into_queue(user_id)
 
@@ -179,7 +193,6 @@ class MovieQueue:
         if user_queue_info:
             user_queue_info['populate_task'] = asyncio.create_task(self.populate(user_id))
             logging.info(f"Populate task restarted for user_id: {user_id}")
-
 
 # async def main():
 #     # Initialize the MovieQueue

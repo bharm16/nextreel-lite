@@ -149,8 +149,10 @@ class MovieManager:
         logging.info(f"Setting filters for user_id: {user_id}")
         start_time = asyncio.get_event_loop().time()
 
-        # Stop the populate task and empty the queue for the specified user
+        # Stop the populate task and signal it to stop immediately using the stop flag
         await self.movie_queue_manager.stop_populate_task(user_id)
+
+        # Now that the task is requested to stop, proceed with emptying the queue
         await self.movie_queue_manager.empty_queue(user_id)
 
         # Reset the current displayed movie, assuming this needs to be reset for the user
@@ -168,6 +170,9 @@ class MovieManager:
         await self.movie_queue_manager.stop_populate_task(user_id)
         await self.movie_queue_manager.empty_queue(user_id)
         await self.movie_queue_manager.set_criteria(user_id, new_criteria)
+
+        # Reset the stop flag here before starting to repopulate
+        await self.movie_queue_manager.set_stop_flag(user_id, False)
 
         # Start repopulating the queue for the user
         self.movie_queue_manager.populate_task = asyncio.create_task(
