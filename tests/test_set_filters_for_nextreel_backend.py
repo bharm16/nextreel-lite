@@ -20,7 +20,7 @@ class TestMovieFilteringWithRealDatabase(unittest.TestCase):
             'language': 'en',
             'genres': ['Action', 'Drama']
         }
-        movies = await self.fetcher.fetch_random_movies25(criteria)
+        movies = await self.fetcher.fetch_random_movies15(criteria)
 
         # Ensure that 25 movies are returned
         self.assertEqual(len(movies), 15, "Did not fetch exactly 25 movies")

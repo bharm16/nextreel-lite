@@ -178,7 +178,7 @@ class MovieQueue:
         logging.info(f"Loading movies into queue for user_id: {user_id} with criteria: {user_criteria}")
 
         async with current_app.app_context(), httpx.AsyncClient():
-            rows = await self.movie_fetcher.fetch_random_movies25(user_criteria)
+            rows = await self.movie_fetcher.fetch_random_movies15(user_criteria)
             if rows:  # Check if any rows were fetched
                 logging.debug(f"Fetched {len(rows)} movies for user_id: {user_id} based on criteria: {user_criteria}")
             else:
