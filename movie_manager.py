@@ -14,6 +14,7 @@ logging.basicConfig(
     format='%(asctime)s - %(filename)s - %(funcName)s - %(levelname)s - %(message)s'
 )
 
+
 class MovieManager:
     def __init__(self, db_config):
         logging.info("Initializing MovieManager")
@@ -35,7 +36,6 @@ class MovieManager:
         # Log the start of the MovieManager
         logging.info("Starting MovieManager")
 
-
         # After starting the population task, proceed to set the default backdrop
         await self.set_default_backdrop()
         logging.info("Default backdrop set")
@@ -51,7 +51,7 @@ class MovieManager:
         logging.info(f"Adding new user with ID: {user_id} and criteria: {criteria}")
         await self.movie_queue_manager.add_user(user_id, criteria)
 
-    async def home(self,user_id):
+    async def home(self, user_id):
         logging.info("Accessing home")
 
         # user_id = await app.get_current_user_id()
@@ -71,24 +71,6 @@ class MovieManager:
             self.default_backdrop_url = self.tmdb_helper.get_full_image_url(backdrops[0])
         else:
             self.default_backdrop_url = None
-
-    # async def fetch_and_render_movie(self, template_name='movie.html'):
-    # async def fetch_and_render_movie(self, current_displayed_movie, template_name='movie.html'):
-    #
-    #     # logging.info("Fetching and rendering movie")
-    #     if not self.current_displayed_movie:
-    #         logging.info("No current movie to display")
-    #         return None
-    #
-    #     # Check if the current movie has a backdrop URL, and if so, render it
-    #     if 'backdrop_url' in self.current_displayed_movie and self.current_displayed_movie['backdrop_url']:
-    #         return await render_template(template_name,
-    #                                      movie=self.current_displayed_movie,
-    #                                      previous_count=len(self.user_previous_movies_stack))
-    #
-    #     # If the movie does not have a backdrop URL, log this and return None
-    #     logging.info("Movie skipped due to missing backdrop image")
-    #     return None
 
     async def fetch_and_render_movie(self, current_displayed_movie, user_id, template_name='movie.html'):
         if not current_displayed_movie:
@@ -136,17 +118,6 @@ class MovieManager:
 
         # Render the movie or handle the case where there's no movie to display
         return await self.fetch_and_render_movie(current_displayed_movie, user_id)  # Include user_id here
-
-    # async def previous_movie(self,user_id):
-    #     # logging.info("Fetching previous movie")
-    #     if self.current_displayed_movie:
-    #         self.future_movies_stack.append(self.current_displayed_movie)
-    #     if self.previous_movies_stack:
-    #         self.current_displayed_movie = self.previous_movies_stack.pop()
-    #     else:
-    #         self.current_displayed_movie = None
-    #
-    #     return await self.fetch_and_render_movie()
 
     async def previous_movie(self, user_id):
         prev_stack, future_stack = self._get_user_stacks(user_id)
@@ -197,7 +168,6 @@ class MovieManager:
         await self.movie_queue_manager.stop_populate_task(user_id)
         await self.movie_queue_manager.empty_queue(user_id)
         await self.movie_queue_manager.set_criteria(user_id, new_criteria)
-
 
         # Start repopulating the queue for the user
         self.movie_queue_manager.populate_task = asyncio.create_task(

@@ -32,8 +32,6 @@ def create_app():
         app.config['SESSION_REDIS'] = cache
         Session(app)
 
-
-
     # app.config['SESSION_URI'] = redis.from_url('redis://localhost:6379')
     # app.config['SESSION_URI'] = 'redis://:password@localhost:6379'
     # Initialize Session Management
@@ -62,28 +60,6 @@ def create_app():
             logging.info(f"Request Size: {req_size} bytes")
         except Exception as e:
             logging.error(f"Error in session management: {e}")
-
-    # @app.before_request
-    # async def before_request():
-    #     try:
-    #         if 'user_id' not in session:
-    #             # Generate a new UUID if not present
-    #             session['user_id'] = str(uuid.uuid4())
-    #             logging.info(f"New user_id generated: {session['user_id']}")
-    #         else:
-    #             logging.info(f"Existing user_id found: {session['user_id']}")
-    #     except Exception as e:
-    #         logging.error(f"Error in session management: {e}")
-    #
-    #     req_size = sys.getsizeof(await request.get_data())
-    #     logging.info(f"Request Size: {req_size} bytes")
-    #
-    #     # Existing user session handling
-    #     if 'user_id' not in session:
-    #         session['user_id'] = str(uuid.uuid4())
-    #         logging.info(f"New user_id generated: {session['user_id']}")
-    #     else:
-    #         logging.info(f"Existing user_id found: {session['user_id']}")
 
     # Set up Redis for session management using aioredis
 
@@ -141,11 +117,6 @@ def create_app():
         response = await movie_manager.previous_movie(user_id)
         return response if response else ('No previous movies', 200)
 
-    # @app.route('/setFilters')
-    # async def set_filters():
-    #     logging.info("Setting filters")
-    #     return await movie_manager.set_filters()
-
     @app.route('/setFilters')
     async def set_filters():
         user_id = session.get('user_id')  # Extract user_id from session
@@ -161,14 +132,6 @@ def create_app():
         # Pass both user_id and form_data to the filtered_movie method
         return await movie_manager.filtered_movie(user_id, form_data)
 
-    # @app.route('/filtered_movie', methods=['POST'])
-    # async def filtered_movie_endpoint():
-    #     logging.info("Applying movie filters")
-    #     form_data = await request.form  # Await the form data
-    #     return await movie_manager.filtered_movie(form_data)
-
-    # Usage in a web application context
-    # Define a function to get or create user criteria
     def get_user_criteria():
         # Example static criteria, modify as needed
         return {"min_year": 1900, "max_year": 2023, "min_rating": 7.0, "genres": ["Action", "Comedy"]}

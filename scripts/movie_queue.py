@@ -59,18 +59,6 @@ class MovieQueue:
             self.user_queues[user_id]['populate_task'] = asyncio.create_task(self.populate(user_id))
             logging.info(f"Added and started population task for new user: {user_id}")
 
-    # async def set_criteria(self, user_id, new_criteria):
-    #     # Ensure the user's queue and criteria are initialized
-    #     if user_id not in self.user_queues:
-    #         await self.get_user_queue(user_id)
-    #
-    #     # Set the new criteria
-    #     async with self.lock:
-    #         self.user_queues[user_id]['criteria'] = new_criteria
-    #         logging.info(f"Criteria for user_id {user_id} updated to: {new_criteria}")
-    #         # Optionally, trigger repopulation based on new criteria
-    #         await self.empty_queue(user_id)
-    #         await self.populate(user_id)
 
     async def set_criteria(self, user_id, new_criteria):
         # Ensure the user's queue and criteria are initialized
@@ -106,13 +94,7 @@ class MovieQueue:
             except asyncio.CancelledError:
                 logging.info(f"Populate task for user_id {user_id} stopped")
 
-    # async def empty_queue(self, user_id):
-    #     user_queue = self.user_queues.get(user_id)
-    #     if user_queue:
-    #         async with self.lock:
-    #             while not user_queue.empty():
-    #                 await user_queue.get()
-    #             logging.info(f"Movie queue for user_id {user_id} emptied")
+
 
     async def empty_queue(self, user_id):
         user_queue_info = self.user_queues.get(user_id)
