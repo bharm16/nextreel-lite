@@ -32,6 +32,7 @@ def build_parameters(criteria):
         criteria.get('min_rating', 7.0),
         criteria.get('max_rating', 10),
         criteria.get('min_votes', 100000),
+        criteria.get('max_votes', 1000000),
         criteria.get('title_type', 'movie'),
         language  # added this line
     ]
@@ -55,7 +56,7 @@ def build_base_query():
     JOIN `title.ratings` tr ON tb.tconst = tr.tconst
     WHERE tb.startYear BETWEEN %s AND %s
     AND tr.averagerating BETWEEN %s AND %s
-    AND tr.numVotes >= %s
+    AND tr.numVotes >= %s AND tr.numVotes <= %s
     AND tb.titleType = %s
     AND tb.language LIKE %s  -- Changed this line
     """
@@ -121,6 +122,9 @@ def extract_movie_filter_criteria(form_data):
         criteria['max_rating'] = float(form_data.get('imdb_score_max'))
     if form_data.get('num_votes_min'):
         criteria['min_votes'] = int(form_data.get('num_votes_min'))
+    if form_data.get('num_votes_max'):
+        criteria['max_votes'] = int(form_data.get('num_votes_max'))
+
 
     # Handling genre criteria
     genres = form_data.getlist('genres[]')
@@ -143,6 +147,7 @@ async def main():
                 'min_rating': 7.0,
                 'max_rating': 10,
                 'min_votes': 10000,
+                'max_votes': 100000,
                 'title_type': 'movie',
                 'language': 'en',
                 'genres': ['Action', 'Drama']}
