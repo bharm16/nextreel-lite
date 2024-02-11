@@ -3,11 +3,8 @@ import sys
 import uuid
 
 import aioredis
-import sentry_sdk
 from quart import Quart, request, redirect, url_for, session
 from quart_session import Session
-from sentry_sdk.integrations.asyncio import AsyncioIntegration
-from sentry_sdk.integrations.quart import QuartIntegration
 
 import config
 from movie_manager import MovieManager
