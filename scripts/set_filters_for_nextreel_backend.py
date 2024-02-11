@@ -140,7 +140,7 @@ def extract_movie_filter_criteria(form_data):
 async def main():
     criteria = {'min_year': 2000,
                 'max_year': 2020,
-                'min_rating': 7,
+                'min_rating': 7.0,
                 'max_rating': 10,
                 'min_votes': 10000,
                 'title_type': 'movie',

@@ -135,6 +135,10 @@ class Movie:
         # Custom logging for title, tconst, and backdrop image
         # logging.info(f"Title: {movie_info.get('title', 'N/A')}, tconst: {self.tconst}, Backdrop URL: {backdrop_url}")
 
+        # Assuming movie_info has a 'vote_average' key for the rating
+        logging.info(
+            f"Title: {movie_info.get('title', 'N/A')}, tconst: {self.tconst}, Rating: {movie_info.get('vote_average', 'N/A')}")
+
         if ratings_data:
             self.movie_data["averageRating"] = ratings_data["averageRating"]
             self.movie_data["numVotes"] = ratings_data["numVotes"]

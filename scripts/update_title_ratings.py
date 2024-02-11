@@ -1,36 +1,37 @@
-import pymysql
 import csv
 import logging
+import os
+
+from config import Config, DatabaseConnection
+
+dbconfig = Config.STACKHERO_DB_CONFIG
+
+# Use os.path.dirname to go up one level from the current script's directory
+# Use os.path.dirname to go up one level from the current script's directory
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# Now change the working directory to the parent directory
+os.chdir(parent_dir)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Database connection configuration
-db_config = {
-    'host': 'localhost',
-    'user': 'root',
-    'password': 'caching_sha2_password',
-    'database': 'imdb'
-}
 
-
-def read_tsv_and_update_database(tsv_file_path, db_config):
+def read_tsv_and_update_database(tsv_file_path, db_connection):
     """
     Reads a TSV file and updates the averageRating and numVotes in the database.
     Logs each update operation.
 
     :param tsv_file_path: Path to the TSV file containing the updates.
-    :param db_config: Dictionary with the database connection configuration.
+    :param db_connection: DatabaseConnection instance for DB operations.
     """
     try:
         # Establish a database connection
-        connection = pymysql.connect(
-            host=db_config['host'],
-            user=db_config['user'],
-            password=db_config['password'],
-            database=db_config['database'],
-            cursorclass=pymysql.cursors.DictCursor  # Use DictCursor to work with column names
-        )
+        connection = db_connection.create_sync_connection()
+        if not connection:
+            logging.error("Failed to establish database connection.")
+            return
+
         logging.info("Successfully connected to database.")
 
         with connection.cursor() as cursor:
@@ -70,7 +71,10 @@ def read_tsv_and_update_database(tsv_file_path, db_config):
 
 
 # Path to your TSV file - ensure this path is correct
-tsv_file_path = 'title.ratings.tsv'  # Update this path as necessary
+tsv_file_path = 'scripts/title.ratings.tsv'  # Update this path as necessary
 
-# Call the function with the path to your TSV file and database configuration
-read_tsv_and_update_database(tsv_file_path, db_config)
+# Initialize the DatabaseConnection with the STACKHERO_DB_CONFIG
+db_connection = DatabaseConnection(Config.STACKHERO_DB_CONFIG)
+
+# Call the function with the path to your TSV file and the database connection instance
+read_tsv_and_update_database(tsv_file_path, db_connection)

@@ -927,22 +927,24 @@
 <script src="//cdnjs.cloudflare.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
 <script src="https://rawgit.com/kottenator/jquery-circle-progress/1.2.2/dist/circle-progress.js"></script>
 
-<!-- Initialize circle progress bar -->
 <script>
-    $(document).ready(function ($) {
-        $('#rating-circle').circleProgress({
-            value: $('#rating-circle').data('percent') / 10, // IMDb rating is usually out of 10
-            size: 100, // Size of the circle
-            thickness: 10, // Thickness of the circle line
-            fill: {
-                color: '#1f8efa' // Fill color
-            }
-        }).on('circle-animation-progress', function (event, progress, stepValue) {
-            $(this).find('strong').text((stepValue * 10).toFixed(1));
-        });
-    });
+$(document).ready(function ($) {
+    // Log the current value of the data-percent attribute before initializing circle progress
+    console.log($('#rating-circle').data('percent')); // Should log the correct rating value * 10
 
+    $('#rating-circle').circleProgress({
+        value: $('#rating-circle').data('percent') / 10, // Adjust if the rating system is out of 10
+        size: 100, // Size of the circle
+        thickness: 10, // Thickness of the circle line
+        fill: {
+            color: '#2bb030' // Fill color
+        }
+    }).on('circle-animation-progress', function (event, progress, stepValue) {
+        $(this).find('strong').text((stepValue * 10).toFixed(1));
+    });
+});
 </script>
+
 
 
 
