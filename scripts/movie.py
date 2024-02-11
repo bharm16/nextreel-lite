@@ -105,7 +105,9 @@ class Movie:
                     "tconst": result['tconst'],
                     "averageRating": result['averageRating'] if result['averageRating'] is not None else 'N/A',
                     "numVotes": result['numVotes'] if result['numVotes'] is not None else 'N/A'
+
                 }
+                print(ratings_data)
                 return ratings_data
             except KeyError as e:
                 print(f"Error in fetch_movie_ratings: {e}")
@@ -118,6 +120,9 @@ class Movie:
     async def get_movie_data(self):
         tmdb_id = await self.tmdb_helper.get_tmdb_id_by_tconst(self.tconst)
 
+        ratings_data = await self.fetch_movie_ratings(self.tconst)
+
+
         if not tmdb_id:
             return None
 
@@ -127,7 +132,6 @@ class Movie:
         tmdb_cast_info_result = await self.tmdb_helper.get_cast_info_by_tmdb_id(tmdb_id)
         tmdb_cast_info = tmdb_cast_info_result[:10] if tmdb_cast_info_result else []  # Limit to 10 cast members
         tmdb_image_info = await self.tmdb_helper.get_images_by_tmdb_id(tmdb_id)
-        ratings_data = await self.fetch_movie_ratings(self.tconst)
 
         backdrop_url = tmdb_image_info['backdrops'][0] if tmdb_image_info.get('backdrops') else None
         # print(backdrop_url)
@@ -139,13 +143,13 @@ class Movie:
         logging.info(
             f"Title: {movie_info.get('title', 'N/A')}, tconst: {self.tconst}, Rating: {movie_info.get('vote_average', 'N/A')}")
 
-        if ratings_data:
-            self.movie_data["averageRating"] = ratings_data["averageRating"]
-            self.movie_data["numVotes"] = ratings_data["numVotes"]
+        # Use database rating if available; otherwise, fall back to TMDB rating
+        if ratings_data and ratings_data["averageRating"] != 'N/A':
+            rating = ratings_data["averageRating"]
+            votes = ratings_data["numVotes"]
         else:
-            self.movie_data["averageRating"] = 'N/A'
-            self.movie_data["numVotes"] = 'N/A'
-
+            rating = movie_info.get('vote_average', 'N/A')
+            votes = movie_info.get('vote_count', 'N/A')
         directors = [crew['name'] for crew in tmdb_credits.get('crew', []) if crew['job'] == 'Director']
         writers = [crew['name'] for crew in tmdb_credits.get('crew', []) if crew['job'] == 'Writer']
 
@@ -159,8 +163,8 @@ class Movie:
             "runtimes": movie_info.get('runtime', 'N/A'),
             "countries": ', '.join([country['name'] for country in movie_info.get('production_countries', ['N/A'])]),
             "languages": movie_info.get('original_language', 'N/A'),
-            "rating": movie_info.get('vote_average', 'N/A'),
-            "votes": self.movie_data.get('numVotes', 'N/A'),
+            "rating": rating,
+            "votes": votes,
             "plot": movie_info.get('overview', 'N/A'),
             "poster_url": f"{TMDB_IMAGE_BASE_URL}w500{movie_info.get('poster_path')}" if movie_info.get(
                 'poster_path') else None,
@@ -179,40 +183,20 @@ class Movie:
         pass
 
 
-# Continue with the main() function and other parts of the script
+async def main():
+    db_config = Config.STACKHERO_DB_CONFIG  # Assuming you have a db_config defined
+
+    tconst = 'tt0988045'  # Example IMDb ID
+    db_config = Config.STACKHERO_DB_CONFIG  # Your database configuration
+    movie_instance = Movie(tconst, db_config)
+    movie_data = await movie_instance.get_movie_data()
+    if movie_data:
+        print(f"Movie Data: {movie_data}")
+    else:
+        print("Failed to fetch movie data.")
 
 
-# async def main():
-#     db_config = Config.STACKHERO_DB_CONFIG  # Assuming you have a db_config defined
-#
-#     # Define criteria for movie selection
-#     criteria = {
-#         "min_year": 1900,
-#         "max_year": 2023,
-#         "min_rating": 7.0,
-#         "max_rating": 10,
-#         "title_type": "movie",
-#         "language": "en",
-#         "genres": ["Action", "Drama"]
-#     }
-#
-#     async with httpx.AsyncClient() as client:
-#         fetcher = ImdbRandomMovieFetcher(db_config)
-#         movie_data_from_db = await fetcher.fetch_random_movie(criteria, client)
-#
-#         if not movie_data_from_db:
-#             print("No movies found based on the given criteria.")
-#             return
-#
-#         # Assuming movie_data_from_db contains 'tconst' key
-#         if 'tconst' in movie_data_from_db:
-#             tconst = movie_data_from_db['tconst']
-#             movie = Movie(tconst, db_config)
-#             movie_data = await movie.get_movie_data()
-#             # print(movie_data)
-#         else:
-#             print("Tconst not found in movie data.")
-#
 
-# if __name__ == "__main__":
-#     asyncio.run(main())
+
+if __name__ == "__main__":
+    asyncio.run(main())

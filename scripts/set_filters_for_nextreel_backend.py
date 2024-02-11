@@ -156,6 +156,9 @@ async def main():
         print(f"Movie {counter}: {movie}")  # This will print the movie number and its details
 
 
+
+
+
 # Example usage
 if __name__ == "__main__":
     import asyncio
