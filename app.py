@@ -9,6 +9,7 @@ from quart_session import Session
 
 import config
 from movie_manager import MovieManager
+from scripts import movie_queue
 
 logging.basicConfig(
     level=logging.INFO,
@@ -159,12 +160,13 @@ def create_app():
             # Check if failed attempts threshold is reached
             if session['failed_attempts'] >= 3:
                 logging.info("Failed attempts threshold reached. Triggering movie queue population.")
-                movie_manager.movie_queue.start_populate_task(user_id)  # Start population task for this user
+                movie_queue.start_populate_task(user_id)  # Start population task for this user
                 session['failed_attempts'] = 0  # Reset failed attempts after starting population
 
         # If we reach here, no movies were available after all attempts
-        logging.warning("No more movies available after multiple attempts, please try again later.")
-        return ('No more movies', 200)
+            # Redirect to home if no movies are available after all attempts
+            logging.warning("No more movies available after multiple attempts, redirecting to home.")
+            return redirect(url_for('home'))
 
     @app.route('/previous_movie', methods=['GET', 'POST'])
     async def previous_movie():
