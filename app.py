@@ -22,25 +22,25 @@ def create_app():
     app = Quart(__name__)
     app.config.from_object(config.Config)
 
-    sentry_sdk.init(
-        dsn="https://72b1a1db2939610adacb6e75b276a17c@o4506655473074176.ingest.sentry.io/4506725607079936",
-        enable_tracing=True,
-        integrations=[
-            QuartIntegration(),
-            AsyncioIntegration(),
-        ],
-        traces_sample_rate=1.0,
-        # Set profiles_sample_rate to 1.0 to profile 100%
-        # of sampled transactions.
-        # We recommend adjusting this value in production.
-        profiles_sample_rate=1.0,
-    )
+    # sentry_sdk.init(
+    #     dsn="https://72b1a1db2939610adacb6e75b276a17c@o4506655473074176.ingest.sentry.io/4506725607079936",
+    #     enable_tracing=True,
+    #     integrations=[
+    #         QuartIntegration(),
+    #         AsyncioIntegration(),
+    #     ],
+    #     traces_sample_rate=1.0,
+    #     # Set profiles_sample_rate to 1.0 to profile 100%
+    #     # of sampled transactions.
+    #     # We recommend adjusting this value in production.
+    #     profiles_sample_rate=1.0,
+    # )
 
-    # Example route to test Sentry
-    @app.route("/hello")
-    async def hello():
-        1 / 0  # Intentionally cause an error to test Sentry
-        return {"hello": "world"}
+    # # Example route to test Sentry
+    # @app.route("/hello")
+    # async def hello():
+    #     1 / 0  # Intentionally cause an error to test Sentry
+    #     return {"hello": "world"}
 
     app.config['SESSION_TYPE'] = 'redis'
 
