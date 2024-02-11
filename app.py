@@ -6,6 +6,7 @@ import aioredis
 import sentry_sdk
 from quart import Quart, request, redirect, url_for, session
 from quart_session import Session
+from sentry_sdk.integrations.asyncio import AsyncioIntegration
 from sentry_sdk.integrations.quart import QuartIntegration
 
 import config
@@ -26,7 +27,13 @@ def create_app():
         enable_tracing=True,
         integrations=[
             QuartIntegration(),
+            AsyncioIntegration(),
         ],
+        traces_sample_rate=1.0,
+        # Set profiles_sample_rate to 1.0 to profile 100%
+        # of sampled transactions.
+        # We recommend adjusting this value in production.
+        profiles_sample_rate=1.0,
     )
 
     # Example route to test Sentry
@@ -178,3 +185,14 @@ def get_current_user_id():
 
 
 app = create_app()
+
+
+
+
+# @app.route("/")
+# async def hello():
+#     1/0  # raises an error
+#     return {"hello": "world"}
+#
+# app.run()
+#
