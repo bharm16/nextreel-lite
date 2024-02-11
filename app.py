@@ -3,8 +3,10 @@ import sys
 import uuid
 
 import aioredis
+import sentry_sdk
 from quart import Quart, request, redirect, url_for, session
 from quart_session import Session
+from sentry_sdk.integrations.quart import QuartIntegration
 
 import config
 from movie_manager import MovieManager
@@ -18,6 +20,21 @@ logging.basicConfig(
 def create_app():
     app = Quart(__name__)
     app.config.from_object(config.Config)
+
+    sentry_sdk.init(
+        dsn="https://72b1a1db2939610adacb6e75b276a17c@o4506655473074176.ingest.sentry.io/4506725607079936",
+        enable_tracing=True,
+        integrations=[
+            QuartIntegration(),
+        ],
+    )
+
+    # Example route to test Sentry
+    @app.route("/hello")
+    async def hello():
+        1 / 0  # Intentionally cause an error to test Sentry
+        return {"hello": "world"}
+
     app.config['SESSION_TYPE'] = 'redis'
 
     @app.before_serving
