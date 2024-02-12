@@ -4,12 +4,13 @@ import sys
 import uuid
 
 import aioredis
-from quart import Quart, request, redirect, url_for, session
+from quart import Quart, request, redirect, url_for, session, render_template
 from quart_session import Session
 
 import config
 from movie_manager import MovieManager
 from scripts import movie_queue
+from scripts.set_filters_for_nextreel_backend import extract_movie_filter_criteria
 
 logging.basicConfig(
     level=logging.INFO,
@@ -95,42 +96,7 @@ def create_app():
         user_id = session.get('user_id')
         return await movie_manager.home(user_id)
 
-    # @app.route('/movie')
-    # async def movie():
-    #     logging.info("Fetching a movie")
-    #     user_id = session.get('user_id')
-    #     current_displayed_movie = movie_manager.get_current_displayed_movie(user_id)
-    #
-    #     movie_or_none = await movie_manager.fetch_and_render_movie()
-    #     if movie_or_none is None:
-    #         logging.warning("Movie queue is empty, redirecting to home")
-    #         return redirect(url_for('home'))
-    #     else:
-    #         return movie_or_none
 
-    #
-    # @app.route('/next_movie', methods=['GET', 'POST'])
-    # async def next_movie():
-    #     user_id = session.get('user_id')
-    #     logging.info(f"Requesting next movie for user_id: {user_id}")
-    #
-    #     max_attempts = 5  # Max attempts to check for available movies
-    #     attempt = 0  # Initial attempt count
-    #     wait_seconds = 2  # Seconds to wait between attempts
-    #
-    #     while attempt < max_attempts:
-    #         response = await movie_manager.next_movie(user_id)
-    #         if response:
-    #             return response
-    #         else:
-    #             attempt += 1
-    #             logging.info(
-    #                 f"No movies available, waiting for {wait_seconds} seconds before retrying... (Attempt {attempt}/{max_attempts})")
-    #             await asyncio.sleep(wait_seconds)  # Wait for a bit before retrying
-    #
-    #     # If we reach here, no movies were available after all attempts
-    #     logging.warning("No more movies available after multiple attempts, please try again later.")
-    #     return ('No more movies', 200)
 
     @app.route('/next_movie', methods=['GET', 'POST'])
     async def next_movie():
@@ -178,16 +144,33 @@ def create_app():
     @app.route('/setFilters')
     async def set_filters():
         user_id = session.get('user_id')  # Extract user_id from session
-        logging.info(f"Setting filters for user_id: {user_id}")
-        # Pass user_id to the set_filters method
-        return await movie_manager.set_filters(user_id)
+        # Retrieve current filters from session; if none exist, use an empty dict
+        current_filters = session.get('current_filters', {})
+        logging.info(f"Setting filters for user_id: {user_id} with current filters: {current_filters}")
+        # Pass current_filters to the template
+        return await render_template('set_filters.html', current_filters=current_filters)
+
+
+
+    # @app.route('/filtered_movie', methods=['POST'])
+    # async def filtered_movie_endpoint():
+    #     user_id = session.get('user_id')  # Extract user_id from session
+    #     logging.info(f"Applying movie filters for user_id: {user_id}")
+    #     form_data = await request.form  # Await the form data
+    #     # Extract and store filters in session for persistence
+    #     session['current_filters'] = extract_movie_filter_criteria(form_data)
+    #     return await movie_manager.filtered_movie(user_id, form_data)
 
     @app.route('/filtered_movie', methods=['POST'])
     async def filtered_movie_endpoint():
         user_id = session.get('user_id')  # Extract user_id from session
-        logging.info(f"Applying movie filters for user_id: {user_id}")
         form_data = await request.form  # Await the form data
-        # Pass both user_id and form_data to the filtered_movie method
+
+        # Store form data in session for persistence
+        session['current_filters'] = form_data.to_dict()
+
+        # Log and proceed with filtering
+        logging.info(f"Applying movie filters for user_id: {user_id}")
         return await movie_manager.filtered_movie(user_id, form_data)
 
     def get_user_criteria():

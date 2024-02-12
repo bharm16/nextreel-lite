@@ -180,40 +180,38 @@
             <!-- Form Starts -->
             <!-- This is the main form where users can set filters for movies. -->
             <form action="/filtered_movie" method="post">
-
-
-                <!-- IMDb Score Section -->
-                <div class="row justify-content-center no-gap mb-30"> <!-- .row, .justify-content-center, .no-gap and .mb-30 styles applied here -->
+                <div class="row justify-content-center no-gap mb-30">
                     <label class="col-12 text-center">IMDb Score</label>
                     <div class="col-3 text-center">
-                        <input type="number" class="form-control" id="imdb_score_min" name="imdb_score_min" min="1" max="10" step="0.1" value="7.0">
+                        <input type="number" class="form-control" id="imdb_score_min" name="imdb_score_min" min="1" max="10" step="0.1" value="{{ current_filters.get('imdb_score_min', 7.0) }}">
                     </div>
                     <div class="col-3 text-center">
-                        <input type="number" class="form-control" id="imdb_score_max" name="imdb_score_max" min="1" max="10" step="0.1" value="10.0">
+                        <input type="number" class="form-control" id="imdb_score_max" name="imdb_score_max" min="1" max="10" step="0.1" value="{{ current_filters.get('imdb_score_max', 10.0) }}">
                     </div>
                 </div>
 
                 <!-- Vote Count Section -->
-                <div class="row justify-content-center no-gap mb-30"> <!-- .row, .justify-content-center, .no-gap and .mb-30 styles applied here -->
+                <div class="row justify-content-center no-gap mb-30">
                     <label class="col-12 text-center">Votes</label>
-                    <div class="col-3 text-center"> <!-- .col-3 and .text-center styles applied here -->
-                        <input type="number" class="form-control" id="num_votes_min" name="num_votes_min" min="0" value="100000">
+                    <div class="col-3 text-center">
+                        <input type="number" class="form-control" id="num_votes_min" name="num_votes_min" min="0" value="{{ current_filters.get('num_votes_min', 100000) }}">
                     </div>
                     <div class="col-3 text-center">
-                        <input type="number" class="form-control" id="num_votes_max" name="num_votes_max" min="1" max="2000000">
+                        <input type="number" class="form-control" id="num_votes_max" name="num_votes_max" min="1" max="2000000" value="{{ current_filters.get('num_votes_max', 200000) }}">
                     </div>
                 </div>
 
                 <!-- Year Section -->
-                <div class="row justify-content-center no-gap mb-30"> <!-- .row, .justify-content-center, .no-gap and .mb-30 styles applied here -->
+                <div class="row justify-content-center no-gap mb-30">
                     <label class="col-12 text-center">Year</label>
-                    <div class="col-3 text-center"> <!-- .col-3 and .text-center styles applied here -->
-                        <input type="number" class="form-control" id="year_min" name="year_min" min="1900" value="1900">
+                    <div class="col-3 text-center">
+                        <input type="number" class="form-control" id="year_min" name="year_min" min="1900" value="{{ current_filters.get('year_min', 1900) }}">
                     </div>
-                    <div class="col-3 text-center"> <!-- .col-3 and .text-center styles applied here -->
-                        <input type="number" class="form-control" id="year_max" name="year_max" max="2023" value="2023">
+                    <div class="col-3 text-center">
+                        <input type="number" class="form-control" id="year_max" name="year_max" max="2023" value="{{ current_filters.get('year_max', 2023) }}">
                     </div>
                 </div>
+
 
 
                 <div class="row justify-content-center no-gap mb-30"> <!-- .row, .justify-content-center, .no-gap and .mb-30 styles applied here -->
