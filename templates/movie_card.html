@@ -18,31 +18,34 @@
 
     <style>
 
-
-
+        /* Global Styles */
+        :root {
+            /* CSS Variables */
+            --main-bg-color: #ffffff;
+            --main-text-color: #333;
+            --font-family: 'Poppins', sans-serif;
+        }
 
         body {
-            /* Existing styles */
-            font-family: 'Poppins', sans-serif;
-            background-color: #ffffff;
-            color: #333;
-            padding-bottom: 20vh;  /* Push down the content */
-
-            /* Make it a positioned element for pseudo-element to work */
+            font-family: var(--font-family);
+            background-color: var(--main-bg-color);
+            color: var(--main-text-color);
+            padding-bottom: 20vh;
             position: relative;
         }
 
 
 
 
-        /* Float the row containing movie details above the backdrop */
-        .main-movie-details {
-            position: relative; /* Make it a positioned element */
-            z-index: 3; /* Float above backdrop */
-            padding-bottom: 12.5vh;
 
-        }
 
+
+
+
+
+        /******************************************************************************/
+
+        /* INFO STYLING */
 
 
         /* Font sizes */
@@ -62,6 +65,28 @@
             padding-bottom: 0.93vh; /* Responsive padding */
         }
 
+        .info-container {
+            padding-bottom: 1.5em;
+            max-width: 80%; /* Restrict max-width to 80% of the parent div */
+            margin-top: -50px;
+
+        }
+
+
+        /******************************************************************************/
+
+
+
+        /* Float the row containing movie details above the backdrop */
+        .main-movie-details {
+            position: relative; /* Make it a positioned element */
+            z-index: 3; /* Float above backdrop */
+            padding-bottom: 12.5vh;
+
+        }
+
+
+        /* MOVIE STYLING */
 
         /* Movie poster */
         .movie-poster {
@@ -188,13 +213,6 @@
             white-space: normal; /* Allow line breaks and text wrapping */
         }
 
-
-
-        /* Style for rating-circle, if necessary */
-        .rating-circle {
-            margin-right: 1.25em !important;
-        }
-
         /* Wrapper to control the size and layout of both components */
         .rating-votes-wrapper {
             display: flex;
@@ -203,6 +221,26 @@
             transform: scale(0.6);  /* Scale down to half size */
             transform-origin: 0 0;  /* Optional: define the point around which to scale */
         }
+
+
+        #vote-number, #vote-text {
+            white-space: normal; /* Allow line breaks and text wrapping */
+        }
+
+
+
+        /******************************************************************************/
+
+
+
+
+
+        /* Style for rating-circle, if necessary */
+        .rating-circle {
+            margin-right: 1.25em !important;
+        }
+
+
 
 
         /* Make the rating-circle and votes-label the same size */
@@ -225,10 +263,6 @@
         }
 
 
-        #vote-number, #vote-text {
-            white-space: normal; /* Allow line breaks and text wrapping */
-        }
-
 
         div.row.custom-row-directed-written > div.col-sm-6 {
             padding-left: 0 !important;  /* Reduce left padding */
@@ -236,17 +270,6 @@
         }
 
 
-        .action-button {
-            /* Inherit the same styles as .votes-label */
-            /* Any additional styles specific to action buttons can go here */
-        }
-        .action-button i {
-            margin-bottom: 0.3125em; /* Converted 5px to em */
-        }
-        .action-button div {
-            font-size: 1.25em; /* Converted 20px to em, assuming base font size is 16px */
-            font-weight: bold;
-        }
 
         /* Add margin to all buttons within .rating-votes-wrapper */
         .rating-votes-wrapper button {
@@ -275,9 +298,32 @@
             font-size: 0;
         }
 
+        /******************************************************************************/
+
+
+        /*action button styles*/
+
+
+        .action-button {
+            /* Inherit the same styles as .votes-label */
+            /* Any additional styles specific to action buttons can go here */
+        }
+        .action-button i {
+            margin-bottom: 0.3125em; /* Converted 5px to em */
+        }
+        .action-button div {
+            font-size: 1.25em; /* Converted 20px to em, assuming base font size is 16px */
+            font-weight: bold;
+        }
+
+
         .action-button, .votes-label, .rating-circle {
             font-size: 12px; /* reset to the desired font-size */
         }
+
+
+
+        /******************************************************************************/
 
 
 
@@ -309,12 +355,6 @@
             white-space: nowrap;  /* Keep content on a single line */
         }
 
-        .info-container {
-            padding-bottom: 1.5em;
-            max-width: 80%; /* Restrict max-width to 80% of the parent div */
-            margin-top: -50px;
-
-        }
 
         .inline-element, .inline-block-element {
             display: inline;  /* Make the elements inline */
