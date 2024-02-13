@@ -511,7 +511,6 @@
 
         /******************************************************************************/
 
-
         /* MOVIE NAV BUTTONS STYLING */
         /* Styling for the row containing movie navigation buttons */
         .movie-nav-row {
@@ -522,6 +521,28 @@
             /* Add a background color if needed */
             background-color: #ffffff;
         }
+
+
+        /* Elements inside .movie-nav-row: */
+
+        /*
+         * - .movie-nav-buttons-wrapper: A flex container that aligns its child elements (navigation buttons)
+         *   to the left and centers them vertically. It is pulled upwards into position by a negative margin.
+         * - .movie-navigation-buttons: Individual button elements styled to look like clickable navigation buttons
+         */
+
+
+
+
+        /* This is the new CSS class acting as a flex container */
+        .movie-nav-buttons-wrapper {
+            display: flex; /* Enables flexbox */
+            justify-content: left; /* Horizontally aligns the buttons to the start */
+            align-items: center; /* Vertically centers the buttons */
+            margin-top: -3.75rem; /* Assuming a base font size of 16px, converts -60px to rem */
+        }
+
+
 
         /* Styling for the movie navigation buttons within the row */
         .movie-navigation-buttons {
@@ -540,13 +561,7 @@
 
 
 
-        /* This is the new CSS class acting as a flex container */
-        .movie-nav-buttons-wrapper {
-            display: flex; /* Enables flexbox */
-            justify-content: left; /* Horizontally aligns the buttons to the start */
-            align-items: center; /* Vertically centers the buttons */
-            margin-top: -3.75rem; /* Assuming a base font size of 16px, converts -60px to rem */
-        }
+
 
         /* Apply negative margin to the top of the column */
         .negative-margin-top {
