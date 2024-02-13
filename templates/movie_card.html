@@ -20,10 +20,10 @@
         /* Modern background color */
 
         @media (max-width: 768px) {
-    .backdrop-container {
-        min-height: 30vh; /* Example for smaller devices */
-    }
-}
+            .backdrop-container {
+                min-height: 30vh; /* Example for smaller devices */
+            }
+        }
 
 
 
@@ -97,42 +97,42 @@
 
 
 
-.movie-card-container {
-    padding-top: 8em; /* Add space at the top */
-    margin-top: 2em; /* Pull the container up if needed */
-}
+        .movie-card-container {
+            padding-top: 8em; /* Add space at the top */
+            margin-top: 2em; /* Pull the container up if needed */
+        }
 
-@media (max-width: 768px) {
-    .movie-card-container {
-        padding-top: 1em; /* Add space at the top for medium devices */
-        margin-top: 0; /* Reset any negative margin for medium devices */
-    }
+        @media (max-width: 768px) {
+            .movie-card-container {
+                padding-top: 1em; /* Add space at the top for medium devices */
+                margin-top: 0; /* Reset any negative margin for medium devices */
+            }
 
-    .main-movie-details {
-        margin-top: 1em; /* Adjust based on actual layout */
-    }
+            .main-movie-details {
+                margin-top: 1em; /* Adjust based on actual layout */
+            }
 
-    .backdrop-container {
-        min-height: 20vh; /* Adjust height for medium devices */
-        /* Other positioning or padding adjustments if necessary */
-    }
-}
+            .backdrop-container {
+                min-height: 20vh; /* Adjust height for medium devices */
+                /* Other positioning or padding adjustments if necessary */
+            }
+        }
 
-@media (max-width: 480px) {
-    .movie-card-container {
-        padding-top: 0.5em; /* Reduce space at the top for small devices */
-        margin-top: 0; /* Reset any negative margin for small devices */
-    }
+        @media (max-width: 480px) {
+            .movie-card-container {
+                padding-top: 0.5em; /* Reduce space at the top for small devices */
+                margin-top: 0; /* Reset any negative margin for small devices */
+            }
 
-    .main-movie-details {
-        margin-top: 0.5em; /* Adjust based on actual layout for small devices */
-    }
+            .main-movie-details {
+                margin-top: 0.5em; /* Adjust based on actual layout for small devices */
+            }
 
-    .backdrop-container {
-        min-height: 15vh; /* Adjust height for very small devices */
-        /* Other positioning or padding adjustments if necessary */
-    }
-}
+            .backdrop-container {
+                min-height: 15vh; /* Adjust height for very small devices */
+                /* Other positioning or padding adjustments if necessary */
+            }
+        }
 
 
 
@@ -379,29 +379,29 @@
             margin-right: 10px;  /* Add some right margin to increase space between year and director */
         }
 
-.backdrop-container {
-    position: relative;
-    width: 100%;
-    /* Adjust min-height for a tighter fit */
-    min-height: 25vh; /* Smaller height for all devices */
-    background-image: url('https://image.tmdb.org/t/p/original{{ movie.backdrop_url }}');
-    background-size: cover; /* Ensure it covers the full area */
-    background-position: center; /* Center the background image */
-    background-repeat: no-repeat;
-}
+        .backdrop-container {
+            position: relative;
+            width: 100%;
+            /* Adjust min-height for a tighter fit */
+            min-height: 25vh; /* Smaller height for all devices */
+            background-image: url('https://image.tmdb.org/t/p/original{{ movie.backdrop_url }}');
+            background-size: cover; /* Ensure it covers the full area */
+            background-position: center; /* Center the background image */
+            background-repeat: no-repeat;
+        }
 
-/* Media Queries for further adjustments */
-@media (max-width: 768px) {
-    .backdrop-container {
-        min-height: 20vh; /* Even smaller height for mobile devices */
-    }
-}
+        /* Media Queries for further adjustments */
+        @media (max-width: 768px) {
+            .backdrop-container {
+                min-height: 20vh; /* Even smaller height for mobile devices */
+            }
+        }
 
-@media (max-width: 480px) {
-    .backdrop-container {
-        min-height: 15vh; /* Smallest height for very small devices */
-    }
-}
+        @media (max-width: 480px) {
+            .backdrop-container {
+                min-height: 15vh; /* Smallest height for very small devices */
+            }
+        }
 
 
         /* Custom Button Style */
@@ -928,21 +928,21 @@
 <script src="https://rawgit.com/kottenator/jquery-circle-progress/1.2.2/dist/circle-progress.js"></script>
 
 <script>
-$(document).ready(function ($) {
-    // Log the current value of the data-percent attribute before initializing circle progress
-    console.log($('#rating-circle').data('percent')); // Should log the correct rating value * 10
+    $(document).ready(function ($) {
+        // Log the current value of the data-percent attribute before initializing circle progress
+        console.log($('#rating-circle').data('percent')); // Should log the correct rating value * 10
 
-    $('#rating-circle').circleProgress({
-        value: $('#rating-circle').data('percent') / 10, // Adjust if the rating system is out of 10
-        size: 100, // Size of the circle
-        thickness: 10, // Thickness of the circle line
-        fill: {
-            color: '#2bb030' // Fill color
-        }
-    }).on('circle-animation-progress', function (event, progress, stepValue) {
-        $(this).find('strong').text((stepValue * 10).toFixed(1));
+        $('#rating-circle').circleProgress({
+            value: $('#rating-circle').data('percent') / 10, // Adjust if the rating system is out of 10
+            size: 100, // Size of the circle
+            thickness: 10, // Thickness of the circle line
+            fill: {
+                color: '#2bb030' // Fill color
+            }
+        }).on('circle-animation-progress', function (event, progress, stepValue) {
+            $(this).find('strong').text((stepValue * 10).toFixed(1));
+        });
     });
-});
 </script>
 
 
