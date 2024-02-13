@@ -295,7 +295,6 @@
             overflow-x: auto;
             -webkit-overflow-scrolling: touch;
             scrollbar-width: thin;
-        {#margin: 0;#}
             margin-top: -90px;
             margin-left: 35px;
         }
@@ -342,16 +341,8 @@
 
         /* CSS */
         /* Reduce right margin of movie poster */
-        .col-lg-4.col-md-6.text-center.position-relative {
-            margin-right: -50px;  /* Adjust this value as needed */
-        }
 
         /* Or reduce left margin of info-container */
-        .col-lg-8.col-md-6.col-sm-10.mx-auto {
-            margin-left: -80px;  /* Adjust this value as needed */
-        }
-
-
 
 
         /* The children of .flex-item-details */
@@ -455,8 +446,7 @@
                     rgba(255,255,255,.059) 54.85185185%, rgba(255,255,255,.016) 56.87777778%,
                     rgba(255,255,255,0) 58.51851852%);
             z-index: 1; /* Layer it above the backdrop image but below the content */
-        {#margin-top: -30px;#}
-        {#            margin-bottom: -100px;#}
+
 
         }
         /* New CSS for play button */
@@ -504,9 +494,7 @@
             text-decoration: none;
             display: inline-block;
             font-size: 16px;
-        {#margin: 4px 2px;#}
             cursor: pointer;
-        {#border-radius: 12px;#}
             margin-right: 25px;  /* Add right margin */
 
         }
@@ -574,10 +562,6 @@
             }
 
             /* Adjust the movie title to take up the remaining space */
-            .movie-title-col {
-                flex-grow: 1; /* Allow the title to grow to fill remaining space */
-            }
-
             /* Optionally, reset margins if needed */
             .movie-poster {
                 margin-top: 0; /* Reset the top margin of the poster if necessary */
@@ -1003,22 +987,6 @@
     });
 
 
-
-    {##}
-    {#function formatVotes() {#}
-    {#    // Target the new vote-number element#}
-    {#    const voteElement = document.getElementById("vote-number");#}
-    {#    console.log("Original text: " + voteElement.textContent); // debug line#}
-    {##}
-    {#    // No need to split the text; it's just the vote count now#}
-    {#    let votesText = voteElement.textContent;#}
-    {##}
-    {#    // Format the vote count#}
-    {#    votesText = parseInt(votesText).toLocaleString();#}
-    {#    console.log("Formatted text: " + votesText); // debug line#}
-    {##}
-    {#    // Update the text content of vote-number#}
-    {#    voteElement.textContent = votesText;#}
 
     formatVotes();
 
