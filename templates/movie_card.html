@@ -112,6 +112,15 @@
             letter-spacing: -0.06em;  /* Negative value to reduce spacing */
         }
 
+                /* New CSS class to control the font size of the movie plot */
+        .movie-plot {
+            font-size: 1.0em; /* em is already relative; no change needed if it suits the design */
+            margin-top: 2.5rem; /* Converts 40px margin to rem based on 16px base font size */
+            margin-bottom: 2.5rem; /* Converts 40px margin to rem based on 16px base font size */
+            font-family: 'TiemposTextWeb-Regular', Georgia, serif;
+        }
+
+
 
 
 
@@ -187,6 +196,12 @@
             scrollbar-width: none;
         }
 
+                /* Custom style for bottom margin of the cast list */
+        .cast-list-margin {
+            margin-bottom: 18.75rem; /* Assuming the base font size is 16px, this converts 300px to rem */
+        }
+
+
         /******************************************************************************/
 
         /* VOTES STYLING */
@@ -228,17 +243,37 @@
         }
 
 
+        .rating-votes-wrapper {
+            min-width: 1400px;  /* Or whatever minimum width you need */
+        }
+
+                        .rating-votes-wrapper {
+            font-size: 0;
+        }
+
+                        /* Add margin to all buttons within .rating-votes-wrapper */
+        .rating-votes-wrapper button {
+            display: flex;
+            align-items: center;
+            margin: 0 1.25em; /* Converted 20px to em */
+        }
+
+
+
+
 
         /******************************************************************************/
 
 
-
+/* Circle styling */
 
 
         /* Style for rating-circle, if necessary */
         .rating-circle {
             margin-right: 1.25em !important;
         }
+
+
 
 
 
@@ -262,6 +297,9 @@
             line-height: 6.25em; /* Converted from 100px to em, same as the height */
         }
 
+                /******************************************************************************/
+
+
 
 
         div.row.custom-row-directed-written > div.col-sm-6 {
@@ -271,12 +309,6 @@
 
 
 
-        /* Add margin to all buttons within .rating-votes-wrapper */
-        .rating-votes-wrapper button {
-            display: flex;
-            align-items: center;
-            margin: 0 1.25em; /* Converted 20px to em */
-        }
 
 
         /* Add some spacing between buttons and genres */
@@ -284,24 +316,20 @@
             padding: 10px;
         }
 
-        .rating-votes-wrapper {
-            min-width: 1400px;  /* Or whatever minimum width you need */
-        }
 
-        /* Add margin to action buttons within .rating-votes-wrapper */
-        .action-button {
-            margin-left: 10px;  /* Add left margin */
-            margin-right: 10px; /* Add right margin */
-        }
 
-        .rating-votes-wrapper {
-            font-size: 0;
-        }
 
         /******************************************************************************/
 
 
         /*action button styles*/
+
+                /* Add margin to action buttons within .rating-votes-wrapper */
+        .action-button {
+            margin-left: 10px;  /* Add left margin */
+            margin-right: 10px; /* Add right margin */
+        }
+
 
 
         .action-button {
@@ -328,26 +356,20 @@
 
 
 
-        /* Flexbox wrapper for genres and year */
-        .genre-year-wrapper {
-            justify-content: flex-start; /* Align items to the start */
-        }
-
 
         /* Spacer div to control the gap */
         .spacer {
             width: 0.9375rem; /* Assuming the base font size is 16px, converts 15px to rem */
         }
 
-        /* New CSS class to control the font size of the movie plot */
-        .movie-plot {
-            font-size: 1.0em; /* em is already relative; no change needed if it suits the design */
-            margin-top: 2.5rem; /* Converts 40px margin to rem based on 16px base font size */
-            margin-bottom: 2.5rem; /* Converts 40px margin to rem based on 16px base font size */
-            font-family: 'TiemposTextWeb-Regular', Georgia, serif;
+        /******************************************************************************/
+
+
+/* year styling */
+
+                .year-content {
+            margin-right: 10px;  /* Add some right margin to increase space between year and director */
         }
-
-
 
 
         /* The children of .flex-item-details */
@@ -355,6 +377,19 @@
             white-space: nowrap;  /* Keep content on a single line */
         }
 
+
+                /******************************************************************************/
+
+/* genre styling */
+        /* Flexbox wrapper for genres and year */
+        .genre-year-wrapper {
+            justify-content: flex-start; /* Align items to the start */
+        }
+
+
+
+
+                /******************************************************************************/
 
         .inline-element, .inline-block-element {
             display: inline;  /* Make the elements inline */
@@ -365,11 +400,17 @@
             display: inline-block; /* Make the container inline-block */
         }
 
-        .year-content {
-            margin-right: 10px;  /* Add some right margin to increase space between year and director */
-        }
 
-        .backdrop-container {
+
+
+
+
+        /******************************************************************************/
+
+
+        /* GRADIENT STYLING */
+
+                .backdrop-container {
             position: relative;
             width: 100%;
             /* Adjust min-height for a tighter fit */
@@ -379,12 +420,6 @@
             background-position: center; /* Center the background image */
             background-repeat: no-repeat;
         }
-
-
-        /******************************************************************************/
-
-
-        /* GRADIENT STYLING */
 
 
         /* New Pseudo-element for gradient overlay */
@@ -461,7 +496,10 @@
         }
 
 
+        /******************************************************************************/
 
+
+/* MOVIE NAV BUTTONS STYLING */
         /* Styling for the row containing movie navigation buttons */
         .movie-nav-row {
             /* Convert padding to rem for scalability */
@@ -530,10 +568,6 @@
             right: 0; /* Stick to the right side */
         }
 
-        /* Custom style for bottom margin of the cast list */
-        .cast-list-margin {
-            margin-bottom: 18.75rem; /* Assuming the base font size is 16px, this converts 300px to rem */
-        }
 
         /******************************************************************************/
 
