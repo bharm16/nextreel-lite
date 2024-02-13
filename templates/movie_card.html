@@ -58,19 +58,19 @@
 
         }
 
-/*
-   Info Container
-   --------------
-   The .info-container holds the core elements that make up the movie's detailed information section. Specifically, it includes:
-   - A title display encapsulated in the .movie-title class.
-   - The movie's release year and director information, contained within the .year-content and .director-info classes.
-   - Genre information, which is displayed using dynamically generated buttons for each genre.
-   - A plot summary presented in the .movie-plot class, providing a brief overview of the movie.
-   - A score and votes section within the .score-votes-genre-section class, which also houses the .rating-circle for visual representation of the movie's rating and the .votes-label for displaying the number of votes.
-   - Navigation buttons to traverse between different movies, styled with the .movie-navigation-buttons class and wrapped within the .movie-nav-buttons-wrapper for proper alignment.
+        /*
+           Info Container
+           --------------
+           The .info-container holds the core elements that make up the movie's detailed information section. Specifically, it includes:
+           - A title display encapsulated in the .movie-title class.
+           - The movie's release year and director information, contained within the .year-content and .director-info classes.
+           - Genre information, which is displayed using dynamically generated buttons for each genre.
+           - A plot summary presented in the .movie-plot class, providing a brief overview of the movie.
+           - A score and votes section within the .score-votes-genre-section class, which also houses the .rating-circle for visual representation of the movie's rating and the .votes-label for displaying the number of votes.
+           - Navigation buttons to traverse between different movies, styled with the .movie-navigation-buttons class and wrapped within the .movie-nav-buttons-wrapper for proper alignment.
 
-   This structured container is integral for user interaction, delivering a comprehensive and engaging movie information experience.
-*/
+           This structured container is integral for user interaction, delivering a comprehensive and engaging movie information experience.
+        */
 
 
 
@@ -172,6 +172,8 @@
             margin-right: 1.25em;  /* Add a margin to the right */
             transform: scale(0.6);  /* Scale down to half size */
             transform-origin: 0 0;  /* Optional: define the point around which to scale */
+            min-width: 1400px;  /* Or whatever minimum width you need */
+            font-size: 0;
         }
 
 
@@ -180,13 +182,7 @@
         }
 
 
-        .rating-votes-wrapper {
-            min-width: 1400px;  /* Or whatever minimum width you need */
-        }
 
-        .rating-votes-wrapper {
-            font-size: 0;
-        }
 
         /* Add margin to all buttons within .rating-votes-wrapper */
         .rating-votes-wrapper button {
