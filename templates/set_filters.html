@@ -47,7 +47,6 @@
 
         .card-body {
             flex: 1 1 auto;
-        {#padding: 1.25rem;#}
         }
 
 
@@ -59,9 +58,7 @@
         }
 
         label.check input {
-            position: absolute;
-        {#top: 0;#}
-        {#left: 0;#}
+            {#position: absolute;#}
             visibility: hidden;
             pointer-events: none;
         }
@@ -72,7 +69,6 @@
             display: inline-block;
             color: #e0dde1;
             border-radius: 3px;
-        {#text-transform: uppercase;#}
         }
 
         label.check input:checked + span {
@@ -104,15 +100,6 @@
 
 
 
-
-        {##}
-        {#.language-dropdown {#}
-        {#    width: 100%;  /* You can set this to any value that suits your design */#}
-        {#    align-items: center;  /* Center text vertically */#}
-        {#    justify-content: center;#}
-        {#
-{#        #}
-
         /* Add these styles to make the checkboxes the same size */
         .check span {
             /* ... existing styles ... */
@@ -142,10 +129,15 @@
             align-items: center;
         }
 
-
-
-
-
+        @media (max-width: 768px) {
+            .card {
+                margin: 1rem; /* Smaller margin on smaller screens */
+            }
+            .check span {
+                padding: 0.25rem 0.5rem; /* Smaller padding on smaller screens */
+                font-size: 0.8rem; /* Smaller font size on smaller screens */
+            }
+        }
 
 
     </style>
