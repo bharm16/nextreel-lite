@@ -1,26 +1,9 @@
-/*
-*
-* ==========================================
-* CUSTOM UTIL CLASSES
-* ==========================================
-*
-*/
 .bg-cover {
     background-size: cover !important;
 }
 
-
-
-/*
-*
-* ==========================================
-* FOR DEMO PURPOSES
-* ==========================================
-*
-*/
-
 body {
-    min-height: 100vh;
+    min-height: 100vh; /* This is already responsive */
 }
 
 /* Custom class to make certain elements span the entire width */
@@ -48,11 +31,8 @@ body {
 
 /* Custom class for the header wrapper */
 .header-wrapper {
-  padding: 60px 0;  /* Vertical padding */
+  padding: 5vh 0; /* Use viewport height for responsive vertical padding */
   display: flex;
   align-items: center;
   justify-content: center;
 }
-
-
-

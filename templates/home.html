@@ -13,6 +13,7 @@
     <style>
         body {
             font-family: 'Merriweather', serif;
+            overflow-x: hidden; /* Prevent horizontal scrolling */
         }
         .header-full-width {
             width: 100%;
@@ -20,7 +21,14 @@
             margin: 0 !important;
             box-shadow: none;
             border-radius: 0;
-            height: 100%;
+            height: auto; /* Adjusted to auto for flexible height */
+        }
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .responsive-element {
+                width: 100%; /* Adjust width for smaller screens */
+            }
+            /* Add more responsive styles as needed */
         }
     </style>
 </head>
