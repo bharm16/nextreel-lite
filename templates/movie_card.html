@@ -36,14 +36,43 @@
 
 
 
+        /* Movie Card Container */
+        /* This container wraps around the main movie details, including the movie poster, detailed information about the movie (title, year, director, genres, plot),
+        rating and votes, and navigation buttons. It's designed to provide spacing at the top of the container for aesthetic separation from other page elements. */
+
+        .movie-card-container {
+            padding-top: 8em; /* Add space at the top for visual separation */
+            margin-top: 2em; /* Adjust the container's position upwards if needed */
+        }
 
 
+        /* Main Movie Details  */
+        /* This container holds the movie poster, detailed information about the movie (title, year, director, genres, and plot),
+        rating and votes, and navigation buttons for moving between movies. */
+
+        /* Float the row containing movie details above the backdrop */
+        .main-movie-details {
+            position: relative; /* Make it a positioned element */
+            z-index: 3; /* Float above backdrop */
+            padding-bottom: 12.5vh;
+
+        }
+
+/*
+   Info Container
+   --------------
+   The .info-container holds the core elements that make up the movie's detailed information section. Specifically, it includes:
+   - A title display encapsulated in the .movie-title class.
+   - The movie's release year and director information, contained within the .year-content and .director-info classes.
+   - Genre information, which is displayed using dynamically generated buttons for each genre.
+   - A plot summary presented in the .movie-plot class, providing a brief overview of the movie.
+   - A score and votes section within the .score-votes-genre-section class, which also houses the .rating-circle for visual representation of the movie's rating and the .votes-label for displaying the number of votes.
+   - Navigation buttons to traverse between different movies, styled with the .movie-navigation-buttons class and wrapped within the .movie-nav-buttons-wrapper for proper alignment.
+
+   This structured container is integral for user interaction, delivering a comprehensive and engaging movie information experience.
+*/
 
 
-
-
-
-        /******************************************************************************/
 
         /* INFO STYLING */
 
@@ -73,17 +102,8 @@
         }
 
 
-        /******************************************************************************/
 
 
-
-        /* Float the row containing movie details above the backdrop */
-        .main-movie-details {
-            position: relative; /* Make it a positioned element */
-            z-index: 3; /* Float above backdrop */
-            padding-bottom: 12.5vh;
-
-        }
 
 
         /* MOVIE STYLING */
@@ -101,7 +121,6 @@
         }
 
         .movie-title {
-            /* Existing styles */
             font-size: 3.6em;  /* No change needed */
             margin-bottom: 0;
             padding-bottom: -1.875em;  /* Responsive padding */
@@ -112,7 +131,7 @@
             letter-spacing: -0.06em;  /* Negative value to reduce spacing */
         }
 
-                /* New CSS class to control the font size of the movie plot */
+        /* New CSS class to control the font size of the movie plot */
         .movie-plot {
             font-size: 1.0em; /* em is already relative; no change needed if it suits the design */
             margin-top: 2.5rem; /* Converts 40px margin to rem based on 16px base font size */
@@ -122,12 +141,132 @@
 
 
 
+        /* VOTES STYLING */
 
 
-        .movie-card-container {
-            padding-top: 8em; /* Add space at the top */
-            margin-top: 2em; /* Pull the container up if needed */
+        /* New styles for votes-label */
+        .votes-label {
+            font-size: 0.94em; /* Responsive font size */
+            color: #333;
+            text-align: center;
+            background-color: rgba(255, 255, 255, 0.5);
+            border: 2px solid #333;
+            border-radius: 50%;
+            width: 5.21vw; /* Responsive width */
+            height: 9.26vh; /* Responsive height */
+            line-height: normal; /* Override the line-height */
+            margin-left: 0.52vw; /* Responsive margin */
+            display: flex; /* Make it a flex container */
+            justify-content: center; /* Center content horizontally */
+            align-items: center; /* Center content vertically */
+            flex-wrap: wrap; /* Allow items to wrap */
+            flex-direction: column; /* Stack items vertically */
+            overflow: hidden; /* Hide any overflow */
+            white-space: normal; /* Allow line breaks and text wrapping */
         }
+
+        /* Wrapper to control the size and layout of both components */
+        .rating-votes-wrapper {
+            display: flex;
+            align-items: center;
+            margin-right: 1.25em;  /* Add a margin to the right */
+            transform: scale(0.6);  /* Scale down to half size */
+            transform-origin: 0 0;  /* Optional: define the point around which to scale */
+        }
+
+
+        #vote-number, #vote-text {
+            white-space: normal; /* Allow line breaks and text wrapping */
+        }
+
+
+        .rating-votes-wrapper {
+            min-width: 1400px;  /* Or whatever minimum width you need */
+        }
+
+        .rating-votes-wrapper {
+            font-size: 0;
+        }
+
+        /* Add margin to all buttons within .rating-votes-wrapper */
+        .rating-votes-wrapper button {
+            display: flex;
+            align-items: center;
+            margin: 0 1.25em; /* Converted 20px to em */
+        }
+
+
+
+
+
+        /******************************************************************************/
+
+
+        /* Circle styling */
+
+
+        /* Style for rating-circle, if necessary */
+        .rating-circle {
+            margin-right: 1.25em !important;
+        }
+
+
+
+
+
+
+        /* Make the rating-circle and votes-label the same size */
+        .rating-circle, .votes-label {
+            width: 6.25em; /* Converted from 100px to em */
+            height: 6.25em; /* Converted from 100px to em */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Check text alignment and box sizing */
+        .rating-circle strong, .votes-label {
+            text-align: center;
+            margin: 0;
+            box-sizing: border-box;
+            line-height: 6.25em; /* Converted from 100px to em, same as the height */
+        }
+
+        /******************************************************************************/
+
+
+
+
+        div.row.custom-row-directed-written > div.col-sm-6 {
+            padding-left: 0 !important;  /* Reduce left padding */
+            padding-right: 0 !important;  /* Reduce right padding */
+        }
+
+
+
+
+
+        /* Add some spacing between buttons and genres */
+        .score-votes-genre-section > .col-md-6 {
+            padding: 10px;
+        }
+
+
+
+
+
+
+
+        /******************************************************************************/
+
+
+
+
+
+
+
 
         /******************************************************************************/
 
@@ -196,7 +335,7 @@
             scrollbar-width: none;
         }
 
-                /* Custom style for bottom margin of the cast list */
+        /* Custom style for bottom margin of the cast list */
         .cast-list-margin {
             margin-bottom: 18.75rem; /* Assuming the base font size is 16px, this converts 300px to rem */
         }
@@ -204,151 +343,29 @@
 
         /******************************************************************************/
 
-        /* VOTES STYLING */
-
-
-        /* New styles for votes-label */
-        .votes-label {
-            font-size: 0.94em; /* Responsive font size */
-            color: #333;
-            text-align: center;
-            background-color: rgba(255, 255, 255, 0.5);
-            border: 2px solid #333;
-            border-radius: 50%;
-            width: 5.21vw; /* Responsive width */
-            height: 9.26vh; /* Responsive height */
-            line-height: normal; /* Override the line-height */
-            margin-left: 0.52vw; /* Responsive margin */
-            display: flex; /* Make it a flex container */
-            justify-content: center; /* Center content horizontally */
-            align-items: center; /* Center content vertically */
-            flex-wrap: wrap; /* Allow items to wrap */
-            flex-direction: column; /* Stack items vertically */
-            overflow: hidden; /* Hide any overflow */
-            white-space: normal; /* Allow line breaks and text wrapping */
-        }
-
-        /* Wrapper to control the size and layout of both components */
-        .rating-votes-wrapper {
-            display: flex;
-            align-items: center;
-            margin-right: 1.25em;  /* Add a margin to the right */
-            transform: scale(0.6);  /* Scale down to half size */
-            transform-origin: 0 0;  /* Optional: define the point around which to scale */
-        }
-
-
-        #vote-number, #vote-text {
-            white-space: normal; /* Allow line breaks and text wrapping */
-        }
-
-
-        .rating-votes-wrapper {
-            min-width: 1400px;  /* Or whatever minimum width you need */
-        }
-
-                        .rating-votes-wrapper {
-            font-size: 0;
-        }
-
-                        /* Add margin to all buttons within .rating-votes-wrapper */
-        .rating-votes-wrapper button {
-            display: flex;
-            align-items: center;
-            margin: 0 1.25em; /* Converted 20px to em */
-        }
-
-
 
 
 
         /******************************************************************************/
-
-
-/* Circle styling */
-
-
-        /* Style for rating-circle, if necessary */
-        .rating-circle {
-            margin-right: 1.25em !important;
-        }
-
-
-
-
-
-
-        /* Make the rating-circle and votes-label the same size */
-        .rating-circle, .votes-label {
-            width: 6.25em; /* Converted from 100px to em */
-            height: 6.25em; /* Converted from 100px to em */
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            margin: 0;
-            padding: 0;
-        }
-
-        /* Check text alignment and box sizing */
-        .rating-circle strong, .votes-label {
-            text-align: center;
-            margin: 0;
-            box-sizing: border-box;
-            line-height: 6.25em; /* Converted from 100px to em, same as the height */
-        }
-
-                /******************************************************************************/
-
-
-
-
-        div.row.custom-row-directed-written > div.col-sm-6 {
-            padding-left: 0 !important;  /* Reduce left padding */
-            padding-right: 0 !important;  /* Reduce right padding */
-        }
-
-
-
-
-
-        /* Add some spacing between buttons and genres */
-        .score-votes-genre-section > .col-md-6 {
-            padding: 10px;
-        }
-
-
-
-
-        /******************************************************************************/
-
-
-        /*action button styles*/
-
-                /* Add margin to action buttons within .rating-votes-wrapper */
+        /* Action Button Styles */
         .action-button {
-            margin-left: 10px;  /* Add left margin */
-            margin-right: 10px; /* Add right margin */
+            margin: 0 10px; /* Combined left and right margins */
+            font-size: 12px; /* Set a consistent font size for action buttons */
         }
 
-
-
-        .action-button {
-            /* Inherit the same styles as .votes-label */
-            /* Any additional styles specific to action buttons can go here */
-        }
         .action-button i {
-            margin-bottom: 0.3125em; /* Converted 5px to em */
+            margin-bottom: 0.3125em; /* Keep icon margin bottom */
         }
+
         .action-button div {
-            font-size: 1.25em; /* Converted 20px to em, assuming base font size is 16px */
-            font-weight: bold;
+            font-size: 1.25em; /* Adjust font size for text within div */
+            font-weight: bold; /* Make the text bold */
         }
 
-
+        /* Shared Styles for Action Button, Votes Label, and Rating Circle */
         .action-button, .votes-label, .rating-circle {
-            font-size: 12px; /* reset to the desired font-size */
+            font-size: 12px; /* Ensure consistent font size among these elements */
         }
-
 
 
         /******************************************************************************/
@@ -365,9 +382,9 @@
         /******************************************************************************/
 
 
-/* year styling */
+        /* year styling */
 
-                .year-content {
+        .year-content {
             margin-right: 10px;  /* Add some right margin to increase space between year and director */
         }
 
@@ -378,9 +395,9 @@
         }
 
 
-                /******************************************************************************/
+        /******************************************************************************/
 
-/* genre styling */
+        /* genre styling */
         /* Flexbox wrapper for genres and year */
         .genre-year-wrapper {
             justify-content: flex-start; /* Align items to the start */
@@ -389,7 +406,7 @@
 
 
 
-                /******************************************************************************/
+        /******************************************************************************/
 
         .inline-element, .inline-block-element {
             display: inline;  /* Make the elements inline */
@@ -410,7 +427,7 @@
 
         /* GRADIENT STYLING */
 
-                .backdrop-container {
+        .backdrop-container {
             position: relative;
             width: 100%;
             /* Adjust min-height for a tighter fit */
@@ -499,7 +516,7 @@
         /******************************************************************************/
 
 
-/* MOVIE NAV BUTTONS STYLING */
+        /* MOVIE NAV BUTTONS STYLING */
         /* Styling for the row containing movie navigation buttons */
         .movie-nav-row {
             /* Convert padding to rem for scalability */
