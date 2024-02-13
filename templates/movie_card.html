@@ -17,13 +17,6 @@
 
 
     <style>
-        /* Modern background color */
-
-        @media (max-width: 768px) {
-            .backdrop-container {
-                min-height: 30vh; /* Example for smaller devices */
-            }
-        }
 
 
 
@@ -102,37 +95,6 @@
             margin-top: 2em; /* Pull the container up if needed */
         }
 
-        @media (max-width: 768px) {
-            .movie-card-container {
-                padding-top: 1em; /* Add space at the top for medium devices */
-                margin-top: 0; /* Reset any negative margin for medium devices */
-            }
-
-            .main-movie-details {
-                margin-top: 1em; /* Adjust based on actual layout */
-            }
-
-            .backdrop-container {
-                min-height: 20vh; /* Adjust height for medium devices */
-                /* Other positioning or padding adjustments if necessary */
-            }
-        }
-
-        @media (max-width: 480px) {
-            .movie-card-container {
-                padding-top: 0.5em; /* Reduce space at the top for small devices */
-                margin-top: 0; /* Reset any negative margin for small devices */
-            }
-
-            .main-movie-details {
-                margin-top: 0.5em; /* Adjust based on actual layout for small devices */
-            }
-
-            .backdrop-container {
-                min-height: 15vh; /* Adjust height for very small devices */
-                /* Other positioning or padding adjustments if necessary */
-            }
-        }
 
 
 
@@ -177,7 +139,7 @@
 
         }
 
-                /* Make the cast row scrollable */
+        /* Make the cast row scrollable */
         .cast-list {
             display: flex;
             overflow-x: auto;
@@ -374,23 +336,11 @@
             background-repeat: no-repeat;
         }
 
-        /* Media Queries for further adjustments */
-        @media (max-width: 768px) {
-            .backdrop-container {
-                min-height: 20vh; /* Even smaller height for mobile devices */
-            }
-        }
-
-        @media (max-width: 480px) {
-            .backdrop-container {
-                min-height: 15vh; /* Smallest height for very small devices */
-            }
-        }
 
 
         /* Custom Button Style */
 
-
+        /* GRADIENT STYLING */
 
 
         /* New Pseudo-element for gradient overlay */
@@ -442,8 +392,10 @@
 
 
         }
-        /* New CSS for play button */
-        /* New CSS for play button */
+
+
+
+        /* PLAY BUTTON STYLING */
         .play-trailer-button {
             font-size: 1.25rem; /* Use rem for scalable font size */
             color: #333; /* Text color */
@@ -462,6 +414,8 @@
         .play-trailer-button i, .play-trailer-button span {
             margin-right: 0.3125rem; /* Convert 5px margin to rem */
         }
+
+
 
         /* Styling for the row containing movie navigation buttons */
         .movie-nav-row {
@@ -533,7 +487,7 @@
             margin-bottom: 18.75rem; /* Assuming the base font size is 16px, this converts 300px to rem */
         }
 
-
+/* MEDIA QUERIES */
 
         /* Adjustments for mobile layout */
         @media (max-width: 768px) {
@@ -685,51 +639,106 @@
                 margin-top: 0;
             }
 
-/* Adjust actor card sizes for smaller screens */
-    .actor-card {
-        width: 18vw; /* Adjusted width for smaller screens to maintain visual balance */
-        margin: 0.5em; /* Add a little margin to separate cards visually */
-        padding: 0.5em; /* Slightly reduce padding */
-    }
+            /* Adjust actor card sizes for smaller screens */
+            .actor-card {
+                width: 18vw; /* Adjusted width for smaller screens to maintain visual balance */
+                margin: 0.5em; /* Add a little margin to separate cards visually */
+                padding: 0.5em; /* Slightly reduce padding */
+            }
 
-    /* Scale down actor card images while maintaining their aspect ratio */
-    .actor-card img {
-        max-height: 15vh; /* Scaled down max height for actor images */
-    }
+            /* Scale down actor card images while maintaining their aspect ratio */
+            .actor-card img {
+                max-height: 15vh; /* Scaled down max height for actor images */
+            }
 
-    /* Adjust the card body to ensure text remains visible and not too cramped */
-    .actor-card .card-body {
-        min-height: auto; /* Allow the height to adjust based on content */
-        max-height: none; /* Remove max height restriction */
-        overflow: visible; /* Adjust if necessary to ensure text is not cut off */
-    }
+            /* Adjust the card body to ensure text remains visible and not too cramped */
+            .actor-card .card-body {
+                min-height: auto; /* Allow the height to adjust based on content */
+                max-height: none; /* Remove max height restriction */
+                overflow: visible; /* Adjust if necessary to ensure text is not cut off */
+            }
 
-    /* Adjust footer padding and font size for readability */
-    .actor-card .card-footer {
-        padding: 0.1em;
-        font-size: 0.9em; /* Slightly reduce font size */
-    }
+            /* Adjust footer padding and font size for readability */
+            .actor-card .card-footer {
+                padding: 0.1em;
+                font-size: 0.9em; /* Slightly reduce font size */
+            }
 
-    /* Enhance cast list scrollability on smaller screens */
-    .cast-list {
-        margin-top: -60px; /* Adjust top margin to better fit within the layout */
-        margin-left: 20px; /* Adjust left margin for consistency */
-    }
+            /* Enhance cast list scrollability on smaller screens */
+            .cast-list {
+                margin-top: -60px; /* Adjust top margin to better fit within the layout */
+                margin-left: 20px; /* Adjust left margin for consistency */
+            }
 
-    /* Optional: Adjustments for the scrollbar, if you want to make it visible or style it */
-    .cast-list::-webkit-scrollbar {
-        display: block; /* Make scrollbar visible or style as needed */
-        height: 4px; /* Example: Adjust height */
-    }
+            /* Optional: Adjustments for the scrollbar, if you want to make it visible or style it */
+            .cast-list::-webkit-scrollbar {
+                display: block; /* Make scrollbar visible or style as needed */
+                height: 4px; /* Example: Adjust height */
+            }
 
-    .cast-list {
-        scrollbar-color: #888 #e0e0e0; /* Example: Style scrollbar for Firefox */
-        scrollbar-width: thin; /* Keep scrollbar width thin */
-    }
+            .cast-list {
+                scrollbar-color: #888 #e0e0e0; /* Example: Style scrollbar for Firefox */
+                scrollbar-width: thin; /* Keep scrollbar width thin */
+            }
 
 
 
         }
+
+
+        @media (max-width: 768px) {
+            .movie-card-container {
+                padding-top: 1em; /* Add space at the top for medium devices */
+                margin-top: 0; /* Reset any negative margin for medium devices */
+            }
+
+            .main-movie-details {
+                margin-top: 1em; /* Adjust based on actual layout */
+            }
+
+            .backdrop-container {
+                min-height: 20vh; /* Adjust height for medium devices */
+                /* Other positioning or padding adjustments if necessary */
+            }
+        }
+
+        @media (max-width: 480px) {
+            .movie-card-container {
+                padding-top: 0.5em; /* Reduce space at the top for small devices */
+                margin-top: 0; /* Reset any negative margin for small devices */
+            }
+
+            .main-movie-details {
+                margin-top: 0.5em; /* Adjust based on actual layout for small devices */
+            }
+
+            .backdrop-container {
+                min-height: 15vh; /* Adjust height for very small devices */
+                /* Other positioning or padding adjustments if necessary */
+            }
+        }
+
+           /* Media Queries for further adjustments */
+        @media (max-width: 768px) {
+            .backdrop-container {
+                min-height: 20vh; /* Even smaller height for mobile devices */
+            }
+        }
+
+        @media (max-width: 480px) {
+            .backdrop-container {
+                min-height: 15vh; /* Smallest height for very small devices */
+            }
+        }
+
+                /* Modern background color */
+
+        @media (max-width: 768px) {
+            .backdrop-container {
+                min-height: 30vh; /* Example for smaller devices */
+            }
+        }
+
 
 
 
