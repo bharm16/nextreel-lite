@@ -322,27 +322,18 @@
 
         /* Spacer div to control the gap */
         .spacer {
-            width: 15px; /* You can adjust this width */
+            width: 0.9375rem; /* Assuming the base font size is 16px, converts 15px to rem */
         }
-
-
 
         /* New CSS class to control the font size of the movie plot */
         .movie-plot {
-            font-size: 1.0em;  /* You can adjust this value according to your needs */
-            margin-top: 40px;
-            margin-bottom: 40px;
+            font-size: 1.0em; /* em is already relative; no change needed if it suits the design */
+            margin-top: 2.5rem; /* Converts 40px margin to rem based on 16px base font size */
+            margin-bottom: 2.5rem; /* Converts 40px margin to rem based on 16px base font size */
             font-family: 'TiemposTextWeb-Regular', Georgia, serif;
-
-
         }
 
 
-
-        /* CSS */
-        /* Reduce right margin of movie poster */
-
-        /* Or reduce left margin of info-container */
 
 
         /* The children of .flex-item-details */
@@ -465,50 +456,50 @@
         }
 
 
-/* Make sure the icon and text align well */
-.play-trailer-button i, .play-trailer-button span {
-    margin-right: 0.3125rem; /* Convert 5px margin to rem */
-}
+        /* Make sure the icon and text align well */
+        .play-trailer-button i, .play-trailer-button span {
+            margin-right: 0.3125rem; /* Convert 5px margin to rem */
+        }
 
-/* Styling for the row containing movie navigation buttons */
-.movie-nav-row {
-    /* Convert padding to rem for scalability */
-    padding: 0.9375rem 0; /* Convert 15px padding to rem */
-    /* Center the row content */
-    justify-content: center;
-    /* Add a background color if needed */
-    background-color: #ffffff;
-}
+        /* Styling for the row containing movie navigation buttons */
+        .movie-nav-row {
+            /* Convert padding to rem for scalability */
+            padding: 0.9375rem 0; /* Convert 15px padding to rem */
+            /* Center the row content */
+            justify-content: center;
+            /* Add a background color if needed */
+            background-color: #ffffff;
+        }
 
-/* Styling for the movie navigation buttons within the row */
-.movie-navigation-buttons {
-    /* Customize button appearance */
-    background-color: #19c20c;
-    color: #ffffff;
-    border: none;
-    padding: 0.25em 0.375em; /* Convert pixel values to em */
-    text-align: center;
-    text-decoration: none;
-    display: inline-block;
-    font-size: 1em; /* Use 1em for font-size to scale with user's default settings */
-    cursor: pointer;
-    margin-right: 1.5625em; /* Convert pixel value of 25px to em assuming base font-size is 16px */
-}
+        /* Styling for the movie navigation buttons within the row */
+        .movie-navigation-buttons {
+            /* Customize button appearance */
+            background-color: #19c20c;
+            color: #ffffff;
+            border: none;
+            padding: 0.25em 0.375em; /* Convert pixel values to em */
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 1em; /* Use 1em for font-size to scale with user's default settings */
+            cursor: pointer;
+            margin-right: 1.5625em; /* Convert pixel value of 25px to em assuming base font-size is 16px */
+        }
 
 
 
-/* This is the new CSS class acting as a flex container */
-.movie-nav-buttons-wrapper {
-    display: flex; /* Enables flexbox */
-    justify-content: left; /* Horizontally aligns the buttons to the start */
-    align-items: center; /* Vertically centers the buttons */
-    margin-top: -3.75rem; /* Assuming a base font size of 16px, converts -60px to rem */
-}
+        /* This is the new CSS class acting as a flex container */
+        .movie-nav-buttons-wrapper {
+            display: flex; /* Enables flexbox */
+            justify-content: left; /* Horizontally aligns the buttons to the start */
+            align-items: center; /* Vertically centers the buttons */
+            margin-top: -3.75rem; /* Assuming a base font size of 16px, converts -60px to rem */
+        }
 
-/* Apply negative margin to the top of the column */
-.negative-margin-top {
-    margin-top: -3.75rem; /* Converts -60px to rem, adjust as needed */
-}
+        /* Apply negative margin to the top of the column */
+        .negative-margin-top {
+            margin-top: -3.75rem; /* Converts -60px to rem, adjust as needed */
+        }
 
 
 
@@ -535,10 +526,10 @@
             right: 0; /* Stick to the right side */
         }
 
-/* Custom style for bottom margin of the cast list */
-.cast-list-margin {
-    margin-bottom: 18.75rem; /* Assuming the base font size is 16px, this converts 300px to rem */
-}
+        /* Custom style for bottom margin of the cast list */
+        .cast-list-margin {
+            margin-bottom: 18.75rem; /* Assuming the base font size is 16px, this converts 300px to rem */
+        }
 
 
 
