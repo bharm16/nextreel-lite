@@ -604,12 +604,23 @@
 
         /* Adjustments for mobile layout */
         @media (max-width: 768px) {
+
+            body {
+                padding-bottom: 10vh; /* Reduced padding */
+            }
             /* Make the movie details section a flex container */
             .main-movie-details {
                 display: flex;
                 flex-wrap: wrap;
                 align-items: center; /* This will vertically center the items in the container */
+                padding-bottom: 6vh; /* Adjust padding */
+                flex-direction: row;
+                margin-top: 1em; /* Adjust based on actual layout */
+
             }
+
+
+
 
             /* Adjust the movie poster column to come before the title */
             .movie-poster-col {
@@ -618,21 +629,39 @@
                 order: -1; /* Order -1 will make it come before elements with order 0 */
             }
 
-            /* Adjust the movie title to take up the remaining space */
-            /* Optionally, reset margins if needed */
             .movie-poster {
-                margin-top: 0; /* Reset the top margin of the poster if necessary */
+                max-width: 100%; /* Allow poster to use available width */
+                height: auto; /* Keep the aspect ratio */
+                order: -1; /* Bring poster to the left side */
             }
 
-            body {
-                padding-bottom: 10vh; /* Reduced padding */
+                      /* Movie Title */
+            .movie-title {
+                font-size: 2em; /* Smaller font size for mobile */
+                padding-bottom: 0; /* Adjust padding */
             }
 
-            /* Movie Details Layout */
-            .main-movie-details {
-                flex-direction: column;
-                padding-bottom: 6vh; /* Adjust padding */
+                    /* Ensure the movie poster takes up full width and is left-aligned */
+            .movie-poster-col {
+                order: -1; /* This ensures the poster appears on the left */
+                max-width: 50%; /* Adjust the width as necessary */
             }
+
+            /* Adjust the movie details column */
+            .movie-details-col {
+                max-width: 50%; /* Adjust the width as necessary */
+            }
+
+
+
+            .movie-poster-col, .movie-details-col {
+                flex-basis: 100%; /* Take full width of the container */
+            }
+
+
+
+
+
 
             /* Info Box */
             .info-box {
@@ -640,16 +669,13 @@
                 padding: 5px; /* Adjust padding */
             }
 
-            /* Movie Poster */
-            .movie-poster {
-                max-width: 100%; /* Full width for small screens */
-                margin-top: 0; /* Adjust top margin */
-            }
 
-            /* Movie Title */
-            .movie-title {
-                font-size: 2em; /* Smaller font size for mobile */
-                padding-bottom: 0; /* Adjust padding */
+
+
+            /* Info Container */
+            .info-container {
+                max-width: 100%; /* Full width on smaller screens */
+                margin-top: 0; /* Adjust top margin */
             }
 
 
@@ -666,11 +692,7 @@
                 margin-left: 0; /* Adjust left margin */
             }
 
-            /* Info Container */
-            .info-container {
-                max-width: 100%; /* Full width on smaller screens */
-                margin-top: 0; /* Adjust top margin */
-            }
+
 
             /* Navigation Buttons */
             .movie-navigation-buttons {
@@ -685,68 +707,17 @@
             }
 
 
-
-
-            .movie-poster {
-                max-width: 100%; /* Full width within its column */
-                height: auto;
-            }
-
-            .movie-poster {
-                max-width: 100%; /* Full width within its column */
-                height: auto;
-            }
-
             .main-movie-details .col-12 {
                 flex: 0 0 50%; /* Each column takes up 50% of the width */
                 max-width: 50%;
             }
 
-            .movie-poster {
-                max-width: 100%; /* Full width within its column */
-                height: auto;
-            }
 
-            /* Ensure the movie details and poster align properly */
-            .main-movie-details {
-                display: flex;
-                flex-wrap: nowrap;
-            }
 
-            .main-movie-details {
-                flex-direction: row;
-            }
 
-            /* Ensure the movie poster takes up full width and is left-aligned */
-            .movie-poster-col {
-                order: -1; /* This ensures the poster appears on the left */
-                max-width: 50%; /* Adjust the width as necessary */
-            }
 
-            /* Adjust the movie details column */
-            .movie-details-col {
-                max-width: 50%; /* Adjust the width as necessary */
-            }
 
-            /* Adjust the movie poster size if necessary */
-            .movie-poster {
-                max-width: 100%;
-                height: auto;
-            }
 
-            .main-movie-details {
-                display: flex;
-                flex-direction: row;
-                align-items: center;
-            }
-            .movie-poster-col, .movie-details-col {
-                flex-basis: 100%; /* Take full width of the container */
-            }
-            .movie-poster {
-                max-width: 100%; /* Allow poster to use available width */
-                height: auto; /* Keep the aspect ratio */
-                order: -1; /* Bring poster to the left side */
-            }
             /* Reset any negative margins that might be causing layout issues */
             .negative-margin-top {
                 margin-top: 0;
@@ -781,6 +752,8 @@
             .cast-list {
                 margin-top: -60px; /* Adjust top margin to better fit within the layout */
                 margin-left: 20px; /* Adjust left margin for consistency */
+                scrollbar-color: #888 #e0e0e0; /* Example: Style scrollbar for Firefox */
+                scrollbar-width: thin; /* Keep scrollbar width thin */
             }
 
             /* Optional: Adjustments for the scrollbar, if you want to make it visible or style it */
@@ -789,31 +762,24 @@
                 height: 4px; /* Example: Adjust height */
             }
 
-            .cast-list {
-                scrollbar-color: #888 #e0e0e0; /* Example: Style scrollbar for Firefox */
-                scrollbar-width: thin; /* Keep scrollbar width thin */
-            }
 
-
-
-        }
-
-
-        @media (max-width: 768px) {
             .movie-card-container {
                 padding-top: 1em; /* Add space at the top for medium devices */
                 margin-top: 0; /* Reset any negative margin for medium devices */
             }
 
-            .main-movie-details {
-                margin-top: 1em; /* Adjust based on actual layout */
-            }
 
             .backdrop-container {
                 min-height: 20vh; /* Adjust height for medium devices */
                 /* Other positioning or padding adjustments if necessary */
             }
+
+
+
         }
+
+
+
 
         @media (max-width: 480px) {
             .movie-card-container {
