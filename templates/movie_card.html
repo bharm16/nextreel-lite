@@ -627,12 +627,15 @@
                 flex: 0 0 auto; /* Do not grow, do not shrink, and base width on content */
                 width: auto; /* Set to auto so it only takes up as much space as needed */
                 order: -1; /* Order -1 will make it come before elements with order 0 */
+                margin-top: -20vh;
             }
 
             .movie-poster {
                 max-width: 100%; /* Allow poster to use available width */
                 height: auto; /* Keep the aspect ratio */
                 order: -1; /* Bring poster to the left side */
+                align-self: flex-start; /* Align to the start */
+
             }
 
                       /* Movie Title */
@@ -797,12 +800,7 @@
             }
         }
 
-        /* Media Queries for further adjustments */
-        @media (max-width: 768px) {
-            .backdrop-container {
-                min-height: 20vh; /* Even smaller height for mobile devices */
-            }
-        }
+
 
         @media (max-width: 480px) {
             .backdrop-container {
@@ -810,13 +808,7 @@
             }
         }
 
-        /* Modern background color */
 
-        @media (max-width: 768px) {
-            .backdrop-container {
-                min-height: 30vh; /* Example for smaller devices */
-            }
-        }
 
 
         /******************************************************************************/
