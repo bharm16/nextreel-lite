@@ -96,6 +96,37 @@ class MovieManager:
             self.user_future_movies_stack[user_id] = []
         return self.user_previous_movies_stack[user_id], self.user_future_movies_stack[user_id]
 
+    async def get_movie_by_slug(self, user_id, slug):
+        """
+        Fetch movie details from the user's stacks or queue based on the slug.
+        """
+        # Retrieve user-specific stacks
+        prev_stack, future_stack = self._get_user_stacks(user_id)
+
+        # Check the future stack
+        for movie in future_stack:
+            if movie.get('slug') == slug:
+                return movie
+
+        # Check the current displayed movie
+        if self.current_displayed_movie and self.current_displayed_movie.get('slug') == slug:
+            return self.current_displayed_movie
+
+        # Check the previous stack
+        for movie in prev_stack:
+            if movie.get('slug') == slug:
+                return movie
+
+        # If not found in stacks, optionally check the queue (though this might not be efficient)
+        user_queue = await self.movie_queue_manager.get_user_queue(user_id)
+        movie_list = list(user_queue.queue)  # This assumes you can directly access the queue items
+        for movie in movie_list:
+            if movie.get('slug') == slug:
+                return movie
+
+        # If not found, return None
+        return None
+
     async def next_movie(self, user_id):
         # Retrieve user-specific queues and stacks
         user_queue = await self.movie_queue_manager.get_user_queue(user_id)

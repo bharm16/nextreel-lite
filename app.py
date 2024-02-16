@@ -96,7 +96,20 @@ def create_app():
         user_id = session.get('user_id')
         return await movie_manager.home(user_id)
 
+    @app.route('/movie/<slug>')
+    async def movie_details(slug):
+        user_id = session.get('user_id')
+        logging.info(f"Fetching movie details for slug: {slug} and user_id: {user_id}")
 
+        # Fetch movie details by slug
+        movie_details = await movie_manager.get_movie_by_slug(user_id, slug)
+
+        if movie_details:
+            # Render the movie
+            return await movie_manager.fetch_and_render_movie(movie_details, user_id)
+        else:
+            # If no movie is found for the slug, return a 404 error
+            return 'Movie not found', 404
 
     @app.route('/next_movie', methods=['GET', 'POST'])
     async def next_movie():
