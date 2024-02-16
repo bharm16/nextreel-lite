@@ -612,12 +612,17 @@
             .main-movie-details {
                 display: flex;
                 flex-wrap: wrap;
-                align-items: center; /* This will vertically center the items in the container */
+                {#align-items: center; /* This will vertically center the items in the container */#}
                 padding-bottom: 6vh; /* Adjust padding */
                 flex-direction: row;
                 margin-top: 1em; /* Adjust based on actual layout */
+                        align-items: flex-start; /* Align items to the top of the container */
+
 
             }
+            .movie-poster-col, .movie-details-col {
+        flex: 1; /* Let both elements grow equally */
+    }
 
 
 
@@ -627,7 +632,7 @@
                 flex: 0 0 auto; /* Do not grow, do not shrink, and base width on content */
                 width: auto; /* Set to auto so it only takes up as much space as needed */
                 order: -1; /* Order -1 will make it come before elements with order 0 */
-                margin-top: -20vh;
+                {#margin-top: -20vh;#}
             }
 
             .movie-poster {
@@ -635,6 +640,7 @@
                 height: auto; /* Keep the aspect ratio */
                 order: -1; /* Bring poster to the left side */
                 align-self: flex-start; /* Align to the start */
+                margin-top: 0;
 
             }
 
