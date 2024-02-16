@@ -15,7 +15,9 @@ SELECT
     `title.crew`.writers,
     `title.basics`.runtimeMinutes AS runtimes,
     `title.ratings`.averageRating AS rating,
-    `title.ratings`.numVotes AS votes
+    `title.ratings`.numVotes AS votes,
+    `title.basics`.slug AS slug  -- Added slug to the SELECT statement
+
 FROM 
     `title.basics`
 JOIN

@@ -93,6 +93,18 @@ class Movie:
         self.movie_data = {}
         self.query_executor = DatabaseQueryExecutor(db_config)  # Corrected here
         self.tmdb_helper = TMDbHelper(TMDB_API_KEY)  # Initialize TMDbHelper
+        self.slug = None  # Assuming slug is available at initialization
+
+    async def fetch_movie_slug(self):
+        query = """
+           SELECT slug FROM `title.basics` WHERE tconst = %s;
+           """
+        result = await self.query_executor.execute_async_query(query, [self.tconst], fetch='one')
+        if result:
+            self.slug = result['slug']  # Assuming the column name in the DB is 'slug'
+            logging.info(f"Slug for tconst {self.tconst}: {self.slug}")
+        else:
+            logging.warning(f"No slug found for tconst: {self.tconst}")
 
     async def fetch_movie_ratings(self, tconst):
         query = build_ratings_query()
@@ -107,8 +119,15 @@ class Movie:
                     "numVotes": result['numVotes'] if result['numVotes'] is not None else 'N/A'
 
                 }
+
                 print(ratings_data)
                 return ratings_data
+
+
+
+
+
+
             except KeyError as e:
                 print(f"Error in fetch_movie_ratings: {e}")
                 print(f"Result missing expected key: {result}")
@@ -119,9 +138,10 @@ class Movie:
 
     async def get_movie_data(self):
         tmdb_id = await self.tmdb_helper.get_tmdb_id_by_tconst(self.tconst)
+        await self.fetch_movie_slug()  # Fetch and set the slug before proceeding
+
 
         ratings_data = await self.fetch_movie_ratings(self.tconst)
-
 
         if not tmdb_id:
             return None
@@ -143,6 +163,12 @@ class Movie:
         logging.info(
             f"Title: {movie_info.get('title', 'N/A')}, tconst: {self.tconst}, Rating: {movie_info.get('vote_average', 'N/A')}")
 
+        # Now, right before returning movie_data, log the slug
+        if self.slug:  # Check if slug is not None
+            logging.info(f"Fetching movie data for slug: {self.slug}")
+        else:
+            logging.warning("Slug is not set for the current movie.")
+
         # Use database rating if available; otherwise, fall back to TMDB rating
         if ratings_data and ratings_data["averageRating"] != 'N/A':
             rating = ratings_data["averageRating"]
@@ -157,6 +183,8 @@ class Movie:
             "title": movie_info.get('title', 'N/A'),
             "imdb_id": self.tconst,
             "tmdb_id": tmdb_id,
+            "slug": self.slug,  # Use the slug directly
+
             "genres": ', '.join([genre['name'] for genre in movie_info.get('genres', ['N/A'])]),
             "directors": ', '.join(directors),
             "writers": ', '.join(writers),
@@ -173,7 +201,7 @@ class Movie:
             "images": tmdb_image_info,
             "trailer": tmdb_movie_trailer,
             "credits": tmdb_credits,
-            "backdrop_url": backdrop_url,  # Add backdrop URL here
+            "backdrop_url": backdrop_url # Add backdrop URL here
 
         }
 
@@ -186,7 +214,7 @@ class Movie:
 async def main():
     db_config = Config.STACKHERO_DB_CONFIG  # Assuming you have a db_config defined
 
-    tconst = 'tt0988045'  # Example IMDb ID
+    tconst = 'tt0182727'  # Example IMDb ID
     db_config = Config.STACKHERO_DB_CONFIG  # Your database configuration
     movie_instance = Movie(tconst, db_config)
     movie_data = await movie_instance.get_movie_data()
@@ -194,8 +222,6 @@ async def main():
         print(f"Movie Data: {movie_data}")
     else:
         print("Failed to fetch movie data.")
-
-
 
 
 if __name__ == "__main__":
