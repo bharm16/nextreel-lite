@@ -15,7 +15,6 @@
     <script src="https://kit.fontawesome.com/ac5381aca9.js" crossorigin="anonymous"></script>
 
 
-
     <style>
 
         /* Global Styles */
@@ -35,16 +34,12 @@
         }
 
         .desktop-only {
-    display: block; /* Default display */
-}
+            display: block; /* Default display */
+        }
 
-.mobile-only {
-    display: none; /* Hidden by default */
-}
-
-
-
-
+        .mobile-only {
+            display: none; /* Hidden by default */
+        }
 
 
         /* Movie Card Container */
@@ -84,7 +79,6 @@
         */
 
 
-
         /* INFO STYLING */
 
 
@@ -98,9 +92,9 @@
         .info-box {
             margin: 0.93vh 0; /* Responsive vertical margin */
             border-radius: 0.74vh; /* Responsive border radius */
-            background-color: transparent;  /* Make it transparent */
-            position: relative;  /* Make it a positioned element */
-            z-index: 3;  /* Position it above the background-overlay */
+            background-color: transparent; /* Make it transparent */
+            position: relative; /* Make it a positioned element */
+            z-index: 3; /* Position it above the background-overlay */
             font-size: 1em; /* Relative font size */
             padding-bottom: 0.93vh; /* Responsive padding */
         }
@@ -113,33 +107,29 @@
         }
 
 
-
-
-
-
         /* MOVIE STYLING */
 
         /* Movie poster */
         .movie-poster {
             width: 100%;
-            max-width: 27.78vh;  /* Responsive width */
-            max-height: 41.67vh;  /* Responsive height */
+            max-width: 27.78vh; /* Responsive width */
+            max-height: 41.67vh; /* Responsive height */
             border-radius: 0;
-            border: none;  /* Add this line to remove the border */
-            position: relative;  /* Make it a positioned element */
-            z-index: 4;  /* Position it above the background-overlay */
-            margin-top: -11.11vh;  /* Responsive move upwards */
+            border: none; /* Add this line to remove the border */
+            position: relative; /* Make it a positioned element */
+            z-index: 4; /* Position it above the background-overlay */
+            margin-top: -11.11vh; /* Responsive move upwards */
         }
 
         .movie-title {
-            font-size: 3.6em;  /* No change needed */
+            font-size: 3.6em; /* No change needed */
             margin-bottom: 0;
-            padding-bottom: -1.875em;  /* Responsive padding */
-            font-weight: 700;  /* Bold */
+            padding-bottom: -1.875em; /* Responsive padding */
+            font-weight: 700; /* Bold */
             position: relative;
             font-family: 'TiemposHeadlineWeb-Bold', Georgia, serif;
-            line-height: 1.2;  /* Decreased line-height */
-            letter-spacing: -0.06em;  /* Negative value to reduce spacing */
+            line-height: 1.2; /* Decreased line-height */
+            letter-spacing: -0.06em; /* Negative value to reduce spacing */
         }
 
         /* New CSS class to control the font size of the movie plot */
@@ -149,7 +139,6 @@
             margin-bottom: 2.5rem; /* Converts 40px margin to rem based on 16px base font size */
             font-family: 'TiemposTextWeb-Regular', Georgia, serif;
         }
-
 
 
         /* VOTES STYLING */
@@ -180,10 +169,10 @@
         .rating-votes-wrapper {
             display: flex;
             align-items: center;
-            margin-right: 1.25em;  /* Add a margin to the right */
-            transform: scale(0.6);  /* Scale down to half size */
-            transform-origin: 0 0;  /* Optional: define the point around which to scale */
-            min-width: 1400px;  /* Or whatever minimum width you need */
+            margin-right: 1.25em; /* Add a margin to the right */
+            transform: scale(0.6); /* Scale down to half size */
+            transform-origin: 0 0; /* Optional: define the point around which to scale */
+            min-width: 1400px; /* Or whatever minimum width you need */
             font-size: 0;
         }
 
@@ -193,17 +182,12 @@
         }
 
 
-
-
         /* Add margin to all buttons within .rating-votes-wrapper */
         .rating-votes-wrapper button {
             display: flex;
             align-items: center;
             margin: 0 1.25em; /* Converted 20px to em */
         }
-
-
-
 
 
         /******************************************************************************/
@@ -216,10 +200,6 @@
         .rating-circle {
             margin-right: 1.25em !important;
         }
-
-
-
-
 
 
         /* Make the rating-circle and votes-label the same size */
@@ -244,15 +224,10 @@
         /******************************************************************************/
 
 
-
-
         div.row.custom-row-directed-written > div.col-sm-6 {
-            padding-left: 0 !important;  /* Reduce left padding */
-            padding-right: 0 !important;  /* Reduce right padding */
+            padding-left: 0 !important; /* Reduce left padding */
+            padding-right: 0 !important; /* Reduce right padding */
         }
-
-
-
 
 
         /* Add some spacing between buttons and genres */
@@ -261,18 +236,7 @@
         }
 
 
-
-
-
-
-
         /******************************************************************************/
-
-
-
-
-
-
 
 
         /******************************************************************************/
@@ -286,8 +250,6 @@
             margin: 0; /* Margin remains the same */
             padding: 0.625em; /* Equivalent to 10px assuming a base font-size of 16px */
         }
-
-
 
 
         /* Actor Card Image */
@@ -312,10 +274,10 @@
             padding: 0.125em;
             text-align: center;
             white-space: nowrap; /* Don't wrap text to next line */
-            overflow: hidden;  /* Hide text outside the container */
-            text-overflow: ellipsis;  /* Add ellipsis for overflowed text */
+            overflow: hidden; /* Hide text outside the container */
+            text-overflow: ellipsis; /* Add ellipsis for overflowed text */
             background-color: transparent;
-            font-size:1em;
+            font-size: 1em;
 
         }
 
@@ -328,7 +290,6 @@
             margin-top: -90px;
             margin-left: 35px;
         }
-
 
 
         /* Hide the scrollbar for Chrome, Safari and Opera */
@@ -349,8 +310,6 @@
 
 
         /******************************************************************************/
-
-
 
 
         /******************************************************************************/
@@ -378,9 +337,6 @@
         /******************************************************************************/
 
 
-
-
-
         /* Spacer div to control the gap */
         .spacer {
             width: 0.9375rem; /* Assuming the base font size is 16px, converts 15px to rem */
@@ -392,13 +348,13 @@
         /* year styling */
 
         .year-content {
-            margin-right: 10px;  /* Add some right margin to increase space between year and director */
+            margin-right: 10px; /* Add some right margin to increase space between year and director */
         }
 
 
         /* The children of .flex-item-details */
         .year-content, .director-info {
-            white-space: nowrap;  /* Keep content on a single line */
+            white-space: nowrap; /* Keep content on a single line */
         }
 
 
@@ -411,22 +367,16 @@
         }
 
 
-
-
         /******************************************************************************/
 
         .inline-element, .inline-block-element {
-            display: inline;  /* Make the elements inline */
+            display: inline; /* Make the elements inline */
             margin-right: 10px; /* Optional: add some right margin for spacing */
         }
 
         .inline-block-element {
             display: inline-block; /* Make the container inline-block */
         }
-
-
-
-
 
 
         /******************************************************************************/
@@ -460,43 +410,39 @@
             position: absolute;
             top: 0;
             transform: translateX(-50%);
-            width: 100%;          /* Make sure it spans the full width */
+            width: 100%; /* Make sure it spans the full width */
             z-index: 1;
             /* Combined Background Gradients */
-            background:
-                /* First Linear Gradient (horizontal) */
-                    linear-gradient(90deg,
-                    #ffffff 0, rgba(255,255,255,.986) .97%, rgba(255,255,255,.945) 2.07833333%,
-                    rgba(255,255,255,.883) 3.29666667%, rgba(255,255,255,.803) 4.60166667%,
-                    rgba(255,255,255,.711) 5.96666667%, rgba(255,255,255,.61) 7.365%,
-                    rgba(255,255,255,.504) 8.77166667%, rgba(255,255,255,.398) 10.16%,
-                    rgba(255,255,255,.296) 11.505%, rgba(255,255,255,.203) 12.78%,
-                    rgba(255,255,255,.122) 13.95833333%, rgba(255,255,255,.059) 15.01666667%,
-                    rgba(255,255,255,.016) 15.92833333%, rgba(255,255,255,0) 16.66666667%,
-                    rgba(255,255,255,0) 83.33333333%, rgba(255,255,255,.016) 84.07166667%,
-                    rgba(255,255,255,.059) 84.98333333%, rgba(255,255,255,.122) 86.04166667%,
-                    rgba(255,255,255,.203) 87.22%, rgba(255,255,255,.296) 88.495%,
-                    rgba(255,255,255,.398) 89.84%, rgba(255,255,255,.504) 91.22833333%,
-                    rgba(255,255,255,.61) 92.635%, rgba(255,255,255,.711) 94.03333333%,
-                    rgba(255,255,255,.803) 95.39833333%, rgba(255,255,255,.883) 96.70333333%,
-                    rgba(255,255,255,.945) 97.92166667%, rgba(255,255,255,.986) 99.03%, #ffffff),
-
-                        /* Second Linear Gradient (vertical) */
-                    linear-gradient(0deg,
-                    #ffffff 0, #ffffff 21.48148148%, rgba(255,255,255,.986) 23.63703704%,
-                    rgba(255,255,255,.945) 26.1%, rgba(255,255,255,.883) 28.80740741%,
-                    rgba(255,255,255,.803) 31.70740741%, rgba(255,255,255,.711) 34.74074074%,
-                    rgba(255,255,255,.61) 37.84814815%, rgba(255,255,255,.504) 40.97407407%,
-                    rgba(255,255,255,.398) 44.05925926%, rgba(255,255,255,.296) 47.04814815%,
-                    rgba(255,255,255,.203) 49.88148148%, rgba(255,255,255,.122) 52.5%,
-                    rgba(255,255,255,.059) 54.85185185%, rgba(255,255,255,.016) 56.87777778%,
-                    rgba(255,255,255,0) 58.51851852%);
+            background: /* First Linear Gradient (horizontal) */ linear-gradient(90deg,
+            #ffffff 0, rgba(255, 255, 255, .986) .97%, rgba(255, 255, 255, .945) 2.07833333%,
+            rgba(255, 255, 255, .883) 3.29666667%, rgba(255, 255, 255, .803) 4.60166667%,
+            rgba(255, 255, 255, .711) 5.96666667%, rgba(255, 255, 255, .61) 7.365%,
+            rgba(255, 255, 255, .504) 8.77166667%, rgba(255, 255, 255, .398) 10.16%,
+            rgba(255, 255, 255, .296) 11.505%, rgba(255, 255, 255, .203) 12.78%,
+            rgba(255, 255, 255, .122) 13.95833333%, rgba(255, 255, 255, .059) 15.01666667%,
+            rgba(255, 255, 255, .016) 15.92833333%, rgba(255, 255, 255, 0) 16.66666667%,
+            rgba(255, 255, 255, 0) 83.33333333%, rgba(255, 255, 255, .016) 84.07166667%,
+            rgba(255, 255, 255, .059) 84.98333333%, rgba(255, 255, 255, .122) 86.04166667%,
+            rgba(255, 255, 255, .203) 87.22%, rgba(255, 255, 255, .296) 88.495%,
+            rgba(255, 255, 255, .398) 89.84%, rgba(255, 255, 255, .504) 91.22833333%,
+            rgba(255, 255, 255, .61) 92.635%, rgba(255, 255, 255, .711) 94.03333333%,
+            rgba(255, 255, 255, .803) 95.39833333%, rgba(255, 255, 255, .883) 96.70333333%,
+            rgba(255, 255, 255, .945) 97.92166667%, rgba(255, 255, 255, .986) 99.03%, #ffffff),
+                /* Second Linear Gradient (vertical) */ linear-gradient(0deg,
+                    #ffffff 0, #ffffff 21.48148148%, rgba(255, 255, 255, .986) 23.63703704%,
+                    rgba(255, 255, 255, .945) 26.1%, rgba(255, 255, 255, .883) 28.80740741%,
+                    rgba(255, 255, 255, .803) 31.70740741%, rgba(255, 255, 255, .711) 34.74074074%,
+                    rgba(255, 255, 255, .61) 37.84814815%, rgba(255, 255, 255, .504) 40.97407407%,
+                    rgba(255, 255, 255, .398) 44.05925926%, rgba(255, 255, 255, .296) 47.04814815%,
+                    rgba(255, 255, 255, .203) 49.88148148%, rgba(255, 255, 255, .122) 52.5%,
+                    rgba(255, 255, 255, .059) 54.85185185%, rgba(255, 255, 255, .016) 56.87777778%,
+                    rgba(255, 255, 255, 0) 58.51851852%);
             z-index: 1; /* Layer it above the backdrop image but below the content */
 
 
         }
-        /******************************************************************************/
 
+        /******************************************************************************/
 
 
         /* PLAY BUTTON STYLING */
@@ -543,8 +489,6 @@
          */
 
 
-
-
         /* This is the new CSS class acting as a flex container */
         .movie-nav-buttons-wrapper {
             display: flex; /* Enables flexbox */
@@ -552,7 +496,6 @@
             align-items: center; /* Vertically centers the buttons */
             margin-top: -3.75rem; /* Assuming a base font size of 16px, converts -60px to rem */
         }
-
 
 
         /* Styling for the movie navigation buttons within the row */
@@ -571,9 +514,6 @@
         }
 
 
-
-
-
         /* Apply negative margin to the top of the column */
         .negative-margin-top {
             margin-top: -3.75rem; /* Converts -60px to rem, adjust as needed */
@@ -587,14 +527,14 @@
         /* Common styles for both left and right arrow buttons */
         .arrow-button {
             position: absolute; /* Absolute positioning */
-            top: 0;           /* Center vertically */
-            z-index: 5;         /* Place it above other elements */
-            background-color: rgba(0,0,0,0.5); /* Semi-transparent black background */
-            color: white;       /* White arrow icon */
-            border: none;       /* No border */
-            cursor: pointer;    /* Pointer cursor on hover */
-            font-size: 24px;    /* Font size of the arrow icon */
-            padding: 10px;      /* Padding around the icon */
+            top: 0; /* Center vertically */
+            z-index: 5; /* Place it above other elements */
+            background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent black background */
+            color: white; /* White arrow icon */
+            border: none; /* No border */
+            cursor: pointer; /* Pointer cursor on hover */
+            font-size: 24px; /* Font size of the arrow icon */
+            padding: 10px; /* Padding around the icon */
         }
 
         /* Positioning for left arrow */
@@ -617,32 +557,32 @@
         @media (max-width: 768px) {
 
             .desktop-only {
-        display: none; /* Hide desktop-specific content on mobile */
-    }
-    .mobile-only {
-        display: block; /* Show mobile-specific content */
-    }
+                display: none; /* Hide desktop-specific content on mobile */
+            }
+
+            .mobile-only {
+                display: block; /* Show mobile-specific content */
+            }
 
             body {
                 padding-bottom: 10vh; /* Reduced padding */
             }
+
             /* Make the movie details section a flex container */
             .main-movie-details {
                 display: flex;
                 flex-wrap: wrap;
-            {#align-items: center; /* This will vertically center the items in the container */#}
-                padding-bottom: 6vh; /* Adjust padding */
+            {#align-items: center; /* This will vertically center the items in the container */#} padding-bottom: 6vh; /* Adjust padding */
                 flex-direction: row;
                 margin-top: 1em; /* Adjust based on actual layout */
                 align-items: flex-start; /* Align items to the top of the container */
 
 
             }
+
             .movie-poster-col, .movie-details-col {
                 flex: 1; /* Let both elements grow equally */
             }
-
-
 
 
             /* Adjust the movie poster column to come before the title */
@@ -680,14 +620,20 @@
             }
 
 
-
             .movie-poster-col, .movie-details-col {
                 flex-basis: 100%; /* Take full width of the container */
             }
 
-
-
-
+            .director-info {
+                /* Allow the text to wrap if it doesn't fit on one line */
+                white-space: normal;
+                display: block; /* Make it a block-level element so it takes up its own line if needed */
+                word-wrap: break-word; /* Break the word to prevent overflow */
+            }
+                    /* The children of .flex-item-details */
+        .year-content, .director-info {
+            word-wrap: break-word; /* Keep content on a single line */
+        }
 
 
             /* Info Box */
@@ -697,14 +643,11 @@
             }
 
 
-
-
             /* Info Container */
             .info-container {
                 max-width: 100%; /* Full width on smaller screens */
                 margin-top: 0; /* Adjust top margin */
             }
-
 
 
             /* Rating and Votes */
@@ -718,7 +661,6 @@
                 margin-top: 0; /* Adjust top margin */
                 margin-left: 0; /* Adjust left margin */
             }
-
 
 
             /* Navigation Buttons */
@@ -738,11 +680,6 @@
                 flex: 0 0 50%; /* Each column takes up 50% of the width */
                 max-width: 50%;
             }
-
-
-
-
-
 
 
             /* Reset any negative margins that might be causing layout issues */
@@ -802,10 +739,7 @@
             }
 
 
-
         }
-
-
 
 
         @media (max-width: 480px) {
@@ -825,7 +759,6 @@
         }
 
 
-
         @media (max-width: 480px) {
             .backdrop-container {
                 min-height: 15vh; /* Smallest height for very small devices */
@@ -833,11 +766,7 @@
         }
 
 
-
-
         /******************************************************************************/
-
-
 
 
     </style>
@@ -848,7 +777,6 @@
 <body>
 <div class="backdrop-container"></div>
 <div class="background-fade-overlay"></div>
-
 
 
 <div class="movie-card-container">
@@ -868,41 +796,33 @@
     </form>
 
 
-
-
     <!-- Float this row above the backdrop -->
     <div class="row main-movie-details">
         <!-- Your movie details here -->
-       <!-- Movie Poster Column, includes both poster and mobile-only info -->
-<div class="col-12 col-md-4 movie-poster-col">
-    <!-- Movie Poster Image -->
-    <img class="movie-poster" src="{{ movie.poster_url }}" alt="Movie Poster">
+        <!-- Movie Poster Column, includes both poster and mobile-only info -->
+        <div class="col-12 col-md-4 movie-poster-col">
+            <!-- Movie Poster Image -->
+            <img class="movie-poster" src="{{ movie.poster_url }}" alt="Movie Poster">
 
-    <!-- Mobile-only Info: Hidden on larger screens, visible on mobile -->
-    <div class="mobile-info-container mobile-only">
-        <!-- Mobile Movie Title -->
-        <span class="movie-title inline-element">{{ movie.title }}</span>
+            <!-- Mobile-only Info: Hidden on larger screens, visible on mobile -->
+            <div class="mobile-info-container mobile-only">
+                <!-- Mobile Movie Title -->
+                <span class="movie-title inline-element">{{ movie.title }}</span>
 
-        <!-- Mobile Year and Director Information -->
-        <div class="year-director-container inline-block-element">
-            <span class="year-content">{{ movie.year }}</span>
-            <span class="director-info">Directed by {{ movie.directors }}</span>
-        </div>
+                <!-- Mobile Year and Director Information -->
+                <div class="year-director-container inline-block-element">
+                    <span class="year-content">{{ movie.year }}</span>
+                    <span class="director-info">Directed by {{ movie.directors }}</span>
+                </div>
 
-        <!-- Mobile Genre Information -->
-        <div class="d-flex align-items-center genre-year-wrapper">
-            <div class="genre-content" id="genre-info">
-                {{ movie.genres }}
+                <!-- Mobile Genre Information -->
+                <div class="d-flex align-items-center genre-year-wrapper">
+                    <div class="genre-content" id="genre-info">
+                        {{ movie.genres }}
+                    </div>
+                </div>
             </div>
         </div>
-    </div>
-</div>
-
-
-
-
-
-
 
 
         <div class="col-12 col-md-8 movie-details-col">
@@ -912,34 +832,33 @@
                     <div class="desktop-only">
 
 
-                    <!-- Single Bootstrap column -->
-                    <div class="col negative-margin-top">
-                        <!-- Inline element for title -->
-                        <span class="movie-title inline-element">{{ movie.title }}</span>
-                        <!-- Inline-block element for year and director -->
-                        <span class="year-director-container inline-block-element">
+                        <!-- Single Bootstrap column -->
+                        <div class="col negative-margin-top">
+                            <!-- Inline element for title -->
+                            <span class="movie-title inline-element">{{ movie.title }}</span>
+                            <!-- Inline-block element for year and director -->
+                            <span class="year-director-container inline-block-element">
           <span class="year-content">{{ movie.year }}</span>
           <span class="director-info">Directed by {{ movie.directors }}</span>
         </span>
+                        </div>
+
+                        <!-- End of new flexbox row -->
+
+                        <!-- Existing genre and other details -->
+                        <div class="d-flex align-items-center genre-year-wrapper">
+
+
+                            <!-- Empty div to hold genre buttons -->
+                            <div class="genre-content" id="genre-info">
+                                {{ movie.genres }}
+                            </div>
+
+                            <!-- Spacer div to ensure a small gap -->
+                            <div class="spacer"></div>
+                        </div>
                     </div>
-
-                <!-- End of new flexbox row -->
-
-                <!-- Existing genre and other details -->
-                <div class="d-flex align-items-center genre-year-wrapper">
-
-
-                    <!-- Empty div to hold genre buttons -->
-                    <div class="genre-content" id="genre-info">
-                        {{ movie.genres }}
-                    </div>
-
-                    <!-- Spacer div to ensure a small gap -->
-                    <div class="spacer"></div>
                 </div>
-                                </div>
-                </div>
-
 
 
                 <!-- Movie plot remains the same -->
@@ -960,7 +879,8 @@
                         <div class="col-md-6">
                             <div class="rating-votes-wrapper">
                                 <!-- Position the circle progress bar -->
-                                <div class="rating-circle" id="rating-circle" data-percent="{{ movie.rating }}" style="width:100px; height:100px;">
+                                <div class="rating-circle" id="rating-circle" data-percent="{{ movie.rating }}"
+                                     style="width:100px; height:100px;">
                                     <strong></strong>
                                 </div>
 
@@ -971,10 +891,9 @@
                                 </div>
 
 
-
-
                                 <!-- Updated Play button -->
-                                <button class="play-trailer-button" id="play-button" data-video-url="{{ movie.trailer }}">
+                                <button class="play-trailer-button" id="play-button"
+                                        data-video-url="{{ movie.trailer }}">
                                     <i class="fa-solid fa-play"></i> Play Trailer <!-- Font Awesome Play Icon + Text -->
                                 </button>
 
@@ -988,12 +907,13 @@
             </div>
 
 
-
             <div class="row movie-nav-row">
                 <!-- This is the new div acting as a flex container -->
                 <div class="movie-nav-buttons-wrapper">
                     <form method="POST" action="/previous_movie" style="display: inline;">
-                        <button type="submit" class="btn movie-navigation-buttons" {% if previous_count == 0 %}disabled{% endif %}>Previous Movie</button>
+                        <button type="submit" class="btn movie-navigation-buttons"
+                                {% if previous_count == 0 %}disabled{% endif %}>Previous Movie
+                        </button>
                     </form>
                     <form method="POST" action="/next_movie" style="display: inline;">
                         <button type="submit" class="btn movie-navigation-buttons">Next Movie</button>
@@ -1004,7 +924,6 @@
 
         </div>
     </div>
-
 
 
     <div class="cast-list-margin">
@@ -1044,20 +963,15 @@
         <!-- Existing HTML ... -->
 
 
-
     </div>
 
 
 </div>
 
 
-
-
-
 {#<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>#}
 <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.3/dist/umd/popper.min.js"></script>
 <script src="https://stackpath.bootstrapcdn.com/bootstrap/5.0.0-alpha1/js/bootstrap.min.js"></script>
-
 
 
 <!-- Include jQuery and circle-progress.js -->
@@ -1083,8 +997,6 @@
 </script>
 
 
-
-
 <script>
 
 
@@ -1101,9 +1013,6 @@
         }
         voteElement.textContent = formattedVotes;
     }
-
-
-
 
 
     // Updated JavaScript code
@@ -1140,11 +1049,7 @@
     });
 
 
-
     formatVotes();
-
-
-
 
 
     document.addEventListener("DOMContentLoaded", function () {
@@ -1227,8 +1132,6 @@
             // You can programmatically submit the /next_movie form here
         });
     });
-
-
 
 
 </script>
