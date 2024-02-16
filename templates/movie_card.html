@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!--suppress JSJQueryEfficiency -->
 <html lang="en">
 
 <head>
@@ -437,7 +438,7 @@
                     rgba(255, 255, 255, .203) 49.88148148%, rgba(255, 255, 255, .122) 52.5%,
                     rgba(255, 255, 255, .059) 54.85185185%, rgba(255, 255, 255, .016) 56.87777778%,
                     rgba(255, 255, 255, 0) 58.51851852%);
-            z-index: 1; /* Layer it above the backdrop image but below the content */
+            /* Layer it above the backdrop image but below the content */
 
 
         }
@@ -594,7 +595,7 @@
             }
 
             .movie-poster {
-                max-width: 100%; /* Allow poster to use available width */
+                transform: scale(0.7); /* Scales the movie poster to 70% of its original size */
                 height: auto; /* Keep the aspect ratio */
                 order: -1; /* Bring poster to the left side */
                 align-self: flex-start; /* Align to the start */
@@ -604,19 +605,19 @@
 
             /* Movie Title */
             .movie-title {
-                font-size: 2em; /* Smaller font size for mobile */
+                font-size: 1.5em; /* Smaller font size for mobile */
                 padding-bottom: 0; /* Adjust padding */
             }
 
             /* Ensure the movie poster takes up full width and is left-aligned */
             .movie-poster-col {
                 order: -1; /* This ensures the poster appears on the left */
-                max-width: 50%; /* Adjust the width as necessary */
+                max-width: 40%; /* Adjust the width as necessary */
             }
 
             /* Adjust the movie details column */
             .movie-details-col {
-                max-width: 50%; /* Adjust the width as necessary */
+                max-width: 60%; /* Adjust the width as necessary */
             }
 
 
@@ -630,10 +631,38 @@
                 display: block; /* Make it a block-level element so it takes up its own line if needed */
                 word-wrap: break-word; /* Break the word to prevent overflow */
             }
-                    /* The children of .flex-item-details */
-        .year-content, .director-info {
-            word-wrap: break-word; /* Keep content on a single line */
-        }
+            /* The children of .flex-item-details */
+            .year-content, .director-info {
+                word-wrap: break-word; /* Keep content on a single line */
+            }
+
+            .mobile-info-container .movie-title {
+                display: block; /* Ensure the title is on its own line */
+                margin-bottom: 10px; /* Add space below the title */
+            }
+
+            .mobile-info-container .year-director-container {
+                display: block; /* Ensure this container is block level to occupy its own line */
+                margin-bottom: 10px; /* Add space below the year and director info */
+            }
+
+            .mobile-info-container .year-content {
+                display: inline-block; /* Make the year an inline-block element */
+                margin-right: 5px; /* Add space to the right of the year */
+            }
+
+            .mobile-info-container .director-info {
+                display: inline-block; /* Make the director info an inline-block element */
+                margin-bottom: 10px; /* Add space below the director info */
+            }
+
+            .mobile-info-container .genre-year-wrapper {
+                margin-bottom: 10px; /* Add space below the genre information */
+            }
+
+            .mobile-info-container .genre-content {
+                display: block; /* Make the genre content block level to occupy its own line */
+            }
 
 
             /* Info Box */
@@ -720,11 +749,11 @@
                 scrollbar-width: thin; /* Keep scrollbar width thin */
             }
 
-                    /* Custom style for bottom margin of the cast list */
-        .cast-list-margin {
-            margin-top: 18vh;
-            margin-bottom: 18.75rem; /* Assuming the base font size is 16px, this converts 300px to rem */
-        }
+            /* Custom style for bottom margin of the cast list */
+            .cast-list-margin {
+                margin-top: 18vh;
+                margin-bottom: 18.75rem; /* Assuming the base font size is 16px, this converts 300px to rem */
+            }
 
 
             /* Optional: Adjustments for the scrollbar, if you want to make it visible or style it */
