@@ -5,7 +5,7 @@ from quart import render_template
 
 from config import Config
 from scripts.movie_queue import MovieQueue
-from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher, extract_movie_filter_criteria
+from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher, extract_movie_filter_criteria, db_pool
 from scripts.tmdb_data import TMDbHelper, TMDB_API_KEY
 
 # Configure logging for better debugging
@@ -18,7 +18,7 @@ logging.basicConfig(
 class MovieManager:
     def __init__(self, db_config):
         logging.info("Initializing MovieManager")
-        self.movie_fetcher = ImdbRandomMovieFetcher(db_config)
+        self.movie_fetcher = ImdbRandomMovieFetcher(db_pool)
         self.criteria = {}
         self.movie_queue = asyncio.Queue(maxsize=20)
         self.movie_queue_manager = MovieQueue(db_config, self.movie_queue)

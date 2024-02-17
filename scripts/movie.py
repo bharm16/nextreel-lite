@@ -6,7 +6,7 @@ import httpx
 
 from config import Config
 from mysql_query_builder import DatabaseQueryExecutor
-from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher
+from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher, db_pool
 from scripts.tmdb_data import TMDbHelper
 
 # Configure logging for better debugging
@@ -91,7 +91,7 @@ class Movie:
         self.tconst = tconst
         self.db_config = db_config
         self.movie_data = {}
-        self.query_executor = DatabaseQueryExecutor(db_config)  # Corrected here
+        self.query_executor = DatabaseQueryExecutor(db_pool)  # Corrected here
         self.tmdb_helper = TMDbHelper(TMDB_API_KEY)  # Initialize TMDbHelper
         self.slug = None  # Assuming slug is available at initialization
 

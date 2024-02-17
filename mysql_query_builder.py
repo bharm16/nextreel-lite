@@ -60,82 +60,74 @@ WHERE primaryName = %s
 LIMIT 1
 """
 
-from config import Config, DatabaseConnection
+# Assume necessary imports and SQL queries defined above remain unchanged
 
+from config import Config, DatabaseConnectionPool
+
+import os
+import asyncio
+import logging
+import time
+from config import Config, DatabaseConnectionPool
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+
+# Assume SQL query definitions remain the same
 
 class DatabaseQueryExecutor:
-    def __init__(self, db_config):
-        self.db_connection = DatabaseConnection(db_config)
+    def __init__(self, db_pool):
+        if not isinstance(db_pool, DatabaseConnectionPool):
+            raise ValueError("db_pool must be an instance of DatabaseConnectionPool")
+        self.db_pool = db_pool
 
     async def execute_async_query(self, query, params=None, fetch='one'):
-        conn = await self.db_connection.create_async_connection()
+        start_time = time.time()  # Start timing before acquiring connection
+        conn = await self.db_pool.get_async_connection()
         if not conn:
+            logging.error("Failed to acquire a database connection.")
             return None
 
         try:
             async with conn.cursor() as cursor:
                 await cursor.execute(query, params)
                 if fetch == 'one':
-                    return await cursor.fetchone()
+                    result = await cursor.fetchone()
                 elif fetch == 'all':
-                    return await cursor.fetchall()
+                    result = await cursor.fetchall()
                 elif fetch == 'none':
                     await conn.commit()
-                    return None
+                    result = None
                 else:
                     raise ValueError(f"Invalid fetch parameter: {fetch}")
+                return result
         except Exception as e:
-            print(f"An error occurred: {e}")
+            logging.error(f"An error occurred while executing the query: {e}")
             return None
         finally:
-            conn.close()
+            await self.db_pool.release_async_connection(conn)
+            end_time = time.time()  # End timing after releasing connection
+            logging.info(f"Query and connection handling executed in {end_time - start_time:.2f} seconds.")
 
-    def execute_sync_query(self, query, params=None, fetch='one'):
-        conn = self.db_connection.create_sync_connection()
-        if not conn:
-            return None
 
-        try:
-            with conn.cursor() as cursor:
-                cursor.execute(query, params)
-                if fetch == 'one':
-                    return cursor.fetchone()
-                elif fetch == 'all':
-                    return cursor.fetchall()
-                elif fetch == 'none':
-                    conn.commit()
-                    return None
-                else:
-                    raise ValueError(f"Invalid fetch parameter: {fetch}")
-        except Exception as e:
-            print(f"An error occurred: {e}")
-            return None
-        finally:
-            if conn:
-                conn.close()
+async def init_pool():
+    db_pool = DatabaseConnectionPool(Config.STACKHERO_DB_CONFIG)
+    await db_pool.init_pool()
+    logging.info("Database connection pool initialized.")
+    return db_pool
 
-# Test the DatabaseQueryExecutor class
+
+async def main():
+    # Initialize the connection pool
+    db_pool = await init_pool()
+
+    # Pass the initialized pool to DatabaseQueryExecutor
+    query_executor = DatabaseQueryExecutor(db_pool)
+
+    # Your query execution logic remains the same
+    # Ensure to close the pool at the end of your program
+    await db_pool.close_pool()
+
 if __name__ == "__main__":
-    db_config = Config.STACKHERO_DB_CONFIG
-    query_executor = DatabaseQueryExecutor(db_config)
-
-    test_tconst = 'tt0111161'  # Replace with a valid tconst value from your database
-    # Test the synchronous query execution
-    sync_result = query_executor.execute_sync_query(GET_WATCHED_MOVIE_DETAILS, params=(test_tconst,), fetch='one')
-    if sync_result:
-        print("Sync Query executed successfully.")
-        print(sync_result)
-    else:
-        print("Sync Query execution failed or returned no results.")
-
-    # Test the asynchronous query execution
-    async def async_query():
-        async_result = await query_executor.execute_async_query(GET_WATCHED_MOVIE_DETAILS, params=(test_tconst,), fetch='one')
-        if async_result:
-            print("Async Query executed successfully.")
-            print(async_result)
-        else:
-            print("Async Query execution failed or returned no results.")
-
-    import asyncio
-    asyncio.run(async_query())
+    asyncio.run(main())

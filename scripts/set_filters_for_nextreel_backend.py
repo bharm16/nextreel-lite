@@ -1,9 +1,10 @@
+import asyncio
 import logging
 import os
 import time
 import traceback
 
-from config import Config, DatabaseConnection
+from config import Config, DatabaseConnectionPool
 from mysql_query_builder import DatabaseQueryExecutor
 
 dbconfig = Config.STACKHERO_DB_CONFIG
@@ -65,47 +66,45 @@ def build_base_query():
     """
 
 
-db_connection = DatabaseConnection(Config.STACKHERO_DB_CONFIG)
+# Set up logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(filename)s - %(funcName)s - %(levelname)s - %(message)s'
+)
 
+# Adjust the DatabaseConnection to use DatabaseConnectionPool
+db_pool = DatabaseConnectionPool(Config.STACKHERO_DB_CONFIG)
+
+async def init_pool():
+    await db_pool.init_pool()
+    logging.info("Database connection pool initialized.")
 
 # Modify the execute_query function to use the DatabaseConnection
 
 
 # Convert the ImdbRandomMovieFetcher class methods to async
 class ImdbRandomMovieFetcher:
-    def __init__(self, dbconfig):
-        self.dbconfig = dbconfig
-        self.db_query_executor = DatabaseQueryExecutor(dbconfig)  # Use dbconfig directly
+    def __init__(self, db_pool):
+        # Adjusted to pass the pool instead of dbconfig
+        self.db_query_executor = DatabaseQueryExecutor(db_pool)
 
     async def fetch_movies_by_criteria(self, criteria):
         start_time = time.time()
-
         try:
             base_query = build_base_query()
             parameters = build_parameters(criteria)
             genre_conditions = build_genre_conditions(criteria, parameters)
             full_query = base_query + (f" AND ({genre_conditions[0]})" if genre_conditions else "")
 
-            logging.debug(f"Executing query: {full_query} with parameters: {parameters}")  # Log the constructed query
+            logging.info(f"Executing query with parameters: {parameters}")  # Improved logging
 
-            query_start_time = time.time()
             result = await self.db_query_executor.execute_async_query(full_query, parameters, 'all')
-            query_time = time.time() - query_start_time
 
-            logging.info(f"Fetched {len(result)} movies by criteria in {query_time:.2f} seconds")
+            logging.info(f"Fetched {len(result)} movies by criteria in {time.time() - start_time:.2f} seconds")
             return result
-
         except Exception as e:
-            tb_str = traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)
-            logging.error("".join(tb_str))
-            logging.error(f"Error fetching movies by criteria: {e}")
-            raise  # Re-raise the exception to propagate it upwards
-
-        finally:
-            total_time = time.time() - start_time
-            logging.debug(f"Total time for fetch_movies_by_criteria: {total_time:.2f} seconds")
-
-
+            logging.error(f"Error fetching movies by criteria: {e}\n{traceback.format_exc()}")
+            raise
 
     async def fetch_random_movies15(self, criteria):
         base_query = build_base_query()
@@ -167,27 +166,28 @@ def extract_movie_filter_criteria(form_data):
 
 
 async def main():
-    criteria = {'min_year': 2000,
-                'max_year': 2020,
-                'min_rating': 7.0,
-                'max_rating': 10,
-                'min_votes': 10000,
-                'max_votes': 100000,
-                'title_type': 'movie',
-                'language': 'en',
-                'genres': ['Action', 'Drama']}
+    await init_pool()  # Initialize the database connection pool
 
-    dbconfig = Config.STACKHERO_DB_CONFIG
-    fetcher = ImdbRandomMovieFetcher(dbconfig)
+    criteria = {
+        'min_year': 2000,
+        'max_year': 2020,
+        'min_rating': 7.0,
+        'max_rating': 10,
+        'min_votes': 10000,
+        'max_votes': 100000,
+        'title_type': 'movie',
+        'language': 'en',
+        'genres': ['Action', 'Drama']
+    }
+
+    fetcher = ImdbRandomMovieFetcher(db_pool)
     movies = await fetcher.fetch_movies_by_criteria(criteria)
 
-    # Iterate over the movies and print each movie on a new line with a counter
-    for counter, movie in enumerate(movies, start=1):  # start=1 begins the counter at 1
-        print(f"Movie {counter}: {movie}")  # This will print the movie number and its details
+    for counter, movie in enumerate(movies, start=1):
+        logging.info(f"Movie {counter}: {movie}")
 
+    await db_pool.close_pool()  # Don't forget to close the pool at the end
 
-# Example usage
 if __name__ == "__main__":
-    import asyncio
-
     asyncio.run(main())
+
