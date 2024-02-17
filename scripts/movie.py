@@ -148,43 +148,37 @@ class Movie:
             return None
 
     async def get_movie_data(self):
-        start_time = time.time()  # Start timing the entire method
+        start_time = time.time()
 
         tmdb_id = await self.tmdb_helper.get_tmdb_id_by_tconst(self.tconst)
-        await self.fetch_movie_slug()  # Fetch and set the slug before proceeding
-
-
-        ratings_data = await self.fetch_movie_ratings(self.tconst)
+        await self.fetch_movie_slug()
 
         if not tmdb_id:
+            logging.warning(f"No TMDB ID found for tconst: {self.tconst}")
             return None
 
-        movie_info = await self.tmdb_helper.get_movie_info_by_tmdb_id(tmdb_id)
-        tmdb_credits = await self.tmdb_helper.get_credits_by_tmdb_id(tmdb_id)
-        tmdb_movie_trailer = await self.tmdb_helper.get_video_url_by_tmdb_id(tmdb_id)
-        tmdb_cast_info_result = await self.tmdb_helper.get_cast_info_by_tmdb_id(tmdb_id)
+        # Execute coroutines concurrently
+        tasks = [
+            self.tmdb_helper.get_movie_info_by_tmdb_id(tmdb_id),
+            self.tmdb_helper.get_credits_by_tmdb_id(tmdb_id),
+            self.tmdb_helper.get_video_url_by_tmdb_id(tmdb_id),
+            self.tmdb_helper.get_cast_info_by_tmdb_id(tmdb_id),
+            self.tmdb_helper.get_images_by_tmdb_id(tmdb_id),
+            self.fetch_movie_ratings(self.tconst)
+        ]
+        results = await asyncio.gather(*tasks)
+
+        movie_info, tmdb_credits, tmdb_movie_trailer, tmdb_cast_info_result, tmdb_image_info, ratings_data = results
         tmdb_cast_info = tmdb_cast_info_result[:10] if tmdb_cast_info_result else []  # Limit to 10 cast members
-        tmdb_image_info = await self.tmdb_helper.get_images_by_tmdb_id(tmdb_id)
 
         backdrop_url = tmdb_image_info['backdrops'][0] if tmdb_image_info.get('backdrops') else None
 
-        # Assuming movie_info has a 'vote_average' key for the rating
-        logging.info(
-            f"Title: {movie_info.get('title', 'N/A')}, tconst: {self.tconst}, Rating: {movie_info.get('vote_average', 'N/A')}")
-
-        # Now, right before returning movie_data, log the slug
-        if self.slug:  # Check if slug is not None
-            logging.info(f"Fetching movie data for slug: {self.slug}")
-        else:
-            logging.warning("Slug is not set for the current movie.")
-
         # Use database rating if available; otherwise, fall back to TMDB rating
-        if ratings_data and ratings_data["averageRating"] != 'N/A':
-            rating = ratings_data["averageRating"]
-            votes = ratings_data["numVotes"]
-        else:
-            rating = movie_info.get('vote_average', 'N/A')
-            votes = movie_info.get('vote_count', 'N/A')
+        rating = ratings_data["averageRating"] if ratings_data and ratings_data[
+            "averageRating"] != 'N/A' else movie_info.get('vote_average', 'N/A')
+        votes = ratings_data["numVotes"] if ratings_data and ratings_data["numVotes"] != 'N/A' else movie_info.get(
+            'vote_count', 'N/A')
+
         directors = [crew['name'] for crew in tmdb_credits.get('crew', []) if crew['job'] == 'Director']
         writers = [crew['name'] for crew in tmdb_credits.get('crew', []) if crew['job'] == 'Writer']
 
@@ -192,13 +186,12 @@ class Movie:
             "title": movie_info.get('title', 'N/A'),
             "imdb_id": self.tconst,
             "tmdb_id": tmdb_id,
-            "slug": self.slug,  # Use the slug directly
-
-            "genres": ', '.join([genre['name'] for genre in movie_info.get('genres', ['N/A'])]),
+            "slug": self.slug,
+            "genres": ', '.join([genre['name'] for genre in movie_info.get('genres', [])]),
             "directors": ', '.join(directors),
             "writers": ', '.join(writers),
             "runtimes": movie_info.get('runtime', 'N/A'),
-            "countries": ', '.join([country['name'] for country in movie_info.get('production_countries', ['N/A'])]),
+            "countries": ', '.join([country['name'] for country in movie_info.get('production_countries', [])]),
             "languages": movie_info.get('original_language', 'N/A'),
             "rating": rating,
             "votes": votes,
@@ -210,8 +203,7 @@ class Movie:
             "images": tmdb_image_info,
             "trailer": tmdb_movie_trailer,
             "credits": tmdb_credits,
-            "backdrop_url": backdrop_url # Add backdrop URL here
-
+            "backdrop_url": backdrop_url
         }
 
         method_time = time.time() - start_time

@@ -33,7 +33,7 @@ class Config:
 
     # Pool configurations for aiomysql
     POOL_MIN_SIZE = 5  # Minimum number of connections in the pool
-    POOL_MAX_SIZE = 20  # Maximum number of connections in the pool
+    POOL_MAX_SIZE = 50  # Maximum number of connections in the pool
 
 def _create_ssl_context(ssl_cert_path):
     if os.path.isfile(ssl_cert_path):
