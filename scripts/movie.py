@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import time
 
 import httpx
 
@@ -96,6 +97,8 @@ class Movie:
         self.slug = None  # Assuming slug is available at initialization
 
     async def fetch_movie_slug(self):
+        start_time = time.time()  # Start timing
+
         query = """
            SELECT slug FROM `title.basics` WHERE tconst = %s;
            """
@@ -106,7 +109,17 @@ class Movie:
         else:
             logging.warning(f"No slug found for tconst: {self.tconst}")
 
+        method_time = time.time() - start_time
+        logging.info(f"Completed fetch_movie_slug for {self.tconst} in {method_time:.2f} seconds.")
+
+    import logging
+    import time
+
+    # Assume the necessary imports and setup for logging are done elsewhere in your code
+
     async def fetch_movie_ratings(self, tconst):
+        start_time = time.time()  # Start timing
+
         query = build_ratings_query()
         result = await self.query_executor.execute_async_query(query, [tconst], fetch='one')
 
@@ -117,26 +130,26 @@ class Movie:
                     "tconst": result['tconst'],
                     "averageRating": result['averageRating'] if result['averageRating'] is not None else 'N/A',
                     "numVotes": result['numVotes'] if result['numVotes'] is not None else 'N/A'
-
                 }
 
-                print(ratings_data)
+                logging.info(f"Ratings data: {ratings_data}")  # Log the ratings data
+
+                query_time = time.time() - start_time  # Measure query execution time
+                logging.info(f"Fetched movie ratings in {query_time:.2f} seconds")
+
                 return ratings_data
 
-
-
-
-
-
             except KeyError as e:
-                print(f"Error in fetch_movie_ratings: {e}")
-                print(f"Result missing expected key: {result}")
+                logging.error(f"Error in fetch_movie_ratings: {e}")
+                logging.error(f"Result missing expected key: {result}")
                 return None
         else:
-            print(f"No ratings found for tconst: {tconst}")
+            logging.info(f"No ratings found for tconst: {tconst}")
             return None
 
     async def get_movie_data(self):
+        start_time = time.time()  # Start timing the entire method
+
         tmdb_id = await self.tmdb_helper.get_tmdb_id_by_tconst(self.tconst)
         await self.fetch_movie_slug()  # Fetch and set the slug before proceeding
 
@@ -154,10 +167,6 @@ class Movie:
         tmdb_image_info = await self.tmdb_helper.get_images_by_tmdb_id(tmdb_id)
 
         backdrop_url = tmdb_image_info['backdrops'][0] if tmdb_image_info.get('backdrops') else None
-        # print(backdrop_url)
-
-        # Custom logging for title, tconst, and backdrop image
-        # logging.info(f"Title: {movie_info.get('title', 'N/A')}, tconst: {self.tconst}, Backdrop URL: {backdrop_url}")
 
         # Assuming movie_info has a 'vote_average' key for the rating
         logging.info(
@@ -205,6 +214,9 @@ class Movie:
 
         }
 
+        method_time = time.time() - start_time
+        logging.info(f"Completed get_movie_data for {self.tconst} in {method_time:.2f} seconds.")
+
         return self.movie_data
 
     async def close(self):
@@ -212,7 +224,6 @@ class Movie:
 
 
 async def main():
-    db_config = Config.STACKHERO_DB_CONFIG  # Assuming you have a db_config defined
 
     tconst = 'tt0182727'  # Example IMDb ID
     db_config = Config.STACKHERO_DB_CONFIG  # Your database configuration
