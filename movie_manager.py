@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 
 from quart import render_template
 
@@ -88,12 +89,33 @@ class MovieManager:
         logging.info(f"Movie skipped due to missing backdrop image for user_id: {user_id}")
         return None
 
+    # def _get_user_stacks(self, user_id):
+    #     # Initialize stacks for new users
+    #     if user_id not in self.user_previous_movies_stack:
+    #         self.user_previous_movies_stack[user_id] = []
+    #     if user_id not in self.user_future_movies_stack:
+    #         self.user_future_movies_stack[user_id] = []
+    #     return self.user_previous_movies_stack[user_id], self.user_future_movies_stack[user_id]
+
     def _get_user_stacks(self, user_id):
+        start_time = time.time()  # Start timing
+
         # Initialize stacks for new users
         if user_id not in self.user_previous_movies_stack:
             self.user_previous_movies_stack[user_id] = []
+            logging.info(f"Initialized previous movies stack for new user: {user_id}")
+
         if user_id not in self.user_future_movies_stack:
             self.user_future_movies_stack[user_id] = []
+            logging.info(f"Initialized future movies stack for new user: {user_id}")
+
+        # If the stacks already exist, just log that they're being accessed
+        else:
+            logging.debug(f"Accessing stacks for existing user: {user_id}")
+
+        execution_time = time.time() - start_time
+        logging.debug(f"_get_user_stacks execution time for user {user_id}: {execution_time:.4f} seconds")
+
         return self.user_previous_movies_stack[user_id], self.user_future_movies_stack[user_id]
 
     async def get_movie_by_slug(self, user_id, slug):
