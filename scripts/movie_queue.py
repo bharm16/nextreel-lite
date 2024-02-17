@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import time
 import traceback
 
 import httpx
@@ -144,7 +145,11 @@ class MovieQueue:
                         break
 
                     logging.info(f"Queue size below threshold for user_id: {user_id}, loading more movies...")
+                    start_time = time.time()
                     await self.load_movies_into_queue(user_id)
+                    end_time = time.time()
+                    load_time = end_time - start_time
+                    logging.info(f"Loading movies for user_id: {user_id} took {load_time:.2f} seconds")
 
                 await asyncio.sleep(1)
             except asyncio.CancelledError:
@@ -153,7 +158,6 @@ class MovieQueue:
             except Exception as e:
                 logging.exception(f"Exception in populate for user_id: {user_id}: {e}")
                 await asyncio.sleep(5)
-
     def is_task_running(self):
         if self.populate_task is None:
             logging.info("Populate task has not been initialized.")
@@ -176,8 +180,12 @@ class MovieQueue:
 
     async def fetch_and_enqueue_movie(self, tconst, user_id):
         try:
+            start_time = time.time()  # Measure total execution time
+
             movie = Movie(tconst, self.db_config)
             movie_data_tmdb = await movie.get_movie_data()
+
+            fetch_time = time.time() - start_time  # Measure fetch time
 
             if movie_data_tmdb:
                 user_queue = await self.get_user_queue(user_id)
@@ -186,23 +194,31 @@ class MovieQueue:
                         await user_queue.put(movie_data_tmdb)
                         self.movie_enqueue_count += 1
                         logging.info(
-                            f"[{self.movie_enqueue_count}] Enqueued movie '{movie_data_tmdb.get('title')}' with tconst: {tconst} for user_id: {user_id}")
+                            f"[{self.movie_enqueue_count}] Enqueued movie '{movie_data_tmdb.get('title')}' with tconst: {tconst} for user_id: {user_id} "
+                            f"(fetch time: {fetch_time:.2f}s, total time: {time.time() - start_time:.2f}s)"
+                        )
+
         except Exception as e:
             tb_str = traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)
             logging.error("".join(tb_str))
             logging.error(f"Error fetching/enqueuing movie {tconst} for user_id: {user_id}: {e}")
 
     async def load_movies_into_queue(self, user_id):
+        start_time = time.time()  # Measure total function time
+
         try:
             user_criteria = self.user_queues[user_id]['criteria'] if user_id in self.user_queues and 'criteria' in \
                                                                      self.user_queues[user_id] else {}
             logging.info(f"Loading movies into queue for user_id: {user_id} with criteria: {user_criteria}")
 
             async with current_app.app_context(), httpx.AsyncClient():
+                fetch_start_time = time.time()  # Measure movie fetching time
                 rows = await self.movie_fetcher.fetch_random_movies15(user_criteria)
+                fetch_time = time.time() - fetch_start_time
+
                 if rows:
                     logging.debug(
-                        f"Fetched {len(rows)} movies for user_id: {user_id} based on criteria: {user_criteria}")
+                        f"Fetched {len(rows)} movies for user_id: {user_id} based on criteria: {user_criteria} (fetch time: {fetch_time:.2f}s)")
                 else:
                     logging.warning(
                         f"No movies fetched for user_id: {user_id} with the given criteria: {user_criteria}")
@@ -210,10 +226,15 @@ class MovieQueue:
                 tasks = [asyncio.create_task(self.fetch_and_enqueue_movie(row['tconst'], user_id)) for row in rows if
                          row]
                 await asyncio.gather(*tasks)
+
         except Exception as e:
             tb_str = traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)
             logging.error("".join(tb_str))
             logging.error(f"Error loading movies into queue for user_id: {user_id}: {e}")
+
+        finally:  # Log total time in all cases
+            total_time = time.time() - start_time
+            logging.info(f"Completed loading movies into queue for user_id: {user_id} (total time: {total_time:.2f}s)")
 
     async def update_criteria_and_reset(self, user_id, new_criteria):
         try:
