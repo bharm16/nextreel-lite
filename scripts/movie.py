@@ -95,6 +95,8 @@ class Movie:
         self.query_executor = DatabaseQueryExecutor(db_pool)  # Corrected here
         self.tmdb_helper = TMDbHelper(TMDB_API_KEY)  # Initialize TMDbHelper
         self.slug = None  # Assuming slug is available at initialization
+        self.client = httpx.AsyncClient()  # Initialize once and reuse
+
 
     async def fetch_movie_slug(self):
         start_time = time.time()  # Start timing
@@ -212,7 +214,7 @@ class Movie:
         return self.movie_data
 
     async def close(self):
-        pass
+        await self.client.aclose()  # Close the client session when done
 
 
 async def main():
