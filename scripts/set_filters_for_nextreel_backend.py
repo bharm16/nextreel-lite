@@ -106,13 +106,48 @@ class ImdbRandomMovieFetcher:
             logging.error(f"Error fetching movies by criteria: {e}\n{traceback.format_exc()}")
             raise
 
+    import logging
+    import time
+
     async def fetch_random_movies15(self, criteria):
+        # Start timing the method execution
+        method_start_time = time.time()
+
+        logging.info(f"Starting fetch_random_movies15 with criteria: {criteria}")
+
         base_query = build_base_query()
         parameters = build_parameters(criteria)
+
+        # Log the construction of parameters
+        logging.info(f"Parameters built: {parameters}")
+
         genre_conditions = build_genre_conditions(criteria, parameters)
+
+        # Log the construction of genre conditions
+        if genre_conditions:
+            logging.info(f"Genre conditions applied: {genre_conditions[0]}")
+
         full_query = base_query + (
             f" AND ({genre_conditions[0]})" if genre_conditions else "") + " ORDER BY RAND() LIMIT 15"
-        return await self.db_query_executor.execute_async_query(full_query, parameters, 'all')
+
+        # Log the final query (optional, might be omitted for security/privacy reasons)
+        # logging.debug(f"Executing query: {full_query}")
+
+        # Time the query execution specifically
+        query_start_time = time.time()
+        result = await self.db_query_executor.execute_async_query(full_query, parameters, 'all')
+        query_end_time = time.time()
+
+        # Log the query execution time
+        logging.info(f"Query executed in {query_end_time - query_start_time:.2f} seconds")
+
+        # End timing the method execution
+        method_end_time = time.time()
+
+        # Log the total time taken by the method
+        logging.info(f"Completed fetch_random_movies15 in {method_end_time - method_start_time:.2f} seconds")
+
+        return result
 
     # async def fetch_random_movie(self, criteria):
     #     base_query = build_base_query()
