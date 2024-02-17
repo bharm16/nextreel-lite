@@ -1,5 +1,7 @@
 import logging
 import os
+import time
+import traceback
 
 from config import Config, DatabaseConnection
 from mysql_query_builder import DatabaseQueryExecutor
@@ -17,6 +19,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(filename)s - %(funcName)s - %(levelname)s - %(message)s'
 )
+
 
 # Finally, print the new working directory to confirm the change
 # print(f"Current working directory after change: {os.getcwd()}")
@@ -75,11 +78,34 @@ class ImdbRandomMovieFetcher:
         self.db_query_executor = DatabaseQueryExecutor(dbconfig)  # Use dbconfig directly
 
     async def fetch_movies_by_criteria(self, criteria):
-        base_query = build_base_query()
-        parameters = build_parameters(criteria)
-        genre_conditions = build_genre_conditions(criteria, parameters)
-        full_query = base_query + (f" AND ({genre_conditions[0]})" if genre_conditions else "")
-        return await self.db_query_executor.execute_async_query(full_query, parameters, 'all')
+        start_time = time.time()
+
+        try:
+            base_query = build_base_query()
+            parameters = build_parameters(criteria)
+            genre_conditions = build_genre_conditions(criteria, parameters)
+            full_query = base_query + (f" AND ({genre_conditions[0]})" if genre_conditions else "")
+
+            logging.debug(f"Executing query: {full_query} with parameters: {parameters}")  # Log the constructed query
+
+            query_start_time = time.time()
+            result = await self.db_query_executor.execute_async_query(full_query, parameters, 'all')
+            query_time = time.time() - query_start_time
+
+            logging.info(f"Fetched {len(result)} movies by criteria in {query_time:.2f} seconds")
+            return result
+
+        except Exception as e:
+            tb_str = traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)
+            logging.error("".join(tb_str))
+            logging.error(f"Error fetching movies by criteria: {e}")
+            raise  # Re-raise the exception to propagate it upwards
+
+        finally:
+            total_time = time.time() - start_time
+            logging.debug(f"Total time for fetch_movies_by_criteria: {total_time:.2f} seconds")
+
+
 
     async def fetch_random_movies15(self, criteria):
         base_query = build_base_query()
@@ -125,7 +151,6 @@ def extract_movie_filter_criteria(form_data):
     if form_data.get('num_votes_max'):
         criteria['max_votes'] = int(form_data.get('num_votes_max'))
 
-
     # Handling genre criteria
     genres = form_data.getlist('genres[]')
     if genres:
@@ -159,9 +184,6 @@ async def main():
     # Iterate over the movies and print each movie on a new line with a counter
     for counter, movie in enumerate(movies, start=1):  # start=1 begins the counter at 1
         print(f"Movie {counter}: {movie}")  # This will print the movie number and its details
-
-
-
 
 
 # Example usage
