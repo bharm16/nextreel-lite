@@ -72,11 +72,18 @@ def create_app():
                 session['user_id'] = str(uuid.uuid4())
                 logging.info(f"New user_id generated: {session['user_id']}")
 
-                # Create and populate a queue for the new user
                 # Define default criteria or fetch it from somewhere if you have personalized criteria logic
                 default_criteria = {"min_year": 1900, "max_year": 2023, "min_rating": 7.0,
                                     "genres": ["Action", "Comedy"]}
+
+                # Add user with criteria
                 await movie_manager.add_user(session['user_id'], default_criteria)
+
+                # Assuming movie_manager provides access to the MovieQueue instance,
+                # start preloading movies into the user's queue
+                # This line is the main addition to integrate start_populate_task
+                movie_manager.movie_queue_manager.start_populate_task(session['user_id'])
+
             else:
                 logging.info(f"Existing user_id found: {session['user_id']}")
 
