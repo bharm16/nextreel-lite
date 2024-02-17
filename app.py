@@ -145,7 +145,8 @@ def create_app():
             # Check if we should trigger a movie queue population
             if session['failed_attempts'] >= 4:
                 logging.info("Failed attempts threshold reached. Triggering movie queue population.")
-                movie_queue.start_populate_task(user_id)  # Optionally start population task
+                await movie_manager.movie_queue_manager.start_populate_task(session['user_id'])
+
                 session['failed_attempts'] = 0  # Optionally reset failed attempts
 
         # After 30 seconds, if no movie is found, log a message and return a custom response

@@ -86,7 +86,7 @@ class MovieQueue:
             logging.error("".join(tb_str))
             logging.error(f"Failed to set new criteria for user_id: {user_id}. Exception: {e}")
 
-    def start_populate_task(self, user_id):
+    async def start_populate_task(self, user_id):
         try:
             user_queue_info = self.user_queues.get(user_id)
             if user_queue_info and (
