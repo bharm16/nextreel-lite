@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import sys
+import time
 import uuid
 
 import aioredis
@@ -116,36 +117,33 @@ def create_app():
         user_id = session.get('user_id')
         logging.info(f"Requesting next movie for user_id: {user_id}")
 
-        # Initialize failed_attempts in session if not present
         if 'failed_attempts' not in session:
             session['failed_attempts'] = 0
 
-        max_attempts = 5  # Max attempts to check for available movies
-        attempt = 0  # Initial attempt count
-        wait_seconds = 2  # Seconds to wait between attempts
+        total_duration = 30  # Total duration to keep trying in seconds
+        wait_seconds = 5  # Seconds to wait between attempts
+        start_time = time.time()  # Capture start time
 
-        while attempt < max_attempts:
+        while (time.time() - start_time) < total_duration:
             response = await movie_manager.next_movie(user_id)
             if response:
                 session['failed_attempts'] = 0  # Reset failed attempts on success
                 return response
             else:
                 session['failed_attempts'] += 1
-                attempt += 1
                 logging.info(
-                    f"No movies available, waiting for {wait_seconds} seconds before retrying... (Attempt {attempt}/{max_attempts})")
+                    f"No movies available, waiting for {wait_seconds} seconds before retrying...")
                 await asyncio.sleep(wait_seconds)  # Wait before retrying
 
-            # Check if failed attempts threshold is reached
-            if session['failed_attempts'] >= 3:
+            # Check if we should trigger a movie queue population
+            if session['failed_attempts'] >= 4:
                 logging.info("Failed attempts threshold reached. Triggering movie queue population.")
-                movie_queue.start_populate_task(user_id)  # Start population task for this user
-                session['failed_attempts'] = 0  # Reset failed attempts after starting population
+                movie_queue.start_populate_task(user_id)  # Optionally start population task
+                session['failed_attempts'] = 0  # Optionally reset failed attempts
 
-        # If we reach here, no movies were available after all attempts
-            # Redirect to home if no movies are available after all attempts
-            logging.warning("No more movies available after multiple attempts, redirecting to home.")
-            return redirect(url_for('home'))
+        # After 30 seconds, if no movie is found, log a message and return a custom response
+        logging.warning("No more movies available after trying for 30 seconds.")
+        return 'No more movies available. Please try again later.', 200
 
     @app.route('/previous_movie', methods=['GET', 'POST'])
     async def previous_movie():
@@ -184,6 +182,7 @@ def create_app():
 
         # Log and proceed with filtering
         logging.info(f"Applying movie filters for user_id: {user_id}")
+        await asyncio.sleep(5)
         return await movie_manager.filtered_movie(user_id, form_data)
 
     def get_user_criteria():
