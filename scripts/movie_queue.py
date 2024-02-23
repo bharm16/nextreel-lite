@@ -45,6 +45,9 @@ class MovieQueue:
             self.movie_enqueue_count = 0  # Add a counter for movies enqueued
             self.user_queues = {}  # Dictionary to store user-specific queues
             self.stop_flags = {}  # Tracks whether to stop the populate task for each user
+            # Other initialization...
+            self.space_available = asyncio.Event()
+            self.space_available.set()  # Initially, assume there's space available.
 
     async def set_stop_flag(self, user_id, stop=True):
         """Sets the stop flag for a given user's populate task."""
@@ -131,13 +134,18 @@ class MovieQueue:
         max_queue_size = 15
         while True:
             try:
+                # Ensure the space_available Event is correctly bound to the current event loop
+                if not hasattr(self, 'space_available') or self.space_available._loop != asyncio.get_running_loop():
+                    self.space_available = asyncio.Event()
+                    self.space_available.set()
+
                 user_queue = await self.get_user_queue(user_id)
                 current_queue_size = user_queue.qsize()
 
                 if current_queue_size >= max_queue_size:
-                    logging.info(f"User queue for user_id: {user_id} has reached maximum size of {max_queue_size}.")
-                    await asyncio.sleep(10)
-                    continue
+                    logging.info(f"Queue full for user_id: {user_id}. Waiting for space...")
+                    self.space_available.clear()
+                    await self.space_available.wait()
 
                 if current_queue_size <= 1:
                     if await self.check_stop_flag(user_id):
@@ -145,27 +153,18 @@ class MovieQueue:
                         break
 
                     logging.info(f"Queue size below threshold for user_id: {user_id}, loading more movies...")
-                    start_time = time.time()
                     await self.load_movies_into_queue(user_id)
-                    end_time = time.time()
-                    load_time = end_time - start_time
-                    logging.info(f"Loading movies for user_id: {user_id} took {load_time:.2f} seconds")
 
-                await asyncio.sleep(1)
             except asyncio.CancelledError:
-                logging.info(f"Populate task for user_id: {user_id} has been cancelled")
+                logging.info(f"Populate task for user_id: {user_id} has been cancelled.")
                 break
             except Exception as e:
                 logging.exception(f"Exception in populate for user_id: {user_id}: {e}")
-                await asyncio.sleep(5)
 
             finally:
-                # The completion event is set here, signaling that the population task is complete.
-                # This is crucial for integrating with the asyncio.Event mechanism.
                 if completion_event:
                     completion_event.set()
-                logging.info(f"Population task for user_id: {user_id} has completed.")
-                await asyncio.sleep(10)
+                logging.info(f"Population task for user_id: {user_id} is checking for more work or completing.")
 
     def is_task_running(self):
         if self.populate_task is None:
