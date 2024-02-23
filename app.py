@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import profile
 import sys
 import time
 import uuid
@@ -10,8 +11,7 @@ from quart_session import Session
 
 import config
 from movie_manager import MovieManager
-from profiling.cpu_profiler import cpu_profile
-from profiling.memory_profiler import memory_profile
+from profiling.profiling import cpu_profile, memory_profile
 
 logging.basicConfig(
     level=logging.INFO,
@@ -97,8 +97,8 @@ def create_app():
         await movie_manager.start()
 
     @app.route('/')
-    # @cpu_profile  # Decorate with the CPU profiler
-    # @memory_profile  # Decorate with the memory profiler
+    @cpu_profile  # Apply CPU profiling
+    @memory_profile  # Apply memory profiling
     async def home():
         user_id = session.get('user_id')
         return await movie_manager.home(user_id)
