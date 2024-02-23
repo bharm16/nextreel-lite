@@ -165,6 +165,7 @@ class MovieQueue:
                 if completion_event:
                     completion_event.set()
                 logging.info(f"Population task for user_id: {user_id} has completed.")
+                await asyncio.sleep(10)
 
     def is_task_running(self):
         if self.populate_task is None:
