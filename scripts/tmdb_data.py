@@ -106,14 +106,14 @@ class TMDbHelper:
             for video in data.get('results', []):
                 if video['site'] == 'YouTube' and video['type'] == 'Trailer':
                     video_url = f"https://www.youtube.com/watch?v={video['key']}"
-                    logging.info(f"Found YouTube trailer for TMDB ID: {tmdb_id} - {video_url}")
+                    # logging.info(f"Found YouTube trailer for TMDB ID: {tmdb_id} - {video_url}")
                     return video_url
 
-            logging.warning(f"No YouTube trailer found for TMDB ID: {tmdb_id}")
+            # logging.warning(f"No YouTube trailer found for TMDB ID: {tmdb_id}")
             return None
         finally:
             elapsed_time = time.time() - start_time
-            logging.info(f"Completed fetching video URL for TMDB ID: {tmdb_id} in {elapsed_time:.2f} seconds")
+            # logging.info(f"Completed fetching video URL for TMDB ID: {tmdb_id} in {elapsed_time:.2f} seconds")
 
     async def get_images_by_tmdb_id(self, tmdb_id):
         logging.info(f"Fetching images for TMDB ID: {tmdb_id}")

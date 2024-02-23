@@ -71,21 +71,21 @@ class DatabaseConnectionPool:
         start_time = time.time()
         connection = await self.pool.acquire()
         end_time = time.time()
-        logging.info(f"Acquired connection from pool in {end_time - start_time:.2f} seconds.")
+        # logging.info(f"Acquired connection from pool in {end_time - start_time:.2f} seconds.")
         return connection
 
     async def release_async_connection(self, conn):
         start_time = time.time()
         self.pool.release(conn)
         end_time = time.time()
-        logging.info(f"Released connection back to pool in {end_time - start_time:.2f} seconds.")
+        # logging.info(f"Released connection back to pool in {end_time - start_time:.2f} seconds.")
 
     async def close_pool(self):
         start_time = time.time()
         self.pool.close()
         await self.pool.wait_closed()
         end_time = time.time()
-        logging.info(f"Connection pool closed in {end_time - start_time:.2f} seconds.")
+        # logging.info(f"Connection pool closed in {end_time - start_time:.2f} seconds.")
 
 # Asynchronous usage example
 async def main():

@@ -215,35 +215,57 @@ class MovieManager:
         return await render_template('set_filters.html')
 
     async def filtered_movie(self, user_id, form_data):
-        logging.info("Filtering movie for user_id: {}".format(user_id))
+        logging.info(f"Starting filtering process for user_id: {user_id}")
+
+        # Extract new criteria from form data
+        operation_start = time.time()
         new_criteria = extract_movie_filter_criteria(form_data)
-        # Update criteria specifically for the user
+        logging.info(
+            f"Extracted movie filter criteria for user_id: {user_id} in {time.time() - operation_start:.2f} seconds")
 
-        # Stop any existing populate task, empty the user's queue, and repopulate based on new criteria
+        # Stop any existing populate task
+        operation_start = time.time()
         await self.movie_queue_manager.stop_populate_task(user_id)
+        logging.info(f"Stopped populate task for user_id: {user_id} in {time.time() - operation_start:.2f} seconds")
+
+        # Empty the user's queue
+        operation_start = time.time()
         await self.movie_queue_manager.empty_queue(user_id)
+        logging.info(f"Emptied movie queue for user_id: {user_id} in {time.time() - operation_start:.2f} seconds")
+
+        # Set new criteria for the user
+        operation_start = time.time()
         await self.movie_queue_manager.set_criteria(user_id, new_criteria)
+        logging.info(f"Set new criteria for user_id: {user_id} in {time.time() - operation_start:.2f} seconds")
 
-        # Reset the stop flag here before starting to repopulate
+        # Reset the stop flag before repopulating
+        operation_start = time.time()
         await self.movie_queue_manager.set_stop_flag(user_id, False)
+        logging.info(f"Reset stop flag for user_id: {user_id} in {time.time() - operation_start:.2f} seconds")
 
-        # Start repopulating the queue for the user
+        # Start repopulating the queue for the user and signal when done
+        population_done = asyncio.Event()
+        logging.info(f"Initiating repopulation of movie queue for user_id: {user_id}")
+        populate_start_time = time.time()
         self.movie_queue_manager.populate_task = asyncio.create_task(
-            self.movie_queue_manager.populate(user_id)
-        )
-        logging.info("Criteria updated, repopulating movie queue for user_id: {}".format(user_id))
+            self.movie_queue_manager.populate(user_id, population_done))
 
-        # Optionally wait a bit for the queue to start populating
-        await asyncio.sleep(10)  # Adjust this based on your needs
+        # Wait for the population to complete
+        await population_done.wait()
+        populate_elapsed_time = time.time() - populate_start_time
+        logging.info(f"Queue repopulation completed for user_id: {user_id} in {populate_elapsed_time:.2f} seconds")
 
-        # Now, fetch the next movie for the user from the updated queue
-        # It's important to call `next_movie` to update `self.current_displayed_movie` correctly
+        # Fetch the next movie for the user from the updated queue
+        operation_start = time.time()
         await self.next_movie(user_id)
+        logging.info(f"Fetched next movie for user_id: {user_id} in {time.time() - operation_start:.2f} seconds")
 
-        # Finally, use `self.current_displayed_movie` to render the movie for the user
-        # This ensures the movie displayed is the one updated after filtering
-        return await self.fetch_and_render_movie(self.current_displayed_movie, user_id)
+        # Render the movie for the user
+        operation_start = time.time()
+        response = await self.fetch_and_render_movie(self.current_displayed_movie, user_id)
+        logging.info(f"Completed rendering movie for user_id: {user_id} in {time.time() - operation_start:.2f} seconds")
 
+        return response
 
 # Main function for testing...
 async def main():

@@ -127,7 +127,7 @@ class MovieQueue:
             logging.error("".join(tb_str))
             logging.error(f"Error emptying queue for user_id: {user_id}: {e}")
 
-    async def populate(self, user_id):
+    async def populate(self, user_id, completion_event=None):
         max_queue_size = 15
         while True:
             try:
@@ -158,6 +158,14 @@ class MovieQueue:
             except Exception as e:
                 logging.exception(f"Exception in populate for user_id: {user_id}: {e}")
                 await asyncio.sleep(5)
+
+            finally:
+                # The completion event is set here, signaling that the population task is complete.
+                # This is crucial for integrating with the asyncio.Event mechanism.
+                if completion_event:
+                    completion_event.set()
+                logging.info(f"Population task for user_id: {user_id} has completed.")
+
     def is_task_running(self):
         if self.populate_task is None:
             logging.info("Populate task has not been initialized.")
