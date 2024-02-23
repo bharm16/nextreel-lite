@@ -1,51 +1,49 @@
 # profiling.py
+import asyncio
 import cProfile
 import pstats
 import io
 from functools import wraps
-
 from memory_profiler import memory_usage
 
-
 def cpu_profile(func):
-    """
-    A decorator that uses cProfile to profile a function.
-    """
-
     @wraps(func)
-    def profiled_func(*args, **kwargs):
+    async def profiled_func(*args, **kwargs):
         profiler = cProfile.Profile()
         profiler.enable()
 
-        result = func(*args, **kwargs)  # Run the function being profiled
+        # Run the coroutine being profiled
+        result = await func(*args, **kwargs)
 
         profiler.disable()
         s = io.StringIO()
         sortby = 'cumulative'
         ps = pstats.Stats(profiler, stream=s).sort_stats(sortby)
         ps.print_stats()
-        print(s.getvalue())  # Print the profiled statistics to stdout
+        print(s.getvalue())
 
         return result
 
-    return profiled_func
-
+    if asyncio.iscoroutinefunction(func):
+        return profiled_func
+    else:
+        return func
 
 def memory_profile(func):
-    """
-    A decorator that profiles the memory usage of the decorated function.
-    """
-
     @wraps(func)
-    def profiled_func(*args, **kwargs):
-        def wrapper():
-            return func(*args, **kwargs)
+    async def profiled_func(*args, **kwargs):
+        mem_usage_before = memory_usage(-1)[0]
+        result = await func(*args, **kwargs)
+        mem_usage_after = memory_usage(-1)[0]
+        print(f"Memory usage: {mem_usage_after - mem_usage_before} MiB")
 
-        mem_usage = memory_usage(wrapper)  # Profile the memory usage
-        print(f"Memory usage (in kilobytes): {mem_usage}")
-        return wrapper()
+        return result
 
-    return profiled_func
+    if asyncio.iscoroutinefunction(func):
+        return profiled_func
+    else:
+        return func
+
 
 
 # Example usage of the decorators
