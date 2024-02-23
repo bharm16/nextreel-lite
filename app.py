@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import profile
 import sys
 import time
 import uuid
@@ -11,7 +10,6 @@ from quart_session import Session
 
 import config
 from movie_manager import MovieManager
-from profiling.profiling import cpu_profile, memory_profile
 
 logging.basicConfig(
     level=logging.INFO,
@@ -96,15 +94,13 @@ def create_app():
         await movie_manager.start()
 
     @app.route('/')
-    @cpu_profile  # Apply CPU profiling
-    @memory_profile  # Apply memory profiling
+ 
     async def home():
         user_id = session.get('user_id')
         return await movie_manager.home(user_id)
 
     @app.route('/movie/<slug>')
-    @cpu_profile  # Apply CPU profiling
-    @memory_profile  # Apply memory profiling
+ 
     async def movie_details(slug):
         user_id = session.get('user_id')
         logging.info(f"Fetching movie details for slug: {slug} and user_id: {user_id}")
@@ -120,8 +116,7 @@ def create_app():
             return 'Movie not found', 404
 
     @app.route('/next_movie', methods=['GET', 'POST'])
-    @cpu_profile  # Apply CPU profiling
-    @memory_profile  # Apply memory profiling
+
     async def next_movie():
         user_id = session.get('user_id')
         logging.info(f"Requesting next movie for user_id: {user_id}")
@@ -156,8 +151,8 @@ def create_app():
         return 'No more movies available. Please try again later.', 200
 
     @app.route('/previous_movie', methods=['GET', 'POST'])
-    @cpu_profile  # Apply CPU profiling
-    @memory_profile  # Apply memory profiling
+    # @cpu_profile  # Apply CPU profiling
+    # @memory_profile  # Apply memory profiling
     async def previous_movie():
         user_id = session.get('user_id')
         logging.info(f"Requesting previous movie for user_id: {user_id}")
@@ -165,8 +160,7 @@ def create_app():
         return response if response else ('No previous movies', 200)
 
     @app.route('/setFilters')
-    @cpu_profile  # Apply CPU profiling
-    @memory_profile  # Apply memory profiling
+ 
     async def set_filters():
         user_id = session.get('user_id')  # Extract user_id from session
         current_filters = session.get('current_filters', {})  # Retrieve current filters from session
@@ -189,8 +183,8 @@ def create_app():
             raise  # Re-raise the exception or handle it as per your error handling policy
 
     @app.route('/filtered_movie', methods=['POST'])
-    @cpu_profile  # Apply CPU profiling
-    @memory_profile  # Apply memory profiling
+    # @cpu_profile  # Apply CPU profiling
+    # @memory_profile  # Apply memory profiling
     async def filtered_movie_endpoint():
         user_id = session.get('user_id')  # Extract user_id from session
         form_data = await request.form  # Await the form data
@@ -233,8 +227,7 @@ def create_app():
         # Route to handle new user access
 
     @app.route('/handle_new_user')
-    @cpu_profile  # Apply CPU profiling
-    @memory_profile  # Apply memory profiling
+ 
     async def handle_new_user():
         user_id = session.get('user_id', str(uuid.uuid4()))  # Generate new user_id if not exists
         session['user_id'] = user_id  # Save user_id to session
