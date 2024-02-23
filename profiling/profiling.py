@@ -1,63 +1,62 @@
-# profiling.py
 import asyncio
 import cProfile
 import pstats
 import io
 from functools import wraps
-
 from memory_profiler import memory_usage
-
 
 def cpu_profile(func):
     """
     A decorator that profiles the CPU usage of the decorated function.
     It supports both synchronous and asynchronous functions.
     """
-
     @wraps(func)
     def wrapped_sync(*args, **kwargs):
         profiler = cProfile.Profile()
         profiler.enable()
         try:
-            return func(*args, **kwargs)
+            result = func(*args, **kwargs)
         finally:
             profiler.disable()
             s = io.StringIO()
             ps = pstats.Stats(profiler, stream=s).sort_stats('cumulative')
             ps.print_stats()
-            print(s.getvalue())
+            with open('cpu_profile_sync.txt', 'w') as file:
+                file.write(s.getvalue())
+        return result
 
     @wraps(func)
     async def wrapped_async(*args, **kwargs):
         profiler = cProfile.Profile()
         profiler.enable()
         try:
-            return await func(*args, **kwargs)
+            result = await func(*args, **kwargs)
         finally:
             profiler.disable()
             s = io.StringIO()
             ps = pstats.Stats(profiler, stream=s).sort_stats('cumulative')
             ps.print_stats()
-            print(s.getvalue())
+            with open('cpu_profile_async.txt', 'w') as file:
+                file.write(s.getvalue())
+        return result
 
     if asyncio.iscoroutinefunction(func):
         return wrapped_async
     else:
         return wrapped_sync
 
-
 def memory_profile(func):
     """
     A decorator that profiles the memory usage of the decorated function.
     It supports both synchronous and asynchronous functions.
     """
-
     @wraps(func)
     def wrapped_sync(*args, **kwargs):
         mem_usage_before = memory_usage(-1)[0]
         result = func(*args, **kwargs)
         mem_usage_after = memory_usage(-1)[0]
-        print(f"Memory increased by: {mem_usage_after - mem_usage_before} MiB")
+        with open('memory_profile_sync.txt', 'w') as file:
+            file.write(f"Memory increased by: {mem_usage_after - mem_usage_before} MiB\n")
         return result
 
     @wraps(func)
@@ -65,7 +64,8 @@ def memory_profile(func):
         mem_usage_before = memory_usage(-1)[0]
         result = await func(*args, **kwargs)
         mem_usage_after = memory_usage(-1)[0]
-        print(f"Memory increased by: {mem_usage_after - mem_usage_before} MiB")
+        with open('memory_profile_async.txt', 'w') as file:
+            file.write(f"Memory increased by: {mem_usage_after - mem_usage_before} MiB\n")
         return result
 
     if asyncio.iscoroutinefunction(func):
