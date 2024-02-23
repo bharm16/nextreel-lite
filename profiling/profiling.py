@@ -5,11 +5,10 @@ import io
 from functools import wraps
 from memory_profiler import memory_usage
 
+# Update this path to your actual desktop path
+desktop_path = '/Users/bryceharmon/Desktop/profiling'
+
 def cpu_profile(func):
-    """
-    A decorator that profiles the CPU usage of the decorated function.
-    It supports both synchronous and asynchronous functions.
-    """
     @wraps(func)
     def wrapped_sync(*args, **kwargs):
         profiler = cProfile.Profile()
@@ -21,7 +20,8 @@ def cpu_profile(func):
             s = io.StringIO()
             ps = pstats.Stats(profiler, stream=s).sort_stats('cumulative')
             ps.print_stats()
-            with open('cpu_profile_sync.txt', 'w') as file:
+            # Save to desktop
+            with open(desktop_path + 'cpu_profile_sync.txt', 'w') as file:
                 file.write(s.getvalue())
         return result
 
@@ -36,7 +36,8 @@ def cpu_profile(func):
             s = io.StringIO()
             ps = pstats.Stats(profiler, stream=s).sort_stats('cumulative')
             ps.print_stats()
-            with open('cpu_profile_async.txt', 'w') as file:
+            # Save to desktop
+            with open(desktop_path + 'cpu_profile_async.txt', 'w') as file:
                 file.write(s.getvalue())
         return result
 
@@ -46,16 +47,13 @@ def cpu_profile(func):
         return wrapped_sync
 
 def memory_profile(func):
-    """
-    A decorator that profiles the memory usage of the decorated function.
-    It supports both synchronous and asynchronous functions.
-    """
     @wraps(func)
     def wrapped_sync(*args, **kwargs):
         mem_usage_before = memory_usage(-1)[0]
         result = func(*args, **kwargs)
         mem_usage_after = memory_usage(-1)[0]
-        with open('memory_profile_sync.txt', 'w') as file:
+        # Save to desktop
+        with open(desktop_path + 'memory_profile_sync.txt', 'w') as file:
             file.write(f"Memory increased by: {mem_usage_after - mem_usage_before} MiB\n")
         return result
 
@@ -64,7 +62,8 @@ def memory_profile(func):
         mem_usage_before = memory_usage(-1)[0]
         result = await func(*args, **kwargs)
         mem_usage_after = memory_usage(-1)[0]
-        with open('memory_profile_async.txt', 'w') as file:
+        # Save to desktop
+        with open(desktop_path + 'memory_profile_async.txt', 'w') as file:
             file.write(f"Memory increased by: {mem_usage_after - mem_usage_before} MiB\n")
         return result
 
