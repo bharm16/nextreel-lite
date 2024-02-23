@@ -3,10 +3,24 @@ import cProfile
 import pstats
 import io
 from functools import wraps
+
 from memory_profiler import memory_usage
 
 # Update this path to your actual desktop path
-desktop_path = '/Users/bryceharmon/Desktop/profiling'
+desktop_path = '/Users/bryceharmon/Desktop/'
+
+
+# Clear profiling files at the start of the program
+def clear_profiling_files():
+    files = ['cpu_profile_sync.txt', 'cpu_profile_async.txt', 'memory_profile_sync.txt', 'memory_profile_async.txt']
+    for file in files:
+        with open(desktop_path + file, 'w') as f:
+            pass  # Clear the file
+
+
+# Call this function once at the start of your program
+clear_profiling_files()
+
 
 def cpu_profile(func):
     @wraps(func)
@@ -20,9 +34,8 @@ def cpu_profile(func):
             s = io.StringIO()
             ps = pstats.Stats(profiler, stream=s).sort_stats('cumulative')
             ps.print_stats()
-            # Save to desktop
-            with open(desktop_path + 'cpu_profile_sync.txt', 'w') as file:
-                file.write(s.getvalue())
+            with open(desktop_path + 'cpu_profile_sync.txt', 'a') as file:  # Append to file
+                file.write(s.getvalue() + '\n\n')
         return result
 
     @wraps(func)
@@ -36,9 +49,8 @@ def cpu_profile(func):
             s = io.StringIO()
             ps = pstats.Stats(profiler, stream=s).sort_stats('cumulative')
             ps.print_stats()
-            # Save to desktop
-            with open(desktop_path + 'cpu_profile_async.txt', 'w') as file:
-                file.write(s.getvalue())
+            with open(desktop_path + 'cpu_profile_async.txt', 'a') as file:  # Append to file
+                file.write(s.getvalue() + '\n\n')
         return result
 
     if asyncio.iscoroutinefunction(func):
@@ -46,15 +58,15 @@ def cpu_profile(func):
     else:
         return wrapped_sync
 
+
 def memory_profile(func):
     @wraps(func)
     def wrapped_sync(*args, **kwargs):
         mem_usage_before = memory_usage(-1)[0]
         result = func(*args, **kwargs)
         mem_usage_after = memory_usage(-1)[0]
-        # Save to desktop
-        with open(desktop_path + 'memory_profile_sync.txt', 'w') as file:
-            file.write(f"Memory increased by: {mem_usage_after - mem_usage_before} MiB\n")
+        with open(desktop_path + 'memory_profile_sync.txt', 'a') as file:  # Append to file
+            file.write(f"Memory increased by: {mem_usage_after - mem_usage_before} MiB\n\n")
         return result
 
     @wraps(func)
@@ -62,9 +74,8 @@ def memory_profile(func):
         mem_usage_before = memory_usage(-1)[0]
         result = await func(*args, **kwargs)
         mem_usage_after = memory_usage(-1)[0]
-        # Save to desktop
-        with open(desktop_path + 'memory_profile_async.txt', 'w') as file:
-            file.write(f"Memory increased by: {mem_usage_after - mem_usage_before} MiB\n")
+        with open(desktop_path + 'memory_profile_async.txt', 'a') as file:  # Append to file
+            file.write(f"Memory increased by: {mem_usage_after - mem_usage_before} MiB\n\n")
         return result
 
     if asyncio.iscoroutinefunction(func):
