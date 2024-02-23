@@ -202,10 +202,18 @@ def create_app():
         logging.info(f"Starting filtering movies for user_id: {user_id} with form data: {form_data}")
 
         try:
+            # Here, you can log before each significant operation to see its duration
+            filter_start_time = time.time()
             # Simulate processing and filtering
             await asyncio.sleep(5)  # Simulate some async operation
+            filter_elapsed_time = time.time() - filter_start_time
+            logging.info(f"Simulated filtering operation took {filter_elapsed_time:.2f} seconds")
 
+            # Before calling the movie_manager's filtered_movie method, log the start time
+            movie_filter_start_time = time.time()
             response = await movie_manager.filtered_movie(user_id, form_data)
+            movie_filter_elapsed_time = time.time() - movie_filter_start_time
+            logging.info(f"movie_manager.filtered_movie operation took {movie_filter_elapsed_time:.2f} seconds")
 
             # Log the successful completion and time taken
             elapsed_time = time.time() - start_time
