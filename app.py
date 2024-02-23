@@ -57,7 +57,6 @@ def create_app():
         app.config['SESSION_REDIS'] = cache
         Session(app)
 
-
     movie_manager = MovieManager(config.Config.STACKHERO_DB_CONFIG)
 
     @app.before_request
@@ -170,22 +169,24 @@ def create_app():
     @memory_profile  # Apply memory profiling
     async def set_filters():
         user_id = session.get('user_id')  # Extract user_id from session
-        # Retrieve current filters from session; if none exist, use an empty dict
-        current_filters = session.get('current_filters', {})
-        logging.info(f"Setting filters for user_id: {user_id} with current filters: {current_filters}")
-        # Pass current_filters to the template
-        return await render_template('set_filters.html', current_filters=current_filters)
+        current_filters = session.get('current_filters', {})  # Retrieve current filters from session
 
+        start_time = time.time()  # Capture start time for operation
+        logging.info(f"Starting to set filters for user_id: {user_id} with current filters: {current_filters}")
 
+        try:
+            # Pass current_filters to the template
+            response = await render_template('set_filters.html', current_filters=current_filters)
 
-    # @app.route('/filtered_movie', methods=['POST'])
-    # async def filtered_movie_endpoint():
-    #     user_id = session.get('user_id')  # Extract user_id from session
-    #     logging.info(f"Applying movie filters for user_id: {user_id}")
-    #     form_data = await request.form  # Await the form data
-    #     # Extract and store filters in session for persistence
-    #     session['current_filters'] = extract_movie_filter_criteria(form_data)
-    #     return await movie_manager.filtered_movie(user_id, form_data)
+            # Log the successful completion and time taken
+            elapsed_time = time.time() - start_time
+            logging.info(f"Completed setting filters for user_id: {user_id} in {elapsed_time:.2f} seconds")
+
+            return response
+        except Exception as e:
+            # Exception logging with detailed context
+            logging.error(f"Error setting filters for user_id: {user_id}, Error: {e}")
+            raise  # Re-raise the exception or handle it as per your error handling policy
 
     @app.route('/filtered_movie', methods=['POST'])
     @cpu_profile  # Apply CPU profiling
@@ -197,10 +198,24 @@ def create_app():
         # Store form data in session for persistence
         session['current_filters'] = form_data.to_dict()
 
-        # Log and proceed with filtering
-        logging.info(f"Applying movie filters for user_id: {user_id}")
-        await asyncio.sleep(5)
-        return await movie_manager.filtered_movie(user_id, form_data)
+        start_time = time.time()  # Capture start time for operation
+        logging.info(f"Starting filtering movies for user_id: {user_id} with form data: {form_data}")
+
+        try:
+            # Simulate processing and filtering
+            await asyncio.sleep(5)  # Simulate some async operation
+
+            response = await movie_manager.filtered_movie(user_id, form_data)
+
+            # Log the successful completion and time taken
+            elapsed_time = time.time() - start_time
+            logging.info(f"Completed filtering movies for user_id: {user_id} in {elapsed_time:.2f} seconds")
+
+            return response
+        except Exception as e:
+            # Exception logging with detailed context
+            logging.error(f"Error filtering movies for user_id: {user_id}, Error: {e}")
+            raise  # Re-raise the exception or handle it as per your error handling policy
 
     def get_user_criteria():
 
@@ -234,9 +249,6 @@ def get_current_user_id():
 
 
 app = create_app()
-
-
-
 
 # @app.route("/")
 # async def hello():
