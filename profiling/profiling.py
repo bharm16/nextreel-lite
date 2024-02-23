@@ -4,34 +4,28 @@ import pstats
 import io
 from functools import wraps
 
+from memory_profiler import memory_usage
+
 
 def cpu_profile(func):
     """
-    A decorator that uses cProfile to profile a function
+    A decorator that uses cProfile to profile a function.
     """
 
     @wraps(func)
     def profiled_func(*args, **kwargs):
-        # Create a cProfile object and enable it
         profiler = cProfile.Profile()
         profiler.enable()
 
-        # Run the function being profiled
-        result = func(*args, **kwargs)
+        result = func(*args, **kwargs)  # Run the function being profiled
 
-        # Disable the profiler and print out the stats
         profiler.disable()
-
-        # Create a stream to capture the stats
         s = io.StringIO()
-        sortby = 'cumulative'  # Sort the output by cumulative time spent in each function
+        sortby = 'cumulative'
         ps = pstats.Stats(profiler, stream=s).sort_stats(sortby)
         ps.print_stats()
+        print(s.getvalue())  # Print the profiled statistics to stdout
 
-        # Print the profiled statistics to stdout
-        print(s.getvalue())
-
-        # Return the function's original result
         return result
 
     return profiled_func
@@ -39,22 +33,16 @@ def cpu_profile(func):
 
 def memory_profile(func):
     """
-    A decorator that uses memory_profiler to profile memory usage of a function
+    A decorator that profiles the memory usage of the decorated function.
     """
 
     @wraps(func)
     def profiled_func(*args, **kwargs):
-        # Define a wrapper to execute the function and return its result
         def wrapper():
             return func(*args, **kwargs)
 
-        # Profile the memory usage of the wrapper function
-        mem_usage = memory_usage(wrapper)
-
-        # Print the memory usage statistics
+        mem_usage = memory_usage(wrapper)  # Profile the memory usage
         print(f"Memory usage (in kilobytes): {mem_usage}")
-
-        # Return the result of the function call from within the wrapper
         return wrapper()
 
     return profiled_func

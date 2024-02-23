@@ -10,8 +10,8 @@ from quart_session import Session
 
 import config
 from movie_manager import MovieManager
-from scripts import movie_queue
-from scripts.set_filters_for_nextreel_backend import extract_movie_filter_criteria
+from profiling.cpu_profiler import cpu_profile
+from profiling.memory_profiler import memory_profile
 
 logging.basicConfig(
     level=logging.INFO,
@@ -57,9 +57,6 @@ def create_app():
         app.config['SESSION_REDIS'] = cache
         Session(app)
 
-    # app.config['SESSION_URI'] = redis.from_url('redis://localhost:6379')
-    # app.config['SESSION_URI'] = 'redis://:password@localhost:6379'
-    # Initialize Session Management
 
     movie_manager = MovieManager(config.Config.STACKHERO_DB_CONFIG)
 
@@ -100,6 +97,8 @@ def create_app():
         await movie_manager.start()
 
     @app.route('/')
+    # @cpu_profile  # Decorate with the CPU profiler
+    # @memory_profile  # Decorate with the memory profiler
     async def home():
         user_id = session.get('user_id')
         return await movie_manager.home(user_id)

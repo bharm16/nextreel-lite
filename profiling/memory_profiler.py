@@ -1,24 +1,23 @@
 # memory_profiler.py
-
-# The memory_profiler library provides a decorator already, so you can import it directly.
-# However, if you want to customize it or add additional functionality, you can define your own decorator.
-
-# Here's an example of a custom decorator using memory_profiler:
+import asyncio
 from functools import wraps
 
-from scss.util import profile
+from memory_profiler import memory_usage, profile
 
 
 def memory_profile(func):
     """
     A decorator that profiles the memory usage of the decorated function.
     """
-    # Apply the memory_profiler's profile decorator
-    profiled_func = profile(func)
-
     @wraps(func)
-    def wrapper(*args, **kwargs):
-        result = profiled_func(*args, **kwargs)
+    async def async_wrapper(*args, **kwargs):
+        mem_usage_before = memory_usage(-1)[0]
+        result = await func(*args, **kwargs)
+        mem_usage_after = memory_usage(-1)[0]
+        print(f"Memory increased by: {mem_usage_after - mem_usage_before} MiB")
         return result
 
-    return wrapper
+    if asyncio.iscoroutinefunction(func):
+        return async_wrapper
+    else:
+        return profile(func)
