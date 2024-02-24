@@ -59,8 +59,10 @@ class TMDB:
         self.api_key = api_key
         self.client = httpx.AsyncClient()  # Initialize the HTTP client
 
-    async def _GET(self, path, params={}):
+    async def _GET(self, path, params=None):
         """Send an asynchronous GET request to the TMDB API."""
+        if params is None:
+            params = {}
         params['api_key'] = self.api_key
         response = await self.client.get(f"{self.BASE_URL}/{path}", params=params)
         response.raise_for_status()
