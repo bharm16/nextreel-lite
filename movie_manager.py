@@ -210,12 +210,17 @@ class MovieManager:
         if prev_stack:
             # Pop the last movie from the previous stack and set it as the current displayed movie
             self.current_displayed_movie = prev_stack.pop()
-        else:
-            # If there are no previous movies, set the current displayed movie to None
-            self.current_displayed_movie = None
+            # Extract the IMDb ID from the current displayed movie
+            tconst = self.current_displayed_movie.get('imdb_id') if self.current_displayed_movie else None
 
-        # Render the movie or handle the case where there's no movie to display
-        return await self.fetch_and_render_movie(self.current_displayed_movie, user_id)
+            # If a tconst is available, call render_movie_by_tconst with the necessary parameters
+            if tconst:
+                # Assuming 'movie_detail.html' is the template where you want to display the movie details
+                return redirect(url_for('movie_detail', tconst=tconst))
+            else:
+                # Handle the case where there's no next movie, adjust the logic as needed
+                logging.info("No next movie available.")
+                # Redirect to a suitable page or show a message
 
     # async def set_filters(self):
     #     logging.info("Setting filters")
