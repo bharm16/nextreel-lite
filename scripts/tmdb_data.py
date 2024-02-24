@@ -23,9 +23,6 @@ parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Now change the working directory to the parent directory
 os.chdir(parent_dir)
 
-import httpx
-import random
-
 # Assuming logging is already configured elsewhere in your application
 # For example, in your main module or initialization script:
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')

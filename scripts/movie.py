@@ -116,9 +116,6 @@ class Movie:
         method_time = time.time() - start_time
         logging.info(f"Completed fetch_movie_slug for {self.tconst} in {method_time:.2f} seconds.")
 
-    import logging
-    import time
-
     # Assume the necessary imports and setup for logging are done elsewhere in your code
 
     async def fetch_movie_ratings(self, tconst):

@@ -63,12 +63,9 @@ LIMIT 1
 # Assume necessary imports and SQL queries defined above remain unchanged
 
 from config import Config, DatabaseConnectionPool
-
-import os
 import asyncio
 import logging
 import time
-from config import Config, DatabaseConnectionPool
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')

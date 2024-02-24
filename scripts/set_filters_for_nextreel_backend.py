@@ -106,9 +106,6 @@ class ImdbRandomMovieFetcher:
             logging.error(f"Error fetching movies by criteria: {e}\n{traceback.format_exc()}")
             raise
 
-    import logging
-    import time
-
     async def fetch_random_movies15(self, criteria):
         # Start timing the method execution
         method_start_time = time.time()
