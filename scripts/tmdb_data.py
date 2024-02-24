@@ -7,11 +7,11 @@ import time
 import httpx
 import tmdbsimple as tmdb
 
-api_key = os.getenv('TMDB_API_KEY')
+api_key = os.getenv("TMDB_API_KEY")
 tmdb.API_KEY = api_key
 
 # Replace with your actual TMDb API key
-TMDB_API_KEY = '1ce9398920594a5521f0d53e9b33c52f'
+TMDB_API_KEY = "1ce9398920594a5521f0d53e9b33c52f"
 TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/"
 
 # Replace with your actual TMDb API key
@@ -25,8 +25,9 @@ os.chdir(parent_dir)
 
 # Assuming logging is already configured elsewhere in your application
 # For example, in your main module or initialization script:
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
 
 class TMDbHelper:
@@ -43,29 +44,34 @@ class TMDbHelper:
         try:
             async with httpx.AsyncClient() as client:
                 url = f"{self.base_url}/{endpoint}"
-                params['api_key'] = self.api_key
+                params["api_key"] = self.api_key
                 # logging.info(f"Sending GET request to {url} with params: {params}")
                 response = await client.get(url, params=params)
                 response.raise_for_status()  # Will raise an exception for 4XX/5XX responses
 
                 elapsed_time = time.time() - start_time
                 logging.info(
-                    f"Received response from {url} in {elapsed_time:.2f} seconds. Status code: {response.status_code}")
+                    f"Received response from {url} in {elapsed_time:.2f} seconds. Status code: {response.status_code}"
+                )
 
                 return response.json()
         except httpx.HTTPStatusError as e:
             elapsed_time = time.time() - start_time
-            logging.error(f"HTTP error occurred while accessing {url}: {e}; Time elapsed: {elapsed_time:.2f} seconds")
+            logging.error(
+                f"HTTP error occurred while accessing {url}: {e}; Time elapsed: {elapsed_time:.2f} seconds"
+            )
             raise
         except httpx.RequestError as e:
             elapsed_time = time.time() - start_time
             logging.error(
-                f"Request error occurred while accessing {url}: {e}; Time elapsed: {elapsed_time:.2f} seconds")
+                f"Request error occurred while accessing {url}: {e}; Time elapsed: {elapsed_time:.2f} seconds"
+            )
             raise
         except Exception as e:
             elapsed_time = time.time() - start_time
             logging.error(
-                f"Unexpected error occurred while accessing {url}: {e}; Time elapsed: {elapsed_time:.2f} seconds")
+                f"Unexpected error occurred while accessing {url}: {e}; Time elapsed: {elapsed_time:.2f} seconds"
+            )
             raise
 
     async def get_cast_info_by_tmdb_id(self, tmdb_id):
@@ -75,25 +81,33 @@ class TMDbHelper:
         try:
             data = await self._get(f"movie/{tmdb_id}/credits")
             cast_info = []
-            for cast_member in data.get('cast', [])[:10]:  # Limit to top 10 cast members
-                profile_path = cast_member.get('profile_path')
-                image_url = f"{self.image_base_url}w185{profile_path}" if profile_path else None
-                character_name = cast_member.get('character', 'N/A')
-                cast_info.append({
-                    'name': cast_member['name'],
-                    'image_url': image_url,
-                    'character': character_name
-                })
+            for cast_member in data.get("cast", [])[
+                :10
+            ]:  # Limit to top 10 cast members
+                profile_path = cast_member.get("profile_path")
+                image_url = (
+                    f"{self.image_base_url}w185{profile_path}" if profile_path else None
+                )
+                character_name = cast_member.get("character", "N/A")
+                cast_info.append(
+                    {
+                        "name": cast_member["name"],
+                        "image_url": image_url,
+                        "character": character_name,
+                    }
+                )
 
             elapsed_time = time.time() - start_time
             logging.info(
-                f"Successfully fetched and processed cast information for TMDB ID: {tmdb_id} in {elapsed_time:.2f} seconds")
+                f"Successfully fetched and processed cast information for TMDB ID: {tmdb_id} in {elapsed_time:.2f} seconds"
+            )
 
             return cast_info
         except Exception as e:
             elapsed_time = time.time() - start_time
             logging.error(
-                f"Error fetching cast information for TMDB ID: {tmdb_id}. Error: {e}. Time elapsed: {elapsed_time:.2f} seconds")
+                f"Error fetching cast information for TMDB ID: {tmdb_id}. Error: {e}. Time elapsed: {elapsed_time:.2f} seconds"
+            )
             raise
 
     async def get_video_url_by_tmdb_id(self, tmdb_id):
@@ -102,8 +116,8 @@ class TMDbHelper:
 
         try:
             data = await self._get(f"movie/{tmdb_id}/videos")
-            for video in data.get('results', []):
-                if video['site'] == 'YouTube' and video['type'] == 'Trailer':
+            for video in data.get("results", []):
+                if video["site"] == "YouTube" and video["type"] == "Trailer":
                     video_url = f"https://www.youtube.com/watch?v={video['key']}"
                     # logging.info(f"Found YouTube trailer for TMDB ID: {tmdb_id} - {video_url}")
                     return video_url
@@ -121,18 +135,27 @@ class TMDbHelper:
         try:
             data = await self._get(f"movie/{tmdb_id}/images")
             images = {
-                'posters': [self.image_base_url + 'original' + img['file_path'] for img in data.get('posters', []) if
-                            'file_path' in img],
-                'backdrops': [self.image_base_url + 'original' + img['file_path'] for img in data.get('backdrops', [])
-                              if 'file_path' in img]
+                "posters": [
+                    self.image_base_url + "original" + img["file_path"]
+                    for img in data.get("posters", [])
+                    if "file_path" in img
+                ],
+                "backdrops": [
+                    self.image_base_url + "original" + img["file_path"]
+                    for img in data.get("backdrops", [])
+                    if "file_path" in img
+                ],
             }
 
             logging.info(
-                f"Found {len(images['posters'])} posters and {len(images['backdrops'])} backdrops for TMDB ID: {tmdb_id}")
+                f"Found {len(images['posters'])} posters and {len(images['backdrops'])} backdrops for TMDB ID: {tmdb_id}"
+            )
             return images
         finally:
             elapsed_time = time.time() - start_time
-            logging.info(f"Completed fetching images for TMDB ID: {tmdb_id} in {elapsed_time:.2f} seconds")
+            logging.info(
+                f"Completed fetching images for TMDB ID: {tmdb_id} in {elapsed_time:.2f} seconds"
+            )
 
     async def get_videos_by_tmdb_id(self, tmdb_id):
         return await self._get(f"movie/{tmdb_id}/videos")
@@ -141,25 +164,25 @@ class TMDbHelper:
         return await self._get(f"movie/{tmdb_id}/credits")
 
     async def get_tmdb_id_by_tconst(self, tconst):
-        data = await self._get("find/" + tconst, {'external_source': 'imdb_id'})
-        return data['movie_results'][0]['id'] if data['movie_results'] else None
+        data = await self._get("find/" + tconst, {"external_source": "imdb_id"})
+        return data["movie_results"][0]["id"] if data["movie_results"] else None
 
     async def get_movie_info_by_tmdb_id(self, tmdb_id):
         return await self._get(f"movie/{tmdb_id}")
 
-    def get_full_image_url(self, profile_path, size='original'):
+    def get_full_image_url(self, profile_path, size="original"):
         return f"{self.image_base_url}{size}{profile_path}"
 
     async def get_backdrop_image_for_home(self, tmdb_id):
         image_data = await self.get_images_by_tmdb_id(tmdb_id)
-        backdrops = image_data['backdrops']
+        backdrops = image_data["backdrops"]
         if backdrops:
             return self.get_full_image_url(backdrops[0])
         return None
 
     async def get_all_backdrop_images(self, tmdb_id):
         image_data = await self.get_images_by_tmdb_id(tmdb_id)
-        backdrops = image_data['backdrops']
+        backdrops = image_data["backdrops"]
         return [self.get_full_image_url(backdrop) for backdrop in backdrops]
 
     async def get_backdrop_for_movie(self, tmdb_id):
@@ -186,7 +209,7 @@ async def main(api_key, tconst):
         print("Cast Information:")
         for cast_member in cast_info:
             print(f"{cast_member['name']} as {cast_member['character']}")
-            if cast_member.get('image_url'):
+            if cast_member.get("image_url"):
                 print(f"Image URL: {cast_member['image_url']}")
             else:
                 print("Image not available")
@@ -203,6 +226,8 @@ async def main(api_key, tconst):
 
 
 if __name__ == "__main__":
-    api_key = '1ce9398920594a5521f0d53e9b33c52f'  # Replace with your actual TMDb API key
-    tconst = 'tt0111161'  # Replace with the IMDb tconst you have
+    api_key = (
+        "1ce9398920594a5521f0d53e9b33c52f"  # Replace with your actual TMDb API key
+    )
+    tconst = "tt0111161"  # Replace with the IMDb tconst you have
     asyncio.run(main(api_key, tconst))

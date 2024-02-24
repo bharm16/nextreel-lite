@@ -13,7 +13,7 @@ from scripts.tmdb_data import TMDbHelper
 # Configure logging for better debugging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(filename)s - %(funcName)s - %(levelname)s - %(message)s'
+    format="%(asctime)s - %(filename)s - %(funcName)s - %(levelname)s - %(message)s",
 )
 # Set httpx logging level to ERROR to reduce verbosity
 logging.getLogger("httpx").setLevel(logging.ERROR)
@@ -31,7 +31,7 @@ def build_ratings_query():
 
 
 # Replace with your actual TMDb API key
-TMDB_API_KEY = '1ce9398920594a5521f0d53e9b33c52f'
+TMDB_API_KEY = "1ce9398920594a5521f0d53e9b33c52f"
 TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/"
 
 # Replace with your actual TMDb API key
@@ -45,11 +45,11 @@ TMDB_API_BASE_URL = "https://api.themoviedb.org/3"
 async def get_tmdb_id_by_tconst(tconst, client):
     response = await client.get(
         f"{TMDB_API_BASE_URL}/find/{tconst}",
-        params={"api_key": TMDB_API_KEY, "external_source": "imdb_id"}
+        params={"api_key": TMDB_API_KEY, "external_source": "imdb_id"},
     )
     response.raise_for_status()
     data = response.json()
-    return data['movie_results'][0]['id'] if data['movie_results'] else None
+    return data["movie_results"][0]["id"] if data["movie_results"] else None
 
 
 class TMDB:
@@ -63,7 +63,7 @@ class TMDB:
         """Send an asynchronous GET request to the TMDB API."""
         if params is None:
             params = {}
-        params['api_key'] = self.api_key
+        params["api_key"] = self.api_key
         response = await self.client.get(f"{self.BASE_URL}/{path}", params=params)
         response.raise_for_status()
         return response.json()
@@ -71,7 +71,9 @@ class TMDB:
     async def get_movie_by_tmdb_id(self, tmdb_id):
         """Get a movie by its TMDb ID."""
         async with httpx.AsyncClient() as client:
-            response = await client.get(f"{self.BASE_URL}/movie/{tmdb_id}", params={"api_key": self.api_key})
+            response = await client.get(
+                f"{self.BASE_URL}/movie/{tmdb_id}", params={"api_key": self.api_key}
+            )
             response.raise_for_status()
             return response.json()
 
@@ -99,22 +101,25 @@ class Movie:
         self.slug = None  # Assuming slug is available at initialization
         self.client = httpx.AsyncClient()  # Initialize once and reuse
 
-
     async def fetch_movie_slug(self):
         start_time = time.time()  # Start timing
 
         query = """
            SELECT slug FROM `title.basics` WHERE tconst = %s;
            """
-        result = await self.query_executor.execute_async_query(query, [self.tconst], fetch='one')
+        result = await self.query_executor.execute_async_query(
+            query, [self.tconst], fetch="one"
+        )
         if result:
-            self.slug = result['slug']  # Assuming the column name in the DB is 'slug'
+            self.slug = result["slug"]  # Assuming the column name in the DB is 'slug'
             logging.info(f"Slug for tconst {self.tconst}: {self.slug}")
         else:
             logging.warning(f"No slug found for tconst: {self.tconst}")
 
         method_time = time.time() - start_time
-        logging.info(f"Completed fetch_movie_slug for {self.tconst} in {method_time:.2f} seconds.")
+        logging.info(
+            f"Completed fetch_movie_slug for {self.tconst} in {method_time:.2f} seconds."
+        )
 
     # Assume the necessary imports and setup for logging are done elsewhere in your code
 
@@ -122,15 +127,23 @@ class Movie:
         start_time = time.time()  # Start timing
 
         query = build_ratings_query()
-        result = await self.query_executor.execute_async_query(query, [tconst], fetch='one')
+        result = await self.query_executor.execute_async_query(
+            query, [tconst], fetch="one"
+        )
 
         if result:
             try:
                 # Accessing result as a dictionary
                 ratings_data = {
-                    "tconst": result['tconst'],
-                    "averageRating": result['averageRating'] if result['averageRating'] is not None else 'N/A',
-                    "numVotes": result['numVotes'] if result['numVotes'] is not None else 'N/A'
+                    "tconst": result["tconst"],
+                    "averageRating": (
+                        result["averageRating"]
+                        if result["averageRating"] is not None
+                        else "N/A"
+                    ),
+                    "numVotes": (
+                        result["numVotes"] if result["numVotes"] is not None else "N/A"
+                    ),
                 }
 
                 logging.info(f"Ratings data: {ratings_data}")  # Log the ratings data
@@ -165,50 +178,88 @@ class Movie:
             self.tmdb_helper.get_video_url_by_tmdb_id(tmdb_id),
             self.tmdb_helper.get_cast_info_by_tmdb_id(tmdb_id),
             self.tmdb_helper.get_images_by_tmdb_id(tmdb_id),
-            self.fetch_movie_ratings(self.tconst)
+            self.fetch_movie_ratings(self.tconst),
         ]
         results = await asyncio.gather(*tasks)
 
-        movie_info, tmdb_credits, tmdb_movie_trailer, tmdb_cast_info_result, tmdb_image_info, ratings_data = results
-        tmdb_cast_info = tmdb_cast_info_result[:10] if tmdb_cast_info_result else []  # Limit to 10 cast members
+        (
+            movie_info,
+            tmdb_credits,
+            tmdb_movie_trailer,
+            tmdb_cast_info_result,
+            tmdb_image_info,
+            ratings_data,
+        ) = results
+        tmdb_cast_info = (
+            tmdb_cast_info_result[:10] if tmdb_cast_info_result else []
+        )  # Limit to 10 cast members
 
-        backdrop_url = tmdb_image_info['backdrops'][0] if tmdb_image_info.get('backdrops') else None
+        backdrop_url = (
+            tmdb_image_info["backdrops"][0]
+            if tmdb_image_info.get("backdrops")
+            else None
+        )
 
         # Use database rating if available; otherwise, fall back to TMDB rating
-        rating = ratings_data["averageRating"] if ratings_data and ratings_data[
-            "averageRating"] != 'N/A' else movie_info.get('vote_average', 'N/A')
-        votes = ratings_data["numVotes"] if ratings_data and ratings_data["numVotes"] != 'N/A' else movie_info.get(
-            'vote_count', 'N/A')
+        rating = (
+            ratings_data["averageRating"]
+            if ratings_data and ratings_data["averageRating"] != "N/A"
+            else movie_info.get("vote_average", "N/A")
+        )
+        votes = (
+            ratings_data["numVotes"]
+            if ratings_data and ratings_data["numVotes"] != "N/A"
+            else movie_info.get("vote_count", "N/A")
+        )
 
-        directors = [crew['name'] for crew in tmdb_credits.get('crew', []) if crew['job'] == 'Director']
-        writers = [crew['name'] for crew in tmdb_credits.get('crew', []) if crew['job'] == 'Writer']
+        directors = [
+            crew["name"]
+            for crew in tmdb_credits.get("crew", [])
+            if crew["job"] == "Director"
+        ]
+        writers = [
+            crew["name"]
+            for crew in tmdb_credits.get("crew", [])
+            if crew["job"] == "Writer"
+        ]
 
         self.movie_data = {
-            "title": movie_info.get('title', 'N/A'),
+            "title": movie_info.get("title", "N/A"),
             "imdb_id": self.tconst,
             "tmdb_id": tmdb_id,
             # "slug": self.slug,
-            "genres": ', '.join([genre['name'] for genre in movie_info.get('genres', [])]),
-            "directors": ', '.join(directors),
+            "genres": ", ".join(
+                [genre["name"] for genre in movie_info.get("genres", [])]
+            ),
+            "directors": ", ".join(directors),
             # "writers": ', '.join(writers),
             # "runtimes": movie_info.get('runtime', 'N/A'),
             # "countries": ', '.join([country['name'] for country in movie_info.get('production_countries', [])]),
             # "languages": movie_info.get('original_language', 'N/A'),
             "rating": rating,
             "votes": votes,
-            "plot": movie_info.get('overview', 'N/A'),
-            "poster_url": f"{TMDB_IMAGE_BASE_URL}w500{movie_info.get('poster_path')}" if movie_info.get(
-                'poster_path') else None,
-            "year": movie_info.get('release_date', 'N/A')[:4] if movie_info.get('release_date') else 'N/A',
+            "plot": movie_info.get("overview", "N/A"),
+            "poster_url": (
+                f"{TMDB_IMAGE_BASE_URL}w500{movie_info.get('poster_path')}"
+                if movie_info.get("poster_path")
+                else None
+            ),
+            "year": (
+                movie_info.get("release_date", "N/A")[:4]
+                if movie_info.get("release_date")
+                else "N/A"
+            ),
             "cast": tmdb_cast_info,
             "images": tmdb_image_info,
             "trailer": tmdb_movie_trailer,
             "credits": tmdb_credits,
-            "backdrop_url": backdrop_url
+            "backdrop_url": backdrop_url,
         }
 
         method_time = time.time() - start_time
-        logging.info(f"Completed get_movie_data for {self.tconst} in {method_time:.2f} seconds.")
+        logging.info(
+            f"Completed get_movie_data for {self.tconst} in {method_time:.2f} seconds."
+        )
 
         return self.movie_data
 
@@ -218,7 +269,7 @@ class Movie:
 
 async def main():
 
-    tconst = 'tt0182727'  # Example IMDb ID
+    tconst = "tt0182727"  # Example IMDb ID
     db_config = Config.STACKHERO_DB_CONFIG  # Your database configuration
     movie_instance = Movie(tconst, db_config)
     movie_data = await movie_instance.get_movie_data()

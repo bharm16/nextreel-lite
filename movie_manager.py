@@ -7,13 +7,17 @@ from quart import render_template, redirect, url_for
 from config import Config
 from scripts.movie import Movie
 from scripts.movie_queue import MovieQueue
-from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher, extract_movie_filter_criteria, db_pool
+from scripts.set_filters_for_nextreel_backend import (
+    ImdbRandomMovieFetcher,
+    extract_movie_filter_criteria,
+    db_pool,
+)
 from scripts.tmdb_data import TMDbHelper, TMDB_API_KEY
 
 # Configure logging for better debugging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(filename)s - %(funcName)s - %(levelname)s - %(message)s'
+    format="%(asctime)s - %(filename)s - %(funcName)s - %(levelname)s - %(message)s",
 )
 
 
@@ -62,36 +66,53 @@ class MovieManager:
         # Check if the movie queue population task is already running
         if not self.movie_queue_manager.is_task_running():
             # If not running, create and start the population task
-            self.movie_queue_manager.populate_task = asyncio.create_task(self.movie_queue_manager.populate(user_id))
+            self.movie_queue_manager.populate_task = asyncio.create_task(
+                self.movie_queue_manager.populate(user_id)
+            )
             logging.info("Movie queue population task started")
 
-        return await render_template('home.html', default_backdrop_url=self.default_backdrop_url)
+        return await render_template(
+            "home.html", default_backdrop_url=self.default_backdrop_url
+        )
 
     async def set_default_backdrop(self):
-        image_data = await self.tmdb_helper.get_images_by_tmdb_id(self.default_movie_tmdb_id)
-        backdrops = image_data['backdrops']
+        image_data = await self.tmdb_helper.get_images_by_tmdb_id(
+            self.default_movie_tmdb_id
+        )
+        backdrops = image_data["backdrops"]
         if backdrops:
-            self.default_backdrop_url = self.tmdb_helper.get_full_image_url(backdrops[0])
+            self.default_backdrop_url = self.tmdb_helper.get_full_image_url(
+                backdrops[0]
+            )
         else:
             self.default_backdrop_url = None
 
-    async def fetch_and_render_movie(self, current_displayed_movie, user_id, template_name='movie.html'):
+    async def fetch_and_render_movie(
+        self, current_displayed_movie, user_id, template_name="movie.html"
+    ):
         if not current_displayed_movie:
             logging.info("No current movie to display for user_id: {user_id}")
             return None
 
         # Check if the current movie has a backdrop URL, and if so, render it
-        if 'backdrop_url' in current_displayed_movie and current_displayed_movie['backdrop_url']:
+        if (
+            "backdrop_url" in current_displayed_movie
+            and current_displayed_movie["backdrop_url"]
+        ):
             prev_stack, _ = self._get_user_stacks(user_id)
-            return await render_template(template_name,
-                                         movie=current_displayed_movie,
-                                         previous_count=len(prev_stack))
+            return await render_template(
+                template_name,
+                movie=current_displayed_movie,
+                previous_count=len(prev_stack),
+            )
 
         # If the movie does not have a backdrop URL, log this and return None
-        logging.info(f"Movie skipped due to missing backdrop image for user_id: {user_id}")
+        logging.info(
+            f"Movie skipped due to missing backdrop image for user_id: {user_id}"
+        )
         return None
 
-    async def render_movie_by_tconst(self, user_id, tconst, template_name='movie.html'):
+    async def render_movie_by_tconst(self, user_id, tconst, template_name="movie.html"):
         """
         Fetch movie details using a tconst and render the movie, potentially using user_id
         for user-specific logic in the future.
@@ -107,9 +128,11 @@ class MovieManager:
         # Fetch movie data
         movie_data = await movie_instance.get_movie_data()
         if not movie_data:
-            logging.info(f"No data found for movie with tconst: {tconst} and user_id: {user_id}")
+            logging.info(
+                f"No data found for movie with tconst: {tconst} and user_id: {user_id}"
+            )
             # Optionally, render a 'not found' template or return a simple message
-            return 'Movie not found', 404
+            return "Movie not found", 404
 
         # Render the template with the fetched movie details
         # Future updates might include user-specific customization based on user_id
@@ -132,9 +155,14 @@ class MovieManager:
             logging.debug(f"Accessing stacks for existing user: {user_id}")
 
         execution_time = time.time() - start_time
-        logging.debug(f"_get_user_stacks execution time for user {user_id}: {execution_time:.4f} seconds")
+        logging.debug(
+            f"_get_user_stacks execution time for user {user_id}: {execution_time:.4f} seconds"
+        )
 
-        return self.user_previous_movies_stack[user_id], self.user_future_movies_stack[user_id]
+        return (
+            self.user_previous_movies_stack[user_id],
+            self.user_future_movies_stack[user_id],
+        )
 
     async def get_movie_by_slug(self, user_id, slug):
         """
@@ -145,23 +173,28 @@ class MovieManager:
 
         # Check the future stack
         for movie in future_stack:
-            if movie.get('slug') == slug:
+            if movie.get("slug") == slug:
                 return movie
 
         # Check the current displayed movie
-        if self.current_displayed_movie and self.current_displayed_movie.get('slug') == slug:
+        if (
+            self.current_displayed_movie
+            and self.current_displayed_movie.get("slug") == slug
+        ):
             return self.current_displayed_movie
 
         # Check the previous stack
         for movie in prev_stack:
-            if movie.get('slug') == slug:
+            if movie.get("slug") == slug:
                 return movie
 
         # If not found in stacks, optionally check the queue (though this might not be efficient)
         user_queue = await self.movie_queue_manager.get_user_queue(user_id)
-        movie_list = list(user_queue.queue)  # This assumes you can directly access the queue items
+        movie_list = list(
+            user_queue.queue
+        )  # This assumes you can directly access the queue items
         for movie in movie_list:
-            if movie.get('slug') == slug:
+            if movie.get("slug") == slug:
                 return movie
 
         # If not found, return None
@@ -182,18 +215,23 @@ class MovieManager:
             current_displayed_movie = await user_queue.get()
 
         # If there is a currently displayed movie, push it to the previous stack
-        if self.current_displayed_movie and current_displayed_movie != self.current_displayed_movie:
+        if (
+            self.current_displayed_movie
+            and current_displayed_movie != self.current_displayed_movie
+        ):
             prev_stack.append(self.current_displayed_movie)
 
         self.current_displayed_movie = current_displayed_movie
 
         # Extract the IMDb ID from the current displayed movie
-        tconst = current_displayed_movie.get('imdb_id') if current_displayed_movie else None
+        tconst = (
+            current_displayed_movie.get("imdb_id") if current_displayed_movie else None
+        )
 
         # If a tconst is available, call render_movie_by_tconst with the necessary parameters
         if tconst:
             # Assuming 'movie_detail.html' is the template where you want to display the movie details
-            return redirect(url_for('movie_detail', tconst=tconst))
+            return redirect(url_for("movie_detail", tconst=tconst))
         else:
             # Handle the case where there's no next movie, adjust the logic as needed
             logging.info("No next movie available.")
@@ -210,12 +248,16 @@ class MovieManager:
             # Pop the last movie from the previous stack and set it as the current displayed movie
             self.current_displayed_movie = prev_stack.pop()
             # Extract the IMDb ID from the current displayed movie
-            tconst = self.current_displayed_movie.get('imdb_id') if self.current_displayed_movie else None
+            tconst = (
+                self.current_displayed_movie.get("imdb_id")
+                if self.current_displayed_movie
+                else None
+            )
 
             # If a tconst is available, call render_movie_by_tconst with the necessary parameters
             if tconst:
                 # Assuming 'movie_detail.html' is the template where you want to display the movie details
-                return redirect(url_for('movie_detail', tconst=tconst))
+                return redirect(url_for("movie_detail", tconst=tconst))
             else:
                 # Handle the case where there's no next movie, adjust the logic as needed
                 logging.info("No next movie available.")
@@ -234,8 +276,10 @@ class MovieManager:
         # Reset the current displayed movie, assuming this needs to be reset for the user
         self.current_displayed_movie = None
 
-        logging.info(f"Filters set for user_id: {user_id} in {asyncio.get_event_loop().time() - start_time} seconds")
-        return await render_template('set_filters.html')
+        logging.info(
+            f"Filters set for user_id: {user_id} in {asyncio.get_event_loop().time() - start_time} seconds"
+        )
+        return await render_template("set_filters.html")
 
     async def filtered_movie(self, user_id, form_data):
         logging.info(f"Starting filtering process for user_id: {user_id}")
@@ -244,49 +288,67 @@ class MovieManager:
         operation_start = time.time()
         new_criteria = extract_movie_filter_criteria(form_data)
         logging.info(
-            f"Extracted movie filter criteria for user_id: {user_id} in {time.time() - operation_start:.2f} seconds")
+            f"Extracted movie filter criteria for user_id: {user_id} in {time.time() - operation_start:.2f} seconds"
+        )
 
         # Stop any existing populate task
         operation_start = time.time()
         await self.movie_queue_manager.stop_populate_task(user_id)
-        logging.info(f"Stopped populate task for user_id: {user_id} in {time.time() - operation_start:.2f} seconds")
+        logging.info(
+            f"Stopped populate task for user_id: {user_id} in {time.time() - operation_start:.2f} seconds"
+        )
 
         # Empty the user's queue
         operation_start = time.time()
         await self.movie_queue_manager.empty_queue(user_id)
-        logging.info(f"Emptied movie queue for user_id: {user_id} in {time.time() - operation_start:.2f} seconds")
+        logging.info(
+            f"Emptied movie queue for user_id: {user_id} in {time.time() - operation_start:.2f} seconds"
+        )
 
         # Set new criteria for the user
         operation_start = time.time()
         await self.movie_queue_manager.set_criteria(user_id, new_criteria)
-        logging.info(f"Set new criteria for user_id: {user_id} in {time.time() - operation_start:.2f} seconds")
+        logging.info(
+            f"Set new criteria for user_id: {user_id} in {time.time() - operation_start:.2f} seconds"
+        )
 
         # Reset the stop flag before repopulating
         operation_start = time.time()
         await self.movie_queue_manager.set_stop_flag(user_id, False)
-        logging.info(f"Reset stop flag for user_id: {user_id} in {time.time() - operation_start:.2f} seconds")
+        logging.info(
+            f"Reset stop flag for user_id: {user_id} in {time.time() - operation_start:.2f} seconds"
+        )
 
         # Start repopulating the queue for the user and signal when done
         population_done = asyncio.Event()
         logging.info(f"Initiating repopulation of movie queue for user_id: {user_id}")
         populate_start_time = time.time()
         self.movie_queue_manager.populate_task = asyncio.create_task(
-            self.movie_queue_manager.populate(user_id, population_done))
+            self.movie_queue_manager.populate(user_id, population_done)
+        )
 
         # Wait for the population to complete
         await population_done.wait()
         populate_elapsed_time = time.time() - populate_start_time
-        logging.info(f"Queue repopulation completed for user_id: {user_id} in {populate_elapsed_time:.2f} seconds")
+        logging.info(
+            f"Queue repopulation completed for user_id: {user_id} in {populate_elapsed_time:.2f} seconds"
+        )
 
         # Fetch the next movie for the user from the updated queue
         operation_start = time.time()
         await self.next_movie(user_id)
-        logging.info(f"Fetched next movie for user_id: {user_id} in {time.time() - operation_start:.2f} seconds")
+        logging.info(
+            f"Fetched next movie for user_id: {user_id} in {time.time() - operation_start:.2f} seconds"
+        )
 
         # Render the movie for the user
         operation_start = time.time()
-        response = await self.fetch_and_render_movie(self.current_displayed_movie, user_id)
-        logging.info(f"Completed rendering movie for user_id: {user_id} in {time.time() - operation_start:.2f} seconds")
+        response = await self.fetch_and_render_movie(
+            self.current_displayed_movie, user_id
+        )
+        logging.info(
+            f"Completed rendering movie for user_id: {user_id} in {time.time() - operation_start:.2f} seconds"
+        )
 
         return response
 
@@ -301,10 +363,14 @@ async def main():
     # Example tconst to test
     test_tconst = "tt0111161"  # Example IMDb ID for "The Shawshank Redemption"
 
-    movie_instance = Movie(test_tconst, dbconfig)  # Assuming Movie class takes dbconfig as parameter
+    movie_instance = Movie(
+        test_tconst, dbconfig
+    )  # Assuming Movie class takes dbconfig as parameter
     movie_data = await movie_instance.get_movie_data()
     if movie_data:
-        print(f"Successfully fetched movie data for tconst {test_tconst}: {movie_data['title']}")
+        print(
+            f"Successfully fetched movie data for tconst {test_tconst}: {movie_data['title']}"
+        )
     else:
         print(f"Failed to fetch movie data for tconst {test_tconst}")
 
