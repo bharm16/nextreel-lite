@@ -95,8 +95,11 @@ def create_app():
 
     @app.route('/movie/<tconst>')
     async def movie_detail(tconst):
-        # Use movie_manager to render movie details by tconst
-        return await movie_manager.render_movie_by_tconst(tconst, template_name='movie.html')
+        # Extract user_id from the session
+        user_id = session.get('user_id')
+
+        # Pass the user_id along with the tconst to the render_movie_by_tconst method
+        return await movie_manager.render_movie_by_tconst(user_id, tconst, template_name='movie.html')
 
     @app.route('/')
     async def home():

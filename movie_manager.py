@@ -92,13 +92,15 @@ class MovieManager:
         logging.info(f"Movie skipped due to missing backdrop image for user_id: {user_id}")
         return None
 
-    async def render_movie_by_tconst(self, tconst, template_name='movie.html'):
+    async def render_movie_by_tconst(self, user_id, tconst, template_name='movie.html'):
         """
-        Fetch movie details using a tconst and render the movie.
+        Fetch movie details using a tconst and render the movie, potentially using user_id
+        for user-specific logic in the future.
 
         Parameters:
+        - user_id (str): The ID of the user requesting the movie.
         - tconst (str): The IMDb ID of the movie.
-        - template_name (str): The template to use for rendering the movie details.
+        - template_name (str): The template name for rendering the movie details.
         """
         # Initialize a Movie object with the provided tconst
         movie_instance = Movie(tconst, self.db_config)
@@ -106,14 +108,13 @@ class MovieManager:
         # Fetch movie data
         movie_data = await movie_instance.get_movie_data()
         if not movie_data:
-            logging.info(f"No data found for movie with tconst: {tconst}")
+            logging.info(f"No data found for movie with tconst: {tconst} and user_id: {user_id}")
             # Optionally, render a 'not found' template or return a simple message
             return 'Movie not found', 404
 
         # Render the template with the fetched movie details
+        # Future updates might include user-specific customization based on user_id
         return await render_template(template_name, movie=movie_data)
-
-
 
     def _get_user_stacks(self, user_id):
         start_time = time.time()  # Start timing
