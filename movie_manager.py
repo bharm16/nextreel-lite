@@ -5,6 +5,7 @@ import time
 from quart import render_template
 
 from config import Config
+from scripts.movie import Movie
 from scripts.movie_queue import MovieQueue
 from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher, extract_movie_filter_criteria, db_pool
 from scripts.tmdb_data import TMDbHelper, TMDB_API_KEY
@@ -32,6 +33,8 @@ class MovieManager:
 
         self.user_previous_movies_stack = {}  # User-specific previous movies stack
         self.user_future_movies_stack = {}  # User-specific future movies stack
+        self.db_config = db_config  # Now db_config is properly defined
+
 
     async def start(self):
         # Log the start of the MovieManager
@@ -89,13 +92,28 @@ class MovieManager:
         logging.info(f"Movie skipped due to missing backdrop image for user_id: {user_id}")
         return None
 
-    # def _get_user_stacks(self, user_id):
-    #     # Initialize stacks for new users
-    #     if user_id not in self.user_previous_movies_stack:
-    #         self.user_previous_movies_stack[user_id] = []
-    #     if user_id not in self.user_future_movies_stack:
-    #         self.user_future_movies_stack[user_id] = []
-    #     return self.user_previous_movies_stack[user_id], self.user_future_movies_stack[user_id]
+    async def render_movie_by_tconst(self, tconst, template_name='movie.html'):
+        """
+        Fetch movie details using a tconst and render the movie.
+
+        Parameters:
+        - tconst (str): The IMDb ID of the movie.
+        - template_name (str): The template to use for rendering the movie details.
+        """
+        # Initialize a Movie object with the provided tconst
+        movie_instance = Movie(tconst, self.db_config)
+
+        # Fetch movie data
+        movie_data = await movie_instance.get_movie_data()
+        if not movie_data:
+            logging.info(f"No data found for movie with tconst: {tconst}")
+            # Optionally, render a 'not found' template or return a simple message
+            return 'Movie not found', 404
+
+        # Render the template with the fetched movie details
+        return await render_template(template_name, movie=movie_data)
+
+
 
     def _get_user_stacks(self, user_id):
         start_time = time.time()  # Start timing
@@ -276,6 +294,19 @@ async def main():
     # rendered_movie = await movie_manager.fetch_and_render_movie()
     # next_movie_render = await movie_manager.next_movie()
     # prev_movie_render = await movie_manager.previous_movie()
+
+    # Example tconst to test
+    test_tconst = "tt0111161"  # Example IMDb ID for "The Shawshank Redemption"
+
+    # Since render_movie_by_tconst is designed to work within a Quart app context,
+    # here we'll just simulate fetching the movie data directly to test functionality.
+    # Normally, render_movie_by_tconst would render a template for a web response.
+    movie_instance = Movie(test_tconst,dbconfig)  # Assuming Movie class takes dbconfig as parameter
+    movie_data = await movie_instance.get_movie_data()
+    if movie_data:
+        print(f"Successfully fetched movie data for tconst {test_tconst}: {movie_data['title']}")
+    else:
+        print(f"Failed to fetch movie data for tconst {test_tconst}")
 
 
 if __name__ == "__main__":

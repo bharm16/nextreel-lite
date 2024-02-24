@@ -93,14 +93,17 @@ def create_app():
     async def startup():
         await movie_manager.start()
 
+    @app.route('/movie/<tconst>')
+    async def movie_detail(tconst):
+        # Use movie_manager to render movie details by tconst
+        return await movie_manager.render_movie_by_tconst(tconst, template_name='movie.html')
+
     @app.route('/')
- 
     async def home():
         user_id = session.get('user_id')
         return await movie_manager.home(user_id)
 
     @app.route('/movie/<slug>')
- 
     async def movie_details(slug):
         user_id = session.get('user_id')
         logging.info(f"Fetching movie details for slug: {slug} and user_id: {user_id}")
@@ -116,7 +119,6 @@ def create_app():
             return 'Movie not found', 404
 
     @app.route('/next_movie', methods=['GET', 'POST'])
-
     async def next_movie():
         user_id = session.get('user_id')
         logging.info(f"Requesting next movie for user_id: {user_id}")
@@ -160,7 +162,6 @@ def create_app():
         return response if response else ('No previous movies', 200)
 
     @app.route('/setFilters')
- 
     async def set_filters():
         user_id = session.get('user_id')  # Extract user_id from session
         current_filters = session.get('current_filters', {})  # Retrieve current filters from session
@@ -227,7 +228,6 @@ def create_app():
         # Route to handle new user access
 
     @app.route('/handle_new_user')
- 
     async def handle_new_user():
         user_id = session.get('user_id', str(uuid.uuid4()))  # Generate new user_id if not exists
         session['user_id'] = user_id  # Save user_id to session
