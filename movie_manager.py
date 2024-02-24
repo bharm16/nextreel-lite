@@ -187,6 +187,11 @@ class MovieManager:
             prev_stack.append(self.current_displayed_movie)
 
         self.current_displayed_movie = current_displayed_movie
+        # print(current_displayed_movie)
+
+        # Extract the IMDb ID from the current displayed movie
+        tconst = current_displayed_movie.get('imdb_id') if current_displayed_movie else None
+        print(tconst)
 
         # Render the movie or handle the case where there's no movie to display
         return await self.fetch_and_render_movie(current_displayed_movie, user_id)  # Include user_id here
