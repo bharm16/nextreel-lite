@@ -38,7 +38,9 @@ class TMDbHelper:
         self.base_url = "https://api.themoviedb.org/3"
         self.image_base_url = "https://image.tmdb.org/t/p/"
 
-    async def _get(self, endpoint, params={}):
+    async def _get(self, endpoint, params=None):
+        if params is None:
+            params = {}
         start_time = time.time()  # Start timing
 
         try:
