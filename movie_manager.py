@@ -35,7 +35,6 @@ class MovieManager:
         self.user_future_movies_stack = {}  # User-specific future movies stack
         self.db_config = db_config  # Now db_config is properly defined
 
-
     async def start(self):
         # Log the start of the MovieManager
         logging.info("Starting MovieManager")
@@ -222,15 +221,6 @@ class MovieManager:
                 logging.info("No next movie available.")
                 # Redirect to a suitable page or show a message
 
-    # async def set_filters(self):
-    #     logging.info("Setting filters")
-    #     start_time = asyncio.get_event_loop().time()
-    #     await self.movie_queue_manager.stop_populate_task()
-    #     await self.movie_queue_manager.empty_queue()
-    #     self.current_displayed_movie = None
-    #     logging.info(f"Filters set in {asyncio.get_event_loop().time() - start_time} seconds")
-    #     return await render_template('set_filters.html')
-
     async def set_filters(self, user_id):
         logging.info(f"Setting filters for user_id: {user_id}")
         start_time = asyncio.get_event_loop().time()
@@ -300,23 +290,18 @@ class MovieManager:
 
         return response
 
+
 # Main function for testing...
 async def main():
     dbconfig = Config.STACKHERO_DB_CONFIG
     movie_manager = MovieManager(dbconfig)
     await movie_manager.start()
     await asyncio.sleep(10)  # Wait for queue to populate
-    # rendered_movie = await movie_manager.fetch_and_render_movie()
-    # next_movie_render = await movie_manager.next_movie()
-    # prev_movie_render = await movie_manager.previous_movie()
 
     # Example tconst to test
     test_tconst = "tt0111161"  # Example IMDb ID for "The Shawshank Redemption"
 
-    # Since render_movie_by_tconst is designed to work within a Quart app context,
-    # here we'll just simulate fetching the movie data directly to test functionality.
-    # Normally, render_movie_by_tconst would render a template for a web response.
-    movie_instance = Movie(test_tconst,dbconfig)  # Assuming Movie class takes dbconfig as parameter
+    movie_instance = Movie(test_tconst, dbconfig)  # Assuming Movie class takes dbconfig as parameter
     movie_data = await movie_instance.get_movie_data()
     if movie_data:
         print(f"Successfully fetched movie data for tconst {test_tconst}: {movie_data['title']}")
