@@ -183,18 +183,22 @@ class MovieManager:
             current_displayed_movie = await user_queue.get()
 
         # If there is a currently displayed movie, push it to the previous stack
-        if current_displayed_movie and self.current_displayed_movie:
+        if self.current_displayed_movie and current_displayed_movie != self.current_displayed_movie:
             prev_stack.append(self.current_displayed_movie)
 
         self.current_displayed_movie = current_displayed_movie
-        # print(current_displayed_movie)
 
         # Extract the IMDb ID from the current displayed movie
         tconst = current_displayed_movie.get('imdb_id') if current_displayed_movie else None
-        print(tconst)
 
-        # Render the movie or handle the case where there's no movie to display
-        return await self.fetch_and_render_movie(current_displayed_movie, user_id)  # Include user_id here
+        # If a tconst is available, call render_movie_by_tconst with the necessary parameters
+        if tconst:
+            # Assuming 'movie_detail.html' is the template where you want to display the movie details
+            return await self.render_movie_by_tconst(user_id, tconst, template_name='movie.html')
+        else:
+            # Handle the case where there's no next movie, adjust the logic as needed
+            logging.info("No next movie available.")
+            # Redirect to a suitable page or show a message
 
     async def previous_movie(self, user_id):
         prev_stack, future_stack = self._get_user_stacks(user_id)
