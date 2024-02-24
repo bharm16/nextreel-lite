@@ -2,7 +2,7 @@ import asyncio
 import logging
 import time
 
-from quart import render_template
+from quart import render_template, redirect, url_for
 
 from config import Config
 from scripts.movie import Movie
@@ -194,7 +194,7 @@ class MovieManager:
         # If a tconst is available, call render_movie_by_tconst with the necessary parameters
         if tconst:
             # Assuming 'movie_detail.html' is the template where you want to display the movie details
-            return await self.render_movie_by_tconst(user_id, tconst, template_name='movie.html')
+            return redirect(url_for('movie_detail', tconst=tconst))
         else:
             # Handle the case where there's no next movie, adjust the logic as needed
             logging.info("No next movie available.")
