@@ -45,7 +45,7 @@ class TMDbHelper:
             async with httpx.AsyncClient() as client:
                 url = f"{self.base_url}/{endpoint}"
                 params['api_key'] = self.api_key
-                logging.info(f"Sending GET request to {url} with params: {params}")
+                # logging.info(f"Sending GET request to {url} with params: {params}")
                 response = await client.get(url, params=params)
                 response.raise_for_status()  # Will raise an exception for 4XX/5XX responses
 
@@ -70,7 +70,7 @@ class TMDbHelper:
             raise
 
     async def get_cast_info_by_tmdb_id(self, tmdb_id):
-        logging.info(f"Fetching cast information for TMDB ID: {tmdb_id}")
+        # logging.info(f"Fetching cast information for TMDB ID: {tmdb_id}")
 
         start_time = time.time()  # Start timing
         try:
@@ -98,7 +98,7 @@ class TMDbHelper:
             raise
 
     async def get_video_url_by_tmdb_id(self, tmdb_id):
-        logging.info(f"Fetching video URL for TMDB ID: {tmdb_id}")
+        # logging.info(f"Fetching video URL for TMDB ID: {tmdb_id}")
         start_time = time.time()
 
         try:
@@ -116,7 +116,7 @@ class TMDbHelper:
             # logging.info(f"Completed fetching video URL for TMDB ID: {tmdb_id} in {elapsed_time:.2f} seconds")
 
     async def get_images_by_tmdb_id(self, tmdb_id):
-        logging.info(f"Fetching images for TMDB ID: {tmdb_id}")
+        # logging.info(f"Fetching images for TMDB ID: {tmdb_id}")
         start_time = time.time()
 
         try:
