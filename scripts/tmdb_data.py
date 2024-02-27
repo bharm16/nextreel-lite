@@ -128,34 +128,28 @@ class TMDbHelper:
             elapsed_time = time.time() - start_time
             # logging.info(f"Completed fetching video URL for TMDB ID: {tmdb_id} in {elapsed_time:.2f} seconds")
 
-    async def get_images_by_tmdb_id(self, tmdb_id):
-        # logging.info(f"Fetching images for TMDB ID: {tmdb_id}")
+    async def get_images_by_tmdb_id(self, tmdb_id, limit=1):
+        """Fetch limited number of images for a TMDB ID."""
         start_time = time.time()
-
         try:
             data = await self._get(f"movie/{tmdb_id}/images")
+            # Limit the number of posters and backdrops to fetch
+            posters = data.get("posters", [])[:limit]
+            backdrops = data.get("backdrops", [])[:limit]
+
             images = {
-                "posters": [
-                    self.image_base_url + "original" + img["file_path"]
-                    for img in data.get("posters", [])
-                    if "file_path" in img
-                ],
-                "backdrops": [
-                    self.image_base_url + "original" + img["file_path"]
-                    for img in data.get("backdrops", [])
-                    if "file_path" in img
-                ],
+                "posters": [self.image_base_url + "original" + img["file_path"] for img in posters if
+                            "file_path" in img],
+                "backdrops": [self.image_base_url + "original" + img["file_path"] for img in backdrops if
+                              "file_path" in img],
             }
 
             logging.info(
-                f"Found {len(images['posters'])} posters and {len(images['backdrops'])} backdrops for TMDB ID: {tmdb_id}"
-            )
+                f"Found {len(images['posters'])} poster(s) and {len(images['backdrops'])} backdrop(s) for TMDB ID: {tmdb_id}")
             return images
         finally:
             elapsed_time = time.time() - start_time
-            logging.info(
-                f"Completed fetching images for TMDB ID: {tmdb_id} in {elapsed_time:.2f} seconds"
-            )
+            logging.info(f"Completed fetching images for TMDB ID: {tmdb_id} in {elapsed_time:.2f} seconds")
 
     async def get_videos_by_tmdb_id(self, tmdb_id):
         return await self._get(f"movie/{tmdb_id}/videos")
