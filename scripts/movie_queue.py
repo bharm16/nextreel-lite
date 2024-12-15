@@ -196,6 +196,25 @@ class MovieQueue:
         except Exception as e:
             logging.error(f"Error fetching movie {tconst} for user_id {user_id}: {e}", exc_info=True)
 
+    def is_task_running(self):
+        """Check if the populate task is running."""
+        if self.populate_task is None:
+            logging.info("Populate task has not been initialized.")
+            return False
+
+        if self.populate_task.done():
+            try:
+                result = self.populate_task.result()
+                logging.info(f"Populate task completed successfully with result: {result}")
+            except asyncio.CancelledError:
+                logging.info("Populate task was cancelled.")
+            except Exception as e:
+                logging.error(f"Populate task raised an exception: {e}", exc_info=True)
+            return False
+        else:
+            logging.info("Populate task is currently running.")
+            return True
+
     # async def main():
     #     # Initialize the MovieQueue
     #     movie_queue_manager = MovieQueue(Config.STACKHERO_DB_CONFIG, asyncio.Queue())
