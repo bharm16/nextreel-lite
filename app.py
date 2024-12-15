@@ -11,6 +11,13 @@ from quart_session import Session
 import config
 from movie_manager import MovieManager
 
+import os
+from local_setup import setup_local_environment
+
+# Automatically set up local environment if not in production
+if os.getenv("FLASK_ENV") != "production":
+    setup_local_environment()
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(filename)s - %(funcName)s - %(levelname)s - %(message)s'
@@ -45,17 +52,25 @@ def create_app():
 
     @app.before_serving
     async def setup_redis():
-        # Set up Redis for session management using aioredis
-        cache = await aioredis.Redis(
-            host="us1-helped-boxer-41842.upstash.io",
-            port=41842,
-            password="2c0aa963aca84f82a6f822877cbc2ae8",
-            ssl=True
-        )
+        if os.getenv("FLASK_ENV") == "production":
+            # Production Redis configuration
+            cache = await aioredis.Redis(
+                host=os.getenv("UPSTASH_REDIS_HOST"),
+                port=int(os.getenv("UPSTASH_REDIS_PORT")),
+                password=os.getenv("UPSTASH_REDIS_PASSWORD"),
+                ssl=True
+            )
+        else:
+            # Development Redis configuration
+            cache = await aioredis.Redis(
+                host="localhost",
+                port=6379,  # Default Redis port for local development
+                ssl=False
+            )
         app.config['SESSION_REDIS'] = cache
         Session(app)
 
-    movie_manager = MovieManager(config.Config.STACKHERO_DB_CONFIG)
+    movie_manager = MovieManager(config.Config.get_db_config())
 
     @app.before_request
     async def before_request():
@@ -259,5 +274,5 @@ app = create_app()
 #     1/0  # raises an error
 #     return {"hello": "world"}
 #
-# app.run()
+app.run()
 #

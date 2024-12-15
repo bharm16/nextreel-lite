@@ -34,6 +34,7 @@ class MovieQueue:
     def __init__(self, db_config, queue, criteria=None):
         # Avoid reinitialization if already initialized
         if not hasattr(self, "_initialized"):
+            logging.info("Initializing MovieQueue")
             self.db_config = db_config
             self.queue = queue
             self.movie_fetcher = ImdbRandomMovieFetcher(db_pool)
@@ -47,21 +48,24 @@ class MovieQueue:
             self.stop_flags = (
                 {}
             )  # Tracks whether to stop the populate task for each user
-            # Other initialization...
             self.space_available = asyncio.Event()
             self.space_available.set()  # Initially, assume there's space available.
 
     async def set_stop_flag(self, user_id, stop=True):
         """Sets the stop flag for a given user's populate task."""
+        logging.info(f"Setting stop flag for user_id: {user_id} to {stop}")
         self.stop_flags[user_id] = stop
 
     async def check_stop_flag(self, user_id):
         """Checks if the stop flag is set for a given user's populate task."""
-        return self.stop_flags.get(user_id, False)
+        stop_flag = self.stop_flags.get(user_id, False)
+        logging.info(f"Stop flag for user_id {user_id}: {stop_flag}")
+        return stop_flag
 
     async def get_user_queue(self, user_id):
         try:
             if user_id not in self.user_queues:
+                logging.info(f"Creating new queue for user_id: {user_id}")
                 self.user_queues[user_id] = {
                     "queue": asyncio.Queue(maxsize=20),
                     "criteria": {},
@@ -69,13 +73,14 @@ class MovieQueue:
             return self.user_queues[user_id]["queue"]
         except Exception as e:
             logging.error(
-                f"Unexpected error in get_user_queue for user_id: {user_id}: {e}",
+                f"Unexpected error in get_user_queue for user_id {user_id}: {e}",
                 exc_info=True,
             )
-            raise  # It's often a good idea to re-raise the exception after logging to not silently swallow errors.
+            raise
 
     async def add_user(self, user_id, criteria):
         try:
+            logging.info(f"Adding new user with user_id: {user_id} and criteria: {criteria}")
             if user_id not in self.user_queues:
                 self.user_queues[user_id] = {
                     "queue": asyncio.Queue(maxsize=20),
@@ -84,39 +89,24 @@ class MovieQueue:
                 self.user_queues[user_id]["populate_task"] = asyncio.create_task(
                     self.populate(user_id)
                 )
-                logging.info(
-                    f"Added and started population task for new user: {user_id}"
-                )
+                logging.info(f"Population task started for user_id: {user_id}")
         except Exception as e:
-            tb_str = traceback.format_exception(
-                etype=type(e), value=e, tb=e.__traceback__
-            )
-            logging.error("".join(tb_str))
-            logging.error(
-                f"Failed to add new user or start population task for user_id: {user_id}. Exception: {e}"
-            )
+            logging.error(f"Failed to add user_id {user_id}: {e}", exc_info=True)
 
     async def set_criteria(self, user_id, new_criteria):
         try:
+            logging.info(f"Updating criteria for user_id {user_id} to {new_criteria}")
             if user_id not in self.user_queues:
                 await self.get_user_queue(user_id)
 
             async with self.lock:
                 self.user_queues[user_id]["criteria"] = new_criteria
-                logging.info(
-                    f"Criteria for user_id {user_id} updated to: {new_criteria}"
-                )
         except Exception as e:
-            tb_str = traceback.format_exception(
-                etype=type(e), value=e, tb=e.__traceback__
-            )
-            logging.error("".join(tb_str))
-            logging.error(
-                f"Failed to set new criteria for user_id: {user_id}. Exception: {e}"
-            )
+            logging.error(f"Failed to set criteria for user_id {user_id}: {e}", exc_info=True)
 
     async def start_populate_task(self, user_id):
         try:
+            logging.info(f"Attempting to start populate task for user_id {user_id}")
             user_queue_info = self.user_queues.get(user_id)
             if user_queue_info and (
                 not user_queue_info.get("populate_task")
@@ -127,248 +117,111 @@ class MovieQueue:
                 )
                 logging.info(f"Populate task started for user_id: {user_id}")
             else:
-                logging.info(
-                    f"Populate task for user_id: {user_id} is already running or not ready to be restarted."
-                )
+                logging.info(f"Populate task already running or not ready to start for user_id: {user_id}")
         except Exception as e:
-            logging.error(
-                f"Failed to start populate task for user_id: {user_id}. Exception: {e}",
-                exc_info=True,
-            )
+            logging.error(f"Failed to start populate task for user_id {user_id}: {e}", exc_info=True)
 
     async def stop_populate_task(self, user_id):
-        # Set the stop flag first to signal the task should stop
-        await self.set_stop_flag(user_id, True)
-
-        user_queue_info = self.user_queues.get(user_id)
-        if user_queue_info and user_queue_info.get("populate_task"):
-            user_queue_info["populate_task"].cancel()  # Request cancellation
-            try:
-                await user_queue_info[
-                    "populate_task"
-                ]  # Wait for the task to be cancelled
-            except asyncio.CancelledError:
-                logging.info(f"Populate task for user_id {user_id} cancelled.")
-            finally:
-                logging.info(f"Finalizing stop for user_id {user_id}.")
-
-    async def empty_queue(self, user_id):
         try:
+            logging.info(f"Stopping populate task for user_id {user_id}")
+            await self.set_stop_flag(user_id, True)
+
             user_queue_info = self.user_queues.get(user_id)
-            if user_queue_info:
-                queue = user_queue_info["queue"]
-                async with self.lock:
-                    while not queue.empty():
-                        await queue.get()
-                    logging.info(f"Movie queue for user_id {user_id} emptied")
+            if user_queue_info and user_queue_info.get("populate_task"):
+                user_queue_info["populate_task"].cancel()
+                await user_queue_info["populate_task"]
+                logging.info(f"Populate task stopped for user_id {user_id}")
+        except asyncio.CancelledError:
+            logging.info(f"Populate task cancellation confirmed for user_id {user_id}")
         except Exception as e:
-            tb_str = traceback.format_exception(
-                etype=type(e), value=e, tb=e.__traceback__
-            )
-            logging.error("".join(tb_str))
-            logging.error(f"Error emptying queue for user_id: {user_id}: {e}")
+            logging.error(f"Error stopping populate task for user_id {user_id}: {e}", exc_info=True)
 
     async def populate(self, user_id, completion_event=None):
         max_queue_size = 15
+        logging.info(f"Starting population for user_id {user_id}")
         while True:
             try:
-                # Ensure the space_available Event is correctly bound to the current event loop
-                if (
-                    not hasattr(self, "space_available")
-                    or self.space_available._loop != asyncio.get_running_loop()
-                ):
-                    self.space_available = asyncio.Event()
-                    self.space_available.set()
-
                 user_queue = await self.get_user_queue(user_id)
                 current_queue_size = user_queue.qsize()
 
                 if current_queue_size >= max_queue_size:
-                    logging.info(
-                        f"Queue full for user_id: {user_id}. Waiting for space..."
-                    )
+                    logging.info(f"Queue full for user_id {user_id}. Waiting for space...")
                     self.space_available.clear()
                     await self.space_available.wait()
 
                 if current_queue_size <= 1:
                     if await self.check_stop_flag(user_id):
-                        logging.info(
-                            f"Abort loading more movies for user_id: {user_id} due to stop signal."
-                        )
+                        logging.info(f"Stop flag set for user_id {user_id}. Ending population.")
                         break
 
-                    logging.info(
-                        f"Queue size below threshold for user_id: {user_id}, loading more movies..."
-                    )
+                    logging.info(f"Queue below threshold for user_id {user_id}. Loading more movies...")
                     await self.load_movies_into_queue(user_id)
-
             except asyncio.CancelledError:
-                logging.info(
-                    f"Populate task for user_id: {user_id} has been cancelled."
-                )
+                logging.info(f"Populate task cancelled for user_id {user_id}")
                 break
             except Exception as e:
-                logging.exception(f"Exception in populate for user_id: {user_id}: {e}")
-
+                logging.error(f"Exception during populate for user_id {user_id}: {e}", exc_info=True)
             finally:
                 if completion_event:
                     completion_event.set()
-                logging.info(
-                    f"Population task for user_id: {user_id} is checking for more work or completing."
-                )
+                logging.info(f"Population iteration completed for user_id {user_id}")
 
-    def is_task_running(self):
-        if self.populate_task is None:
-            logging.info("Populate task has not been initialized.")
-            return False
-
-        if self.populate_task.done():
-            # Task has completed, let's log the outcome
-            try:
-                result = self.populate_task.result()
-                logging.info(
-                    f"Populate task completed successfully with result: {result}"
-                )
-            except asyncio.CancelledError:
-                logging.info("Populate task was cancelled.")
-            except Exception as e:
-                logging.error(f"Populate task raised an exception: {e}", exc_info=True)
-            return False
-        else:
-            # Task is still running
-            logging.info("Populate task is currently running.")
-            return True
+    async def load_movies_into_queue(self, user_id):
+        logging.info(f"Loading movies for user_id {user_id}")
+        try:
+            user_criteria = self.user_queues[user_id]["criteria"]
+            rows = await self.movie_fetcher.fetch_random_movies15(user_criteria)
+            if rows:
+                logging.info(f"Fetched {len(rows)} movies for user_id {user_id}")
+                tasks = [
+                    self.fetch_and_enqueue_movie(row["tconst"], user_id)
+                    for row in rows
+                ]
+                await asyncio.gather(*tasks)
+            else:
+                logging.warning(f"No movies found for user_id {user_id}")
+        except Exception as e:
+            logging.error(f"Error loading movies for user_id {user_id}: {e}", exc_info=True)
 
     async def fetch_and_enqueue_movie(self, tconst, user_id):
         try:
-            start_time = time.time()  # Measure total execution time
-
+            logging.info(f"Fetching movie with tconst {tconst} for user_id {user_id}")
             movie = Movie(tconst, self.db_config)
-            movie_data_tmdb = await movie.get_movie_data()
-
-            fetch_time = time.time() - start_time  # Measure fetch time
-
-            if movie_data_tmdb:
+            movie_data = await movie.get_movie_data()
+            if movie_data:
                 user_queue = await self.get_user_queue(user_id)
-                async with self.lock:
-                    if not user_queue.full():
-                        await user_queue.put(movie_data_tmdb)
-                        self.movie_enqueue_count += 1
-                        logging.info(
-                            f"[{self.movie_enqueue_count}] Enqueued movie '{movie_data_tmdb.get('title')}' with tconst: {tconst} for user_id: {user_id} "
-                            f"(fetch time: {fetch_time:.2f}s, total time: {time.time() - start_time:.2f}s)"
-                        )
-
+                if not user_queue.full():
+                    await user_queue.put(movie_data)
+                    logging.info(f"Enqueued movie {movie_data['title']} for user_id {user_id}")
         except Exception as e:
-            tb_str = traceback.format_exception(
-                etype=type(e), value=e, tb=e.__traceback__
-            )
-            logging.error("".join(tb_str))
-            logging.error(
-                f"Error fetching/enqueuing movie {tconst} for user_id: {user_id}: {e}"
-            )
+            logging.error(f"Error fetching movie {tconst} for user_id {user_id}: {e}", exc_info=True)
 
-    async def load_movies_into_queue(self, user_id):
-        start_time = time.time()  # Measure total function time
-
-        try:
-            user_criteria = (
-                self.user_queues[user_id]["criteria"]
-                if user_id in self.user_queues
-                and "criteria" in self.user_queues[user_id]
-                else {}
-            )
-            logging.info(
-                f"Loading movies into queue for user_id: {user_id} with criteria: {user_criteria}"
-            )
-
-            async with current_app.app_context(), httpx.AsyncClient():
-                fetch_start_time = time.time()  # Measure movie fetching time
-                rows = await self.movie_fetcher.fetch_random_movies15(user_criteria)
-                fetch_time = time.time() - fetch_start_time
-
-                if rows:
-                    logging.debug(
-                        f"Fetched {len(rows)} movies for user_id: {user_id} based on criteria: {user_criteria} (fetch time: {fetch_time:.2f}s)"
-                    )
-                else:
-                    logging.warning(
-                        f"No movies fetched for user_id: {user_id} with the given criteria: {user_criteria}"
-                    )
-
-                tasks = [
-                    asyncio.create_task(
-                        self.fetch_and_enqueue_movie(row["tconst"], user_id)
-                    )
-                    for row in rows
-                    if row
-                ]
-                await asyncio.gather(*tasks)
-
-        except Exception as e:
-            tb_str = traceback.format_exception(
-                etype=type(e), value=e, tb=e.__traceback__
-            )
-            logging.error("".join(tb_str))
-            logging.error(
-                f"Error loading movies into queue for user_id: {user_id}: {e}"
-            )
-
-        finally:  # Log total time in all cases
-            total_time = time.time() - start_time
-            logging.info(
-                f"Completed loading movies into queue for user_id: {user_id} (total time: {total_time:.2f}s)"
-            )
-
-    async def update_criteria_and_reset(self, user_id, new_criteria):
-        try:
-            # Update the criteria and reset the queue for a specific user
-            await self.set_criteria(user_id, new_criteria)
-            await self.empty_queue(user_id)
-
-            # Restart the populate task for the user
-            user_queue_info = self.user_queues.get(user_id)
-            if user_queue_info:
-                user_queue_info["populate_task"] = asyncio.create_task(
-                    self.populate(user_id)
-                )
-                logging.info(f"Populate task restarted for user_id: {user_id}")
-        except Exception as e:
-            tb_str = traceback.format_exception(
-                etype=type(e), value=e, tb=e.__traceback__
-            )
-            logging.error("".join(tb_str))
-            logging.error(
-                f"Failed to update criteria and reset for user_id: {user_id}. Exception: {e}"
-            )
-
-
-# async def main():
-#     # Initialize the MovieQueue
-#     movie_queue_manager = MovieQueue(Config.STACKHERO_DB_CONFIG, asyncio.Queue())
-#
-#     # User-specific criteria
-#     user_criteria = {
-#         "user1": {"min_year": 1990, "max_year": 2023, "min_rating": 7.0, "max_rating": 10, "title_type": "movie", "language": "en", "genres": ["Action"]},
-#         "user2": {"min_year": 1980, "max_year": 2023, "min_rating": 6.0, "max_rating": 10, "title_type": "movie", "language": "en", "genres": ["Comedy"]}
-#     }
-#
-#     # Set criteria and start population tasks for each user
-#     for user_id, criteria in user_criteria.items():
-#         logging.info(f"Setting criteria for {user_id}: {criteria}")
-#         await movie_queue_manager.set_criteria(user_id, criteria)
-#         movie_queue_manager.start_populate_task(user_id)
-#
-#     # Simulate a period of operation
-#     # await asyncio.sleep(60)  # Simulate the queue population for 60 seconds
-#
-#     # Stop population tasks and empty queues for each user
-#     for user_id in user_criteria.keys():
-#         await movie_queue_manager.stop_populate_task(user_id)
-#         await movie_queue_manager.empty_queue(user_id)
-#         logging.info(f"Queue for {user_id} stopped and emptied")
-#
-#     logging.info("All tasks completed")
-#
-# if __name__ == "__main__":
-#     asyncio.run(main())
+    # async def main():
+    #     # Initialize the MovieQueue
+    #     movie_queue_manager = MovieQueue(Config.STACKHERO_DB_CONFIG, asyncio.Queue())
+    #
+    #     # User-specific criteria
+    #     user_criteria = {
+    #         "user1": {"min_year": 1990, "max_year": 2023, "min_rating": 7.0, "max_rating": 10, "title_type": "movie", "language": "en", "genres": ["Action"]},
+    #         "user2": {"min_year": 1980, "max_year": 2023, "min_rating": 6.0, "max_rating": 10, "title_type": "movie", "language": "en", "genres": ["Comedy"]}
+    #     }
+    #
+    #     # Set criteria and start population tasks for each user
+    #     for user_id, criteria in user_criteria.items():
+    #         logging.info(f"Setting criteria for {user_id}: {criteria}")
+    #         await movie_queue_manager.set_criteria(user_id, criteria)
+    #         movie_queue_manager.start_populate_task(user_id)
+    #
+    #     # Simulate a period of operation
+    #     # await asyncio.sleep(60)  # Simulate the queue population for 60 seconds
+    #
+    #     # Stop population tasks and empty queues for each user
+    #     for user_id in user_criteria.keys():
+    #         await movie_queue_manager.stop_populate_task(user_id)
+    #         await movie_queue_manager.empty_queue(user_id)
+    #         logging.info(f"Queue for {user_id} stopped and emptied")
+    #
+    #     logging.info("All tasks completed")
+    #
+    # if __name__ == "__main__":
+    #     asyncio.run(main())

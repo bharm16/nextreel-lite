@@ -355,7 +355,8 @@ class MovieManager:
 
 # Main function for testing...
 async def main():
-    dbconfig = Config.STACKHERO_DB_CONFIG
+    dbconfig = Config.get_db_config()
+
     movie_manager = MovieManager(dbconfig)
     await movie_manager.start()
     await asyncio.sleep(10)  # Wait for queue to populate

@@ -7,7 +7,7 @@ import traceback
 from config import Config, DatabaseConnectionPool
 from mysql_query_builder import DatabaseQueryExecutor
 
-dbconfig = Config.STACKHERO_DB_CONFIG
+dbconfig = Config.get_db_config()
 
 # Use os.path.dirname to go up one level from the current script's directory
 # Use os.path.dirname to go up one level from the current script's directory
@@ -73,7 +73,7 @@ logging.basicConfig(
 )
 
 # Adjust the DatabaseConnection to use DatabaseConnectionPool
-db_pool = DatabaseConnectionPool(Config.STACKHERO_DB_CONFIG)
+db_pool = DatabaseConnectionPool(dbconfig)
 
 async def init_pool():
     await db_pool.init_pool()
