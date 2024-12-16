@@ -5,14 +5,19 @@ import time
 import uuid
 
 import aioredis
-from quart import Quart, request, redirect, url_for, session, render_template
+from quart import Quart, request, redirect, url_for, session, render_template, g
 from quart_session import Session
 
 import config
+from logging_config import setup_logging
+from middleware import add_correlation_id
 from movie_manager import MovieManager
 
 import os
 from local_setup import setup_local_environment
+
+setup_logging(log_level=logging.DEBUG)
+
 
 # Automatically set up local environment if not in production
 if os.getenv("FLASK_ENV") != "production":
@@ -28,25 +33,7 @@ def create_app():
     app = Quart(__name__)
     app.config.from_object(config.Config)
 
-    # sentry_sdk.init(
-    #     dsn="https://72b1a1db2939610adacb6e75b276a17c@o4506655473074176.ingest.sentry.io/4506725607079936",
-    #     enable_tracing=True,
-    #     integrations=[
-    #         QuartIntegration(),
-    #         AsyncioIntegration(),
-    #     ],
-    #     traces_sample_rate=1.0,
-    #     # Set profiles_sample_rate to 1.0 to profile 100%
-    #     # of sampled transactions.
-    #     # We recommend adjusting this value in production.
-    #     profiles_sample_rate=1.0,
-    # )
 
-    # # Example route to test Sentry
-    # @app.route("/hello")
-    # async def hello():
-    #     1 / 0  # Intentionally cause an error to test Sentry
-    #     return {"hello": "world"}
 
     app.config['SESSION_TYPE'] = 'redis'
 
@@ -79,7 +66,7 @@ def create_app():
             if 'user_id' not in session:
                 # Generate a new UUID if not present and add it to the session
                 session['user_id'] = str(uuid.uuid4())
-                logging.info(f"New user_id generated: {session['user_id']}")
+                logging.info(f"New user_id generated: {session['user_id']}. Correlation ID: {g.correlation_id}")
 
                 # Define default criteria or fetch it from somewhere if you have personalized criteria logic
                 default_criteria = {"min_year": 1900, "max_year": 2023, "min_rating": 7.0,
@@ -98,7 +85,7 @@ def create_app():
 
             # Calculate and log request size
             req_size = sys.getsizeof(await request.get_data())
-            logging.info(f"Request Size: {req_size} bytes")
+            logging.info(f"Request Size: {req_size} bytes. Correlation ID: {g.correlation_id}")
         except Exception as e:
             logging.error(f"Error in session management: {e}")
 
@@ -114,6 +101,7 @@ def create_app():
         user_id = session.get('user_id')
 
         # Pass the user_id along with the tconst to the render_movie_by_tconst method
+        logging.info(f"Fetching movie details for tconst: {tconst}, user_id: {user_id}. Correlation ID: {g.correlation_id}")
         return await movie_manager.render_movie_by_tconst(user_id, tconst, template_name='movie.html')
 
     @app.route('/')
@@ -124,8 +112,7 @@ def create_app():
     @app.route('/movie/<slug>')
     async def movie_details(slug):
         user_id = session.get('user_id')
-        logging.info(f"Fetching movie details for slug: {slug} and user_id: {user_id}")
-
+        logging.info(f"Fetching movie details for slug: {slug}, user_id: {user_id}. Correlation ID: {g.correlation_id}")
         # Fetch movie details by slug
         movie_details = await movie_manager.get_movie_by_slug(user_id, slug)
 
@@ -139,7 +126,7 @@ def create_app():
     @app.route('/next_movie', methods=['GET', 'POST'])
     async def next_movie():
         user_id = session.get('user_id')
-        logging.info(f"Requesting next movie for user_id: {user_id}")
+        logging.info(f"Requesting next movie for user_id: {user_id}. Correlation ID: {g.correlation_id}")
 
         if 'failed_attempts' not in session:
             session['failed_attempts'] = 0
@@ -161,13 +148,13 @@ def create_app():
 
             # Check if we should trigger a movie queue population
             if session['failed_attempts'] >= 4:
-                logging.info("Failed attempts threshold reached. Triggering movie queue population.")
+                logging.info(f"Failed attempts threshold reached. Triggering movie queue population. Correlation ID: {g.correlation_id}")
                 await movie_manager.movie_queue_manager.start_populate_task(session['user_id'])
 
                 session['failed_attempts'] = 0  # Optionally reset failed attempts
 
         # After 30 seconds, if no movie is found, log a message and return a custom response
-        logging.warning("No more movies available after trying for 30 seconds.")
+        logging.warning(f"No more movies available after trying for 30 seconds. Correlation ID: {g.correlation_id}")
         return 'No more movies available. Please try again later.', 200
 
     @app.route('/previous_movie', methods=['GET', 'POST'])
@@ -175,7 +162,7 @@ def create_app():
     # @memory_profile  # Apply memory profiling
     async def previous_movie():
         user_id = session.get('user_id')
-        logging.info(f"Requesting previous movie for user_id: {user_id}")
+        logging.info(f"Requesting previous movie for user_id: {user_id}. Correlation ID: {g.correlation_id}")
         response = await movie_manager.previous_movie(user_id)
         return response if response else ('No previous movies', 200)
 
@@ -185,7 +172,8 @@ def create_app():
         current_filters = session.get('current_filters', {})  # Retrieve current filters from session
 
         start_time = time.time()  # Capture start time for operation
-        logging.info(f"Starting to set filters for user_id: {user_id} with current filters: {current_filters}")
+        logging.info(f"Starting to set filters for user_id: {user_id} with current filters: {current_filters}. Correlation ID: {g.correlation_id}")
+
 
         try:
             # Pass current_filters to the template
@@ -193,7 +181,7 @@ def create_app():
 
             # Log the successful completion and time taken
             elapsed_time = time.time() - start_time
-            logging.info(f"Completed setting filters for user_id: {user_id} in {elapsed_time:.2f} seconds")
+            logging.info(f"Completed setting filters for user_id: {user_id} in {elapsed_time:.2f} seconds. Correlation ID: {g.correlation_id}")
 
             return response
         except Exception as e:
@@ -212,7 +200,8 @@ def create_app():
         session['current_filters'] = form_data.to_dict()
 
         start_time = time.time()  # Capture start time for operation
-        logging.info(f"Starting filtering movies for user_id: {user_id} with form data: {form_data}")
+        logging.info(f"Starting filtering movies for user_id: {user_id} with form data: {form_data}. Correlation ID: {g.correlation_id}")
+
 
         try:
             # Here, you can log before each significant operation to see its duration
@@ -226,11 +215,11 @@ def create_app():
             movie_filter_start_time = time.time()
             response = await movie_manager.filtered_movie(user_id, form_data)
             movie_filter_elapsed_time = time.time() - movie_filter_start_time
-            logging.info(f"movie_manager.filtered_movie operation took {movie_filter_elapsed_time:.2f} seconds")
+            logging.info(f"movie_manager.filtered_movie operation took {movie_filter_elapsed_time:.2f} seconds. Correlation ID: {g.correlation_id}")
 
             # Log the successful completion and time taken
             elapsed_time = time.time() - start_time
-            logging.info(f"Completed filtering movies for user_id: {user_id} in {elapsed_time:.2f} seconds")
+            logging.info(f"Completed filtering movies for user_id: {user_id} in {elapsed_time:.2f} seconds. Correlation ID: {g.correlation_id}")
 
             return response
         except Exception as e:
@@ -253,7 +242,7 @@ def create_app():
 
         # Initialize user's movie queue with criteria in MovieManager
         await movie_manager.movie_queue_manager.add_user(user_id, criteria)
-        logging.info(f"New user handled with user_id: {user_id}")
+        logging.info(f"New user handled with user_id: {user_id}. Correlation ID: {g.correlation_id}")
 
         # Redirect to the home page or another appropriate page
         return redirect(url_for('home'))
@@ -268,6 +257,12 @@ def get_current_user_id():
 
 
 app = create_app()
+
+
+# Apply middleware for correlation ID
+@app.before_request
+async def setup_request():
+    await add_correlation_id()
 
 # @app.route("/")
 # async def hello():
