@@ -28,6 +28,15 @@ class Config:
     SECRET_KEY = os.getenv('FLASK_SECRET_KEY')
     TMDB_API_KEY = os.getenv('TMDB_API_KEY')
 
+    # Expose production database configuration for scripts that need it
+    STACKHERO_DB_CONFIG = {
+        'host': os.getenv('STACKHERO_DB_HOST'),
+        'user': os.getenv('STACKHERO_DB_USER'),
+        'password': os.getenv('STACKHERO_DB_PASSWORD'),
+        'database': os.getenv('STACKHERO_DB_NAME'),
+        'port': int(os.getenv('STACKHERO_DB_PORT', 3306)),
+    }
+
     # Dynamically switch database configurations based on FLASK_ENV
     @staticmethod
     def get_db_config():

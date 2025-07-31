@@ -44,9 +44,9 @@ class MovieQueue:
             self._initialized = True
             self.movie_enqueue_count = 0  # Add a counter for movies enqueued
             self.user_queues = {}  # Dictionary to store user-specific queues
-            self.stop_flags = (
-                {}
-            )  # Tracks whether to stop the populate task for each user
+            # Tracks whether to stop the populate task for each user
+            # Use a dictionary so flags can be set per user without errors
+            self.stop_flags = {}
             # Other initialization...
             self.space_available = asyncio.Event()
             self.space_available.set()  # Initially, assume there's space available.
@@ -170,52 +170,54 @@ class MovieQueue:
 
     async def populate(self, user_id, completion_event=None):
         max_queue_size = 15
-        while True:
-            try:
-                # Ensure the space_available Event is correctly bound to the current event loop
-                if (
-                    not hasattr(self, "space_available")
-                    or self.space_available._loop != asyncio.get_running_loop()
-                ):
-                    self.space_available = asyncio.Event()
-                    self.space_available.set()
+        try:
+            while True:
+                try:
+                    # Ensure the space_available Event is correctly bound to the current event loop
+                    if (
+                        not hasattr(self, "space_available")
+                        or self.space_available._loop != asyncio.get_running_loop()
+                    ):
+                        self.space_available = asyncio.Event()
+                        self.space_available.set()
 
-                user_queue = await self.get_user_queue(user_id)
-                current_queue_size = user_queue.qsize()
+                    user_queue = await self.get_user_queue(user_id)
+                    current_queue_size = user_queue.qsize()
 
-                if current_queue_size >= max_queue_size:
-                    logging.info(
-                        f"Queue full for user_id: {user_id}. Waiting for space..."
-                    )
-                    self.space_available.clear()
-                    await self.space_available.wait()
-
-                if current_queue_size <= 1:
-                    if await self.check_stop_flag(user_id):
+                    if current_queue_size >= max_queue_size:
                         logging.info(
-                            f"Abort loading more movies for user_id: {user_id} due to stop signal."
+                            f"Queue full for user_id: {user_id}. Waiting for space..."
                         )
-                        break
+                        self.space_available.clear()
+                        await self.space_available.wait()
 
+                    if current_queue_size <= 1:
+                        if await self.check_stop_flag(user_id):
+                            logging.info(
+                                f"Abort loading more movies for user_id: {user_id} due to stop signal."
+                            )
+                            break
+
+                        logging.info(
+                            f"Queue size below threshold for user_id: {user_id}, loading more movies..."
+                        )
+                        await self.load_movies_into_queue(user_id)
+
+                except asyncio.CancelledError:
                     logging.info(
-                        f"Queue size below threshold for user_id: {user_id}, loading more movies..."
+                        f"Populate task for user_id: {user_id} has been cancelled."
                     )
-                    await self.load_movies_into_queue(user_id)
-
-            except asyncio.CancelledError:
-                logging.info(
-                    f"Populate task for user_id: {user_id} has been cancelled."
-                )
-                break
-            except Exception as e:
-                logging.exception(f"Exception in populate for user_id: {user_id}: {e}")
-
-            finally:
-                if completion_event:
-                    completion_event.set()
-                logging.info(
-                    f"Population task for user_id: {user_id} is checking for more work or completing."
-                )
+                    break
+                except Exception as e:
+                    logging.exception(
+                        f"Exception in populate for user_id: {user_id}: {e}"
+                    )
+        finally:
+            if completion_event:
+                completion_event.set()
+            logging.info(
+                f"Population task for user_id: {user_id} is checking for more work or completing."
+            )
 
     def is_task_running(self):
         if self.populate_task is None:

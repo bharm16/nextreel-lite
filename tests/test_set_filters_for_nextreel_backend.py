@@ -3,6 +3,7 @@ import unittest
 from config import Config
 from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher
 
+@unittest.skip("requires database access")
 class TestMovieFilteringWithRealDatabase(unittest.TestCase):
     def setUp(self):
         self.dbconfig = Config.STACKHERO_DB_CONFIG

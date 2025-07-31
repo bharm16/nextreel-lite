@@ -350,6 +350,9 @@ class MovieManager:
             f"Completed rendering movie for user_id: {user_id} in {time.time() - operation_start:.2f} seconds"
         )
 
+        if response is None:
+            return "No movie found", 404
+
         return response
 
 

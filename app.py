@@ -4,7 +4,7 @@ import sys
 import time
 import uuid
 
-import aioredis
+from redis import asyncio as aioredis
 from quart import Quart, request, redirect, url_for, session, render_template, g
 from quart_session import Session
 
@@ -78,7 +78,7 @@ def create_app():
                 # Assuming movie_manager provides access to the MovieQueue instance,
                 # start preloading movies into the user's queue
                 # This line is the main addition to integrate start_populate_task
-                movie_manager.movie_queue_manager.start_populate_task(session['user_id'])
+                await movie_manager.movie_queue_manager.start_populate_task(session['user_id'])
 
             else:
                 logging.info(f"Existing user_id found: {session['user_id']}")
@@ -269,5 +269,7 @@ async def setup_request():
 #     1/0  # raises an error
 #     return {"hello": "world"}
 #
-app.run()
-#
+
+if __name__ == "__main__":
+    app.run()
+
