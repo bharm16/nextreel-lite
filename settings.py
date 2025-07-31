@@ -5,19 +5,17 @@ from dotenv import load_dotenv
 import time
 import logging
 
-# Set up basic configuration for logging
-logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 flask_env = os.getenv('FLASK_ENV', 'development')
 # Determine which .env file to load based on FLASK_ENV
 # flask_env = os.getenv('FLASK_ENV', 'production')
-logging.info(f"FLASK_ENV is set to: {flask_env}")
+logger.debug("FLASK_ENV set to: %s", flask_env)
 
 env_file = '.env.development' if flask_env == 'development' else '.env'
 load_dotenv(dotenv_path=env_file)
-logging.info(f"Loaded .env file: {env_file}")
-logging.info(f"Database Host from environment: {os.getenv('DB_HOST')}")
+logger.debug("Loaded .env file: %s", env_file)
+logger.debug("Database Host from environment: %s", os.getenv('DB_HOST'))
 
 
 
@@ -76,10 +74,10 @@ def _create_ssl_context(ssl_cert_path):
     """Create an SSL context if a valid certificate path is provided."""
     if ssl_cert_path and os.path.isfile(ssl_cert_path):
         context = ssl.create_default_context(cafile=ssl_cert_path)
-        logging.info("SSL context created successfully.")
+        logger.info("SSL context created successfully.")
         return context
     elif ssl_cert_path:
-        logging.error(f"SSL certificate file not found at {ssl_cert_path}")
+        logger.error("SSL certificate file not found at %s", ssl_cert_path)
     return None  # Return None if no valid SSL context
 
 
@@ -103,7 +101,9 @@ class DatabaseConnectionPool:
             cursorclass=aiomysql.DictCursor
         )
         end_time = time.time()
-        logging.info(f"Connection pool initialized in {end_time - start_time:.2f} seconds.")
+        logger.info(
+            "Connection pool initialized in %.2f seconds", end_time - start_time
+        )
 
     async def get_async_connection(self):
         if not self.pool:

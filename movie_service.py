@@ -1,5 +1,7 @@
 import asyncio
 import logging
+
+logger = logging.getLogger(__name__)
 import time
 
 from quart import render_template, redirect, url_for
@@ -13,16 +15,10 @@ from scripts.filter_backend import (
 )
 from scripts.tmdb_client import TMDbHelper, TMDB_API_KEY
 
-# Configure logging for better debugging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(filename)s - %(funcName)s - %(levelname)s - %(message)s",
-)
-
 
 class MovieManager:
     def __init__(self, db_config=None):
-        logging.info("Initializing MovieManager")
+        logger.info("Initializing MovieManager")
         self.db_config = db_config or Config.get_db_config()
         self.db_pool = DatabaseConnectionPool(self.db_config)
         self.movie_fetcher = ImdbRandomMovieFetcher(self.db_pool)
@@ -41,13 +37,13 @@ class MovieManager:
 
     async def start(self):
         # Log the start of the MovieManager
-        logging.info("Starting MovieManager")
+        logger.info("Starting MovieManager")
 
         await self.db_pool.init_pool()
 
         # After starting the population task, proceed to set the default backdrop
         await self.set_default_backdrop()
-        logging.info("Default backdrop set")
+        logger.debug("Default backdrop set")
 
     async def add_user(self, user_id, criteria):
         """
@@ -57,11 +53,11 @@ class MovieManager:
         user_id (str): Unique identifier for the user.
         criteria (dict): Criteria to filter movies for the user.
         """
-        logging.info(f"Adding new user with ID: {user_id} and criteria: {criteria}")
+        logger.info("Adding new user %s with criteria: %s", user_id, criteria)
         await self.movie_queue_manager.add_user(user_id, criteria)
 
     async def home(self, user_id):
-        logging.info("Accessing home")
+        logger.debug("Accessing home")
 
         # user_id = await app.get_current_user_id()
 
@@ -71,7 +67,7 @@ class MovieManager:
             self.movie_queue_manager.populate_task = asyncio.create_task(
                 self.movie_queue_manager.populate(user_id)
             )
-            logging.info("Movie queue population task started")
+            logger.debug("Movie queue population task started")
 
         return await render_template(
             "home.html", default_backdrop_url=self.default_backdrop_url
@@ -93,7 +89,7 @@ class MovieManager:
         self, current_displayed_movie, user_id, template_name="movie.html"
     ):
         if not current_displayed_movie:
-            logging.info("No current movie to display for user_id: {user_id}")
+            logger.debug("No current movie to display for user_id: %s", user_id)
             return None
 
         # Check if the current movie has a backdrop URL, and if so, render it
@@ -109,7 +105,7 @@ class MovieManager:
             )
 
         # If the movie does not have a backdrop URL, log this and return None
-        logging.info(
+        logger.debug(
             f"Movie skipped due to missing backdrop image for user_id: {user_id}"
         )
         return None
@@ -130,8 +126,10 @@ class MovieManager:
         # Fetch movie data
         movie_data = await movie_instance.get_movie_data()
         if not movie_data:
-            logging.info(
-                f"No data found for movie with tconst: {tconst} and user_id: {user_id}"
+            logger.warning(
+                "No data found for movie with tconst %s and user_id %s",
+                tconst,
+                user_id,
             )
             # Optionally, render a 'not found' template or return a simple message
             return "Movie not found", 404
@@ -146,18 +144,18 @@ class MovieManager:
         # Initialize stacks for new users
         if user_id not in self.user_previous_movies_stack:
             self.user_previous_movies_stack[user_id] = []
-            logging.info(f"Initialized previous movies stack for new user: {user_id}")
+            logger.debug("Initialized previous movies stack for new user: %s", user_id)
 
         if user_id not in self.user_future_movies_stack:
             self.user_future_movies_stack[user_id] = []
-            logging.info(f"Initialized future movies stack for new user: {user_id}")
+            logger.debug("Initialized future movies stack for new user: %s", user_id)
 
         # If the stacks already exist, just log that they're being accessed
         else:
-            logging.debug(f"Accessing stacks for existing user: {user_id}")
+            logger.debug("Accessing stacks for existing user: %s", user_id)
 
         execution_time = time.time() - start_time
-        logging.debug(
+        logger.debug(
             f"_get_user_stacks execution time for user {user_id}: {execution_time:.4f} seconds"
         )
 
@@ -213,7 +211,7 @@ class MovieManager:
         if future_stack:
             current_displayed_movie = future_stack.pop()
         elif not user_queue.empty():
-            logging.info(f"Pulling movie from movie queue for user_id: {user_id}")
+            logger.debug("Pulling movie from queue for user_id: %s", user_id)
             current_displayed_movie = await self.movie_queue_manager.dequeue_movie(user_id)
 
         # If there is a currently displayed movie, push it to the previous stack
@@ -237,7 +235,7 @@ class MovieManager:
             return redirect(url_for("movie_detail", tconst=tconst))
         else:
             # Handle the case where there's no next movie, adjust the logic as needed
-            logging.info("No next movie available.")
+            logger.info("No next movie available.")
             # Redirect to a suitable page or show a message
 
     async def previous_movie(self, user_id):
@@ -263,11 +261,11 @@ class MovieManager:
                 return redirect(url_for("movie_detail", tconst=tconst))
             else:
                 # Handle the case where there's no next movie, adjust the logic as needed
-                logging.info("No next movie available.")
+                logger.info("No next movie available.")
                 # Redirect to a suitable page or show a message
 
     async def set_filters(self, user_id):
-        logging.info(f"Setting filters for user_id: {user_id}")
+        logger.info("Setting filters for user_id: %s", user_id)
         start_time = asyncio.get_event_loop().time()
 
         # Stop the populate task and signal it to stop immediately using the stop flag
@@ -279,33 +277,41 @@ class MovieManager:
         # Reset the current displayed movie, assuming this needs to be reset for the user
         self.current_displayed_movie = None
 
-        logging.info(
-            f"Filters set for user_id: {user_id} in {asyncio.get_event_loop().time() - start_time} seconds"
+        logger.info(
+            "Filters set for user_id %s in %.2f seconds",
+            user_id,
+            asyncio.get_event_loop().time() - start_time,
         )
         return await render_template("set_filters.html")
 
     async def filtered_movie(self, user_id, form_data):
-        logging.info(f"Starting filtering process for user_id: {user_id}")
+        logger.info("Starting filtering process for user_id: %s", user_id)
 
         # Extract new criteria from form data
         operation_start = time.time()
         new_criteria = extract_movie_filter_criteria(form_data)
-        logging.info(
-            f"Extracted movie filter criteria for user_id: {user_id} in {time.time() - operation_start:.2f} seconds"
+        logger.debug(
+            "Extracted filter criteria for user_id %s in %.2f seconds",
+            user_id,
+            time.time() - operation_start,
         )
 
         # Stop any existing populate task
         operation_start = time.time()
         await self.movie_queue_manager.stop_populate_task(user_id)
-        logging.info(
-            f"Stopped populate task for user_id: {user_id} in {time.time() - operation_start:.2f} seconds"
+        logger.debug(
+            "Stopped populate task for user_id %s in %.2f seconds",
+            user_id,
+            time.time() - operation_start,
         )
 
         # Empty the user's queue
         operation_start = time.time()
         await self.movie_queue_manager.empty_queue(user_id)
-        logging.info(
-            f"Emptied movie queue for user_id: {user_id} in {time.time() - operation_start:.2f} seconds"
+        logger.debug(
+            "Emptied movie queue for user_id %s in %.2f seconds",
+            user_id,
+            time.time() - operation_start,
         )
 
         # Clear stacks and reset seen movies so duplicates are avoided
@@ -318,15 +324,19 @@ class MovieManager:
         # Set new criteria for the user
         operation_start = time.time()
         await self.movie_queue_manager.set_criteria(user_id, new_criteria)
-        logging.info(
-            f"Set new criteria for user_id: {user_id} in {time.time() - operation_start:.2f} seconds"
+        logger.debug(
+            "Set new criteria for user_id %s in %.2f seconds",
+            user_id,
+            time.time() - operation_start,
         )
 
         # Reset the stop flag before repopulating
         operation_start = time.time()
         await self.movie_queue_manager.set_stop_flag(user_id, False)
-        logging.info(
-            f"Reset stop flag for user_id: {user_id} in {time.time() - operation_start:.2f} seconds"
+        logger.debug(
+            "Reset stop flag for user_id %s in %.2f seconds",
+            user_id,
+            time.time() - operation_start,
         )
 
         # Load movies based on the new criteria once
