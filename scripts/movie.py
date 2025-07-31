@@ -10,12 +10,8 @@ from db_utils import DatabaseQueryExecutor
 from scripts.filter_backend import ImdbRandomMovieFetcher
 from scripts.tmdb_client import TMDbHelper
 
-# Configure logging for better debugging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(filename)s - %(funcName)s - %(levelname)s - %(message)s",
-)
-# Set httpx logging level to ERROR to reduce verbosity
+# Configure module logger
+logger = logging.getLogger(__name__)
 logging.getLogger("httpx").setLevel(logging.ERROR)
 
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -112,12 +108,12 @@ class Movie:
         )
         if result:
             self.slug = result["slug"]  # Assuming the column name in the DB is 'slug'
-            logging.info(f"Slug for tconst {self.tconst}: {self.slug}")
+            logger.info(f"Slug for tconst {self.tconst}: {self.slug}")
         else:
-            logging.warning(f"No slug found for tconst: {self.tconst}")
+            logger.warning(f"No slug found for tconst: {self.tconst}")
 
         method_time = time.time() - start_time
-        logging.info(
+        logger.info(
             f"Completed fetch_movie_slug for {self.tconst} in {method_time:.2f} seconds."
         )
 
@@ -146,19 +142,19 @@ class Movie:
                     ),
                 }
 
-                logging.info(f"Ratings data: {ratings_data}")  # Log the ratings data
+                logger.info(f"Ratings data: {ratings_data}")  # Log the ratings data
 
                 query_time = time.time() - start_time  # Measure query execution time
-                logging.info(f"Fetched movie ratings in {query_time:.2f} seconds")
+                logger.info(f"Fetched movie ratings in {query_time:.2f} seconds")
 
                 return ratings_data
 
             except KeyError as e:
-                logging.error(f"Error in fetch_movie_ratings: {e}")
-                logging.error(f"Result missing expected key: {result}")
+                logger.error(f"Error in fetch_movie_ratings: {e}")
+                logger.error(f"Result missing expected key: {result}")
                 return None
         else:
-            logging.info(f"No ratings found for tconst: {tconst}")
+            logger.info(f"No ratings found for tconst: {tconst}")
             return None
 
     async def get_movie_data(self):
@@ -168,7 +164,7 @@ class Movie:
         await self.fetch_movie_slug()
 
         if not tmdb_id:
-            logging.warning(f"No TMDB ID found for tconst: {self.tconst}")
+            logger.warning(f"No TMDB ID found for tconst: {self.tconst}")
             return None
 
         # Execute coroutines concurrently
@@ -257,7 +253,7 @@ class Movie:
         }
 
         method_time = time.time() - start_time
-        logging.info(
+        logger.info(
             f"Completed get_movie_data for {self.tconst} in {method_time:.2f} seconds."
         )
 

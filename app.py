@@ -3,7 +3,6 @@ import logging
 import sys
 import time
 import uuid
-
 from redis import asyncio as aioredis
 from quart import Quart, request, redirect, url_for, session, render_template, g
 from quart_session import Session
@@ -16,17 +15,13 @@ from movie_service import MovieManager
 import os
 from local_env_setup import setup_local_environment
 
-setup_logging(log_level=logging.DEBUG)
+setup_logging(log_level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 # Automatically set up local environment if not in production
 if os.getenv("FLASK_ENV") != "production":
     setup_local_environment()
-
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(filename)s - %(funcName)s - %(levelname)s - %(message)s'
-)
 
 
 def create_app():
@@ -68,28 +63,43 @@ def create_app():
             if 'user_id' not in session:
                 # Generate a new UUID if not present and add it to the session
                 session['user_id'] = str(uuid.uuid4())
-                logging.info(f"New user_id generated: {session['user_id']}. Correlation ID: {g.correlation_id}")
+                logger.debug(
+                    "New user_id generated: %s. Correlation ID: %s",
+                    session["user_id"],
+                    g.correlation_id,
+                )
 
                 # Define default criteria or fetch it from somewhere if you have personalized criteria logic
                 default_criteria = {"min_year": 1900, "max_year": 2023, "min_rating": 7.0,
                                     "genres": ["Action", "Comedy"]}
 
                 # Add user with criteria
-                await movie_manager.add_user(session['user_id'], default_criteria)
+                if asyncio.iscoroutinefunction(movie_manager.add_user):
+                    await movie_manager.add_user(session['user_id'], default_criteria)
+                else:
+                    movie_manager.add_user(session['user_id'], default_criteria)
 
                 # Assuming movie_manager provides access to the MovieQueue instance,
                 # start preloading movies into the user's queue
                 # This line is the main addition to integrate start_populate_task
-                await movie_manager.movie_queue_manager.start_populate_task(session['user_id'])
+                start_task = movie_manager.movie_queue_manager.start_populate_task
+                if asyncio.iscoroutinefunction(start_task):
+                    await start_task(session['user_id'])
+                else:
+                    start_task(session['user_id'])
 
             else:
-                logging.info(f"Existing user_id found: {session['user_id']}")
+                logger.debug("Existing user_id found: %s", session["user_id"])
 
             # Calculate and log request size
             req_size = sys.getsizeof(await request.get_data())
-            logging.info(f"Request Size: {req_size} bytes. Correlation ID: {g.correlation_id}")
+            logger.debug(
+                "Request Size: %s bytes. Correlation ID: %s",
+                req_size,
+                g.correlation_id,
+            )
         except Exception as e:
-            logging.error(f"Error in session management: {e}")
+            logger.error("Error in session management: %s", e)
 
     # Set up Redis for session management using aioredis
 
@@ -103,7 +113,12 @@ def create_app():
         user_id = session.get('user_id')
 
         # Pass the user_id along with the tconst to the render_movie_by_tconst method
-        logging.info(f"Fetching movie details for tconst: {tconst}, user_id: {user_id}. Correlation ID: {g.correlation_id}")
+        logger.info(
+            "Fetching movie details for tconst: %s, user_id: %s. Correlation ID: %s",
+            tconst,
+            user_id,
+            g.correlation_id,
+        )
         return await movie_manager.render_movie_by_tconst(user_id, tconst, template_name='movie.html')
 
     @app.route('/')
@@ -114,7 +129,12 @@ def create_app():
     @app.route('/movie/<slug>')
     async def movie_details(slug):
         user_id = session.get('user_id')
-        logging.info(f"Fetching movie details for slug: {slug}, user_id: {user_id}. Correlation ID: {g.correlation_id}")
+        logger.info(
+            "Fetching movie details for slug: %s, user_id: %s. Correlation ID: %s",
+            slug,
+            user_id,
+            g.correlation_id,
+        )
         # Fetch movie details by slug
         movie_details = await movie_manager.get_movie_by_slug(user_id, slug)
 
@@ -128,7 +148,11 @@ def create_app():
     @app.route('/next_movie', methods=['GET', 'POST'])
     async def next_movie():
         user_id = session.get('user_id')
-        logging.info(f"Requesting next movie for user_id: {user_id}. Correlation ID: {g.correlation_id}")
+        logger.info(
+            "Requesting next movie for user_id: %s. Correlation ID: %s",
+            user_id,
+            g.correlation_id,
+        )
 
         if 'failed_attempts' not in session:
             session['failed_attempts'] = 0
@@ -144,19 +168,18 @@ def create_app():
                 return response
             else:
                 session['failed_attempts'] += 1
-                logging.info(
-                    f"No movies available, waiting for {wait_seconds} seconds before retrying...")
+                logger.debug("No movies available, waiting for %s seconds before retrying...", wait_seconds)
                 await asyncio.sleep(wait_seconds)  # Wait before retrying
 
             # Check if we should trigger a movie queue population
             if session['failed_attempts'] >= 4:
-                logging.info(f"Failed attempts threshold reached. Triggering movie queue population. Correlation ID: {g.correlation_id}")
+                logger.info("Failed attempts threshold reached. Triggering movie queue population. Correlation ID: %s", g.correlation_id)
                 await movie_manager.movie_queue_manager.start_populate_task(session['user_id'])
 
                 session['failed_attempts'] = 0  # Optionally reset failed attempts
 
         # After 30 seconds, if no movie is found, log a message and return a custom response
-        logging.warning(f"No more movies available after trying for 30 seconds. Correlation ID: {g.correlation_id}")
+        logger.warning("No more movies available after trying for 30 seconds. Correlation ID: %s", g.correlation_id)
         return 'No more movies available. Please try again later.', 200
 
     @app.route('/previous_movie', methods=['GET', 'POST'])
@@ -164,9 +187,9 @@ def create_app():
     # @memory_profile  # Apply memory profiling
     async def previous_movie():
         user_id = session.get('user_id')
-        logging.info(f"Requesting previous movie for user_id: {user_id}. Correlation ID: {g.correlation_id}")
         response = await movie_manager.previous_movie(user_id)
-        return response if response else ('No previous movies', 200)
+        logger.info("Requesting previous movie for user_id: %s. Correlation ID: %s", user_id, g.correlation_id)
+        return response if response else ("No previous movies", 200)
 
     @app.route('/setFilters')
     async def set_filters():
@@ -174,8 +197,7 @@ def create_app():
         current_filters = session.get('current_filters', {})  # Retrieve current filters from session
 
         start_time = time.time()  # Capture start time for operation
-        logging.info(f"Starting to set filters for user_id: {user_id} with current filters: {current_filters}. Correlation ID: {g.correlation_id}")
-
+        logger.info("Starting to set filters for user_id: %s with current filters: %s. Correlation ID: %s", user_id, current_filters, g.correlation_id)
 
         try:
             # Pass current_filters to the template
@@ -183,12 +205,12 @@ def create_app():
 
             # Log the successful completion and time taken
             elapsed_time = time.time() - start_time
-            logging.info(f"Completed setting filters for user_id: {user_id} in {elapsed_time:.2f} seconds. Correlation ID: {g.correlation_id}")
+            logger.info("Completed setting filters for user_id: %s in %.2f seconds. Correlation ID: %s", user_id, elapsed_time, g.correlation_id)
 
             return response
         except Exception as e:
             # Exception logging with detailed context
-            logging.error(f"Error setting filters for user_id: {user_id}, Error: {e}")
+            logger.error("Error setting filters for user_id: %s, Error: %s", user_id, e)
             raise  # Re-raise the exception or handle it as per your error handling policy
 
     @app.route('/filtered_movie', methods=['POST'])
@@ -202,8 +224,7 @@ def create_app():
         session['current_filters'] = form_data.to_dict()
 
         start_time = time.time()  # Capture start time for operation
-        logging.info(f"Starting filtering movies for user_id: {user_id} with form data: {form_data}. Correlation ID: {g.correlation_id}")
-
+        logger.info("Starting filtering movies for user_id: %s with form data: %s. Correlation ID: %s", user_id, form_data, g.correlation_id)
 
         try:
             # Here, you can log before each significant operation to see its duration
@@ -211,22 +232,22 @@ def create_app():
             # Simulate processing and filtering
             await asyncio.sleep(5)  # Simulate some async operation
             filter_elapsed_time = time.time() - filter_start_time
-            logging.info(f"Simulated filtering operation took {filter_elapsed_time:.2f} seconds")
+            logger.debug("Simulated filtering operation took %.2f seconds", filter_elapsed_time)
 
             # Before calling the movie_manager's filtered_movie method, log the start time
             movie_filter_start_time = time.time()
             response = await movie_manager.filtered_movie(user_id, form_data)
             movie_filter_elapsed_time = time.time() - movie_filter_start_time
-            logging.info(f"movie_manager.filtered_movie operation took {movie_filter_elapsed_time:.2f} seconds. Correlation ID: {g.correlation_id}")
+            logger.debug("movie_manager.filtered_movie operation took %.2f seconds. Correlation ID: %s", movie_filter_elapsed_time, g.correlation_id)
 
             # Log the successful completion and time taken
             elapsed_time = time.time() - start_time
-            logging.info(f"Completed filtering movies for user_id: {user_id} in {elapsed_time:.2f} seconds. Correlation ID: {g.correlation_id}")
+            logger.info("Completed filtering movies for user_id: %s in %.2f seconds. Correlation ID: %s", user_id, elapsed_time, g.correlation_id)
 
             return response
         except Exception as e:
             # Exception logging with detailed context
-            logging.error(f"Error filtering movies for user_id: {user_id}, Error: {e}")
+            logger.error("Error filtering movies for user_id: %s, Error: %s", user_id, e)
             raise  # Re-raise the exception or handle it as per your error handling policy
 
     def get_user_criteria():
@@ -243,8 +264,12 @@ def create_app():
         criteria = get_user_criteria()  # Get criteria for the user
 
         # Initialize user's movie queue with criteria in MovieManager
-        await movie_manager.movie_queue_manager.add_user(user_id, criteria)
-        logging.info(f"New user handled with user_id: {user_id}. Correlation ID: {g.correlation_id}")
+        add_user_fn = movie_manager.movie_queue_manager.add_user
+        if asyncio.iscoroutinefunction(add_user_fn):
+            await add_user_fn(user_id, criteria)
+        else:
+            add_user_fn(user_id, criteria)
+        logger.info("New user handled with user_id: %s. Correlation ID: %s", user_id, g.correlation_id)
 
         # Redirect to the home page or another appropriate page
         return redirect(url_for('home'))

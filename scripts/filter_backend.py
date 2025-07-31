@@ -17,10 +17,7 @@ parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Now change the working directory to the parent directory
 os.chdir(parent_dir)
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(filename)s - %(funcName)s - %(levelname)s - %(message)s'
-)
+logger = logging.getLogger(__name__)
 
 
 # Helpers for query construction
@@ -64,11 +61,7 @@ class MovieQueryBuilder:
         return genre_conditions
 
 
-# Set up logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(filename)s - %(funcName)s - %(levelname)s - %(message)s'
-)
+# Set up logging via application configuration
 
 # Consumers are expected to create and manage their own DatabaseConnectionPool
 # instance and pass it to ``ImdbRandomMovieFetcher``.
@@ -88,14 +81,14 @@ class ImdbRandomMovieFetcher(MovieFetcher):
             genre_conditions = MovieQueryBuilder.build_genre_conditions(criteria, parameters)
             full_query = base_query + (f" AND ({genre_conditions[0]})" if genre_conditions else "")
 
-            logging.info(f"Executing query with parameters: {parameters}")  # Improved logging
+            logger.info(f"Executing query with parameters: {parameters}")  # Improved logging
 
             result = await self.db_query_executor.execute_async_query(full_query, parameters, 'all')
 
-            logging.info(f"Fetched {len(result)} movies by criteria in {time.time() - start_time:.2f} seconds")
+            logger.info(f"Fetched {len(result)} movies by criteria in {time.time() - start_time:.2f} seconds")
             return result
         except Exception as e:
-            logging.error(f"Error fetching movies by criteria: {e}\n{traceback.format_exc()}")
+            logger.error(f"Error fetching movies by criteria: {e}\n{traceback.format_exc()}")
             raise
 
     async def fetch_random_movies(self, criteria: Dict[str, Any], limit: int = 15):
@@ -103,14 +96,14 @@ class ImdbRandomMovieFetcher(MovieFetcher):
 
         method_start_time = time.time()
 
-        logging.info(f"Starting fetch_random_movies with criteria: {criteria} and limit: {limit}")
+        logger.info(f"Starting fetch_random_movies with criteria: {criteria} and limit: {limit}")
 
         base_query = MovieQueryBuilder.build_base_query()
         parameters = MovieQueryBuilder.build_parameters(criteria)
         genre_conditions = MovieQueryBuilder.build_genre_conditions(criteria, parameters)
 
         if genre_conditions:
-            logging.info(f"Genre conditions applied: {genre_conditions[0]}")
+            logger.info(f"Genre conditions applied: {genre_conditions[0]}")
 
         full_query = base_query + (
             f" AND ({genre_conditions[0]})" if genre_conditions else "") + f" ORDER BY RAND() LIMIT {int(limit)}"
@@ -119,10 +112,10 @@ class ImdbRandomMovieFetcher(MovieFetcher):
         result = await self.db_query_executor.execute_async_query(full_query, parameters, 'all')
         query_end_time = time.time()
 
-        logging.info(f"Query executed in {query_end_time - query_start_time:.2f} seconds")
+        logger.info(f"Query executed in {query_end_time - query_start_time:.2f} seconds")
 
         method_end_time = time.time()
-        logging.info(f"Completed fetch_random_movies in {method_end_time - method_start_time:.2f} seconds")
+        logger.info(f"Completed fetch_random_movies in {method_end_time - method_start_time:.2f} seconds")
 
         return result
 
@@ -199,7 +192,7 @@ async def main():
     movies = await fetcher.fetch_movies_by_criteria(criteria)
 
     for counter, movie in enumerate(movies, start=1):
-        logging.info(f"Movie {counter}: {movie}")
+        logger.info(f"Movie {counter}: {movie}")
 
     await pool.close_pool()
 
