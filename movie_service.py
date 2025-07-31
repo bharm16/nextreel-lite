@@ -230,6 +230,7 @@ class MovieManager:
 
         # If a tconst is available, call render_movie_by_tconst with the necessary parameters
         if tconst:
+            await self.movie_queue_manager.mark_movie_seen(user_id, tconst)
             # Assuming 'movie_detail.html' is the template where you want to display the movie details
             return redirect(url_for("movie_detail", tconst=tconst))
         else:
@@ -304,6 +305,13 @@ class MovieManager:
         logging.info(
             f"Emptied movie queue for user_id: {user_id} in {time.time() - operation_start:.2f} seconds"
         )
+
+        # Clear stacks and reset seen movies so duplicates are avoided
+        prev_stack, future_stack = self._get_user_stacks(user_id)
+        prev_stack.clear()
+        future_stack.clear()
+        await self.movie_queue_manager.reset_seen_movies(user_id)
+        self.current_displayed_movie = None
 
         # Set new criteria for the user
         operation_start = time.time()
