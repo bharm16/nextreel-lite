@@ -230,6 +230,7 @@ class MovieManager:
 
         # If a tconst is available, call render_movie_by_tconst with the necessary parameters
         if tconst:
+            await self.movie_queue_manager.mark_movie_seen(user_id, tconst)
             # Assuming 'movie_detail.html' is the template where you want to display the movie details
             return redirect(url_for("movie_detail", tconst=tconst))
         else:
@@ -305,6 +306,13 @@ class MovieManager:
             f"Emptied movie queue for user_id: {user_id} in {time.time() - operation_start:.2f} seconds"
         )
 
+        # Clear stacks and reset seen movies so duplicates are avoided
+        prev_stack, future_stack = self._get_user_stacks(user_id)
+        prev_stack.clear()
+        future_stack.clear()
+        await self.movie_queue_manager.reset_seen_movies(user_id)
+        self.current_displayed_movie = None
+
         # Set new criteria for the user
         operation_start = time.time()
         await self.movie_queue_manager.set_criteria(user_id, new_criteria)
@@ -319,41 +327,19 @@ class MovieManager:
             f"Reset stop flag for user_id: {user_id} in {time.time() - operation_start:.2f} seconds"
         )
 
-        # Start repopulating the queue for the user and signal when done
-        population_done = asyncio.Event()
-        logging.info(f"Initiating repopulation of movie queue for user_id: {user_id}")
-        populate_start_time = time.time()
-        self.movie_queue_manager.populate_task = asyncio.create_task(
-            self.movie_queue_manager.populate(user_id, population_done)
-        )
+        # Load movies based on the new criteria once
+        await self.movie_queue_manager.load_movies_into_queue(user_id)
 
-        # Wait for the population to complete
-        await population_done.wait()
-        populate_elapsed_time = time.time() - populate_start_time
-        logging.info(
-            f"Queue repopulation completed for user_id: {user_id} in {populate_elapsed_time:.2f} seconds"
-        )
+        # Restart background population task for continuous loading
+        await self.movie_queue_manager.start_populate_task(user_id)
 
-        # Fetch the next movie for the user from the updated queue
-        operation_start = time.time()
-        await self.next_movie(user_id)
-        logging.info(
-            f"Fetched next movie for user_id: {user_id} in {time.time() - operation_start:.2f} seconds"
-        )
+        # Fetch and return the next movie for the user
+        response = await self.next_movie(user_id)
+        if response:
+            return response
 
-        # Render the movie for the user
-        operation_start = time.time()
-        response = await self.fetch_and_render_movie(
-            self.current_displayed_movie, user_id
-        )
-        logging.info(
-            f"Completed rendering movie for user_id: {user_id} in {time.time() - operation_start:.2f} seconds"
-        )
-
-        if response is None:
-            return "No movie found", 404
-
-        return response
+        # If no movie is available, indicate this to the caller
+        return "No movie found", 404
 
 
 # Main function for testing...

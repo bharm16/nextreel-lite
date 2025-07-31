@@ -66,6 +66,7 @@ class MovieQueue:
                 self.user_queues[user_id] = {
                     "queue": asyncio.Queue(maxsize=20),
                     "criteria": {},
+                    "seen_tconsts": set(),
                 }
                 # Create a space available event for the new user
                 event = asyncio.Event()
@@ -85,6 +86,7 @@ class MovieQueue:
                 self.user_queues[user_id] = {
                     "queue": asyncio.Queue(maxsize=20),
                     "criteria": criteria,
+                    "seen_tconsts": set(),
                 }
                 event = asyncio.Event()
                 event.set()
@@ -96,9 +98,7 @@ class MovieQueue:
                     f"Added and started population task for new user: {user_id}"
                 )
         except Exception as e:
-            tb_str = traceback.format_exception(
-                etype=type(e), value=e, tb=e.__traceback__
-            )
+            tb_str = traceback.format_exception(e)
             logging.error("".join(tb_str))
             logging.error(
                 f"Failed to add new user or start population task for user_id: {user_id}. Exception: {e}"
@@ -115,9 +115,7 @@ class MovieQueue:
                     f"Criteria for user_id {user_id} updated to: {new_criteria}"
                 )
         except Exception as e:
-            tb_str = traceback.format_exception(
-                etype=type(e), value=e, tb=e.__traceback__
-            )
+            tb_str = traceback.format_exception(e)
             logging.error("".join(tb_str))
             logging.error(
                 f"Failed to set new criteria for user_id: {user_id}. Exception: {e}"
@@ -173,11 +171,20 @@ class MovieQueue:
                             self.space_available_events[user_id].set()
                     logging.info(f"Movie queue for user_id {user_id} emptied")
         except Exception as e:
-            tb_str = traceback.format_exception(
-                etype=type(e), value=e, tb=e.__traceback__
-            )
+            tb_str = traceback.format_exception(e)
             logging.error("".join(tb_str))
             logging.error(f"Error emptying queue for user_id: {user_id}: {e}")
+
+    async def mark_movie_seen(self, user_id, tconst):
+        info = self.user_queues.get(user_id)
+        if info is None:
+            info = await self.get_user_queue(user_id)
+        seen = self.user_queues[user_id].setdefault("seen_tconsts", set())
+        seen.add(tconst)
+
+    async def reset_seen_movies(self, user_id):
+        if user_id in self.user_queues:
+            self.user_queues[user_id]["seen_tconsts"] = set()
 
     async def dequeue_movie(self, user_id):
         """Retrieve a movie from the user's queue and signal space availability."""
@@ -258,7 +265,14 @@ class MovieQueue:
             if movie_data_tmdb:
                 user_queue = await self.get_user_queue(user_id)
                 async with self.lock:
-                    if not user_queue.full():
+                    info = self.user_queues[user_id]
+                    seen = info.setdefault("seen_tconsts", set())
+                    queued_ids = {m.get("imdb_id") for m in list(user_queue._queue)}
+                    if (
+                        not user_queue.full()
+                        and tconst not in queued_ids
+                        and tconst not in seen
+                    ):
                         await user_queue.put(movie_data_tmdb)
                         self.movie_enqueue_count += 1
                         logging.info(
@@ -267,9 +281,7 @@ class MovieQueue:
                         )
 
         except Exception as e:
-            tb_str = traceback.format_exception(
-                etype=type(e), value=e, tb=e.__traceback__
-            )
+            tb_str = traceback.format_exception(e)
             logging.error("".join(tb_str))
             logging.error(
                 f"Error fetching/enqueuing movie {tconst} for user_id: {user_id}: {e}"
@@ -313,9 +325,7 @@ class MovieQueue:
                 await asyncio.gather(*tasks)
 
         except Exception as e:
-            tb_str = traceback.format_exception(
-                etype=type(e), value=e, tb=e.__traceback__
-            )
+            tb_str = traceback.format_exception(e)
             logging.error("".join(tb_str))
             logging.error(
                 f"Error loading movies into queue for user_id: {user_id}: {e}"
@@ -341,9 +351,7 @@ class MovieQueue:
                 )
                 logging.info(f"Populate task restarted for user_id: {user_id}")
         except Exception as e:
-            tb_str = traceback.format_exception(
-                etype=type(e), value=e, tb=e.__traceback__
-            )
+            tb_str = traceback.format_exception(e)
             logging.error("".join(tb_str))
             logging.error(
                 f"Failed to update criteria and reset for user_id: {user_id}. Exception: {e}"
