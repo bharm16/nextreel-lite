@@ -27,7 +27,7 @@ class MovieManager:
         self.movie_fetcher = ImdbRandomMovieFetcher(database_pool)
         self.criteria = {}
         self.movie_queue = asyncio.Queue(maxsize=20)
-        self.movie_queue_manager = MovieQueue(db_config, self.movie_queue)
+        self.movie_queue_manager = MovieQueue(db_config, self.movie_queue, self.movie_fetcher)
         # self.future_movies_stack = []
         # self.previous_movies_stack = []
         self.current_displayed_movie = None

@@ -3,9 +3,11 @@ import logging
 import os
 import time
 import traceback
+from typing import Any, Dict, List
 
 from settings import Config, DatabaseConnectionPool
 from db_utils import DatabaseQueryExecutor
+from .interfaces import MovieFetcher
 
 dbconfig = Config.get_db_config()
 
@@ -22,48 +24,45 @@ logging.basicConfig(
 )
 
 
-# Finally, print the new working directory to confirm the change
-# print(f"Current working directory after change: {os.getcwd()}")
+# Helpers for query construction
+class MovieQueryBuilder:
+    """Build SQL queries for fetching movies based on criteria."""
 
+    @staticmethod
+    def build_base_query() -> str:
+        return (
+            "SELECT tb.* "
+            "FROM `title.basics` tb "
+            "JOIN `title.ratings` tr ON tb.tconst = tr.tconst "
+            "WHERE tb.startYear BETWEEN %s AND %s "
+            "AND tr.averagerating BETWEEN %s AND %s "
+            "AND tr.numVotes >= %s AND tr.numVotes <= %s "
+            "AND tb.titleType = %s "
+            "AND tb.language LIKE %s"
+        )
 
-def build_parameters(criteria):
-    """Construct the list of parameters for the SQL query based on given criteria."""
-    # Note: Added "LIKE" clause for the language
-    language = "%" + criteria.get('language', 'en') + "%"
-    parameters = [
-        criteria.get('min_year', 1900),
-        criteria.get('max_year', 2023),
-        criteria.get('min_rating', 7.0),
-        criteria.get('max_rating', 10),
-        criteria.get('min_votes', 100000),
-        criteria.get('max_votes', 1000000),
-        criteria.get('title_type', 'movie'),
-        language  # added this line
-    ]
-    return parameters
+    @staticmethod
+    def build_parameters(criteria: Dict[str, Any]) -> List[Any]:
+        language = "%" + criteria.get("language", "en") + "%"
+        return [
+            criteria.get("min_year", 1900),
+            criteria.get("max_year", 2023),
+            criteria.get("min_rating", 7.0),
+            criteria.get("max_rating", 10),
+            criteria.get("min_votes", 100000),
+            criteria.get("max_votes", 1000000),
+            criteria.get("title_type", "movie"),
+            language,
+        ]
 
-
-def build_genre_conditions(criteria, parameters):
-    """Construct the genre conditions for the SQL query."""
-    genre_conditions = []
-    genres = criteria.get('genres')
-    if genres:
-        genre_conditions = [" OR ".join(["tb.genres LIKE %s" for _ in genres])]
-        parameters.extend(["%" + genre + "%" for genre in genres])
-    return genre_conditions
-
-
-def build_base_query():
-    return """
-    SELECT tb.*
-    FROM `title.basics` tb
-    JOIN `title.ratings` tr ON tb.tconst = tr.tconst
-    WHERE tb.startYear BETWEEN %s AND %s
-    AND tr.averagerating BETWEEN %s AND %s
-    AND tr.numVotes >= %s AND tr.numVotes <= %s
-    AND tb.titleType = %s
-    AND tb.language LIKE %s  -- Changed this line
-    """
+    @staticmethod
+    def build_genre_conditions(criteria: Dict[str, Any], parameters: List[Any]) -> List[str]:
+        genre_conditions: List[str] = []
+        genres = criteria.get("genres")
+        if genres:
+            genre_conditions = [" OR ".join(["tb.genres LIKE %s" for _ in genres])]
+            parameters.extend(["%" + genre + "%" for genre in genres])
+        return genre_conditions
 
 
 # Set up logging
@@ -83,7 +82,7 @@ async def init_pool():
 
 
 # Convert the ImdbRandomMovieFetcher class methods to async
-class ImdbRandomMovieFetcher:
+class ImdbRandomMovieFetcher(MovieFetcher):
     def __init__(self, database_pool):
         # Use the provided database pool
         self.db_query_executor = DatabaseQueryExecutor(database_pool)
@@ -91,9 +90,9 @@ class ImdbRandomMovieFetcher:
     async def fetch_movies_by_criteria(self, criteria):
         start_time = time.time()
         try:
-            base_query = build_base_query()
-            parameters = build_parameters(criteria)
-            genre_conditions = build_genre_conditions(criteria, parameters)
+            base_query = MovieQueryBuilder.build_base_query()
+            parameters = MovieQueryBuilder.build_parameters(criteria)
+            genre_conditions = MovieQueryBuilder.build_genre_conditions(criteria, parameters)
             full_query = base_query + (f" AND ({genre_conditions[0]})" if genre_conditions else "")
 
             logging.info(f"Executing query with parameters: {parameters}")  # Improved logging
@@ -112,13 +111,13 @@ class ImdbRandomMovieFetcher:
 
         logging.info(f"Starting fetch_random_movies15 with criteria: {criteria}")
 
-        base_query = build_base_query()
-        parameters = build_parameters(criteria)
+        base_query = MovieQueryBuilder.build_base_query()
+        parameters = MovieQueryBuilder.build_parameters(criteria)
 
         # Log the construction of parameters
         logging.info(f"Parameters built: {parameters}")
 
-        genre_conditions = build_genre_conditions(criteria, parameters)
+        genre_conditions = MovieQueryBuilder.build_genre_conditions(criteria, parameters)
 
         # Log the construction of genre conditions
         if genre_conditions:
