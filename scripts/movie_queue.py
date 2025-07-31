@@ -9,6 +9,7 @@ from quart import current_app
 
 from scripts.movie import Movie
 from scripts.filter_backend import ImdbRandomMovieFetcher, database_pool
+from .interfaces import MovieFetcher
 
 # Configure logging for better clarity
 logging.basicConfig(
@@ -31,12 +32,12 @@ class MovieQueue:
             logging.info("Creating a new instance of MovieQueue")
         return cls._instance
 
-    def __init__(self, db_config, queue, criteria=None):
+    def __init__(self, db_config, queue, movie_fetcher: MovieFetcher, criteria=None):
         # Avoid reinitialization if already initialized
         if not hasattr(self, "_initialized"):
             self.db_config = db_config
             self.queue = queue
-            self.movie_fetcher = ImdbRandomMovieFetcher(database_pool)
+            self.movie_fetcher = movie_fetcher
             self.criteria = criteria or {}
             self.lock = asyncio.Lock()
             logging.info(f"MovieQueue instance created with criteria: {self.criteria}")
