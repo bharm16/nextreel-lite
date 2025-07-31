@@ -28,3 +28,4 @@ def setup_logging(log_level=logging.INFO):
 
     # Log the initialization of logging
     logging.info("Logging initialized with level: %s", logging.getLevelName(log_level))
+

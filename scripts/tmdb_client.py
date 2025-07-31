@@ -23,11 +23,7 @@ parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Now change the working directory to the parent directory
 os.chdir(parent_dir)
 
-# Assuming logging is already configured elsewhere in your application
-# For example, in your main module or initialization script:
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logger = logging.getLogger(__name__)
 
 
 class TMDbHelper:
@@ -45,37 +41,37 @@ class TMDbHelper:
             async with httpx.AsyncClient() as client:
                 url = f"{self.base_url}/{endpoint}"
                 params["api_key"] = self.api_key
-                # logging.info(f"Sending GET request to {url} with params: {params}")
+                # logger.info(f"Sending GET request to {url} with params: {params}")
                 response = await client.get(url, params=params)
                 response.raise_for_status()  # Will raise an exception for 4XX/5XX responses
 
                 elapsed_time = time.time() - start_time
-                logging.info(
+                logger.info(
                     f"Received response from {url} in {elapsed_time:.2f} seconds. Status code: {response.status_code}"
                 )
 
                 return response.json()
         except httpx.HTTPStatusError as e:
             elapsed_time = time.time() - start_time
-            logging.error(
+            logger.error(
                 f"HTTP error occurred while accessing {url}: {e}; Time elapsed: {elapsed_time:.2f} seconds"
             )
             raise
         except httpx.RequestError as e:
             elapsed_time = time.time() - start_time
-            logging.error(
+            logger.error(
                 f"Request error occurred while accessing {url}: {e}; Time elapsed: {elapsed_time:.2f} seconds"
             )
             raise
         except Exception as e:
             elapsed_time = time.time() - start_time
-            logging.error(
+            logger.error(
                 f"Unexpected error occurred while accessing {url}: {e}; Time elapsed: {elapsed_time:.2f} seconds"
             )
             raise
 
     async def get_cast_info_by_tmdb_id(self, tmdb_id):
-        # logging.info(f"Fetching cast information for TMDB ID: {tmdb_id}")
+        # logger.info(f"Fetching cast information for TMDB ID: {tmdb_id}")
 
         start_time = time.time()  # Start timing
         try:
@@ -98,20 +94,20 @@ class TMDbHelper:
                 )
 
             elapsed_time = time.time() - start_time
-            logging.info(
+            logger.info(
                 f"Successfully fetched and processed cast information for TMDB ID: {tmdb_id} in {elapsed_time:.2f} seconds"
             )
 
             return cast_info
         except Exception as e:
             elapsed_time = time.time() - start_time
-            logging.error(
+            logger.error(
                 f"Error fetching cast information for TMDB ID: {tmdb_id}. Error: {e}. Time elapsed: {elapsed_time:.2f} seconds"
             )
             raise
 
     async def get_video_url_by_tmdb_id(self, tmdb_id):
-        # logging.info(f"Fetching video URL for TMDB ID: {tmdb_id}")
+        # logger.info(f"Fetching video URL for TMDB ID: {tmdb_id}")
         start_time = time.time()
 
         try:
@@ -119,14 +115,14 @@ class TMDbHelper:
             for video in data.get("results", []):
                 if video["site"] == "YouTube" and video["type"] == "Trailer":
                     video_url = f"https://www.youtube.com/watch?v={video['key']}"
-                    # logging.info(f"Found YouTube trailer for TMDB ID: {tmdb_id} - {video_url}")
+                    # logger.info(f"Found YouTube trailer for TMDB ID: {tmdb_id} - {video_url}")
                     return video_url
 
             # logging.warning(f"No YouTube trailer found for TMDB ID: {tmdb_id}")
             return None
         finally:
             elapsed_time = time.time() - start_time
-            # logging.info(f"Completed fetching video URL for TMDB ID: {tmdb_id} in {elapsed_time:.2f} seconds")
+            # logger.info(f"Completed fetching video URL for TMDB ID: {tmdb_id} in {elapsed_time:.2f} seconds")
 
     async def get_images_by_tmdb_id(self, tmdb_id, limit=1):
         """Fetch limited number of images for a TMDB ID."""
@@ -144,12 +140,12 @@ class TMDbHelper:
                               "file_path" in img],
             }
 
-            logging.info(
+            logger.info(
                 f"Found {len(images['posters'])} poster(s) and {len(images['backdrops'])} backdrop(s) for TMDB ID: {tmdb_id}")
             return images
         finally:
             elapsed_time = time.time() - start_time
-            logging.info(f"Completed fetching images for TMDB ID: {tmdb_id} in {elapsed_time:.2f} seconds")
+            logger.info(f"Completed fetching images for TMDB ID: {tmdb_id} in {elapsed_time:.2f} seconds")
 
     async def get_videos_by_tmdb_id(self, tmdb_id):
         return await self._get(f"movie/{tmdb_id}/videos")

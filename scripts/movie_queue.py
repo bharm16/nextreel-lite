@@ -12,15 +12,11 @@ from scripts.filter_backend import ImdbRandomMovieFetcher
 from .interfaces import MovieFetcher
 from settings import DatabaseConnectionPool
 
-# Configure logging for better clarity
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(filename)s - %(funcName)s - %(levelname)s - %(message)s",
-)
+logger = logging.getLogger(__name__)
 # Set the working directory to the parent directory for relative path resolutions
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(parent_dir)
-logging.debug(f"Current working directory after change: {os.getcwd()}")
+logger.debug(f"Current working directory after change: {os.getcwd()}")
 
 
 class MovieQueue:
@@ -54,7 +50,7 @@ class MovieQueue:
                 }
             return self.user_queues[user_id]["queue"]
         except Exception as e:
-            logging.error(
+            logger.error(
                 f"Unexpected error in get_user_queue for user_id: {user_id}: {e}",
                 exc_info=True,
             )
@@ -71,13 +67,14 @@ class MovieQueue:
                 self.user_queues[user_id]["populate_task"] = asyncio.create_task(
                     self.populate(user_id)
                 )
-                logging.info(
-                    f"Added and started population task for new user: {user_id}"
+                logger.info(
+                    "Added and started population task for new user: %s",
+                    user_id,
                 )
         except Exception as e:
             tb_str = traceback.format_exception(e)
-            logging.error("".join(tb_str))
-            logging.error(
+            logger.error("".join(tb_str))
+            logger.error(
                 f"Failed to add new user or start population task for user_id: {user_id}. Exception: {e}"
             )
 
@@ -88,13 +85,13 @@ class MovieQueue:
 
             async with self.lock:
                 self.user_queues[user_id]["criteria"] = new_criteria
-                logging.info(
+                logger.info(
                     f"Criteria for user_id {user_id} updated to: {new_criteria}"
                 )
         except Exception as e:
             tb_str = traceback.format_exception(e)
-            logging.error("".join(tb_str))
-            logging.error(
+            logger.error("".join(tb_str))
+            logger.error(
                 f"Failed to set new criteria for user_id: {user_id}. Exception: {e}"
             )
 
@@ -108,13 +105,14 @@ class MovieQueue:
                 user_queue_info["populate_task"] = asyncio.create_task(
                     self.populate(user_id)
                 )
-                logging.info(f"Populate task started for user_id: {user_id}")
+                logger.info(f"Populate task started for user_id: {user_id}")
             else:
-                logging.info(
-                    f"Populate task for user_id: {user_id} is already running or not ready to be restarted."
+                logger.debug(
+                    "Populate task for user_id: %s is already running or not ready to be restarted.",
+                    user_id,
                 )
         except Exception as e:
-            logging.error(
+            logger.error(
                 f"Failed to start populate task for user_id: {user_id}. Exception: {e}",
                 exc_info=True,
             )
@@ -131,9 +129,9 @@ class MovieQueue:
                     "populate_task"
                 ]  # Wait for the task to be cancelled
             except asyncio.CancelledError:
-                logging.info(f"Populate task for user_id {user_id} cancelled.")
+                logger.info(f"Populate task for user_id {user_id} cancelled.")
             finally:
-                logging.info(f"Finalizing stop for user_id {user_id}.")
+                logger.info(f"Finalizing stop for user_id {user_id}.")
 
     async def empty_queue(self, user_id):
         try:
@@ -143,11 +141,11 @@ class MovieQueue:
                 async with self.lock:
                     while not queue.empty():
                         await queue.get()
-                    logging.info(f"Movie queue for user_id {user_id} emptied")
+                    logger.info(f"Movie queue for user_id {user_id} emptied")
         except Exception as e:
             tb_str = traceback.format_exception(e)
-            logging.error("".join(tb_str))
-            logging.error(f"Error emptying queue for user_id: {user_id}: {e}")
+            logger.error("".join(tb_str))
+            logger.error(f"Error emptying queue for user_id: {user_id}: {e}")
 
     async def mark_movie_seen(self, user_id, tconst):
         info = self.user_queues.get(user_id)
@@ -176,13 +174,15 @@ class MovieQueue:
 
                     if current_queue_size <= 1:
                         if await self.check_stop_flag(user_id):
-                            logging.info(
-                                f"Abort loading more movies for user_id: {user_id} due to stop signal."
+                            logger.debug(
+                                "Abort loading more movies for user_id: %s due to stop signal.",
+                                user_id,
                             )
                             break
 
-                        logging.info(
-                            f"Queue size below threshold for user_id: {user_id}, loading more movies..."
+                        logger.debug(
+                            "Queue size below threshold for user_id: %s, loading more movies...",
+                            user_id,
                         )
                         await self.load_movies_into_queue(user_id)
                     elif current_queue_size >= max_queue_size:
@@ -193,19 +193,20 @@ class MovieQueue:
                         await asyncio.sleep(0.5)
 
                 except asyncio.CancelledError:
-                    logging.info(
+                    logger.info(
                         f"Populate task for user_id: {user_id} has been cancelled."
                     )
                     break
                 except Exception as e:
-                    logging.exception(
+                    logger.exception(
                         f"Exception in populate for user_id: {user_id}: {e}"
                     )
         finally:
             if completion_event:
                 completion_event.set()
-            logging.info(
-                f"Population task for user_id: {user_id} is checking for more work or completing."
+            logger.debug(
+                "Population task for user_id: %s is checking for more work or completing.",
+                user_id,
             )
 
     def is_task_running(self, user_id=None):
@@ -242,15 +243,20 @@ class MovieQueue:
                     ):
                         await user_queue.put(movie_data_tmdb)
                         self.movie_enqueue_count += 1
-                        logging.info(
-                            f"[{self.movie_enqueue_count}] Enqueued movie '{movie_data_tmdb.get('title')}' with tconst: {tconst} for user_id: {user_id} "
-                            f"(fetch time: {fetch_time:.2f}s, total time: {time.time() - start_time:.2f}s)"
+                        logger.debug(
+                            "[%s] Enqueued movie '%s' with tconst: %s for user_id: %s (fetch time: %.2fs, total time: %.2fs)",
+                            self.movie_enqueue_count,
+                            movie_data_tmdb.get('title'),
+                            tconst,
+                            user_id,
+                            fetch_time,
+                            time.time() - start_time,
                         )
 
         except Exception as e:
             tb_str = traceback.format_exception(e)
-            logging.error("".join(tb_str))
-            logging.error(
+            logger.error("".join(tb_str))
+            logger.error(
                 f"Error fetching/enqueuing movie {tconst} for user_id: {user_id}: {e}"
             )
 
@@ -264,7 +270,7 @@ class MovieQueue:
                 and "criteria" in self.user_queues[user_id]
                 else {}
             )
-            logging.info(
+            logger.info(
                 f"Loading movies into queue for user_id: {user_id} with criteria: {user_criteria}"
             )
 
@@ -276,11 +282,11 @@ class MovieQueue:
                 fetch_time = time.time() - fetch_start_time
 
                 if rows:
-                    logging.debug(
+                    logger.debug(
                         f"Fetched {len(rows)} movies for user_id: {user_id} based on criteria: {user_criteria} (fetch time: {fetch_time:.2f}s)"
                     )
                 else:
-                    logging.warning(
+                    logger.warning(
                         f"No movies fetched for user_id: {user_id} with the given criteria: {user_criteria}"
                     )
 
@@ -295,14 +301,14 @@ class MovieQueue:
 
         except Exception as e:
             tb_str = traceback.format_exception(e)
-            logging.error("".join(tb_str))
-            logging.error(
+            logger.error("".join(tb_str))
+            logger.error(
                 f"Error loading movies into queue for user_id: {user_id}: {e}"
             )
 
         finally:  # Log total time in all cases
             total_time = time.time() - start_time
-            logging.info(
+            logger.info(
                 f"Completed loading movies into queue for user_id: {user_id} (total time: {total_time:.2f}s)"
             )
 
@@ -318,11 +324,11 @@ class MovieQueue:
                 user_queue_info["populate_task"] = asyncio.create_task(
                     self.populate(user_id)
                 )
-                logging.info(f"Populate task restarted for user_id: {user_id}")
+                logger.info(f"Populate task restarted for user_id: {user_id}")
         except Exception as e:
             tb_str = traceback.format_exception(e)
-            logging.error("".join(tb_str))
-            logging.error(
+            logger.error("".join(tb_str))
+            logger.error(
                 f"Failed to update criteria and reset for user_id: {user_id}. Exception: {e}"
             )
 
@@ -339,7 +345,7 @@ class MovieQueue:
 #
 #     # Set criteria and start population tasks for each user
 #     for user_id, criteria in user_criteria.items():
-#         logging.info(f"Setting criteria for {user_id}: {criteria}")
+#         logger.info(f"Setting criteria for {user_id}: {criteria}")
 #         await movie_queue_manager.set_criteria(user_id, criteria)
 #         movie_queue_manager.start_populate_task(user_id)
 #
@@ -350,9 +356,9 @@ class MovieQueue:
 #     for user_id in user_criteria.keys():
 #         await movie_queue_manager.stop_populate_task(user_id)
 #         await movie_queue_manager.empty_queue(user_id)
-#         logging.info(f"Queue for {user_id} stopped and emptied")
+#         logger.info(f"Queue for {user_id} stopped and emptied")
 #
-#     logging.info("All tasks completed")
+#     logger.info("All tasks completed")
 #
 # if __name__ == "__main__":
 #     asyncio.run(main())
