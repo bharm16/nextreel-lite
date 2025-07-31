@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from logging_config import get_logger
 import os
 import re
 import aiomysql
@@ -10,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = get_logger(__name__)
 
 # Database configurations from environment variables
 DB_CONFIG = {
@@ -45,7 +46,7 @@ async def add_slug_column(pool):
                     ALTER TABLE `title.basics`
                     ADD COLUMN `slug` VARCHAR(255) AFTER `primaryTitle`;
                 """)
-                logging.info("Slug column added to 'title.basics' table.")
+                logger.info("Slug column added to 'title.basics' table.")
 
 async def populate_slugs(pool):
     async with pool.acquire() as conn:
@@ -66,7 +67,7 @@ async def populate_slugs(pool):
                     SET `slug` = %s
                     WHERE `tconst` = %s;
                 """, (f'film/{slug}', movie['tconst']))
-                logging.info(f"Slug '{slug}' added to movie with tconst: {movie['tconst']}")
+                logger.info(f"Slug '{slug}' added to movie with tconst: {movie['tconst']}")
 
 async def main():
     pool = await aiomysql.create_pool(**DB_CONFIG)
@@ -74,7 +75,7 @@ async def main():
         await add_slug_column(pool)
         await populate_slugs(pool)
     except Exception as e:
-        logging.error(f"An error occurred: {e}")
+        logger.error(f"An error occurred: {e}")
     finally:
         pool.close()
         await pool.wait_closed()
