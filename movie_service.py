@@ -212,7 +212,7 @@ class MovieManager:
             current_displayed_movie = future_stack.pop()
         elif not user_queue.empty():
             logging.info(f"Pulling movie from movie queue for user_id: {user_id}")
-            current_displayed_movie = await user_queue.get()
+            current_displayed_movie = await self.movie_queue_manager.dequeue_movie(user_id)
 
         # If there is a currently displayed movie, push it to the previous stack
         if (
