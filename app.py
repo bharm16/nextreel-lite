@@ -62,6 +62,8 @@ def create_app():
     @app.before_request
     async def before_request():
         try:
+            # Ensure correlation ID is set for logging
+            await add_correlation_id()
             # Check if 'user_id' is not in the session
             if 'user_id' not in session:
                 # Generate a new UUID if not present and add it to the session
@@ -259,10 +261,7 @@ def get_current_user_id():
 app = create_app()
 
 
-# Apply middleware for correlation ID
-@app.before_request
-async def setup_request():
-    await add_correlation_id()
+# Apply middleware for correlation ID via the before_request defined in create_app
 
 # @app.route("/")
 # async def hello():

@@ -319,41 +319,19 @@ class MovieManager:
             f"Reset stop flag for user_id: {user_id} in {time.time() - operation_start:.2f} seconds"
         )
 
-        # Start repopulating the queue for the user and signal when done
-        population_done = asyncio.Event()
-        logging.info(f"Initiating repopulation of movie queue for user_id: {user_id}")
-        populate_start_time = time.time()
-        self.movie_queue_manager.populate_task = asyncio.create_task(
-            self.movie_queue_manager.populate(user_id, population_done)
-        )
+        # Load movies based on the new criteria once
+        await self.movie_queue_manager.load_movies_into_queue(user_id)
 
-        # Wait for the population to complete
-        await population_done.wait()
-        populate_elapsed_time = time.time() - populate_start_time
-        logging.info(
-            f"Queue repopulation completed for user_id: {user_id} in {populate_elapsed_time:.2f} seconds"
-        )
+        # Restart background population task for continuous loading
+        await self.movie_queue_manager.start_populate_task(user_id)
 
-        # Fetch the next movie for the user from the updated queue
-        operation_start = time.time()
-        await self.next_movie(user_id)
-        logging.info(
-            f"Fetched next movie for user_id: {user_id} in {time.time() - operation_start:.2f} seconds"
-        )
+        # Fetch and return the next movie for the user
+        response = await self.next_movie(user_id)
+        if response:
+            return response
 
-        # Render the movie for the user
-        operation_start = time.time()
-        response = await self.fetch_and_render_movie(
-            self.current_displayed_movie, user_id
-        )
-        logging.info(
-            f"Completed rendering movie for user_id: {user_id} in {time.time() - operation_start:.2f} seconds"
-        )
-
-        if response is None:
-            return "No movie found", 404
-
-        return response
+        # If no movie is available, indicate this to the caller
+        return "No movie found", 404
 
 
 # Main function for testing...
