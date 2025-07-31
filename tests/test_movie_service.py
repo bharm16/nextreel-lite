@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import AsyncMock, patch
 
-from movie_manager import MovieManager
+from movie_service import MovieManager
 
 
 @pytest.mark.asyncio
@@ -55,7 +55,7 @@ async def test_home():
         populate=populate_mock
     )
 
-    with patch('your_script.render_template', render_template_mock):
+    with patch('movie_service.render_template', render_template_mock):
         user_id = "test_user"
         result = await movie_manager.home(user_id)
 

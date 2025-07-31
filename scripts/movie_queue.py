@@ -8,7 +8,7 @@ import httpx
 from quart import current_app
 
 from scripts.movie import Movie
-from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher, db_pool
+from scripts.filter_backend import ImdbRandomMovieFetcher, database_pool
 
 # Configure logging for better clarity
 logging.basicConfig(
@@ -36,7 +36,7 @@ class MovieQueue:
         if not hasattr(self, "_initialized"):
             self.db_config = db_config
             self.queue = queue
-            self.movie_fetcher = ImdbRandomMovieFetcher(db_pool)
+            self.movie_fetcher = ImdbRandomMovieFetcher(database_pool)
             self.criteria = criteria or {}
             self.lock = asyncio.Lock()
             logging.info(f"MovieQueue instance created with criteria: {self.criteria}")

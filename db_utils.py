@@ -62,7 +62,7 @@ LIMIT 1
 
 # Assume necessary imports and SQL queries defined above remain unchanged
 
-from config import Config, DatabaseConnectionPool
+from settings import Config, DatabaseConnectionPool
 import asyncio
 import logging
 import time

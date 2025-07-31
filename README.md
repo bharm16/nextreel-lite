@@ -15,12 +15,12 @@ Installation
 Install the required Python packages: pip install -r requirements.txt.
 
 ## Configuration
-Edit config.py to include your database credentials, API keys, and other necessary configurations.
+Edit settings.py to include your database credentials, API keys, and other necessary configurations.
 The runtime.txt file should reflect the Python version compatible with your environment.
 
 ## Usage
 Run the application using python app.py.
-Utilize the scripts such as movie_manager.py, tmdb_data.py, and others as per your requirements.
+Utilize the scripts such as movie_service.py, tmdb_client.py, and others as needed.
 
 ## Contribution
 Contributions to this project are welcome. Please follow the standard fork-and-pull request workflow for contributions.
