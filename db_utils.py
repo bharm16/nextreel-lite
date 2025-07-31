@@ -65,10 +65,11 @@ LIMIT 1
 from settings import Config, DatabaseConnectionPool
 import asyncio
 import logging
+from logging_config import get_logger
 import time
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = get_logger(__name__)
 
 
 # Assume SQL query definitions remain the same
@@ -83,7 +84,7 @@ class DatabaseQueryExecutor:
         start_time = time.time()  # Start timing before acquiring connection
         conn = await self.db_pool.get_async_connection()
         if not conn:
-            logging.error("Failed to acquire a database connection.")
+            logger.error("Failed to acquire a database connection.")
             return None
 
         try:
@@ -100,18 +101,21 @@ class DatabaseQueryExecutor:
                     raise ValueError(f"Invalid fetch parameter: {fetch}")
                 return result
         except Exception as e:
-            logging.error(f"An error occurred while executing the query: {e}")
+            logger.error(f"An error occurred while executing the query: {e}")
             return None
         finally:
             await self.db_pool.release_async_connection(conn)
             end_time = time.time()  # End timing after releasing connection
-            logging.info(f"Query and connection handling executed in {end_time - start_time:.2f} seconds.")
+            logger.debug(
+                "Query and connection handling executed in %.2f seconds",
+                end_time - start_time,
+            )
 
 
 async def init_pool():
     db_pool = DatabaseConnectionPool(Config.get_db_config())
     await db_pool.init_pool()
-    logging.info("Database connection pool initialized.")
+    logger.info("Database connection pool initialized.")
     return db_pool
 
 

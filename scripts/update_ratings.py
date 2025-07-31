@@ -1,5 +1,6 @@
 import csv
 import logging
+from logging_config import get_logger
 import os
 import asyncio
 
@@ -16,7 +17,7 @@ parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(parent_dir)
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = get_logger(__name__)
 
 
 async def read_tsv_and_update_database(tsv_file_path, database_pool):
@@ -31,7 +32,7 @@ async def read_tsv_and_update_database(tsv_file_path, database_pool):
     try:
         # Establish a database connection from the pool
         connection = await database_pool.get_async_connection()
-        logging.info("Successfully connected to database.")
+        logger.info("Successfully connected to database.")
 
         async with connection.cursor() as cursor:
             # Open the TSV file for reading
@@ -51,7 +52,7 @@ async def read_tsv_and_update_database(tsv_file_path, database_pool):
                     """
 
                     # Log the update operation
-                    logging.info(
+                    logger.info(
                         f"Updating {tconst} with averageRating {averageRating} and numVotes {numVotes}."
                     )
 
@@ -59,14 +60,14 @@ async def read_tsv_and_update_database(tsv_file_path, database_pool):
                     await cursor.execute(update_sql, (averageRating, numVotes, tconst))
 
             await connection.commit()
-            logging.info("Database updated successfully.")
+            logger.info("Database updated successfully.")
 
     except Exception as e:
-        logging.error(f"An error occurred: {e}")
+        logger.error(f"An error occurred: {e}")
     finally:
         if connection:
             await database_pool.release_async_connection(connection)
-            logging.info("Database connection released.")
+            logger.info("Database connection released.")
 
 
 # Path to your TSV file - ensure this path is correct
