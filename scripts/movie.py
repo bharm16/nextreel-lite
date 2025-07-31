@@ -270,7 +270,7 @@ class Movie:
 async def main():
 
     tconst = "tt0182727"  # Example IMDb ID
-    db_config = Config.STACKHERO_DB_CONFIG  # Your database configuration
+    db_config = Config.get_db_config()  # Your database configuration
     movie_instance = Movie(tconst, db_config)
     movie_data = await movie_instance.get_movie_data()
     if movie_data:

@@ -9,9 +9,9 @@ import logging
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 
-
+flask_env = os.getenv('FLASK_ENV', 'development')
 # Determine which .env file to load based on FLASK_ENV
-flask_env = os.getenv('FLASK_ENV', 'production')
+# flask_env = os.getenv('FLASK_ENV', 'production')
 logging.info(f"FLASK_ENV is set to: {flask_env}")
 
 env_file = '.env.development' if flask_env == 'development' else '.env'
@@ -42,7 +42,7 @@ class Config:
     def get_db_config():
         if flask_env == 'development':
             return {
-                'host': os.getenv('DB_HOST', 'localhost'),
+                'host': os.getenv('DB_HOST', '127.0.0.1'),
                 'user': os.getenv('DB_USER', 'root'),
                 'password': os.getenv('DB_PASSWORD', 'caching_sha2_password'),
                 'database': os.getenv('DB_NAME', 'imdb'),
