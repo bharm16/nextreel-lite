@@ -8,13 +8,13 @@ from redis import asyncio as aioredis
 from quart import Quart, request, redirect, url_for, session, render_template, g
 from quart_session import Session
 
-import config
+import settings
 from logging_config import setup_logging
 from middleware import add_correlation_id
-from movie_manager import MovieManager
+from movie_service import MovieManager
 
 import os
-from local_setup import setup_local_environment
+from local_env_setup import setup_local_environment
 
 setup_logging(log_level=logging.DEBUG)
 
@@ -31,7 +31,7 @@ logging.basicConfig(
 
 def create_app():
     app = Quart(__name__)
-    app.config.from_object(config.Config)
+    app.config.from_object(settings.Config)
 
 
 
@@ -57,7 +57,7 @@ def create_app():
         app.config['SESSION_REDIS'] = cache
         Session(app)
 
-    movie_manager = MovieManager(config.Config.get_db_config())
+    movie_manager = MovieManager(settings.Config.get_db_config())
 
     @app.before_request
     async def before_request():

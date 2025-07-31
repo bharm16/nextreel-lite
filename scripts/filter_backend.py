@@ -4,8 +4,8 @@ import os
 import time
 import traceback
 
-from config import Config, DatabaseConnectionPool
-from mysql_query_builder import DatabaseQueryExecutor
+from settings import Config, DatabaseConnectionPool
+from db_utils import DatabaseQueryExecutor
 
 dbconfig = Config.get_db_config()
 
@@ -73,10 +73,10 @@ logging.basicConfig(
 )
 
 # Adjust the DatabaseConnection to use DatabaseConnectionPool
-db_pool = DatabaseConnectionPool(dbconfig)
+database_pool = DatabaseConnectionPool(dbconfig)
 
 async def init_pool():
-    await db_pool.init_pool()
+    await database_pool.init_pool()
     logging.info("Database connection pool initialized.")
 
 # Modify the execute_query function to use the DatabaseConnection
@@ -84,9 +84,9 @@ async def init_pool():
 
 # Convert the ImdbRandomMovieFetcher class methods to async
 class ImdbRandomMovieFetcher:
-    def __init__(self, db_pool):
-        # Adjusted to pass the pool instead of dbconfig
-        self.db_query_executor = DatabaseQueryExecutor(db_pool)
+    def __init__(self, database_pool):
+        # Use the provided database pool
+        self.db_query_executor = DatabaseQueryExecutor(database_pool)
 
     async def fetch_movies_by_criteria(self, criteria):
         start_time = time.time()
@@ -212,13 +212,13 @@ async def main():
         'genres': ['Action', 'Drama']
     }
 
-    fetcher = ImdbRandomMovieFetcher(db_pool)
+    fetcher = ImdbRandomMovieFetcher(database_pool)
     movies = await fetcher.fetch_movies_by_criteria(criteria)
 
     for counter, movie in enumerate(movies, start=1):
         logging.info(f"Movie {counter}: {movie}")
 
-    await db_pool.close_pool()  # Don't forget to close the pool at the end
+    await database_pool.close_pool()  # Don't forget to close the pool at the end
 
 if __name__ == "__main__":
     asyncio.run(main())

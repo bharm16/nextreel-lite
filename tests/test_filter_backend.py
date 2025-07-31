@@ -1,7 +1,7 @@
 import asyncio
 import unittest
-from config import Config
-from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher
+from settings import Config
+from scripts.filter_backend import ImdbRandomMovieFetcher
 
 @unittest.skip("requires database access")
 class TestMovieFilteringWithRealDatabase(unittest.TestCase):

@@ -5,10 +5,10 @@ import time
 
 import httpx
 
-from config import Config
-from mysql_query_builder import DatabaseQueryExecutor
-from scripts.set_filters_for_nextreel_backend import ImdbRandomMovieFetcher, db_pool
-from scripts.tmdb_data import TMDbHelper
+from settings import Config
+from db_utils import DatabaseQueryExecutor
+from scripts.filter_backend import ImdbRandomMovieFetcher, database_pool
+from scripts.tmdb_client import TMDbHelper
 
 # Configure logging for better debugging
 logging.basicConfig(
@@ -96,7 +96,7 @@ class Movie:
         self.tconst = tconst
         self.db_config = db_config
         self.movie_data = {}
-        self.query_executor = DatabaseQueryExecutor(db_pool)  # Corrected here
+        self.query_executor = DatabaseQueryExecutor(database_pool)
         self.tmdb_helper = TMDbHelper(TMDB_API_KEY)  # Initialize TMDbHelper
         self.slug = None  # Assuming slug is available at initialization
         self.client = httpx.AsyncClient()  # Initialize once and reuse

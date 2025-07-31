@@ -3,10 +3,10 @@ import logging
 import os
 import asyncio
 
-from config import Config, DatabaseConnectionPool
+from settings import Config, DatabaseConnectionPool
 
 dbconfig = Config.STACKHERO_DB_CONFIG
-db_pool = DatabaseConnectionPool(dbconfig)
+database_pool = DatabaseConnectionPool(dbconfig)
 
 # Use os.path.dirname to go up one level from the current script's directory
 # Use os.path.dirname to go up one level from the current script's directory
@@ -19,18 +19,18 @@ os.chdir(parent_dir)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
-async def read_tsv_and_update_database(tsv_file_path, db_pool):
+async def read_tsv_and_update_database(tsv_file_path, database_pool):
     """
     Reads a TSV file and updates the averageRating and numVotes in the database.
     Logs each update operation.
 
     :param tsv_file_path: Path to the TSV file containing the updates.
-    :param db_pool: DatabaseConnectionPool instance for DB operations.
+    :param database_pool: DatabaseConnectionPool instance for DB operations.
     """
     connection = None
     try:
         # Establish a database connection from the pool
-        connection = await db_pool.get_async_connection()
+        connection = await database_pool.get_async_connection()
         logging.info("Successfully connected to database.")
 
         async with connection.cursor() as cursor:
@@ -65,7 +65,7 @@ async def read_tsv_and_update_database(tsv_file_path, db_pool):
         logging.error(f"An error occurred: {e}")
     finally:
         if connection:
-            await db_pool.release_async_connection(connection)
+            await database_pool.release_async_connection(connection)
             logging.info("Database connection released.")
 
 
@@ -73,9 +73,9 @@ async def read_tsv_and_update_database(tsv_file_path, db_pool):
 tsv_file_path = 'scripts/title.ratings.tsv'  # Update this path as necessary
 
 async def main():
-    await db_pool.init_pool()
-    await read_tsv_and_update_database(tsv_file_path, db_pool)
-    await db_pool.close_pool()
+    await database_pool.init_pool()
+    await read_tsv_and_update_database(tsv_file_path, database_pool)
+    await database_pool.close_pool()
 
 if __name__ == '__main__':
     asyncio.run(main())
