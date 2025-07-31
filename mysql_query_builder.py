@@ -109,7 +109,7 @@ class DatabaseQueryExecutor:
 
 
 async def init_pool():
-    db_pool = DatabaseConnectionPool(Config.STACKHERO_DB_CONFIG)
+    db_pool = DatabaseConnectionPool(Config.get_db_config())
     await db_pool.init_pool()
     logging.info("Database connection pool initialized.")
     return db_pool

@@ -29,13 +29,13 @@ def setup_local_environment():
         os.environ.setdefault("USER_DB_NAME", "prod_user_database")  # Replace with production user database name
     else:  # Local or testing environment
         # Local settings for Movies database
-        os.environ.setdefault("MYSQL_HOST", "localhost")
+        os.environ.setdefault("MYSQL_HOST", "127.0.0.1")
         os.environ.setdefault("MYSQL_USER", "root")
         os.environ.setdefault("MYSQL_PASSWORD", "caching_sha2_password")
         os.environ.setdefault("MYSQL_DB", "imdb")
 
         # Local settings for UserAccounts database
-        os.environ.setdefault("USER_DB_HOST", "localhost")
+        os.environ.setdefault("USER_DB_HOST", "127.0.0.1")
         os.environ.setdefault("USER_DB_USER", "root")
         os.environ.setdefault("USER_DB_PASSWORD", "caching_sha2_password")
         os.environ.setdefault("USER_DB_NAME", "UserAccounts")
