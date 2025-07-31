@@ -9,6 +9,7 @@ def test_start():
         set_default_backdrop_mock = AsyncMock()
         with patch.object(MovieManager, 'set_default_backdrop', set_default_backdrop_mock):
             movie_manager = MovieManager(db_config=None)
+            movie_manager.db_pool.init_pool = AsyncMock()
             await movie_manager.start()
             set_default_backdrop_mock.assert_called_once()
 

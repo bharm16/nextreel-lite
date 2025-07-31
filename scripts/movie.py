@@ -5,9 +5,9 @@ import time
 
 import httpx
 
-from settings import Config
+from settings import Config, DatabaseConnectionPool
 from db_utils import DatabaseQueryExecutor
-from scripts.filter_backend import ImdbRandomMovieFetcher, database_pool
+from scripts.filter_backend import ImdbRandomMovieFetcher
 from scripts.tmdb_client import TMDbHelper
 
 # Configure logging for better debugging
@@ -92,11 +92,11 @@ class TMDB:
 
 
 class Movie:
-    def __init__(self, tconst, db_config):
+    def __init__(self, tconst, db_pool):
         self.tconst = tconst
-        self.db_config = db_config
+        self.db_pool = db_pool
         self.movie_data = {}
-        self.query_executor = DatabaseQueryExecutor(database_pool)
+        self.query_executor = DatabaseQueryExecutor(db_pool)
         self.tmdb_helper = TMDbHelper(TMDB_API_KEY)  # Initialize TMDbHelper
         self.slug = None  # Assuming slug is available at initialization
         self.client = httpx.AsyncClient()  # Initialize once and reuse
@@ -271,12 +271,15 @@ async def main():
 
     tconst = "tt0182727"  # Example IMDb ID
     db_config = Config.get_db_config()  # Your database configuration
-    movie_instance = Movie(tconst, db_config)
+    pool = DatabaseConnectionPool(db_config)
+    await pool.init_pool()
+    movie_instance = Movie(tconst, pool)
     movie_data = await movie_instance.get_movie_data()
     if movie_data:
         print(f"Movie Data: {movie_data}")
     else:
         print("Failed to fetch movie data.")
+    await pool.close_pool()
 
 
 if __name__ == "__main__":

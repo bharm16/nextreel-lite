@@ -8,8 +8,9 @@ import httpx
 from quart import current_app
 
 from scripts.movie import Movie
-from scripts.filter_backend import ImdbRandomMovieFetcher, database_pool
+from scripts.filter_backend import ImdbRandomMovieFetcher
 from .interfaces import MovieFetcher
+from settings import DatabaseConnectionPool
 
 # Configure logging for better clarity
 logging.basicConfig(
@@ -23,34 +24,17 @@ logging.debug(f"Current working directory after change: {os.getcwd()}")
 
 
 class MovieQueue:
-    _instance = None
+    """Manage per-user movie queues."""
 
-    def __new__(cls, *args, **kwargs):
-        # Ensuring Singleton pattern
-        if not isinstance(cls._instance, cls):
-            cls._instance = super(MovieQueue, cls).__new__(cls)
-            logging.info("Creating a new instance of MovieQueue")
-        return cls._instance
+    def __init__(self, db_pool: DatabaseConnectionPool, movie_fetcher: MovieFetcher, queue_size: int = 15):
+        self.db_pool = db_pool
+        self.movie_fetcher = movie_fetcher
+        self.queue_size = queue_size
+        self.lock = asyncio.Lock()
 
-    def __init__(self, db_config, queue, movie_fetcher: MovieFetcher, criteria=None):
-        # Avoid reinitialization if already initialized
-        if not hasattr(self, "_initialized"):
-            self.db_config = db_config
-            self.queue = queue
-            self.movie_fetcher = movie_fetcher
-            self.criteria = criteria or {}
-            self.lock = asyncio.Lock()
-            logging.info(f"MovieQueue instance created with criteria: {self.criteria}")
-            self.populate_task = None  # Legacy attribute for compatibility
-            self._initialized = True
-            self.movie_enqueue_count = 0  # Add a counter for movies enqueued
-            self.user_queues = {}  # Dictionary to store user-specific queues
-            # Tracks whether to stop the populate task for each user
-            # Use a dictionary so flags can be set per user without errors
-            self.stop_flags = {}
-            # Other initialization...
-            # Maintain per-user Events to signal when space is available
-            self.space_available_events = {}
+        self.movie_enqueue_count = 0
+        self.user_queues = {}
+        self.stop_flags = {}
 
     async def set_stop_flag(self, user_id, stop=True):
         """Sets the stop flag for a given user's populate task."""
@@ -64,14 +48,10 @@ class MovieQueue:
         try:
             if user_id not in self.user_queues:
                 self.user_queues[user_id] = {
-                    "queue": asyncio.Queue(maxsize=20),
+                    "queue": asyncio.Queue(maxsize=self.queue_size),
                     "criteria": {},
                     "seen_tconsts": set(),
                 }
-                # Create a space available event for the new user
-                event = asyncio.Event()
-                event.set()
-                self.space_available_events[user_id] = event
             return self.user_queues[user_id]["queue"]
         except Exception as e:
             logging.error(
@@ -84,13 +64,10 @@ class MovieQueue:
         try:
             if user_id not in self.user_queues:
                 self.user_queues[user_id] = {
-                    "queue": asyncio.Queue(maxsize=20),
+                    "queue": asyncio.Queue(maxsize=self.queue_size),
                     "criteria": criteria,
                     "seen_tconsts": set(),
                 }
-                event = asyncio.Event()
-                event.set()
-                self.space_available_events[user_id] = event
                 self.user_queues[user_id]["populate_task"] = asyncio.create_task(
                     self.populate(user_id)
                 )
@@ -166,9 +143,6 @@ class MovieQueue:
                 async with self.lock:
                     while not queue.empty():
                         await queue.get()
-                        # Signal that space is now available
-                        if user_id in self.space_available_events:
-                            self.space_available_events[user_id].set()
                     logging.info(f"Movie queue for user_id {user_id} emptied")
         except Exception as e:
             tb_str = traceback.format_exception(e)
@@ -187,30 +161,20 @@ class MovieQueue:
             self.user_queues[user_id]["seen_tconsts"] = set()
 
     async def dequeue_movie(self, user_id):
-        """Retrieve a movie from the user's queue and signal space availability."""
+        """Retrieve a movie from the user's queue."""
         user_queue = await self.get_user_queue(user_id)
         movie = await user_queue.get()
-        if user_id in self.space_available_events:
-            self.space_available_events[user_id].set()
         return movie
 
     async def populate(self, user_id, completion_event=None):
-        max_queue_size = 15
+        max_queue_size = self.queue_size
         try:
             while True:
                 try:
                     user_queue = await self.get_user_queue(user_id)
-                    event = self.space_available_events[user_id]
                     current_queue_size = user_queue.qsize()
 
-                    if current_queue_size >= max_queue_size:
-                        logging.info(
-                            f"Queue full for user_id: {user_id}. Waiting for space..."
-                        )
-                        event.clear()
-                        await event.wait()
-
-                    elif current_queue_size <= 1:
+                    if current_queue_size <= 1:
                         if await self.check_stop_flag(user_id):
                             logging.info(
                                 f"Abort loading more movies for user_id: {user_id} due to stop signal."
@@ -221,6 +185,9 @@ class MovieQueue:
                             f"Queue size below threshold for user_id: {user_id}, loading more movies..."
                         )
                         await self.load_movies_into_queue(user_id)
+                    elif current_queue_size >= max_queue_size:
+                        # Queue is full; sleep briefly to yield control
+                        await asyncio.sleep(0.5)
                     else:
                         # Avoid busy waiting when queue is partially filled
                         await asyncio.sleep(0.5)
@@ -257,7 +224,7 @@ class MovieQueue:
         try:
             start_time = time.time()  # Measure total execution time
 
-            movie = Movie(tconst, self.db_config)
+            movie = Movie(tconst, self.db_pool)
             movie_data_tmdb = await movie.get_movie_data()
 
             fetch_time = time.time() - start_time  # Measure fetch time
@@ -303,7 +270,9 @@ class MovieQueue:
 
             async with current_app.app_context(), httpx.AsyncClient():
                 fetch_start_time = time.time()  # Measure movie fetching time
-                rows = await self.movie_fetcher.fetch_random_movies15(user_criteria)
+                user_queue = await self.get_user_queue(user_id)
+                limit = self.queue_size - user_queue.qsize()
+                rows = await self.movie_fetcher.fetch_random_movies(user_criteria, limit)
                 fetch_time = time.time() - fetch_start_time
 
                 if rows:

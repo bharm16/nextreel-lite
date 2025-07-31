@@ -4,5 +4,8 @@ from typing import Protocol, List, Dict, Any
 class MovieFetcher(Protocol):
     """Abstraction for objects that can fetch movies based on criteria."""
 
-    async def fetch_random_movies15(self, criteria: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def fetch_random_movies(
+        self, criteria: Dict[str, Any], limit: int
+    ) -> List[Dict[str, Any]]:
+        """Fetch a number of random movies matching the given criteria."""
         ...
