@@ -4,13 +4,12 @@ import time
 
 from quart import render_template, redirect, url_for
 
-from settings import Config
+from settings import Config, DatabaseConnectionPool
 from scripts.movie import Movie
 from scripts.movie_queue import MovieQueue
 from scripts.filter_backend import (
     ImdbRandomMovieFetcher,
     extract_movie_filter_criteria,
-    database_pool,
 )
 from scripts.tmdb_client import TMDbHelper, TMDB_API_KEY
 
@@ -22,12 +21,13 @@ logging.basicConfig(
 
 
 class MovieManager:
-    def __init__(self, db_config):
+    def __init__(self, db_config=None):
         logging.info("Initializing MovieManager")
-        self.movie_fetcher = ImdbRandomMovieFetcher(database_pool)
+        self.db_config = db_config or Config.get_db_config()
+        self.db_pool = DatabaseConnectionPool(self.db_config)
+        self.movie_fetcher = ImdbRandomMovieFetcher(self.db_pool)
+        self.movie_queue_manager = MovieQueue(self.db_pool, self.movie_fetcher, queue_size=20)
         self.criteria = {}
-        self.movie_queue = asyncio.Queue(maxsize=20)
-        self.movie_queue_manager = MovieQueue(db_config, self.movie_queue, self.movie_fetcher)
         # self.future_movies_stack = []
         # self.previous_movies_stack = []
         self.current_displayed_movie = None
@@ -42,6 +42,8 @@ class MovieManager:
     async def start(self):
         # Log the start of the MovieManager
         logging.info("Starting MovieManager")
+
+        await self.db_pool.init_pool()
 
         # After starting the population task, proceed to set the default backdrop
         await self.set_default_backdrop()
@@ -123,7 +125,7 @@ class MovieManager:
         - template_name (str): The template name for rendering the movie details.
         """
         # Initialize a Movie object with the provided tconst
-        movie_instance = Movie(tconst, self.db_config)
+        movie_instance = Movie(tconst, self.db_pool)
 
         # Fetch movie data
         movie_data = await movie_instance.get_movie_data()
@@ -353,9 +355,7 @@ async def main():
     # Example tconst to test
     test_tconst = "tt0111161"  # Example IMDb ID for "The Shawshank Redemption"
 
-    movie_instance = Movie(
-        test_tconst, dbconfig
-    )  # Assuming Movie class takes dbconfig as parameter
+    movie_instance = Movie(test_tconst, movie_manager.db_pool)
     movie_data = await movie_instance.get_movie_data()
     if movie_data:
         print(

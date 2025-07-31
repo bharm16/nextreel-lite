@@ -5,11 +5,10 @@ import time
 import traceback
 from typing import Any, Dict, List
 
+
 from settings import Config, DatabaseConnectionPool
 from db_utils import DatabaseQueryExecutor
 from .interfaces import MovieFetcher
-
-dbconfig = Config.get_db_config()
 
 # Use os.path.dirname to go up one level from the current script's directory
 # Use os.path.dirname to go up one level from the current script's directory
@@ -71,14 +70,8 @@ logging.basicConfig(
     format='%(asctime)s - %(filename)s - %(funcName)s - %(levelname)s - %(message)s'
 )
 
-# Adjust the DatabaseConnection to use DatabaseConnectionPool
-database_pool = DatabaseConnectionPool(dbconfig)
-
-async def init_pool():
-    await database_pool.init_pool()
-    logging.info("Database connection pool initialized.")
-
-# Modify the execute_query function to use the DatabaseConnection
+# Consumers are expected to create and manage their own DatabaseConnectionPool
+# instance and pass it to ``ImdbRandomMovieFetcher``.
 
 
 # Convert the ImdbRandomMovieFetcher class methods to async
@@ -105,43 +98,31 @@ class ImdbRandomMovieFetcher(MovieFetcher):
             logging.error(f"Error fetching movies by criteria: {e}\n{traceback.format_exc()}")
             raise
 
-    async def fetch_random_movies15(self, criteria):
-        # Start timing the method execution
+    async def fetch_random_movies(self, criteria: Dict[str, Any], limit: int = 15):
+        """Fetch ``limit`` random movies that match the given criteria."""
+
         method_start_time = time.time()
 
-        logging.info(f"Starting fetch_random_movies15 with criteria: {criteria}")
+        logging.info(f"Starting fetch_random_movies with criteria: {criteria} and limit: {limit}")
 
         base_query = MovieQueryBuilder.build_base_query()
         parameters = MovieQueryBuilder.build_parameters(criteria)
-
-        # Log the construction of parameters
-        logging.info(f"Parameters built: {parameters}")
-
         genre_conditions = MovieQueryBuilder.build_genre_conditions(criteria, parameters)
 
-        # Log the construction of genre conditions
         if genre_conditions:
             logging.info(f"Genre conditions applied: {genre_conditions[0]}")
 
         full_query = base_query + (
-            f" AND ({genre_conditions[0]})" if genre_conditions else "") + " ORDER BY RAND() LIMIT 15"
+            f" AND ({genre_conditions[0]})" if genre_conditions else "") + f" ORDER BY RAND() LIMIT {int(limit)}"
 
-        # Log the final query (optional, might be omitted for security/privacy reasons)
-        # logging.debug(f"Executing query: {full_query}")
-
-        # Time the query execution specifically
         query_start_time = time.time()
         result = await self.db_query_executor.execute_async_query(full_query, parameters, 'all')
         query_end_time = time.time()
 
-        # Log the query execution time
         logging.info(f"Query executed in {query_end_time - query_start_time:.2f} seconds")
 
-        # End timing the method execution
         method_end_time = time.time()
-
-        # Log the total time taken by the method
-        logging.info(f"Completed fetch_random_movies15 in {method_end_time - method_start_time:.2f} seconds")
+        logging.info(f"Completed fetch_random_movies in {method_end_time - method_start_time:.2f} seconds")
 
         return result
 
@@ -197,7 +178,10 @@ def extract_movie_filter_criteria(form_data):
 
 
 async def main():
-    await init_pool()  # Initialize the database connection pool
+    """Example usage for manual testing."""
+    db_config = Config.get_db_config()
+    pool = DatabaseConnectionPool(db_config)
+    await pool.init_pool()
 
     criteria = {
         'min_year': 2000,
@@ -211,14 +195,15 @@ async def main():
         'genres': ['Action', 'Drama']
     }
 
-    fetcher = ImdbRandomMovieFetcher(database_pool)
+    fetcher = ImdbRandomMovieFetcher(pool)
     movies = await fetcher.fetch_movies_by_criteria(criteria)
 
     for counter, movie in enumerate(movies, start=1):
         logging.info(f"Movie {counter}: {movie}")
 
-    await database_pool.close_pool()  # Don't forget to close the pool at the end
+    await pool.close_pool()
 
 if __name__ == "__main__":
+    import asyncio
     asyncio.run(main())
 
