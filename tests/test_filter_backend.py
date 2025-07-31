@@ -9,8 +9,8 @@ class TestMovieFilteringWithRealDatabase(unittest.TestCase):
         self.dbconfig = Config.STACKHERO_DB_CONFIG
         self.fetcher = ImdbRandomMovieFetcher(self.dbconfig)
 
-    async def test_fetch_random_movies25_meets_criteria(self):
-        """Test that fetch_random_movies25 fetches movies that meet the criteria."""
+    async def test_fetch_random_movies_meets_criteria(self):
+        """Test that fetch_random_movies fetches movies that meet the criteria."""
         criteria = {
             'min_year': 1990,
             'max_year': 2010,
@@ -21,10 +21,10 @@ class TestMovieFilteringWithRealDatabase(unittest.TestCase):
             'language': 'en',
             'genres': ['Action', 'Drama']
         }
-        movies = await self.fetcher.fetch_random_movies15(criteria)
+        movies = await self.fetcher.fetch_random_movies(criteria, 15)
 
-        # Ensure that 25 movies are returned
-        self.assertEqual(len(movies), 15, "Did not fetch exactly 25 movies")
+        # Ensure that the correct number of movies are returned
+        self.assertEqual(len(movies), 15, "Did not fetch exactly 15 movies")
 
         # Assert that returned movies match the criteria
         for movie in movies:

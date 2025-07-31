@@ -12,7 +12,6 @@ from .interfaces import MovieFetcher
 dbconfig = Config.get_db_config()
 
 # Use os.path.dirname to go up one level from the current script's directory
-# Use os.path.dirname to go up one level from the current script's directory
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Now change the working directory to the parent directory
@@ -71,14 +70,7 @@ logging.basicConfig(
     format='%(asctime)s - %(filename)s - %(funcName)s - %(levelname)s - %(message)s'
 )
 
-# Adjust the DatabaseConnection to use DatabaseConnectionPool
-database_pool = DatabaseConnectionPool(dbconfig)
 
-async def init_pool():
-    await database_pool.init_pool()
-    logging.info("Database connection pool initialized.")
-
-# Modify the execute_query function to use the DatabaseConnection
 
 
 # Convert the ImdbRandomMovieFetcher class methods to async
@@ -105,26 +97,24 @@ class ImdbRandomMovieFetcher(MovieFetcher):
             logging.error(f"Error fetching movies by criteria: {e}\n{traceback.format_exc()}")
             raise
 
-    async def fetch_random_movies15(self, criteria):
-        # Start timing the method execution
+    async def fetch_random_movies(self, criteria, limit):
+        """Fetch a random selection of movies matching the criteria."""
         method_start_time = time.time()
 
-        logging.info(f"Starting fetch_random_movies15 with criteria: {criteria}")
+        logging.info(f"Starting fetch_random_movies with criteria: {criteria} and limit {limit}")
 
         base_query = MovieQueryBuilder.build_base_query()
         parameters = MovieQueryBuilder.build_parameters(criteria)
 
-        # Log the construction of parameters
         logging.info(f"Parameters built: {parameters}")
 
         genre_conditions = MovieQueryBuilder.build_genre_conditions(criteria, parameters)
 
-        # Log the construction of genre conditions
         if genre_conditions:
             logging.info(f"Genre conditions applied: {genre_conditions[0]}")
 
         full_query = base_query + (
-            f" AND ({genre_conditions[0]})" if genre_conditions else "") + " ORDER BY RAND() LIMIT 15"
+            f" AND ({genre_conditions[0]})" if genre_conditions else "") + f" ORDER BY RAND() LIMIT {limit}"
 
         # Log the final query (optional, might be omitted for security/privacy reasons)
         # logging.debug(f"Executing query: {full_query}")
@@ -141,7 +131,7 @@ class ImdbRandomMovieFetcher(MovieFetcher):
         method_end_time = time.time()
 
         # Log the total time taken by the method
-        logging.info(f"Completed fetch_random_movies15 in {method_end_time - method_start_time:.2f} seconds")
+        logging.info(f"Completed fetch_random_movies in {method_end_time - method_start_time:.2f} seconds")
 
         return result
 
@@ -197,7 +187,8 @@ def extract_movie_filter_criteria(form_data):
 
 
 async def main():
-    await init_pool()  # Initialize the database connection pool
+    db_pool = DatabaseConnectionPool(dbconfig)
+    await db_pool.init_pool()
 
     criteria = {
         'min_year': 2000,
@@ -211,13 +202,13 @@ async def main():
         'genres': ['Action', 'Drama']
     }
 
-    fetcher = ImdbRandomMovieFetcher(database_pool)
+    fetcher = ImdbRandomMovieFetcher(db_pool)
     movies = await fetcher.fetch_movies_by_criteria(criteria)
 
     for counter, movie in enumerate(movies, start=1):
         logging.info(f"Movie {counter}: {movie}")
 
-    await database_pool.close_pool()  # Don't forget to close the pool at the end
+    await db_pool.close_pool()  # Don't forget to close the pool at the end
 
 if __name__ == "__main__":
     asyncio.run(main())

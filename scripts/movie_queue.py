@@ -8,7 +8,7 @@ import httpx
 from quart import current_app
 
 from scripts.movie import Movie
-from scripts.filter_backend import ImdbRandomMovieFetcher, database_pool
+from scripts.filter_backend import ImdbRandomMovieFetcher
 from .interfaces import MovieFetcher
 
 # Configure logging for better clarity
@@ -23,34 +23,21 @@ logging.debug(f"Current working directory after change: {os.getcwd()}")
 
 
 class MovieQueue:
-    _instance = None
 
-    def __new__(cls, *args, **kwargs):
-        # Ensuring Singleton pattern
-        if not isinstance(cls._instance, cls):
-            cls._instance = super(MovieQueue, cls).__new__(cls)
-            logging.info("Creating a new instance of MovieQueue")
-        return cls._instance
-
-    def __init__(self, db_config, queue, movie_fetcher: MovieFetcher, criteria=None):
-        # Avoid reinitialization if already initialized
-        if not hasattr(self, "_initialized"):
-            self.db_config = db_config
-            self.queue = queue
-            self.movie_fetcher = movie_fetcher
-            self.criteria = criteria or {}
-            self.lock = asyncio.Lock()
-            logging.info(f"MovieQueue instance created with criteria: {self.criteria}")
-            self.populate_task = None  # Legacy attribute for compatibility
-            self._initialized = True
-            self.movie_enqueue_count = 0  # Add a counter for movies enqueued
-            self.user_queues = {}  # Dictionary to store user-specific queues
-            # Tracks whether to stop the populate task for each user
-            # Use a dictionary so flags can be set per user without errors
-            self.stop_flags = {}
-            # Other initialization...
-            # Maintain per-user Events to signal when space is available
-            self.space_available_events = {}
+    def __init__(self, db_config, queue_max_size: int, movie_fetcher: MovieFetcher, criteria=None):
+        self.db_config = db_config
+        self.queue_max_size = queue_max_size
+        self.movie_fetcher = movie_fetcher
+        self.criteria = criteria or {}
+        self.lock = asyncio.Lock()
+        logging.info(f"MovieQueue instance created with criteria: {self.criteria}")
+        self.populate_task = None  # Legacy attribute for compatibility
+        self.movie_enqueue_count = 0  # Add a counter for movies enqueued
+        self.user_queues = {}  # Dictionary to store user-specific queues
+        # Tracks whether to stop the populate task for each user
+        self.stop_flags = {}
+        # Maintain per-user Events to signal when space is available
+        self.space_available_events = {}
 
     async def set_stop_flag(self, user_id, stop=True):
         """Sets the stop flag for a given user's populate task."""
@@ -64,7 +51,7 @@ class MovieQueue:
         try:
             if user_id not in self.user_queues:
                 self.user_queues[user_id] = {
-                    "queue": asyncio.Queue(maxsize=20),
+                    "queue": asyncio.Queue(maxsize=self.queue_max_size),
                     "criteria": {},
                     "seen_tconsts": set(),
                 }
@@ -84,7 +71,7 @@ class MovieQueue:
         try:
             if user_id not in self.user_queues:
                 self.user_queues[user_id] = {
-                    "queue": asyncio.Queue(maxsize=20),
+                    "queue": asyncio.Queue(maxsize=self.queue_max_size),
                     "criteria": criteria,
                     "seen_tconsts": set(),
                 }
@@ -195,7 +182,7 @@ class MovieQueue:
         return movie
 
     async def populate(self, user_id, completion_event=None):
-        max_queue_size = 15
+        max_queue_size = self.queue_max_size
         try:
             while True:
                 try:
@@ -303,7 +290,9 @@ class MovieQueue:
 
             async with current_app.app_context(), httpx.AsyncClient():
                 fetch_start_time = time.time()  # Measure movie fetching time
-                rows = await self.movie_fetcher.fetch_random_movies15(user_criteria)
+                user_queue = await self.get_user_queue(user_id)
+                limit = self.queue_max_size - user_queue.qsize()
+                rows = await self.movie_fetcher.fetch_random_movies(user_criteria, limit)
                 fetch_time = time.time() - fetch_start_time
 
                 if rows:

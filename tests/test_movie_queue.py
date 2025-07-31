@@ -5,15 +5,13 @@ from scripts.movie_queue import MovieQueue
 
 
 class DummyFetcher:
-    async def fetch_random_movies15(self, criteria):
+    async def fetch_random_movies(self, criteria, limit):
         return []
 
 
 def test_get_user_queue_and_stop_flag():
     async def run_test():
-        MovieQueue._instance = None
-        queue = asyncio.Queue()
-        mq = MovieQueue(db_config=None, queue=queue, movie_fetcher=DummyFetcher())
+        mq = MovieQueue(db_config=None, queue_max_size=20, movie_fetcher=DummyFetcher())
         user_queue = await mq.get_user_queue('u1')
         assert 'u1' in mq.user_queues
         assert isinstance(user_queue, asyncio.Queue)
@@ -25,8 +23,7 @@ def test_get_user_queue_and_stop_flag():
 
 def test_is_task_running():
     async def run_test():
-        MovieQueue._instance = None
-        mq = MovieQueue(db_config=None, queue=asyncio.Queue(), movie_fetcher=DummyFetcher())
+        mq = MovieQueue(db_config=None, queue_max_size=20, movie_fetcher=DummyFetcher())
         assert mq.is_task_running('u1') is False
         task = asyncio.create_task(asyncio.sleep(0))
         mq.user_queues['u1'] = {'populate_task': task}
@@ -39,8 +36,7 @@ def test_is_task_running():
 
 def test_enqueue_movie_deduplication():
     async def run_test():
-        MovieQueue._instance = None
-        mq = MovieQueue(db_config=None, queue=asyncio.Queue(), movie_fetcher=DummyFetcher())
+        mq = MovieQueue(db_config=None, queue_max_size=20, movie_fetcher=DummyFetcher())
 
         class DummyMovie:
             def __init__(self, tconst, db_config):

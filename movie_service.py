@@ -4,13 +4,12 @@ import time
 
 from quart import render_template, redirect, url_for
 
-from settings import Config
+from settings import Config, DatabaseConnectionPool
 from scripts.movie import Movie
 from scripts.movie_queue import MovieQueue
 from scripts.filter_backend import (
     ImdbRandomMovieFetcher,
     extract_movie_filter_criteria,
-    database_pool,
 )
 from scripts.tmdb_client import TMDbHelper, TMDB_API_KEY
 
@@ -22,12 +21,14 @@ logging.basicConfig(
 
 
 class MovieManager:
-    def __init__(self, db_config):
+    def __init__(self, db_config=None, movie_fetcher=None, queue_max_size: int = 20):
         logging.info("Initializing MovieManager")
-        self.movie_fetcher = ImdbRandomMovieFetcher(database_pool)
+        self.db_config = db_config or Config.get_db_config()
+        self.movie_fetcher = movie_fetcher or ImdbRandomMovieFetcher(
+            DatabaseConnectionPool(self.db_config)
+        )
+        self.movie_queue_manager = MovieQueue(self.db_config, queue_max_size, self.movie_fetcher)
         self.criteria = {}
-        self.movie_queue = asyncio.Queue(maxsize=20)
-        self.movie_queue_manager = MovieQueue(db_config, self.movie_queue, self.movie_fetcher)
         # self.future_movies_stack = []
         # self.previous_movies_stack = []
         self.current_displayed_movie = None
