@@ -24,6 +24,8 @@
             --main-bg-color: #ffffff;
             --main-text-color: #333;
             --font-family: 'Poppins', sans-serif;
+            /* Height of the navbar used for offsets */
+            --navbar-height: 60px;
         }
 
         body {
@@ -386,10 +388,14 @@
         /* GRADIENT STYLING */
 
         .backdrop-container {
-            position: relative;
+            position: fixed; /* Remove from normal flow */
+            top: var(--navbar-height, 60px); /* Start below the navbar */
+            left: 0;
+            right: 0;
             width: 100%;
             /* Adjust min-height for a tighter fit */
             min-height: 25vh; /* Smaller height for all devices */
+            z-index: -1; /* Keep it behind page content */
             background-image: url('https://image.tmdb.org/t/p/original{{ movie.backdrop_url }}');
             background-size: cover; /* Ensure it covers the full area */
             background-position: center; /* Center the background image */
@@ -399,19 +405,10 @@
 
         /* New Pseudo-element for gradient overlay */
         .backdrop-container::before {
-            /*background-repeat: no-repeat;*/
             content: "";
-            display: block;
-
-            /*controls height of gradient*/
-
-            height: 530px;
-            left: 50%;
-            pointer-events: none;
             position: absolute;
-            top: 0;
-            transform: translateX(-50%);
-            width: 100%; /* Make sure it spans the full width */
+            inset: 0; /* Cover the entire container */
+            pointer-events: none;
             z-index: 1;
             /* Combined Background Gradients */
             background: /* First Linear Gradient (horizontal) */ linear-gradient(90deg,
@@ -819,7 +816,6 @@
 
 <body>
 <div class="backdrop-container"></div>
-<div class="background-fade-overlay"></div>
 
 
 <div class="movie-card-container">
