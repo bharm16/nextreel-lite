@@ -13,6 +13,8 @@ Dynamic Query Building: Construct MySQL queries dynamically for database interac
 Installation
 
 Install the required Python packages: pip install -r requirements.txt.
+## Dependencies
+Quart is used as the async web framework. It pulls in Flask and Jinja2 automatically, so they do not need to be pinned separately.
 
 ## Configuration
 Edit settings.py to include your database credentials, API keys, and other necessary configurations.
