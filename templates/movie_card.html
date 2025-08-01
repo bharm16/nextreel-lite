@@ -24,6 +24,8 @@
             --main-bg-color: #ffffff;
             --main-text-color: #333;
             --font-family: 'Poppins', sans-serif;
+            /* Height of the navbar used for offsets */
+            --navbar-height: 60px;
         }
 
         body {
@@ -386,10 +388,14 @@
         /* GRADIENT STYLING */
 
         .backdrop-container {
-            position: relative;
+            position: fixed; /* Remove from normal flow */
+            top: var(--navbar-height, 60px); /* Start below the navbar */
+            left: 0;
+            right: 0;
             width: 100%;
             /* Adjust min-height for a tighter fit */
             min-height: 25vh; /* Smaller height for all devices */
+            z-index: -1; /* Keep it behind page content */
             background-image: url('https://image.tmdb.org/t/p/original{{ movie.backdrop_url }}');
             background-size: cover; /* Ensure it covers the full area */
             background-position: center; /* Center the background image */
