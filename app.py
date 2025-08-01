@@ -6,6 +6,12 @@ import uuid
 
 from redis import asyncio as aioredis
 from quart import Quart, request, redirect, url_for, session, render_template, g
+
+
+class FixedQuart(Quart):
+    """Quart subclass ensuring Flask compatibility keys."""
+    default_config = dict(Quart.default_config)
+    default_config.setdefault("PROVIDE_AUTOMATIC_OPTIONS", True)
 from quart_session import Session
 
 import settings
@@ -26,7 +32,7 @@ if os.getenv("FLASK_ENV") != "production":
 
 
 def create_app():
-    app = Quart(__name__)
+    app = FixedQuart(__name__)
     app.config.from_object(settings.Config)
 
 
