@@ -1,54 +1,13 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Home</title>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700&display=swap">
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/5.1.3/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap">
-    <style>
-        body {
-            font-family: 'Merriweather', serif;
-            overflow-x: hidden; /* Prevent horizontal scrolling */
-        }
-        .header-full-width {
-            width: 100%;
-            padding: 0 !important;
-            margin: 0 !important;
-            box-shadow: none;
-            border-radius: 0;
-            height: auto; /* Adjusted to auto for flexible height */
-        }
-        @media (max-width: 768px) {
-            /* Disabling horizontal scrolling on mobile devices */
-            html, body {
-                overflow-x: hidden; /* Prevent horizontal scrolling */
-                max-width: 100%; /* Ensure body does not exceed the viewport width */
-            }
-            .responsive-element {
-                width: 100%; /* Adjust width for smaller screens */
-            }
-            /* Additional responsive styles as needed */
-        }
-    </style>
-</head>
-<body>
+{% extends "base.html" %}
 
-{% include 'navbar.html' %}
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles/home.css') }}">
+{% endblock %}
 
+{% block content %}
 <div class="container">
     <div class="container-fluid header-full-width">
         {% include 'header.html' %}
     </div>
 </div>
-
-<div class="container-fluid header-full-width">
-    {% include 'footer.html' %}
-</div>
-
-<script src="https://stackpath.bootstrapcdn.com/bootstrap/5.1.3/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+{% endblock %}

@@ -1,0 +1,23 @@
+body {
+    font-family: 'Merriweather', serif;
+    overflow-x: hidden;
+}
+        .header-full-width {
+            width: 100%;
+            padding: 0 !important;
+            margin: 0 !important;
+            box-shadow: none;
+            border-radius: 0;
+            height: auto; /* Adjusted to auto for flexible height */
+        }
+        @media (max-width: 768px) {
+            /* Disabling horizontal scrolling on mobile devices */
+            html, body {
+                overflow-x: hidden; /* Prevent horizontal scrolling */
+                max-width: 100%; /* Ensure body does not exceed the viewport width */
+            }
+            .responsive-element {
+                width: 100%; /* Adjust width for smaller screens */
+            }
+            /* Additional responsive styles as needed */
+        }

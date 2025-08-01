@@ -11,6 +11,13 @@ body {
   width: 100%;
   padding: 0 !important;
   margin: 0 !important;
+  font-family: 'Merriweather', serif;
+  font-weight: 700;
+  font-size: 1.25rem;
+  text-align: center;
+  color: rgba(50, 50, 50, 0.7);
+  position: relative;
+  z-index: 2;
 }
 
 /* Custom class for a transparent container */

@@ -1,52 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Title</title>
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700&display=swap">
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles/header.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles/backdrop_gradient.css') }}">
-
-    <style>
-        .full-width-element {
-            font-family: 'Merriweather', serif;
-            font-weight: 700;
-            font-size: 1.25rem; /* Responsive font size */
-            text-align: center;
-            color: rgba(50, 50, 50, 0.7);
-            vertical-align: baseline;
-            position: relative;
-            z-index: 2;
-        }
-
-        .backdrop-container {
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-end;
-            align-items: center;
-            min-height: 37.5rem;
-            background-image: url('https://image.tmdb.org/t/p/original/dMrAwwB7PMC4SjgsTbgmEJblaYd.jpg');
-            background-size: cover; /* Cover the entire area of the container */
-            background-position: center center; /* Center the background image */
-            background-repeat: no-repeat; /* Prevent the image from repeating */
-        }
-
-        /* Example Media Query for smaller screens */
-        @media (max-width: 768px) {
-            .backdrop-container {
-                min-height: 25rem; /* Adjust the height for smaller screens */
-                /* Additional adjustments if needed */
-            }
-        }
-    </style>
-</head>
-<body>
-
-<div class="backdrop-container">
+<header class="backdrop-container">
     <div class="container">
         <div class="full-width-element">
             <div class="row justify-content-center">
@@ -57,12 +9,6 @@
             </div>
         </div>
     </div>
-</div>
+</header>
 
 {% include 'card_deck.html' %}
-
-<script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
-<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
-
-</body>
-</html>
