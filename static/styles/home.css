@@ -1,0 +1,23 @@
+body {
+    font-family: 'Merriweather', serif;
+    overflow-x: hidden;
+}
+
+.header-full-width {
+    width: 100%;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none;
+    border-radius: 0;
+    height: auto;
+}
+
+@media (max-width: 768px) {
+    html, body {
+        overflow-x: hidden;
+        max-width: 100%;
+    }
+    .responsive-element {
+        width: 100%;
+    }
+}

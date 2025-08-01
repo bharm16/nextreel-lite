@@ -36,3 +36,33 @@ body {
   align-items: center;
   justify-content: center;
 }
+
+/* Styles extracted from header.html */
+.full-width-element {
+  font-family: 'Merriweather', serif;
+  font-weight: 700;
+  font-size: 1.25rem;
+  text-align: center;
+  color: rgba(50, 50, 50, 0.7);
+  vertical-align: baseline;
+  position: relative;
+  z-index: 2;
+}
+
+.backdrop-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  min-height: 37.5rem;
+  background-image: url('https://image.tmdb.org/t/p/original/dMrAwwB7PMC4SjgsTbgmEJblaYd.jpg');
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+}
+
+@media (max-width: 768px) {
+  .backdrop-container {
+    min-height: 25rem;
+  }
+}

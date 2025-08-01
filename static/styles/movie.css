@@ -1,0 +1,8 @@
+body, html {
+    overflow-x: hidden;
+    max-width: 100%;
+}
+
+@media (max-width: 768px) {
+    /* Additional styles for mobile devices can be added here */
+}
