@@ -399,19 +399,10 @@
 
         /* New Pseudo-element for gradient overlay */
         .backdrop-container::before {
-            /*background-repeat: no-repeat;*/
             content: "";
-            display: block;
-
-            /*controls height of gradient*/
-
-            height: 530px;
-            left: 50%;
-            pointer-events: none;
             position: absolute;
-            top: 0;
-            transform: translateX(-50%);
-            width: 100%; /* Make sure it spans the full width */
+            inset: 0; /* Cover the entire container */
+            pointer-events: none;
             z-index: 1;
             /* Combined Background Gradients */
             background: /* First Linear Gradient (horizontal) */ linear-gradient(90deg,
@@ -819,7 +810,6 @@
 
 <body>
 <div class="backdrop-container"></div>
-<div class="background-fade-overlay"></div>
 
 
 <div class="movie-card-container">
