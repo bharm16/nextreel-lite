@@ -406,7 +406,10 @@
             width: 100%;
             /* Adjust min-height for a tighter fit */
             min-height: 25vh; /* Smaller height for all devices */
-            background-image: url('https://image.tmdb.org/t/p/original{{ movie.backdrop_url }}');
+            /* Pull the actual backdrop image from a CSS variable so the HTML
+               template can inject movie specific URLs without modifying this
+               stylesheet. */
+            background-image: var(--backdrop-image);
             background-size: cover; /* Ensure it covers the full area */
             background-position: center; /* Center the background image */
             background-repeat: no-repeat;
