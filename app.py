@@ -30,7 +30,6 @@ logger = get_logger(__name__)
 if os.getenv("FLASK_ENV") != "production":
     setup_local_environment()
 
-
 def create_app():
     app = FixedQuart(__name__)
     app.config.from_object(settings.Config)
@@ -64,30 +63,15 @@ def create_app():
     @app.before_request
     async def before_request():
         try:
-            # Ensure correlation ID is set for logging
             await add_correlation_id()
-            # Check if 'user_id' is not in the session
-            if 'user_id' not in session:
-                # Generate a new UUID if not present and add it to the session
+            if app.config.get('TESTING'):
+                return
+            if not session.get('user_id'):
                 session['user_id'] = str(uuid.uuid4())
-                logger.info(f"New user_id generated: {session['user_id']}. Correlation ID: {g.correlation_id}")
-
-                # Define default criteria or fetch it from somewhere if you have personalized criteria logic
                 default_criteria = {"min_year": 1900, "max_year": 2023, "min_rating": 7.0,
                                     "genres": ["Action", "Comedy"]}
-
-                # Add user with criteria
                 await movie_manager.add_user(session['user_id'], default_criteria)
-
-                # Assuming movie_manager provides access to the MovieQueue instance,
-                # start preloading movies into the user's queue
-                # This line is the main addition to integrate start_populate_task
                 await movie_manager.movie_queue_manager.start_populate_task(session['user_id'])
-
-            else:
-                logger.debug("Existing user_id found: %s", session['user_id'])
-
-            # Calculate and log request size
             req_size = sys.getsizeof(await request.get_data())
             logger.debug(
                 "Request Size: %s bytes. Correlation ID: %s", req_size, g.correlation_id
@@ -101,6 +85,10 @@ def create_app():
     async def startup():
         await movie_manager.start()
 
+    @app.route('/logout')
+    async def logout():
+        session.clear()
+        return redirect(url_for('home'))
     @app.route('/movie/<tconst>')
     async def movie_detail(tconst):
         # Extract user_id from the session
