@@ -15,7 +15,7 @@ def setup_local_environment():
     os.environ.setdefault("REDIS_HOST", "localhost")
     os.environ.setdefault("REDIS_PORT", "6379")
     os.environ.setdefault("REDIS_PASSWORD", "")
-
+    
     # Configure MySQL settings based on FLASK_ENV
     if os.getenv("FLASK_ENV") == "production":
         # Production database settings
