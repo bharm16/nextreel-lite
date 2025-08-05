@@ -6,6 +6,7 @@ import time
 from quart import render_template, redirect, url_for, session
 
 from settings import Config, DatabaseConnectionPool
+from scripts.session_manager import SessionManager
 from scripts.movie import Movie
 from scripts.filter_backend import (
     ImdbRandomMovieFetcher,
@@ -28,12 +29,14 @@ class MovieManager:
         self.tmdb_helper = TMDbHelper()  # Initialize TMDbHelper using env key
 
         self.db_config = db_config  # Now db_config is properly defined
+        self.session_manager = SessionManager(self.db_pool)
 
     async def start(self):
         # Log the start of the MovieManager
         logger.info("Starting MovieManager")
 
         await self.db_pool.init_pool()
+        await self.session_manager.init()
 
         # After starting the population task, proceed to set the default backdrop
         await self.set_default_backdrop()
@@ -220,6 +223,10 @@ class MovieManager:
         if current_movie:
             tconst = current_movie.get("imdb_id")
             self._mark_movie_seen(tconst)
+            watch_history = session.setdefault("watch_history", [])
+            if tconst and tconst not in watch_history:
+                watch_history.append(tconst)
+            await self.save_session_to_db(user_id)
             return redirect(url_for("movie_detail", tconst=tconst))
         else:
             logger.info("No next movie available.")
@@ -236,6 +243,8 @@ class MovieManager:
             session["current_movie"] = current_movie
             tconst = current_movie.get("imdb_id") if current_movie else None
             if tconst:
+                session["navigation_back_count"] = session.get("navigation_back_count", 0) + 1
+                await self.save_session_to_db(user_id)
                 return redirect(url_for("movie_detail", tconst=tconst))
         logger.info("No next movie available.")
 
@@ -263,11 +272,28 @@ class MovieManager:
 
         await self._load_movies_into_queue()
 
+        await self.save_session_to_db(user_id)
+
         response = await self.next_movie(user_id)
         if response:
             return response
 
         return "No movie found", 404
+
+    async def save_session_to_db(self, user_id):
+        """Persist current session to database."""
+        if not user_id:
+            return
+        data = {
+            "created_at": session.get("created_at"),
+            "last_active": session.get("last_active"),
+            "preferences": session.get("criteria", {}),
+            "watch_history": session.get("watch_history", []),
+            "favorites": session.get("favorites", []),
+            "device_fingerprint": session.get("device_fingerprint"),
+            "visit_count": session.get("visit_count", 0),
+        }
+        await self.session_manager.save_session(user_id, data)
 
 
 # Main function for testing...
