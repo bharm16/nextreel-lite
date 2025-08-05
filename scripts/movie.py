@@ -9,7 +9,7 @@ import httpx
 from settings import Config, DatabaseConnectionPool
 from db_utils import DatabaseQueryExecutor
 from scripts.filter_backend import ImdbRandomMovieFetcher
-from scripts.tmdb_client import TMDbHelper
+from scripts.tmdb_client import TMDbHelper, get_tmdb_api_key
 
 # Configure logging for better debugging
 logger = get_logger(__name__)
@@ -28,11 +28,7 @@ def build_ratings_query():
     """
 
 
-# Replace with your actual TMDb API key
-TMDB_API_KEY = "1ce9398920594a5521f0d53e9b33c52f"
 TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/"
-
-# Replace with your actual TMDb API key
 TMDB_API_BASE_URL = "https://api.themoviedb.org/3"
 
 
@@ -41,9 +37,10 @@ TMDB_API_BASE_URL = "https://api.themoviedb.org/3"
 
 # Async TMDb operations
 async def get_tmdb_id_by_tconst(tconst, client):
+    api_key = get_tmdb_api_key()
     response = await client.get(
         f"{TMDB_API_BASE_URL}/find/{tconst}",
-        params={"api_key": TMDB_API_KEY, "external_source": "imdb_id"},
+        params={"api_key": api_key, "external_source": "imdb_id"},
     )
     response.raise_for_status()
     data = response.json()
@@ -95,7 +92,7 @@ class Movie:
         self.db_pool = db_pool
         self.movie_data = {}
         self.query_executor = DatabaseQueryExecutor(db_pool)
-        self.tmdb_helper = TMDbHelper(TMDB_API_KEY)  # Initialize TMDbHelper
+        self.tmdb_helper = TMDbHelper()  # Initialize TMDbHelper using env key
         self.slug = None  # Assuming slug is available at initialization
         self.client = httpx.AsyncClient()  # Initialize once and reuse
 

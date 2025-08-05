@@ -17,7 +17,12 @@ Install the required Python packages: pip install -r requirements.txt.
 Quart is used as the async web framework. It pulls in Flask and Jinja2 automatically, so they do not need to be pinned separately.
 
 ## Configuration
-Edit settings.py to include your database credentials, API keys, and other necessary configurations.
+Sensitive configuration such as database credentials and API keys is loaded from
+environment variables. Populate the variables described in `settings.py` or use a
+secrets manager (e.g., HashiCorp Vault, AWS Secrets Manager) to supply them at
+runtime. Rotating these values in the environment or vault takes effect without
+code changes.
+
 The runtime.txt file should reflect the Python version compatible with your environment.
 
 ## Usage

@@ -13,18 +13,17 @@ Use the following command to run all the tests:
 :license: GPLv3, see LICENSE for more details.
 """
 
-"""
-Either place your API_KEY in the following constant:
-"""
-API_KEY = '1ce9398920594a5521f0d53e9b33c52f'
-#API_KEY = 'k_0vtefojw'
+import os
 
-"""
-or include it in a keys.py file.
-"""
-try:
-    from .keys import API_KEY, USERNAME, PASSWORD, SESSION_ID
-except ImportError:
-    pass
+"""Utilities for tests to access required credentials.
 
-__all__ = ['API_KEY', 'USERNAME', 'PASSWORD', 'SESSION_ID']
+Credentials are loaded from environment variables to avoid storing secrets in
+the repository. Tests should handle missing values gracefully.
+"""
+
+API_KEY = os.getenv("TMDB_API_KEY")
+USERNAME = os.getenv("TMDB_USERNAME")
+PASSWORD = os.getenv("TMDB_PASSWORD")
+SESSION_ID = os.getenv("TMDB_SESSION_ID")
+
+__all__ = ["API_KEY", "USERNAME", "PASSWORD", "SESSION_ID"]
