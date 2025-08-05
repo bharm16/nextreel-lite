@@ -841,6 +841,9 @@
             <div class="mobile-info-container mobile-only">
                 <!-- Mobile Movie Title -->
                 <span class="movie-title inline-element">{{ movie.title }}</span>
+                {% if session.watch_history and movie.imdb_id in session.watch_history %}
+                <span class="badge bg-success ms-2">Viewed</span>
+                {% endif %}
 
                 <!-- Mobile Year and Director Information -->
                 <div class="year-director-container inline-block-element">
@@ -869,6 +872,9 @@
                         <div class="col negative-margin-top">
                             <!-- Inline element for title -->
                             <span class="movie-title inline-element">{{ movie.title }}</span>
+                            {% if session.watch_history and movie.imdb_id in session.watch_history %}
+                            <span class="badge bg-success ms-2">Viewed</span>
+                            {% endif %}
                             <!-- Inline-block element for year and director -->
                             <span class="year-director-container inline-block-element">
           <span class="year-content">{{ movie.year }}</span>
@@ -1087,54 +1093,16 @@
 
     document.addEventListener("DOMContentLoaded", function () {
         const seenItButton = document.getElementById("seen-it-button");
-        seenItButton.addEventListener("click", function () {
-            const tconst = this.getAttribute("data-tconst");
-            fetch("/seen_it", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    tconst: tconst
-                }),
-                redirect: 'follow'  // Automatically follow redirects
-            }).then(response => {
-                if (response.ok) {
-                    window.location.href = response.url;  // Navigate to the new URL
-                } else {
-                    alert("Failed to mark movie as seen!");
-                }
-            }).catch(error => console.error("Error:", error));
-
-
-        });
-
+        if (seenItButton) {
+            seenItButton.style.display = "none";
+        }
     });
-
-    // Capture the add-to-watchlist button and add a click event listener
-
 
     document.addEventListener("DOMContentLoaded", function () {
         const addToWatchlistButton = document.getElementById("add-to-watchlist-button");
-        addToWatchlistButton.addEventListener("click", function () {
-            const tconst = this.getAttribute("data-tconst");
-            fetch("/add_to_watchlist", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    tconst: tconst
-                }),
-                redirect: 'follow'  // Automatically follow redirects
-            }).then(response => {
-                if (response.ok) {
-                    window.location.href = response.url;  // Navigate to the new URL
-                } else {
-                    alert("Failed to add movie to watchlist!");
-                }
-            }).catch(error => console.error("Error:", error));
-        });
+        if (addToWatchlistButton) {
+            addToWatchlistButton.style.display = "none";
+        }
     });
 
 

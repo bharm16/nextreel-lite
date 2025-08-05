@@ -3,6 +3,7 @@ import logging
 import sys
 import time
 import uuid
+from datetime import datetime, timedelta
 
 from redis import asyncio as aioredis
 from quart import Quart, request, redirect, url_for, session, render_template, g
@@ -34,10 +35,13 @@ if os.getenv("FLASK_ENV") != "production":
 def create_app():
     app = FixedQuart(__name__)
     app.config.from_object(settings.Config)
-
-
-
+    # Session configuration
     app.config['SESSION_TYPE'] = 'redis'
+    app.config['SESSION_COOKIE_NAME'] = 'nextreel_session'
+    app.config['SESSION_COOKIE_SECURE'] = os.getenv('FLASK_ENV') == 'production'
+    app.config['SESSION_KEY_PREFIX'] = 'nextreel:'
+    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=365)
+    app.config['SESSION_PERMANENT'] = True
 
     @app.before_serving
     async def setup_redis():
@@ -68,6 +72,15 @@ def create_app():
             if app.config.get('TESTING'):
                 return
             ensure_session()
+            session.permanent = True
+            now_ts = datetime.utcnow().isoformat()
+            if 'created_at' not in session:
+                session['created_at'] = now_ts
+                session.setdefault('watch_history', [])
+                session.setdefault('favorites', [])
+                session['visit_count'] = 0
+            session['last_active'] = now_ts
+            session['visit_count'] = session.get('visit_count', 0) + 1
             if not session.get('user_id'):
                 session['user_id'] = str(uuid.uuid4())
                 default_criteria = {"min_year": 1900, "max_year": 2023, "min_rating": 7.0,
@@ -105,6 +118,21 @@ def create_app():
             g.correlation_id,
         )
         return await movie_manager.render_movie_by_tconst(user_id, tconst, template_name='movie.html')
+
+    @app.route('/recover_session')
+    async def recover_session():
+        fingerprint = session.get('device_fingerprint')
+        if fingerprint:
+            data = await movie_manager.session_manager.recover_session(fingerprint)
+            if data:
+                session.update({
+                    'criteria': data.get('preferences') or {},
+                    'watch_history': data.get('watch_history') or [],
+                    'favorites': data.get('favorites') or [],
+                    'created_at': data.get('created_at'),
+                    'visit_count': data.get('visit_count', 0),
+                })
+        return redirect(url_for('home'))
 
     @app.route('/')
     async def home():

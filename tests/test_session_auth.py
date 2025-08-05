@@ -13,15 +13,17 @@ from session_auth import (
 
 
 def test_generate_fingerprint_is_deterministic():
-    fp1 = generate_fingerprint("agent", "127.0.0.1")
-    fp2 = generate_fingerprint("agent", "127.0.0.1")
+    fp1 = generate_fingerprint("agent", "en-US", "gzip")
+    fp2 = generate_fingerprint("agent", "en-US", "gzip")
     assert fp1 == fp2
 
 
 def test_ensure_session_adds_keys():
     async def run():
         app = create_app()
-        async with app.test_request_context("/", headers={"User-Agent": "agent"}):
+        async with app.test_request_context(
+            "/", headers={"User-Agent": "agent", "Accept-Language": "en-US", "Accept-Encoding": "gzip"}
+        ):
             ensure_session()
             assert SESSION_TOKEN_KEY in session
             assert SESSION_FINGERPRINT_KEY in session
