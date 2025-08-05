@@ -2,6 +2,8 @@ import asyncio
 from unittest.mock import AsyncMock, patch
 
 import os
+from quart import session
+from app import create_app
 from movie_service import MovieManager
 
 # Provide a dummy TMDb API key for tests to avoid external dependencies
@@ -22,35 +24,29 @@ def test_start():
 
 def test_add_user():
     async def run_test():
-        add_user_mock = AsyncMock()
-        movie_manager = MovieManager(db_config=None)
-        movie_manager.movie_queue_manager = AsyncMock(add_user=add_user_mock)
-        await movie_manager.add_user('test_user', {'genre': 'comedy'})
-        add_user_mock.assert_called_once_with('test_user', {'genre': 'comedy'})
+        app = create_app()
+        app.config['TESTING'] = True
+        async with app.test_request_context('/'):
+            movie_manager = MovieManager(db_config=None)
+            with patch.object(MovieManager, '_load_movies_into_queue', AsyncMock()):
+                await movie_manager.add_user('test_user', {'genre': 'comedy'})
+                assert session['criteria'] == {'genre': 'comedy'}
 
     asyncio.run(run_test())
 
 
 def test_home():
     async def run_test():
-        is_task_running_mock = lambda: False
-        populate_mock = AsyncMock()
         render_template_mock = AsyncMock(return_value='rendered_template')
         movie_manager = MovieManager(db_config=None)
-        movie_manager.movie_queue_manager = AsyncMock(
-            is_task_running=is_task_running_mock,
-            populate=populate_mock
-        )
-        orig_create_task = asyncio.create_task
-        with patch('movie_service.asyncio.create_task', lambda coro: orig_create_task(coro)):
-            with patch('movie_service.render_template', render_template_mock):
-                result = await movie_manager.home('test_user')
-                await asyncio.sleep(0)  # allow populate task to run
-                populate_mock.assert_called_once_with('test_user')
-                render_template_mock.assert_called_once_with(
-                    'home.html', default_backdrop_url=movie_manager.default_backdrop_url
-                )
-                assert result == 'rendered_template'
+        movie_manager._ensure_queue = AsyncMock()
+        with patch('movie_service.render_template', render_template_mock):
+            result = await movie_manager.home('test_user')
+            movie_manager._ensure_queue.assert_awaited_once()
+            render_template_mock.assert_called_once_with(
+                'home.html', default_backdrop_url=movie_manager.default_backdrop_url
+            )
+            assert result == 'rendered_template'
 
     asyncio.run(run_test())
 

@@ -1,6 +1,5 @@
 import asyncio
 from unittest.mock import AsyncMock, patch
-from types import SimpleNamespace
 
 from quart import session
 
@@ -35,9 +34,6 @@ def test_session_auto_initialization():
         with patch("app.MovieManager") as MockManager:
             manager = MockManager.return_value
             manager.add_user = AsyncMock()
-            manager.movie_queue_manager = SimpleNamespace(
-                start_populate_task=AsyncMock()
-            )
             manager.home = AsyncMock(return_value="home")
             app = create_app()
             app.config["TESTING"] = False
@@ -46,6 +42,5 @@ def test_session_auto_initialization():
                 response = await client.get("/")
                 assert response.status_code == 200
                 assert manager.add_user.called
-                assert manager.movie_queue_manager.start_populate_task.called
 
     asyncio.run(run_test())
