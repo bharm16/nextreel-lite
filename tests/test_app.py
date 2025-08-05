@@ -12,6 +12,7 @@ def test_home():
             manager.home = AsyncMock(return_value='home')
 
             app = create_app()
+            app.config['TESTING'] = True
             async with app.app_context():
                 client = app.test_client()
                 response = await client.get("/")
@@ -25,6 +26,7 @@ def test_set_filters_route():
         with patch('app.MovieManager') as MockManager:
             MockManager.return_value.start = AsyncMock()
             app = create_app()
+            app.config['TESTING'] = True
             async with app.app_context():
                 client = app.test_client()
                 response = await client.get('/setFilters')
@@ -40,6 +42,7 @@ def test_filtered_movie_endpoint():
             manager.filtered_movie = AsyncMock(return_value='filtered')
 
             app = create_app()
+            app.config['TESTING'] = True
             async with app.app_context():
                 client = app.test_client()
                 response = await client.post('/filtered_movie', data={'year_min': '2000'})
@@ -55,6 +58,7 @@ def test_movie_detail_route():
             manager.render_movie_by_tconst = AsyncMock(return_value='detail')
 
             app = create_app()
+            app.config['TESTING'] = True
             async with app.app_context():
                 client = app.test_client()
                 response = await client.get('/movie/tt1234567')
@@ -71,6 +75,7 @@ def test_next_previous_movie_routes():
             manager.previous_movie = AsyncMock(return_value='prev')
 
             app = create_app()
+            app.config['TESTING'] = True
             async with app.app_context():
                 client = app.test_client()
                 response = await client.post('/next_movie')
@@ -88,6 +93,7 @@ def test_handle_new_user_route():
             manager.movie_queue_manager = AsyncMock(add_user=AsyncMock())
 
             app = create_app()
+            app.config['TESTING'] = True
             async with app.app_context():
                 client = app.test_client()
                 response = await client.get('/handle_new_user')
