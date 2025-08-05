@@ -90,7 +90,7 @@ def test_handle_new_user_route():
     async def run_test():
         with patch('app.MovieManager') as MockManager:
             manager = MockManager.return_value
-            manager.movie_queue_manager = AsyncMock(add_user=AsyncMock())
+            manager.add_user = AsyncMock()
 
             app = create_app()
             app.config['TESTING'] = True

@@ -73,7 +73,8 @@ def create_app():
                 default_criteria = {"min_year": 1900, "max_year": 2023, "min_rating": 7.0,
                                     "genres": ["Action", "Comedy"]}
                 await movie_manager.add_user(session['user_id'], default_criteria)
-                await movie_manager.movie_queue_manager.start_populate_task(session['user_id'])
+            elif 'watch_queue' not in session:
+                await movie_manager.add_user(session['user_id'], session.get('criteria', {}))
             req_size = sys.getsizeof(await request.get_data())
             logger.debug(
                 "Request Size: %s bytes. Correlation ID: %s", req_size, g.correlation_id
@@ -134,35 +135,11 @@ def create_app():
         user_id = session.get('user_id')
         logger.info(f"Requesting next movie for user_id: {user_id}. Correlation ID: {g.correlation_id}")
 
-        if 'failed_attempts' not in session:
-            session['failed_attempts'] = 0
+        response = await movie_manager.next_movie(user_id)
+        if response:
+            return response
 
-        total_duration = 30  # Total duration to keep trying in seconds
-        wait_seconds = 5  # Seconds to wait between attempts
-        start_time = time.time()  # Capture start time
-
-        while (time.time() - start_time) < total_duration:
-            response = await movie_manager.next_movie(user_id)
-            if response:
-                session['failed_attempts'] = 0  # Reset failed attempts on success
-                return response
-            else:
-                session['failed_attempts'] += 1
-                logger.debug(
-                    "No movies available, waiting for %s seconds before retrying...",
-                    wait_seconds,
-                )
-                await asyncio.sleep(wait_seconds)  # Wait before retrying
-
-            # Check if we should trigger a movie queue population
-            if session['failed_attempts'] >= 4:
-                logger.info(f"Failed attempts threshold reached. Triggering movie queue population. Correlation ID: {g.correlation_id}")
-                await movie_manager.movie_queue_manager.start_populate_task(session['user_id'])
-
-                session['failed_attempts'] = 0  # Optionally reset failed attempts
-
-        # After 30 seconds, if no movie is found, log a message and return a custom response
-        logger.warning(f"No more movies available after trying for 30 seconds. Correlation ID: {g.correlation_id}")
+        logger.warning(f"No more movies available. Correlation ID: {g.correlation_id}")
         return 'No more movies available. Please try again later.', 200
 
     @app.route('/previous_movie', methods=['GET', 'POST'])
@@ -256,7 +233,7 @@ def create_app():
         criteria = get_user_criteria()  # Get criteria for the user
 
         # Initialize user's movie queue with criteria in MovieManager
-        await movie_manager.movie_queue_manager.add_user(user_id, criteria)
+        await movie_manager.add_user(user_id, criteria)
         logger.info(f"New user handled with user_id: {user_id}. Correlation ID: {g.correlation_id}")
 
         # Redirect to the home page or another appropriate page
