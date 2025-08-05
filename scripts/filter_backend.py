@@ -1,21 +1,19 @@
 import asyncio
 import logging
+"""Backend helpers for filtering and fetching movies from the database."""
+
 from logging_config import get_logger
 import os
 import time
 import traceback
 from typing import Any, Dict, List
 
-
 from settings import Config, DatabaseConnectionPool
 from db_utils import DatabaseQueryExecutor
 from .interfaces import MovieFetcher
 
-# Use os.path.dirname to go up one level from the current script's directory
-# Use os.path.dirname to go up one level from the current script's directory
+# Normalise working directory so relative paths in other modules resolve
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-# Now change the working directory to the parent directory
 os.chdir(parent_dir)
 
 logger = get_logger(__name__)
@@ -75,16 +73,22 @@ class ImdbRandomMovieFetcher(MovieFetcher):
         self.db_query_executor = DatabaseQueryExecutor(database_pool)
 
     async def fetch_movies_by_criteria(self, criteria):
+        """Return all movies matching ``criteria`` without randomisation."""
+
         start_time = time.time()
         try:
             base_query = MovieQueryBuilder.build_base_query()
             parameters = MovieQueryBuilder.build_parameters(criteria)
-            genre_conditions = MovieQueryBuilder.build_genre_conditions(criteria, parameters)
+            genre_conditions = MovieQueryBuilder.build_genre_conditions(
+                criteria, parameters
+            )
             full_query = base_query + (f" AND ({genre_conditions[0]})" if genre_conditions else "")
 
             logger.debug("Executing query with parameters: %s", parameters)
 
-            result = await self.db_query_executor.execute_async_query(full_query, parameters, 'all')
+            result = await self.db_query_executor.execute_async_query(
+                full_query, parameters, 'all'
+            )
 
             logger.debug(
                 "Fetched %d movies by criteria in %.2f seconds",
@@ -93,7 +97,9 @@ class ImdbRandomMovieFetcher(MovieFetcher):
             )
             return result
         except Exception as e:
-            logger.error(f"Error fetching movies by criteria: {e}\n{traceback.format_exc()}")
+            logger.error(
+                f"Error fetching movies by criteria: {e}\n{traceback.format_exc()}"
+            )
             raise
 
     async def fetch_random_movies(self, criteria: Dict[str, Any], limit: int = 15):
@@ -101,20 +107,31 @@ class ImdbRandomMovieFetcher(MovieFetcher):
 
         method_start_time = time.time()
 
-        logger.info("Starting fetch_random_movies with criteria: %s and limit: %s", criteria, limit)
+        logger.info(
+            "Starting fetch_random_movies with criteria: %s and limit: %s",
+            criteria,
+            limit,
+        )
 
         base_query = MovieQueryBuilder.build_base_query()
         parameters = MovieQueryBuilder.build_parameters(criteria)
-        genre_conditions = MovieQueryBuilder.build_genre_conditions(criteria, parameters)
+        genre_conditions = MovieQueryBuilder.build_genre_conditions(
+            criteria, parameters
+        )
 
         if genre_conditions:
             logger.debug("Genre conditions applied: %s", genre_conditions[0])
 
-        full_query = base_query + (
-            f" AND ({genre_conditions[0]})" if genre_conditions else "") + f" ORDER BY RAND() LIMIT {int(limit)}"
+        full_query = (
+            base_query
+            + (f" AND ({genre_conditions[0]})" if genre_conditions else "")
+            + f" ORDER BY RAND() LIMIT {int(limit)}"
+        )
 
         query_start_time = time.time()
-        result = await self.db_query_executor.execute_async_query(full_query, parameters, 'all')
+        result = await self.db_query_executor.execute_async_query(
+            full_query, parameters, 'all'
+        )
         query_end_time = time.time()
 
         logger.debug(

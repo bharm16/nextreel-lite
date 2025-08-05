@@ -1,4 +1,7 @@
 import os
+"""Central configuration and database utilities for the application."""
+
+import os
 import ssl
 import aiomysql
 from dotenv import load_dotenv
@@ -8,9 +11,10 @@ from logging_config import get_logger
 
 logger = get_logger(__name__)
 
+# Determine runtime environment and load the corresponding .env file.  This
+# allows the same code to run locally and in production with different
+# configuration values.
 flask_env = os.getenv('FLASK_ENV', 'development')
-# Determine which .env file to load based on FLASK_ENV
-# flask_env = os.getenv('FLASK_ENV', 'production')
 logger.debug("FLASK_ENV is set to: %s", flask_env)
 
 env_file = '.env.development' if flask_env == 'development' else '.env'
@@ -83,9 +87,15 @@ def _create_ssl_context(ssl_cert_path):
 
 
 class DatabaseConnectionPool:
+    """Thin wrapper around ``aiomysql`` connection pools."""
+
     def __init__(self, db_config):
         self.db_config = db_config
-        self.ssl_ctx = _create_ssl_context(Config.get_ssl_cert_path()) if Config.use_ssl() else None
+        self.ssl_ctx = (
+            _create_ssl_context(Config.get_ssl_cert_path())
+            if Config.use_ssl()
+            else None
+        )
         self.pool = None
 
     async def init_pool(self):
@@ -99,7 +109,7 @@ class DatabaseConnectionPool:
             db=self.db_config['database'],
             port=self.db_config['port'],
             ssl=self.ssl_ctx,
-            cursorclass=aiomysql.DictCursor
+            cursorclass=aiomysql.DictCursor,
         )
         end_time = time.time()
         logger.debug(
@@ -109,8 +119,7 @@ class DatabaseConnectionPool:
     async def get_async_connection(self):
         if not self.pool:
             await self.init_pool()
-        connection = await self.pool.acquire()
-        return connection
+        return await self.pool.acquire()
 
     async def release_async_connection(self, conn):
         self.pool.release(conn)

@@ -1,22 +1,21 @@
 import csv
+"""Utility script to batch update ratings from an IMDb TSV export."""
+
 import logging
 from logging_config import get_logger
 import os
 import asyncio
+import csv
 
 from settings import Config, DatabaseConnectionPool
 
 dbconfig = Config.STACKHERO_DB_CONFIG
 database_pool = DatabaseConnectionPool(dbconfig)
 
-# Use os.path.dirname to go up one level from the current script's directory
-# Use os.path.dirname to go up one level from the current script's directory
+# Ensure relative paths (e.g. to the TSV file) resolve correctly
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-# Now change the working directory to the parent directory
 os.chdir(parent_dir)
 
-# Configure logging
 logger = get_logger(__name__)
 
 

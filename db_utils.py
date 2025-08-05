@@ -113,6 +113,8 @@ class DatabaseQueryExecutor:
 
 
 async def init_pool():
+    """Initialise a connection pool using configuration from settings."""
+
     db_pool = DatabaseConnectionPool(Config.get_db_config())
     await db_pool.init_pool()
     logger.info("Database connection pool initialized.")
@@ -120,14 +122,15 @@ async def init_pool():
 
 
 async def main():
-    # Initialize the connection pool
+    """Demonstration entry point for manual testing."""
+
     db_pool = await init_pool()
 
-    # Pass the initialized pool to DatabaseQueryExecutor
+    # Example usage of the executor – in real code you would call
+    # ``execute_async_query`` with specific SQL.
     query_executor = DatabaseQueryExecutor(db_pool)
+    _ = query_executor  # Prevent unused-variable warning
 
-    # Your query execution logic remains the same
-    # Ensure to close the pool at the end of your program
     await db_pool.close_pool()
 
 if __name__ == "__main__":

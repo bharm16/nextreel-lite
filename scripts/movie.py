@@ -3,9 +3,14 @@ import logging
 from logging_config import get_logger
 import os
 import time
+"""High level abstraction representing a movie and its metadata sources."""
 
+import os
+import time
+import logging
 import httpx
 
+from logging_config import get_logger
 from settings import Config, DatabaseConnectionPool
 from db_utils import DatabaseQueryExecutor
 from scripts.filter_backend import ImdbRandomMovieFetcher
@@ -16,11 +21,14 @@ logger = get_logger(__name__)
 # Set httpx logging level to ERROR to reduce verbosity
 logging.getLogger("httpx").setLevel(logging.ERROR)
 
+# Ensure relative paths resolve correctly when this module is executed directly
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(parent_dir)
 
 
 def build_ratings_query():
+    """SQL snippet used to fetch rating information for a given movie."""
+
     return """
     SELECT tr.tconst, tr.averageRating, tr.numVotes
     FROM `title.ratings` tr
@@ -90,18 +98,21 @@ class TMDB:
 
 
 class Movie:
+    """Encapsulates retrieval and aggregation of movie metadata."""
+
     def __init__(self, tconst, db_pool):
         self.tconst = tconst
         self.db_pool = db_pool
         self.movie_data = {}
         self.query_executor = DatabaseQueryExecutor(db_pool)
-        self.tmdb_helper = TMDbHelper(TMDB_API_KEY)  # Initialize TMDbHelper
-        self.slug = None  # Assuming slug is available at initialization
-        self.client = httpx.AsyncClient()  # Initialize once and reuse
+        self.tmdb_helper = TMDbHelper(TMDB_API_KEY)
+        self.slug = None  # Populated from the database if available
+        self.client = httpx.AsyncClient()  # Reused for TMDb lookups
 
     async def fetch_movie_slug(self):
-        start_time = time.time()  # Start timing
+        """Populate ``self.slug`` from the database if available."""
 
+        start_time = time.time()
         query = """
            SELECT slug FROM `title.basics` WHERE tconst = %s;
            """
@@ -109,7 +120,7 @@ class Movie:
             query, [self.tconst], fetch="one"
         )
         if result:
-            self.slug = result["slug"]  # Assuming the column name in the DB is 'slug'
+            self.slug = result["slug"]
             logger.info(f"Slug for tconst {self.tconst}: {self.slug}")
         else:
             logger.warning(f"No slug found for tconst: {self.tconst}")
@@ -122,7 +133,9 @@ class Movie:
     # Assume the necessary imports and setup for logging are done elsewhere in your code
 
     async def fetch_movie_ratings(self, tconst):
-        start_time = time.time()  # Start timing
+        """Retrieve rating information from the local database."""
+
+        start_time = time.time()
 
         query = build_ratings_query()
         result = await self.query_executor.execute_async_query(
@@ -131,7 +144,6 @@ class Movie:
 
         if result:
             try:
-                # Accessing result as a dictionary
                 ratings_data = {
                     "tconst": result["tconst"],
                     "averageRating": (
@@ -144,9 +156,9 @@ class Movie:
                     ),
                 }
 
-                logger.info(f"Ratings data: {ratings_data}")  # Log the ratings data
+                logger.info(f"Ratings data: {ratings_data}")
 
-                query_time = time.time() - start_time  # Measure query execution time
+                query_time = time.time() - start_time
                 logger.info(f"Fetched movie ratings in {query_time:.2f} seconds")
 
                 return ratings_data
@@ -160,6 +172,8 @@ class Movie:
             return None
 
     async def get_movie_data(self):
+        """Aggregate TMDb and local metadata into ``self.movie_data``."""
+
         start_time = time.time()
 
         tmdb_id = await self.tmdb_helper.get_tmdb_id_by_tconst(self.tconst)
@@ -169,7 +183,6 @@ class Movie:
             logger.warning(f"No TMDB ID found for tconst: {self.tconst}")
             return None
 
-        # Execute coroutines concurrently
         tasks = [
             self.tmdb_helper.get_movie_info_by_tmdb_id(tmdb_id),
             self.tmdb_helper.get_credits_by_tmdb_id(tmdb_id),
@@ -178,8 +191,6 @@ class Movie:
             self.tmdb_helper.get_images_by_tmdb_id(tmdb_id),
             self.fetch_movie_ratings(self.tconst),
         ]
-        results = await asyncio.gather(*tasks)
-
         (
             movie_info,
             tmdb_credits,
@@ -187,10 +198,11 @@ class Movie:
             tmdb_cast_info_result,
             tmdb_image_info,
             ratings_data,
-        ) = results
+        ) = await asyncio.gather(*tasks)
+
         tmdb_cast_info = (
             tmdb_cast_info_result[:10] if tmdb_cast_info_result else []
-        )  # Limit to 10 cast members
+        )
 
         backdrop_url = (
             tmdb_image_info["backdrops"][0]
@@ -198,7 +210,6 @@ class Movie:
             else None
         )
 
-        # Use database rating if available; otherwise, fall back to TMDB rating
         rating = (
             ratings_data["averageRating"]
             if ratings_data and ratings_data["averageRating"] != "N/A"
@@ -225,15 +236,10 @@ class Movie:
             "title": movie_info.get("title", "N/A"),
             "imdb_id": self.tconst,
             "tmdb_id": tmdb_id,
-            # "slug": self.slug,
             "genres": ", ".join(
                 [genre["name"] for genre in movie_info.get("genres", [])]
             ),
             "directors": ", ".join(directors),
-            # "writers": ', '.join(writers),
-            # "runtimes": movie_info.get('runtime', 'N/A'),
-            # "countries": ', '.join([country['name'] for country in movie_info.get('production_countries', [])]),
-            # "languages": movie_info.get('original_language', 'N/A'),
             "rating": rating,
             "votes": votes,
             "plot": movie_info.get("overview", "N/A"),

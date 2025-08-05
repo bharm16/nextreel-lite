@@ -1,3 +1,10 @@
+"""Async helper functions for interacting with The Movie Database (TMDb).
+
+The :class:`TMDbHelper` class wraps common API calls such as retrieving movie
+details, images and cast information.  The module is designed for educational
+purposes and therefore contains inline comments explaining each step.
+"""
+
 import asyncio
 import logging
 from logging_config import get_logger
@@ -11,41 +18,39 @@ import tmdbsimple as tmdb
 api_key = os.getenv("TMDB_API_KEY")
 tmdb.API_KEY = api_key
 
-# Replace with your actual TMDb API key
+# Hard coded API key and URL constants used by the helper functions.
 TMDB_API_KEY = "1ce9398920594a5521f0d53e9b33c52f"
 TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/"
-
-# Replace with your actual TMDb API key
 TMDB_API_BASE_URL = "https://api.themoviedb.org/3"
 
-# Use os.path.dirname to go up one level from the current script's directory
+# Adjust working directory so relative imports (e.g. logging configuration) work
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-# Now change the working directory to the parent directory
 os.chdir(parent_dir)
 
-# Log messages will use the application's configuration
 logger = get_logger(__name__)
 
 
 class TMDbHelper:
+    """Lightweight async client for TMDb's REST API."""
+
     def __init__(self, api_key):
         self.api_key = api_key
         self.base_url = "https://api.themoviedb.org/3"
         self.image_base_url = "https://image.tmdb.org/t/p/"
 
     async def _get(self, endpoint, params=None):
+        """Internal helper to perform GET requests against TMDb."""
+
         if params is None:
             params = {}
-        start_time = time.time()  # Start timing
+        start_time = time.time()
 
         try:
             async with httpx.AsyncClient() as client:
                 url = f"{self.base_url}/{endpoint}"
                 params["api_key"] = self.api_key
-                # logger.info(f"Sending GET request to {url} with params: {params}")
                 response = await client.get(url, params=params)
-                response.raise_for_status()  # Will raise an exception for 4XX/5XX responses
+                response.raise_for_status()  # Raise for 4XX/5XX responses
 
                 elapsed_time = time.time() - start_time
                 logger.debug(
@@ -76,9 +81,10 @@ class TMDbHelper:
             raise
 
     async def get_cast_info_by_tmdb_id(self, tmdb_id):
-        # logger.info(f"Fetching cast information for TMDB ID: {tmdb_id}")
+        """Retrieve basic cast information for a given TMDb movie ID."""
 
-        start_time = time.time()  # Start timing
+        # Start timing for logging/debugging purposes
+        start_time = time.time()
         try:
             data = await self._get(f"movie/{tmdb_id}/credits")
             cast_info = []
@@ -114,7 +120,8 @@ class TMDbHelper:
             raise
 
     async def get_video_url_by_tmdb_id(self, tmdb_id):
-        # logger.info(f"Fetching video URL for TMDB ID: {tmdb_id}")
+        """Return the first YouTube trailer URL for a movie, if available."""
+
         start_time = time.time()
 
         try:
@@ -132,7 +139,7 @@ class TMDbHelper:
             # logger.info(f"Completed fetching video URL for TMDB ID: {tmdb_id} in {elapsed_time:.2f} seconds")
 
     async def get_images_by_tmdb_id(self, tmdb_id, limit=1):
-        """Fetch limited number of images for a TMDB ID."""
+        """Fetch a limited number of poster and backdrop images."""
         start_time = time.time()
         try:
             data = await self._get(f"movie/{tmdb_id}/images")

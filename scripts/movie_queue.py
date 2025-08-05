@@ -1,3 +1,5 @@
+"""Per-user movie queue management built on top of asyncio queues."""
+
 import asyncio
 import logging
 from logging_config import get_logger
@@ -13,8 +15,8 @@ from scripts.filter_backend import ImdbRandomMovieFetcher
 from .interfaces import MovieFetcher
 from settings import DatabaseConnectionPool
 
-# Configure logging for better clarity
 logger = get_logger(__name__)
+
 # Set the working directory to the parent directory for relative path resolutions
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(parent_dir)
@@ -35,14 +37,16 @@ class MovieQueue:
         self.stop_flags = {}
 
     async def set_stop_flag(self, user_id, stop=True):
-        """Sets the stop flag for a given user's populate task."""
+        """Set a flag to signal the background populate task to stop."""
         self.stop_flags[user_id] = stop
 
     async def check_stop_flag(self, user_id):
-        """Checks if the stop flag is set for a given user's populate task."""
+        """Check whether population for ``user_id`` has been flagged to stop."""
         return self.stop_flags.get(user_id, False)
 
     async def get_user_queue(self, user_id):
+        """Return the ``asyncio.Queue`` associated with ``user_id``."""
+
         try:
             if user_id not in self.user_queues:
                 self.user_queues[user_id] = {
@@ -56,7 +60,7 @@ class MovieQueue:
                 f"Unexpected error in get_user_queue for user_id: {user_id}: {e}",
                 exc_info=True,
             )
-            raise  # It's often a good idea to re-raise the exception after logging to not silently swallow errors.
+            raise
 
     async def add_user(self, user_id, criteria):
         try:
