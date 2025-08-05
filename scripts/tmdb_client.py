@@ -4,6 +4,7 @@ from logging_config import get_logger
 import os
 import random
 import time
+from typing import Optional
 
 import httpx
 import tmdbsimple as tmdb
@@ -31,7 +32,7 @@ logger = get_logger(__name__)
 
 
 class TMDbHelper:
-    def __init__(self, api_key: str | None = None):
+    def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or get_tmdb_api_key()
         tmdb.API_KEY = self.api_key
         self.base_url = TMDB_API_BASE_URL

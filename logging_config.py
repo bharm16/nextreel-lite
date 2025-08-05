@@ -23,7 +23,7 @@ def setup_logging(log_level: int = logging.INFO) -> None:
     logging.getLogger("httpx").setLevel(logging.WARNING)
 
     logging.getLogger(__name__).info(
-        "Logging initialized with level: %s", logging.getLevelName(log_level)
+        "Logging initialized with level: %s" % logging.getLevelName(log_level)
     )
 
 
@@ -38,10 +38,14 @@ class RedactFilter(logging.Filter):
     patterns = ["password", "secret", "api_key", "token"]
 
     def filter(self, record: logging.LogRecord) -> bool:
-        message = record.getMessage()
-        for pattern in self.patterns:
-            regex = re.compile(rf"(?i){pattern}=([^\s]+)")
-            message = regex.sub(f"{pattern}=[REDACTED]", message)
-        record.msg = message
+        try:
+            message = record.getMessage()
+            for pattern in self.patterns:
+                regex = re.compile(rf"(?i){pattern}=([^\s]+)")
+                message = regex.sub(f"{pattern}=[REDACTED]", message)
+            record.msg = message
+            record.args = None
+        except:
+            pass
         return True
 

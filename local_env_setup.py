@@ -6,8 +6,8 @@ def setup_local_environment():
     """
     Dynamically configure environment variables for local testing or production.
     """
-    # Load environment variables from .env file
-    load_dotenv(dotenv_path=".env", override=True)
+    # Load environment variables from .env.development file
+    load_dotenv(dotenv_path=".env.development", override=True)
 
     os.environ.setdefault("FLASK_ENV", "development")
     os.environ.setdefault("SESSION_TYPE", "redis")
