@@ -27,6 +27,10 @@ class Config:
     SECRET_KEY = os.getenv('FLASK_SECRET_KEY')
     TMDB_API_KEY = os.getenv('TMDB_API_KEY')
 
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = 'Lax'
+    SESSION_COOKIE_SECURE = flask_env != 'development'
+
     # Expose production database configuration for scripts that need it
     STACKHERO_DB_CONFIG = {
         'host': os.getenv('STACKHERO_DB_HOST'),

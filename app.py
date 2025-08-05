@@ -18,6 +18,7 @@ import settings
 from logging_config import setup_logging, get_logger
 from middleware import add_correlation_id
 from movie_service import MovieManager
+from session_auth import ensure_session
 
 import os
 from local_env_setup import setup_local_environment
@@ -66,6 +67,7 @@ def create_app():
             await add_correlation_id()
             if app.config.get('TESTING'):
                 return
+            ensure_session()
             if not session.get('user_id'):
                 session['user_id'] = str(uuid.uuid4())
                 default_criteria = {"min_year": 1900, "max_year": 2023, "min_rating": 7.0,
