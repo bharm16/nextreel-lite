@@ -1,7 +1,11 @@
 import asyncio
 from unittest.mock import AsyncMock, patch
 
+import os
 from movie_service import MovieManager
+
+# Provide a dummy TMDb API key for tests to avoid external dependencies
+os.environ.setdefault("TMDB_API_KEY", "test_key")
 
 
 def test_start():

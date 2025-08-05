@@ -12,7 +12,7 @@ from scripts.filter_backend import (
     ImdbRandomMovieFetcher,
     extract_movie_filter_criteria,
 )
-from scripts.tmdb_client import TMDbHelper, TMDB_API_KEY
+from scripts.tmdb_client import TMDbHelper
 
 logger = get_logger(__name__)
 
@@ -30,7 +30,7 @@ class MovieManager:
         self.current_displayed_movie = None
         self.default_movie_tmdb_id = 62
         self.default_backdrop_url = None
-        self.tmdb_helper = TMDbHelper(TMDB_API_KEY)  # Initialize TMDbHelper
+        self.tmdb_helper = TMDbHelper()  # Initialize TMDbHelper using env key
 
         self.user_previous_movies_stack = {}  # User-specific previous movies stack
         self.user_future_movies_stack = {}  # User-specific future movies stack

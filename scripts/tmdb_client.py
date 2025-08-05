@@ -8,31 +8,34 @@ import time
 import httpx
 import tmdbsimple as tmdb
 
-api_key = os.getenv("TMDB_API_KEY")
-tmdb.API_KEY = api_key
 
-# Replace with your actual TMDb API key
-TMDB_API_KEY = "1ce9398920594a5521f0d53e9b33c52f"
+def get_tmdb_api_key() -> str:
+    """Retrieve the TMDb API key from the environment.
+
+    Fetching the key on demand enables key rotation without changing code or
+    redeploying the application.
+    """
+    api_key = os.getenv("TMDB_API_KEY")
+    if not api_key:
+        raise RuntimeError("TMDB_API_KEY environment variable is not set")
+    return api_key
+
+
+TMDB_API_BASE_URL = "https://api.themoviedb.org/3"
 TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/"
 
-# Replace with your actual TMDb API key
-TMDB_API_BASE_URL = "https://api.themoviedb.org/3"
-
-# Use os.path.dirname to go up one level from the current script's directory
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-# Now change the working directory to the parent directory
 os.chdir(parent_dir)
 
-# Log messages will use the application's configuration
 logger = get_logger(__name__)
 
 
 class TMDbHelper:
-    def __init__(self, api_key):
-        self.api_key = api_key
-        self.base_url = "https://api.themoviedb.org/3"
-        self.image_base_url = "https://image.tmdb.org/t/p/"
+    def __init__(self, api_key: str | None = None):
+        self.api_key = api_key or get_tmdb_api_key()
+        tmdb.API_KEY = self.api_key
+        self.base_url = TMDB_API_BASE_URL
+        self.image_base_url = TMDB_IMAGE_BASE_URL
 
     async def _get(self, endpoint, params=None):
         if params is None:
@@ -202,7 +205,7 @@ class TmdbMovieInfo:
         tmdb.API_KEY = self.api_key
 
 
-async def main(api_key, tconst):
+async def main(api_key: str, tconst: str):
     tmdb_helper = TMDbHelper(api_key)
 
     tmdb_id = await tmdb_helper.get_tmdb_id_by_tconst(tconst)
@@ -231,8 +234,6 @@ async def main(api_key, tconst):
 
 
 if __name__ == "__main__":
-    api_key = (
-        "1ce9398920594a5521f0d53e9b33c52f"  # Replace with your actual TMDb API key
-    )
-    tconst = "tt0111161"  # Replace with the IMDb tconst you have
-    asyncio.run(main(api_key, tconst))
+    key = get_tmdb_api_key()
+    tconst = "tt0111161"  # Example IMDb ID
+    asyncio.run(main(key, tconst))
