@@ -1,37 +1,21 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles/navbar.css') }}">
-</head>
-<body>
-<nav class="navbar navbar-expand-lg navbar-light bg-light"> <!-- Adjusted for better visibility -->
-    <!-- Navbar brand/logo can go here -->
-
-    <!-- Toggler button -->
-    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-        <span class="navbar-toggler-icon"></span>
+<nav class="navbar navbar-expand-md navbar-dark bg-dark">
+  <div class="container">
+    <a class="navbar-brand" href="{{ url_for('home') }}">
+      <img src="{{ url_for('static', filename='nextreel-wbg.png') }}" alt="Nextreel logo" height="40">
+    </a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+            aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
     </button>
-
     <div class="collapse navbar-collapse" id="navbarNav">
-        <div class="all-navbar-buttons-wrapper">
-            <div class="logo-wrapper">
-                <a href="{{ url_for('home') }}" class="btn btn-logo">
-                    <img src="{{ url_for('static', filename='nextreel-wbg.png') }}">
-                </a>
-            </div>
-            <div class="button-wrapper">
-                <ul class="navbar-nav ml-auto">
-                    <li class="nav-item">
-                        <a href="/next_movie" class="btn btn-custom">Pick a Movie</a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="/setFilters" class="btn btn-custom">Set Filters</a>
-                    </li>
-                </ul>
-            </div>
-        </div>
+      <ul class="navbar-nav ms-auto d-flex align-items-center">
+        <li class="nav-item me-2 mb-2 mb-md-0">
+          <a class="btn btn-primary" href="{{ url_for('next_movie') }}">Pick a Movie</a>
+        </li>
+        <li class="nav-item">
+          <a class="btn btn-outline-light" href="{{ url_for('set_filters') }}">Set Filters</a>
+        </li>
+      </ul>
     </div>
+  </div>
 </nav>
-</body>
-</html>
