@@ -1,0 +1,71 @@
+/*
+ * Styles for the Nextreel home page.
+ *
+ * This stylesheet defines the look of the hero section used on the
+ * landing page. It keeps the design lightweight and modern by
+ * leveraging a dark overlay on top of a backdrop image. The layout
+ * is responsive and centred to highlight the call‑to‑action buttons.
+ */
+
+/* Ensure the hero takes up most of the viewport height and positions
+   its children correctly */
+.hero-section {
+  position: relative;
+  min-height: 80vh;
+  background-size: cover;
+  background-position: center center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Dark overlay to improve text contrast on varying backdrops */
+.hero-section .overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  z-index: 1;
+}
+
+/* Position hero content above the overlay */
+.hero-section .container {
+  position: relative;
+  z-index: 2;
+}
+
+/* Typography adjustments for headline and subtext */
+.hero-section h1 {
+  font-family: 'Poppins', sans-serif;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.hero-section p.lead {
+  font-family: 'Poppins', sans-serif;
+  font-weight: 400;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Responsive spacing for call‑to‑action buttons */
+.hero-section .btn {
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+  font-weight: 600;
+}
+
+/* Gap utility for older Bootstrap versions */
+.gap-3 > * + * {
+  margin-top: 1rem;
+}
+
+@media (min-width: 576px) {
+  .gap-3 > * + * {
+    margin-top: 0;
+    margin-left: 1rem;
+  }
+}
