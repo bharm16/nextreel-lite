@@ -1,403 +1,360 @@
-
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Set Filters</title>
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
-
-    {#    <link rel="stylesheet" href='../styles/footer.css'> <!-- Add this line -->#}
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles/footer.css') }}">
-
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Refine Filters – Nextreel</title>
+    <!-- Google Fonts for typography -->
+    <link rel="preconnect" href="https://fonts.gstatic.com">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&family=Merriweather:wght@400;700&display=swap" rel="stylesheet">
+    <!-- Bootstrap CSS for responsive grid -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <style>
-        /* Existing Styles */
-        body, html {
-            height: 100%;
+        :root {
+            --primary-dark: #0d233b;    /* dark blue for hero */
+            --primary:      #122e51;    /* slightly lighter for elements */
+            --accent:       #2eb84a;    /* vibrant green */
+            --light-bg:     #f7f8fc;    /* page background */
+            --text:         #333;       /* default text colour */
         }
 
-        /* New Styles */
         body {
-            background-color: #f4f3f5;
-        }
-
-
-
-        .mb-30{
-            margin-bottom: 30px;
-        }
-
-        .card {
-            position: relative;
-            display: flex;
-            flex-direction: column;
-            min-width: 0;
-            word-wrap: break-word;
-            background-color: #fff;
-            background-clip: border-box;
-            border: 1px solid #d2d2dc;
-            border-radius: 0;
-        }
-
-        .card .card-body {
-            padding: 1.25rem 1.75rem;
-        }
-
-        .card-body {
-            flex: 1 1 auto;
-        }
-
-
-
-
-
-        label.check {
-            cursor: pointer;
-        }
-
-        label.check input {
-            {#position: absolute;#}
-            visibility: hidden;
-            pointer-events: none;
-        }
-
-        label.check span {
-            padding: 7px 14px;
-            border: 2px solid #d9d7da;
-            display: inline-block;
-            color: #e0dde1;
-            border-radius: 3px;
-        }
-
-        label.check input:checked + span {
-            border-color: #f0e8f3;
-            background-color: #e6e0e8;
-            color: #fff;
-        }
-
-        label.no-gap .col-3 {
-            margin-bottom: 0 !important;
-        }
-
-        .no-gap > .col-3 {
-            padding-left: 0 !important;
-            padding-right: 0 !important;
-        }
-
-
-
-
-
-        /* Update the card maximum width to make it smaller */
-        .card {
-            max-width: 800px;  /* Adjust to half of original size */
-            /* Add this line to move the card slightly to the left */
-            margin: 0 auto 0 30%;
-
-        }
-
-
-
-        /* Add these styles to make the checkboxes the same size */
-        .check span {
-            /* ... existing styles ... */
-            width: 100px;  /* Fixed width */
-            height: 40px;  /* Fixed height */
-            display: flex;
-            align-items: center;  /* Center text vertically */
-            justify-content: center;  /* Center text horizontally */
-            white-space: nowrap;  /* Prevents the text from wrapping */
-            overflow: hidden;  /* Hide overflow */
-            text-overflow: ellipsis;  /* Add ellipsis for overflow text */
-        }
-
-
-
-
-        .container-fluid {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        /* Add this new style to center the content inside .form-check */
-        .form-check {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        @media (max-width: 768px) {
-            .card {
-                margin: 1rem; /* Smaller margin on smaller screens */
-            }
-            .check span {
-                padding: 0.25rem 0.5rem; /* Smaller padding on smaller screens */
-                font-size: 0.8rem; /* Smaller font size on smaller screens */
-            }
-
-               /* Add this new style to center the content inside .form-check */
-        .form-check {
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            font-family: 'Poppins', sans-serif;
+            background-color: var(--light-bg);
+            color: var(--text);
+            margin: 0;
             padding: 0;
         }
+
+        /* Hero Section */
+        .filter-hero {
+            position: relative;
+            background: linear-gradient(135deg, var(--primary-dark) 0%, #0d2c4a 80%);
+            color: #fff;
+            padding: 4.5rem 0 4rem;
+            text-align: center;
+            overflow: hidden;
+        }
+        .filter-hero h1 {
+            font-family: 'Merriweather', serif;
+            font-weight: 700;
+            font-size: 2.8rem;
+            margin-bottom: 0.5rem;
+        }
+        .filter-hero p {
+            font-size: 1.15rem;
+            max-width: 720px;
+            margin: 0 auto;
+            opacity: 0.85;
         }
 
-
-    </style>
-
-
-    <script>
-        function selectAllCheckboxes(source) {
-            const checkboxes = document.getElementsByName('genres[]');
-            for(let i = 0; i < checkboxes.length; i++) {
-                checkboxes[i].checked = source.checked;
+        /* Wrapper and Card */
+        .filter-wrapper {
+            padding: 3rem 0 4rem;
+        }
+        .filter-card {
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+            padding: 2.5rem 2rem;
+            border-top: 5px solid var(--accent);
+        }
+        .filter-row {
+            display: flex;
+            flex-wrap: wrap;
+            margin: -1rem -0.75rem;
+        }
+        .filter-col {
+            flex: 1 1 50%;
+            padding: 1rem 0.75rem;
+        }
+        @media (max-width: 768px) {
+            .filter-col {
+                flex-basis: 100%;
             }
         }
-    </script>
+
+        /* Headings and Groups */
+        .filter-group {
+            margin-bottom: 1.8rem;
+        }
+        .filter-heading {
+            font-family: 'Merriweather', serif;
+            font-weight: 700;
+            font-size: 1.4rem;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        .filter-heading i {
+            color: var(--accent);
+            margin-right: 0.6rem;
+            font-size: 1.4rem;
+        }
+        .filter-group label {
+            font-weight: 600;
+            margin-bottom: 0.35rem;
+            display: block;
+        }
+
+        /* Form Inputs */
+        .form-control {
+            border-radius: 50px;
+            border: 2px solid #e0e0e5;
+            padding: 0.65rem 1.15rem;
+            font-size: 0.95rem;
+            box-shadow: none;
+            transition: border-color 0.2s ease;
+        }
+        .form-control:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 0.15rem rgba(46, 184, 74, 0.25);
+        }
+
+        /* Genre Chips */
+        .genre-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.6rem;
+            margin-top: 0.5rem;
+        }
+        .genre-chip {
+            position: relative;
+        }
+        .genre-chip input {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+        }
+        .genre-chip span {
+            display: inline-block;
+            padding: 0.6rem 1.2rem;
+            border: 2px solid #d8d8dc;
+            border-radius: 25px;
+            background-color: #f7f7fa;
+            color: #555;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        .genre-chip input:checked + span {
+            background-color: var(--accent);
+            border-color: var(--accent);
+            color: #fff;
+        }
+        .select-all {
+            display: flex;
+            align-items: center;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+        }
+        .select-all input {
+            margin-right: 0.5rem;
+        }
+
+        /* Button Group */
+        .button-group {
+            text-align: center;
+            margin-top: 2rem;
+        }
+        .btn-apply {
+            background: var(--accent);
+            border: none;
+            color: #fff;
+            font-weight: 700;
+            padding: 0.9rem 2.0rem;
+            font-size: 1.05rem;
+            border-radius: 50px;
+            transition: background 0.25s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            box-shadow: 0 4px 12px rgba(46, 184, 74, 0.3);
+        }
+        .btn-apply:hover {
+            background: #25a041;
+        }
+        .btn-reset {
+            background: #e5e5ea;
+            border: none;
+            color: #555;
+            font-weight: 600;
+            padding: 0.8rem 1.8rem;
+            font-size: 0.95rem;
+            border-radius: 50px;
+            transition: background 0.2s ease;
+            margin-right: 0.75rem;
+        }
+        .btn-reset:hover {
+            background: #d7d7dc;
+        }
+
+        /* Responsive typography */
+        @media (max-width: 768px) {
+            .filter-hero h1 {
+                font-size: 2.2rem;
+            }
+            .filter-hero p {
+                font-size: 1rem;
+            }
+        }
+    </style>
 </head>
-
-{% include 'navbar.html' %}
-
-
 <body>
+    <!-- Navigation Bar (included via Jinja) -->
+    {% include 'navbar.html' %}
 
-
-
-
-<!-- Main Content Container -->
-<!-- This is the main content container. It is using Bootstrap's container-fluid class for a full-width container. -->
-<div class="container-fluid"> <!-- .container-fluid style applied here -->
-    <!-- Card Container -->
-    <!-- This is a Bootstrap card component. It's a flexible and extensible content container with multiple variants and options. -->
-    <div class="card mx-auto"> <!-- .card and max-width style applied here -->
-        <!-- Card Body -->
-        <!-- This is where the content of the card resides. It is using Bootstrap's card-body class for padding and formatting. -->
-        <div class="card-body"> <!-- .card-body style applied here -->
-            <!-- Form Starts -->
-            <!-- This is the main form where users can set filters for movies. -->
-            <form action="/filtered_movie" method="post">
-                <div class="row justify-content-center no-gap mb-30">
-                    <label class="col-12 text-center">IMDb Score</label>
-                    <div class="col-3 text-center">
-                        <input type="number" class="form-control" id="imdb_score_min" name="imdb_score_min" min="1" max="10" step="0.1" value="{{ current_filters.get('imdb_score_min', 7.0) }}">
-                    </div>
-                    <div class="col-3 text-center">
-                        <input type="number" class="form-control" id="imdb_score_max" name="imdb_score_max" min="1" max="10" step="0.1" value="{{ current_filters.get('imdb_score_max', 10.0) }}">
-                    </div>
-                </div>
-
-                <!-- Vote Count Section -->
-                <div class="row justify-content-center no-gap mb-30">
-                    <label class="col-12 text-center">Votes</label>
-                    <div class="col-3 text-center">
-                        <input type="number" class="form-control" id="num_votes_min" name="num_votes_min" min="0" value="{{ current_filters.get('num_votes_min', 100000) }}">
-                    </div>
-                    <div class="col-3 text-center">
-                        <input type="number" class="form-control" id="num_votes_max" name="num_votes_max" min="1" max="2000000" value="{{ current_filters.get('num_votes_max', 200000) }}">
-                    </div>
-                </div>
-
-                <!-- Year Section -->
-                <div class="row justify-content-center no-gap mb-30">
-                    <label class="col-12 text-center">Year</label>
-                    <div class="col-3 text-center">
-                        <input type="number" class="form-control" id="year_min" name="year_min" min="1900" value="{{ current_filters.get('year_min', 1900) }}">
-                    </div>
-                    <div class="col-3 text-center">
-                        <input type="number" class="form-control" id="year_max" name="year_max" max="2023" value="{{ current_filters.get('year_max', 2023) }}">
-                    </div>
-                </div>
-
-
-
-                <div class="row justify-content-center no-gap mb-30"> <!-- .row, .justify-content-center, .no-gap and .mb-30 styles applied here -->
-                    <div class="col-12 text-center">
-                        <!-- Place "Select All" checkbox here, above the 4 columns -->
-                        <div class="form-check"> <!-- .form-check style applied here -->
-                            <label class="check"> <!-- .check style applied here -->
-                                <input type="checkbox" id="selectAll" onclick="selectAllCheckboxes(this)" checked>
-                                <span>Select All</span>
-                            </label>
-                        </div>
-                    </div>
-
-
-
-
-                    <div class="col-3 text-center"> <!-- .col-3 and .text-center styles applied here -->
-
-                        <div class="form-check"> <!-- .form-check style applied here -->
-                            <label class="check"> <!-- .check style applied here -->
-                                <input class="form-check-input" type="checkbox" value="Action" id="Action" name="genres[]" checked>
-                                <span>Action</span>
-                            </label>
-                        </div>
-
-                        <div class="form-check"> <!-- .form-check style applied here -->
-                            <label class="check"> <!-- .check style applied here -->
-                                <input class="form-check-input" type="checkbox" value="Adventure" id="Adventure" name="genres[]" checked>
-                                <span>Adventure</span>
-                            </label>
-                        </div>
-
-                        <div class="form-check"> <!-- .form-check style applied here -->
-                            <label class="check"> <!-- .check style applied here -->
-                                <input class="form-check-input" type="checkbox" value="Animation" id="Animation" name="genres[]" checked>
-                                <span>Animation</span>
-                            </label>
-                        </div>
-
-
-
-                        <div class="form-check"> <!-- .form-check style applied here -->
-                            <label class="check"> <!-- .check style applied here -->
-                                <input class="form-check-input" type="checkbox" value="Biography" id="Biography" name="genres[]" checked>
-                                <span>Biography</span>
-                            </label>
-                        </div>
-                    </div>
-
-
-
-
-
-                    <div class="col-3 text-center"> <!-- .col-3 and .text-center styles applied here -->
-
-                        <div class="form-check"> <!-- .form-check style applied here -->
-                            <label class="check"> <!-- .check style applied here -->
-                                <input class="form-check-input" type="checkbox" value="Comedy" id="Comedy" name="genres[]" checked>
-                                <span>Comedy</span>
-                            </label>
-                        </div>
-
-                        <div class="form-check"> <!-- .form-check style applied here -->
-                            <label class="check"> <!-- .check style applied here -->
-                                <input class="form-check-input" type="checkbox" value="Crime" id="Crime" name="genres[]" checked>
-                                <span>Crime</span>
-                            </label>
-                        </div>
-
-                        <div class="form-check"> <!-- .form-check style applied here -->
-                            <label class="check"> <!-- .check style applied here -->
-                                <input class="form-check-input" type="checkbox" value="Documentary" id="Documentary" name="genres[]" checked>
-                                <span>Documentary</span>
-                            </label>
-                        </div>
-
-                        <div class="form-check"> <!-- .form-check style applied here -->
-                            <label class="check"> <!-- .check style applied here -->
-                                <input class="form-check-input" type="checkbox" value="Drama" id="Drama" name="genres[]" checked>
-                                <span>Drama</span>
-                            </label>
-                        </div>
-                    </div>
-
-
-
-                    <div class="col-3 text-center"> <!-- .col-3 and .text-center styles applied here -->
-                        <div class="form-check"> <!-- .form-check style applied here -->
-                            <label class="check"> <!-- .check style applied here -->
-                                <input class="form-check-input" type="checkbox" value="Fantasy" id="Fantasy" name="genres[]" checked>
-                                <span>Fantasy</span>
-                            </label>
-                        </div>
-
-
-
-                        <div class="form-check"> <!-- .form-check style applied here -->
-                            <label class="check"> <!-- .check style applied here -->
-                                <input class="form-check-input" type="checkbox" value="Horror" id="Horror" name="genres[]" checked>
-                                <span>Horror</span>
-                            </label>
-                        </div>
-
-                        <div class="form-check"> <!-- .form-check style applied here -->
-                            <label class="check"> <!-- .check style applied here -->
-                                <input class="form-check-input" type="checkbox" value="Musical" id="Musical" name="genres[]" checked>
-                                <span>Musical</span>
-                            </label>
-                        </div>
-
-                        <div class="form-check"> <!-- .form-check style applied here -->
-                            <label class="check"> <!-- .check style applied here -->
-                                <input class="form-check-input" type="checkbox" value="Sci-Fi" id="Sci-Fi" name="genres[]" checked>
-                                <span>Sci-Fi</span>
-                            </label>
-                        </div>
-                    </div>
-
-                    <div class="col-3 text-center">
-
-                        <div class="form-check"> <!-- .form-check style applied here -->
-                            <label class="check"> <!-- .check style applied here -->
-                                <input class="form-check-input" type="checkbox" value="Sport" id="Sport" name="genres[]" checked>
-                                <span>Sport</span>
-                            </label>
-                        </div>
-
-                        <div class="form-check"> <!-- .form-check style applied here -->
-                            <label class="check"> <!-- .check style applied here -->
-                                <input class="form-check-input" type="checkbox" value="Thriller" id="Thriller" name="genres[]" checked>
-                                <span>Thriller</span>
-                            </label>
-                        </div>
-
-                        <div class="form-check"> <!-- .form-check style applied here -->
-                            <label class="check"> <!-- .check style applied here -->
-                                <input class="form-check-input" type="checkbox" value="War" id="War" name="genres[]" checked>
-                                <span>War</span>
-                            </label>
-                        </div>
-
-                        <div class="form-check"> <!-- .form-check style applied here -->
-                            <label class="check"> <!-- .check style applied here -->
-                                <input class="form-check-input" type="checkbox" value="Western" id="Western" name="genres[]" checked>
-                                <span>Western</span>
-                            </label>
-                        </div>
-
-                    </div>
-                </div>
-
-                <!-- Moved 'Apply Filters' Button -->
-                <div class="row mt-4 justify-content-center">
-                    <div class="col">
-                        <button type="submit" class="btn btn-primary">Apply Filters</button>
-                    </div>
-                </div>
-
-            </form>
-            <!-- Form Ends -->
+    <section class="filter-hero">
+        <div class="container">
+            <h1>Customize Your Queue</h1>
+            <p>Fine‑tune the movies you see by adjusting score, votes, release year and genres.</p>
         </div>
-        <!-- End of Card Body -->
-    </div>
-    <!-- End of Card Container -->
-</div>
-<!-- End of Main Content Container -->
+    </section>
 
+    <section class="filter-wrapper">
+        <div class="container">
+            <div class="row justify-content-center">
+                <div class="col-lg-10 col-md-11">
+                    <form action="/filtered_movie" method="post" class="filter-card">
+                        <div class="filter-row">
+                            <div class="filter-col">
+                                <!-- Score Range -->
+                                <div class="filter-group">
+                                    <div class="filter-heading"><i class="fas fa-star"></i>IMDb Score Range</div>
+                                    <label for="imdb_score_min">Min Score</label>
+                                    <input type="number" class="form-control" id="imdb_score_min" name="imdb_score_min" min="1" max="10" step="0.1" value="{{ current_filters.get('imdb_score_min', 7.0) }}">
+                                    <label for="imdb_score_max" class="mt-3">Max Score</label>
+                                    <input type="number" class="form-control" id="imdb_score_max" name="imdb_score_max" min="1" max="10" step="0.1" value="{{ current_filters.get('imdb_score_max', 10.0) }}">
+                                </div>
+                                <!-- Vote Range -->
+                                <div class="filter-group">
+                                    <div class="filter-heading"><i class="fas fa-users"></i>Vote Count Range</div>
+                                    <label for="num_votes_min">Min Votes</label>
+                                    <input type="number" class="form-control" id="num_votes_min" name="num_votes_min" min="0" value="{{ current_filters.get('num_votes_min', 100000) }}">
+                                    <label for="num_votes_max" class="mt-3">Max Votes</label>
+                                    <input type="number" class="form-control" id="num_votes_max" name="num_votes_max" min="1" max="2000000" value="{{ current_filters.get('num_votes_max', 200000) }}">
+                                </div>
+                            </div>
+                            <div class="filter-col">
+                                <!-- Year Range -->
+                                <div class="filter-group">
+                                    <div class="filter-heading"><i class="fas fa-calendar-alt"></i>Release Year Range</div>
+                                    <label for="year_min">Earliest</label>
+                                    <input type="number" class="form-control" id="year_min" name="year_min" min="1900" value="{{ current_filters.get('year_min', 1900) }}">
+                                    <label for="year_max" class="mt-3">Latest</label>
+                                    <input type="number" class="form-control" id="year_max" name="year_max" max="2023" value="{{ current_filters.get('year_max', 2023) }}">
+                                </div>
+                                <!-- Genres -->
+                                <div class="filter-group">
+                                    <div class="filter-heading"><i class="fas fa-tags"></i>Select Genres</div>
+                                    <div class="select-all">
+                                        <input type="checkbox" id="selectAll" checked>
+                                        <label for="selectAll">Select All</label>
+                                    </div>
+                                    <div class="genre-grid">
+                                        <label class="genre-chip">
+                                            <input type="checkbox" name="genres[]" value="Action" checked>
+                                            <span>Action</span>
+                                        </label>
+                                        <label class="genre-chip">
+                                            <input type="checkbox" name="genres[]" value="Adventure" checked>
+                                            <span>Adventure</span>
+                                        </label>
+                                        <label class="genre-chip">
+                                            <input type="checkbox" name="genres[]" value="Animation" checked>
+                                            <span>Animation</span>
+                                        </label>
+                                        <label class="genre-chip">
+                                            <input type="checkbox" name="genres[]" value="Biography" checked>
+                                            <span>Biography</span>
+                                        </label>
+                                        <label class="genre-chip">
+                                            <input type="checkbox" name="genres[]" value="Comedy" checked>
+                                            <span>Comedy</span>
+                                        </label>
+                                        <label class="genre-chip">
+                                            <input type="checkbox" name="genres[]" value="Crime" checked>
+                                            <span>Crime</span>
+                                        </label>
+                                        <label class="genre-chip">
+                                            <input type="checkbox" name="genres[]" value="Documentary" checked>
+                                            <span>Documentary</span>
+                                        </label>
+                                        <label class="genre-chip">
+                                            <input type="checkbox" name="genres[]" value="Drama" checked>
+                                            <span>Drama</span>
+                                        </label>
+                                        <label class="genre-chip">
+                                            <input type="checkbox" name="genres[]" value="Fantasy" checked>
+                                            <span>Fantasy</span>
+                                        </label>
+                                        <label class="genre-chip">
+                                            <input type="checkbox" name="genres[]" value="Horror" checked>
+                                            <span>Horror</span>
+                                        </label>
+                                        <label class="genre-chip">
+                                            <input type="checkbox" name="genres[]" value="Musical" checked>
+                                            <span>Musical</span>
+                                        </label>
+                                        <label class="genre-chip">
+                                            <input type="checkbox" name="genres[]" value="Sci-Fi" checked>
+                                            <span>Sci-Fi</span>
+                                        </label>
+                                        <label class="genre-chip">
+                                            <input type="checkbox" name="genres[]" value="Sport" checked>
+                                            <span>Sport</span>
+                                        </label>
+                                        <label class="genre-chip">
+                                            <input type="checkbox" name="genres[]" value="Thriller" checked>
+                                            <span>Thriller</span>
+                                        </label>
+                                        <label class="genre-chip">
+                                            <input type="checkbox" name="genres[]" value="War" checked>
+                                            <span>War</span>
+                                        </label>
+                                        <label class="genre-chip">
+                                            <input type="checkbox" name="genres[]" value="Western" checked>
+                                            <span>Western</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="button-group">
+                            <button type="reset" class="btn-reset">Reset</button>
+                            <button type="submit" class="btn-apply">Apply Filters</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </section>
 
-
-
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.1.3/js/bootstrap.bundle.min.js"></script>
-
-
-<script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
-<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
-
-<!-- Bootstrap JS Bundle -->
-<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.bundle.min.js"></script>
-
-
+    <!-- Scripts for Bootstrap (optional) -->
+    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Select All functionality
+        const selectAllChk   = document.getElementById('selectAll');
+        const genreCbs = document.querySelectorAll('.genre-chip input[type="checkbox"]');
+        function toggleAllGenres(isChecked) {
+            genreCbs.forEach(function(cb) {
+                cb.checked = isChecked;
+            });
+        }
+        function updateSelectAllState() {
+            const allChecked = Array.from(genreCbs).every(cb => cb.checked);
+            selectAllChk.checked = allChecked;
+        }
+        selectAllChk.addEventListener('change', function() {
+            toggleAllGenres(this.checked);
+        });
+        genreCbs.forEach(function(cb) {
+            cb.addEventListener('change', updateSelectAllState);
+        });
+    </script>
 </body>
-
 </html>

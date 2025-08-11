@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import signal
 import sys
 import time
 import uuid
@@ -259,6 +260,12 @@ app = create_app()
 #     return {"hello": "world"}
 #
 
+def signal_handler(signum, frame):
+    logger.info(f"Received signal {signum}. Shutting down gracefully...")
+    sys.exit(0)
+
 if __name__ == "__main__":
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
     app.run()
 
