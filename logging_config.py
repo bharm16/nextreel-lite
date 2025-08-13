@@ -110,8 +110,12 @@ def setup_logging(log_level: int = logging.INFO) -> None:
     
     handlers = [console_handler, file_handler]
     
-    # Grafana Loki handler
-    if LOKI_AVAILABLE and all([GRAFANA_LOKI_URL, GRAFANA_LOKI_USER, GRAFANA_LOKI_KEY]):
+    # Grafana Loki handler (disabled until proper API key is obtained)
+    # For Loki integration, you need a specific "Log Push API Key" from Grafana Cloud
+    # Go to: https://grafana.com/orgs/[your-org]/api-keys → Create API Key → Role: MetricsPublisher
+    loki_enabled = False  # Set to True when you have the correct Loki API key
+    
+    if LOKI_AVAILABLE and loki_enabled and all([GRAFANA_LOKI_URL, GRAFANA_LOKI_USER, GRAFANA_LOKI_KEY]):
         try:
             # Create Loki handler with authentication
             loki_handler = logging_loki.LokiHandler(
@@ -127,7 +131,7 @@ def setup_logging(log_level: int = logging.INFO) -> None:
         except Exception as e:
             print(f"⚠️  Failed to setup Loki logging: {e}")
     else:
-        print("ℹ️  Grafana Loki not configured - using local logging only")
+        print("ℹ️  Grafana Loki disabled - using local logging only")
     
     # Configure root logger
     logging.basicConfig(
