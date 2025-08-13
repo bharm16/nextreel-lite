@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 import time
 import logging
 from logging_config import get_logger
+from secrets_manager import secrets_manager
 
 logger = get_logger(__name__)
 
@@ -24,8 +25,24 @@ logger.debug("Database Host from environment: %s", os.getenv('DB_HOST'))
 
 class Config:
     # Common configurations
-    SECRET_KEY = os.getenv('FLASK_SECRET_KEY')
-    TMDB_API_KEY = os.getenv('TMDB_API_KEY')
+    @staticmethod
+    def get_flask_secret_key():
+        """Get Flask secret key from secure source."""
+        return secrets_manager.get_secret('FLASK_SECRET_KEY')
+    
+    @staticmethod
+    def get_tmdb_api_key():
+        """Get TMDB API key from secure source."""
+        return secrets_manager.get_secret('TMDB_API_KEY')
+    
+    # Dynamic properties for backward compatibility
+    @property
+    def SECRET_KEY(self):
+        return self.get_flask_secret_key()
+    
+    @property
+    def TMDB_API_KEY(self):
+        return self.get_tmdb_api_key()
 
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'Lax'

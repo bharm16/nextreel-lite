@@ -11,14 +11,15 @@ import tmdbsimple as tmdb
 
 
 def get_tmdb_api_key() -> str:
-    """Retrieve the TMDb API key from the environment.
+    """Retrieve the TMDb API key from secure secrets manager.
 
     Fetching the key on demand enables key rotation without changing code or
     redeploying the application.
     """
-    api_key = os.getenv("TMDB_API_KEY")
+    from secrets_manager import secrets_manager
+    api_key = secrets_manager.get_secret("TMDB_API_KEY")
     if not api_key:
-        raise RuntimeError("TMDB_API_KEY environment variable is not set")
+        raise RuntimeError("TMDB_API_KEY not configured. Please set the environment variable.")
     return api_key
 
 

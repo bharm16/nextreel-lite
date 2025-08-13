@@ -18,4 +18,19 @@ htmlcov
 ## Vim files
 .*.swp
 .idea
+
+# Environment files with secrets
 .env
+.env.local
+.env.production
+.env.*.local
+
+# Keep example files
+!.env.example
+
+# Secrets and keys
+*.key
+*.pem
+*.crt
+*.cer
+secrets/

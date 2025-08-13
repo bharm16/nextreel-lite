@@ -20,6 +20,7 @@ from logging_config import setup_logging, get_logger
 from middleware import add_correlation_id
 from movie_service import MovieManager
 from session_auth import ensure_session
+from secrets_manager import secrets_manager
 
 import os
 from local_env_setup import setup_local_environment
@@ -33,6 +34,10 @@ if os.getenv("FLASK_ENV") != "production":
     setup_local_environment()
 
 def create_app():
+    # Validate all secrets at startup
+    if not secrets_manager.validate_all_secrets():
+        raise RuntimeError("Failed to validate required secrets. Check logs for details.")
+    
     app = FixedQuart(__name__)
     app.config.from_object(settings.Config)
 

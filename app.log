@@ -106,3 +106,18 @@
 2025-08-05 15:13:32,263 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt1355644 in 2.70 seconds.
 2025-08-05 15:13:34,570 [INFO] scripts.movie_queue:populate: Populate task for user_id: b48166ec-3e72-49f9-a7f7-7d3435d0d782 has been cancelled.
 2025-08-05 15:13:34,571 [INFO] scripts.movie_queue:populate: Population task for user_id: b48166ec-3e72-49f9-a7f7-7d3435d0d782 is checking for more work or completing.
+2025-08-13 07:56:49,060 [INFO] logging_config:setup_logging: Logging initialized with level: INFO
+2025-08-13 07:56:49,074 [INFO] movie_service:start: Starting MovieManager
+2025-08-13 07:56:49,285 [INFO] hypercorn.error:info: Running on http://127.0.0.1:5000 (CTRL + C to quit)
+2025-08-13 07:57:04,545 [INFO] logging_config:setup_logging: Logging initialized with level: INFO
+2025-08-13 07:57:04,558 [INFO] movie_service:start: Starting MovieManager
+2025-08-13 07:57:04,624 [INFO] hypercorn.error:info: Running on http://127.0.0.1:5000 (CTRL + C to quit)
+2025-08-13 07:57:22,063 [INFO] logging_config:setup_logging: Logging initialized with level: INFO
+2025-08-13 07:57:22,077 [INFO] movie_service:start: Starting MovieManager
+2025-08-13 07:57:22,146 [INFO] hypercorn.error:info: Running on http://127.0.0.1:5000 (CTRL + C to quit)
+2025-08-13 07:57:32,502 [INFO] logging_config:setup_logging: Logging initialized with level: INFO
+2025-08-13 07:57:32,503 [INFO] secrets_manager:validate_all_secrets: Secret 'TMDB_API_KEY' validated: 1ce9************************c52f
+2025-08-13 07:57:32,503 [INFO] secrets_manager:validate_all_secrets: Secret 'FLASK_SECRET_KEY' validated: loca********_key
+2025-08-13 07:57:32,503 [INFO] secrets_manager:validate_all_secrets: All required secrets validated successfully
+2025-08-13 07:57:32,515 [INFO] movie_service:start: Starting MovieManager
+2025-08-13 07:57:32,579 [INFO] hypercorn.error:info: Running on http://127.0.0.1:5000 (CTRL + C to quit)
