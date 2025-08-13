@@ -18500,3 +18500,383 @@
 2025-08-13 14:22:00,683 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt11866324 in 0.16 seconds (parallel)
 2025-08-13 14:22:00,683 - scripts.movie - INFO - Completed get_movie_data for tt0332379 in 0.14 seconds (parallel)
 2025-08-13 14:22:00,683 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0332379 in 0.14 seconds (parallel)
+2025-08-13 16:07:25,039 [INFO] logging_config:setup_logging: Logging initialized with level: INFO
+2025-08-13 16:07:25,041 [INFO] secrets_manager:validate_all_secrets: secret=[REDACTED] validated: 1ce9************************c52f
+2025-08-13 16:07:25,041 [INFO] secrets_manager:validate_all_secrets: secret=[REDACTED] validated: <SET************ENT>
+2025-08-13 16:07:25,041 [INFO] secrets_manager:validate_all_secrets: All required secrets validated successfully
+2025-08-13 16:07:25,042 - movie_service - DEBUG - Initializing MovieManager
+2025-08-13 16:07:25,042 [DEBUG] movie_service:__init__: Initializing MovieManager
+2025-08-13 16:07:25,054 [ERROR] __main__:<module>: Port 5000 is already in use. Trying alternative port 5001
+2025-08-13 16:07:25,054 [INFO] __main__:<module>: Starting NextReel-Lite on http://127.0.0.1:5001
+2025-08-13 16:07:25,055 [INFO] __main__:startup: Starting application warm-up...
+2025-08-13 16:07:25,055 - movie_service - INFO - Starting MovieManager
+2025-08-13 16:07:25,055 [INFO] movie_service:start: Starting MovieManager
+2025-08-13 16:07:25,055 - settings - INFO - Initializing database pool: 127.0.0.1:3306/imdb
+2025-08-13 16:07:25,055 [INFO] settings:init_pool: Initializing database pool: 127.0.0.1:3306/imdb
+2025-08-13 16:07:25,062 - settings - INFO - Database pool initialized successfully in 0.01s (min=3, max=10)
+2025-08-13 16:07:25,062 [INFO] settings:init_pool: Database pool initialized successfully in 0.01s (min=3, max=10)
+2025-08-13 16:07:25,172 - scripts.tmdb_client - DEBUG - Received response from https://api.themoviedb.org/3/movie/62/images in 0.11 seconds. Status code: 200
+2025-08-13 16:07:25,172 [DEBUG] scripts.tmdb_client:_get: Received response from https://api.themoviedb.org/3/movie/62/images in 0.11 seconds. Status code: 200
+2025-08-13 16:07:25,173 - scripts.tmdb_client - DEBUG - Found 1 poster(s) and 1 backdrop(s) for TMDB ID: 62
+2025-08-13 16:07:25,173 [DEBUG] scripts.tmdb_client:get_images_by_tmdb_id: Found 1 poster(s) and 1 backdrop(s) for TMDB ID: 62
+2025-08-13 16:07:25,173 - scripts.tmdb_client - DEBUG - Completed fetching images for TMDB ID: 62 in 0.11 seconds
+2025-08-13 16:07:25,173 [DEBUG] scripts.tmdb_client:get_images_by_tmdb_id: Completed fetching images for TMDB ID: 62 in 0.11 seconds
+2025-08-13 16:07:25,173 - movie_service - DEBUG - Default backdrop set
+2025-08-13 16:07:25,173 [DEBUG] movie_service:start: Default backdrop set
+2025-08-13 16:07:25,178 [INFO] __main__:startup: Application warm-up complete
+2025-08-13 16:07:25,178 [ERROR] __main__:<module>: Application failed to start: [Errno 48] Address already in use
+2025-08-13 16:08:59,148 [INFO] logging_config:setup_logging: Logging initialized with level: INFO
+2025-08-13 16:08:59,151 [INFO] secrets_manager:validate_all_secrets: secret=[REDACTED] validated: 1ce9************************c52f
+2025-08-13 16:08:59,151 [INFO] secrets_manager:validate_all_secrets: secret=[REDACTED] validated: <SET************ENT>
+2025-08-13 16:08:59,151 [INFO] secrets_manager:validate_all_secrets: All required secrets validated successfully
+2025-08-13 16:08:59,151 - movie_service - DEBUG - Initializing MovieManager
+2025-08-13 16:08:59,151 [DEBUG] movie_service:__init__: Initializing MovieManager
+2025-08-13 16:08:59,162 [ERROR] __main__:<module>: Port 5000 is already in use. Trying alternative port 5001
+2025-08-13 16:08:59,162 [INFO] __main__:<module>: Starting NextReel-Lite on http://127.0.0.1:5001
+2025-08-13 16:08:59,163 [INFO] __main__:startup: Starting application warm-up...
+2025-08-13 16:08:59,163 - movie_service - INFO - Starting MovieManager
+2025-08-13 16:08:59,163 [INFO] movie_service:start: Starting MovieManager
+2025-08-13 16:08:59,163 - settings - INFO - Initializing database pool: 127.0.0.1:3306/imdb
+2025-08-13 16:08:59,163 [INFO] settings:init_pool: Initializing database pool: 127.0.0.1:3306/imdb
+2025-08-13 16:08:59,170 - settings - INFO - Database pool initialized successfully in 0.01s (min=3, max=10)
+2025-08-13 16:08:59,170 [INFO] settings:init_pool: Database pool initialized successfully in 0.01s (min=3, max=10)
+2025-08-13 16:08:59,286 - scripts.tmdb_client - DEBUG - Received response from https://api.themoviedb.org/3/movie/62/images in 0.12 seconds. Status code: 200
+2025-08-13 16:08:59,286 [DEBUG] scripts.tmdb_client:_get: Received response from https://api.themoviedb.org/3/movie/62/images in 0.12 seconds. Status code: 200
+2025-08-13 16:08:59,286 - scripts.tmdb_client - DEBUG - Found 1 poster(s) and 1 backdrop(s) for TMDB ID: 62
+2025-08-13 16:08:59,286 [DEBUG] scripts.tmdb_client:get_images_by_tmdb_id: Found 1 poster(s) and 1 backdrop(s) for TMDB ID: 62
+2025-08-13 16:08:59,286 - scripts.tmdb_client - DEBUG - Completed fetching images for TMDB ID: 62 in 0.12 seconds
+2025-08-13 16:08:59,286 [DEBUG] scripts.tmdb_client:get_images_by_tmdb_id: Completed fetching images for TMDB ID: 62 in 0.12 seconds
+2025-08-13 16:08:59,287 - movie_service - DEBUG - Default backdrop set
+2025-08-13 16:08:59,287 [DEBUG] movie_service:start: Default backdrop set
+2025-08-13 16:08:59,289 [INFO] __main__:startup: Application warm-up complete
+2025-08-13 16:08:59,289 [ERROR] __main__:<module>: Application failed to start: [Errno 48] Address already in use
+2025-08-13 16:10:27,823 [INFO] logging_config:setup_logging: Logging initialized with level: INFO
+2025-08-13 16:10:27,826 [INFO] secrets_manager:validate_all_secrets: secret=[REDACTED] validated: 1ce9************************c52f
+2025-08-13 16:10:27,826 [INFO] secrets_manager:validate_all_secrets: secret=[REDACTED] validated: <SET************ENT>
+2025-08-13 16:10:27,826 [INFO] secrets_manager:validate_all_secrets: All required secrets validated successfully
+2025-08-13 16:10:27,827 - movie_service - DEBUG - Initializing MovieManager
+2025-08-13 16:10:27,827 [DEBUG] movie_service:__init__: Initializing MovieManager
+2025-08-13 16:10:27,838 [ERROR] __main__:<module>: Port 5000 is already in use. Trying alternative port 5001
+2025-08-13 16:10:27,838 [INFO] __main__:<module>: Starting NextReel-Lite on http://127.0.0.1:5001
+2025-08-13 16:10:27,839 [INFO] __main__:startup: Starting application warm-up...
+2025-08-13 16:10:27,839 - movie_service - INFO - Starting MovieManager
+2025-08-13 16:10:27,839 [INFO] movie_service:start: Starting MovieManager
+2025-08-13 16:10:27,840 - settings - INFO - Initializing database pool: 127.0.0.1:3306/imdb
+2025-08-13 16:10:27,840 [INFO] settings:init_pool: Initializing database pool: 127.0.0.1:3306/imdb
+2025-08-13 16:10:27,845 - settings - INFO - Database pool initialized successfully in 0.01s (min=3, max=10)
+2025-08-13 16:10:27,845 [INFO] settings:init_pool: Database pool initialized successfully in 0.01s (min=3, max=10)
+2025-08-13 16:10:27,949 - scripts.tmdb_client - DEBUG - Received response from https://api.themoviedb.org/3/movie/62/images in 0.10 seconds. Status code: 200
+2025-08-13 16:10:27,949 [DEBUG] scripts.tmdb_client:_get: Received response from https://api.themoviedb.org/3/movie/62/images in 0.10 seconds. Status code: 200
+2025-08-13 16:10:27,950 - scripts.tmdb_client - DEBUG - Found 1 poster(s) and 1 backdrop(s) for TMDB ID: 62
+2025-08-13 16:10:27,950 [DEBUG] scripts.tmdb_client:get_images_by_tmdb_id: Found 1 poster(s) and 1 backdrop(s) for TMDB ID: 62
+2025-08-13 16:10:27,950 - scripts.tmdb_client - DEBUG - Completed fetching images for TMDB ID: 62 in 0.10 seconds
+2025-08-13 16:10:27,950 [DEBUG] scripts.tmdb_client:get_images_by_tmdb_id: Completed fetching images for TMDB ID: 62 in 0.10 seconds
+2025-08-13 16:10:27,950 - movie_service - DEBUG - Default backdrop set
+2025-08-13 16:10:27,950 [DEBUG] movie_service:start: Default backdrop set
+2025-08-13 16:10:27,953 [INFO] __main__:startup: Application warm-up complete
+2025-08-13 16:10:27,953 [ERROR] __main__:<module>: Application failed to start: [Errno 48] Address already in use
+2025-08-13 16:10:54,261 [INFO] logging_config:setup_logging: Logging initialized with level: INFO
+2025-08-13 16:10:54,263 [INFO] secrets_manager:validate_all_secrets: secret=[REDACTED] validated: 1ce9************************c52f
+2025-08-13 16:10:54,264 [INFO] secrets_manager:validate_all_secrets: secret=[REDACTED] validated: <SET************ENT>
+2025-08-13 16:10:54,264 [INFO] secrets_manager:validate_all_secrets: All required secrets validated successfully
+2025-08-13 16:10:54,264 - movie_service - DEBUG - Initializing MovieManager
+2025-08-13 16:10:54,264 [DEBUG] movie_service:__init__: Initializing MovieManager
+2025-08-13 16:10:54,276 [ERROR] __main__:<module>: Port 5000 is already in use. Trying alternative port 5001
+2025-08-13 16:10:54,276 [INFO] __main__:<module>: Starting NextReel-Lite on http://127.0.0.1:5001
+2025-08-13 16:10:54,277 [INFO] __main__:startup: Starting application warm-up...
+2025-08-13 16:10:54,277 - movie_service - INFO - Starting MovieManager
+2025-08-13 16:10:54,277 [INFO] movie_service:start: Starting MovieManager
+2025-08-13 16:10:54,277 - settings - INFO - Initializing database pool: 127.0.0.1:3306/imdb
+2025-08-13 16:10:54,277 [INFO] settings:init_pool: Initializing database pool: 127.0.0.1:3306/imdb
+2025-08-13 16:10:54,283 - settings - INFO - Database pool initialized successfully in 0.01s (min=3, max=10)
+2025-08-13 16:10:54,283 [INFO] settings:init_pool: Database pool initialized successfully in 0.01s (min=3, max=10)
+2025-08-13 16:10:54,333 - scripts.tmdb_client - DEBUG - Received response from https://api.themoviedb.org/3/movie/62/images in 0.05 seconds. Status code: 200
+2025-08-13 16:10:54,333 [DEBUG] scripts.tmdb_client:_get: Received response from https://api.themoviedb.org/3/movie/62/images in 0.05 seconds. Status code: 200
+2025-08-13 16:10:54,334 - scripts.tmdb_client - DEBUG - Found 1 poster(s) and 1 backdrop(s) for TMDB ID: 62
+2025-08-13 16:10:54,334 [DEBUG] scripts.tmdb_client:get_images_by_tmdb_id: Found 1 poster(s) and 1 backdrop(s) for TMDB ID: 62
+2025-08-13 16:10:54,334 - scripts.tmdb_client - DEBUG - Completed fetching images for TMDB ID: 62 in 0.05 seconds
+2025-08-13 16:10:54,334 [DEBUG] scripts.tmdb_client:get_images_by_tmdb_id: Completed fetching images for TMDB ID: 62 in 0.05 seconds
+2025-08-13 16:10:54,334 - movie_service - DEBUG - Default backdrop set
+2025-08-13 16:10:54,334 [DEBUG] movie_service:start: Default backdrop set
+2025-08-13 16:10:54,337 [INFO] __main__:startup: Application warm-up complete
+2025-08-13 16:10:54,338 [ERROR] __main__:<module>: Application failed to start: [Errno 48] Address already in use
+2025-08-13 16:11:05,329 [INFO] logging_config:setup_logging: Logging initialized with level: INFO
+2025-08-13 16:11:05,331 [INFO] secrets_manager:validate_all_secrets: secret=[REDACTED] validated: 1ce9************************c52f
+2025-08-13 16:11:05,332 [INFO] secrets_manager:validate_all_secrets: secret=[REDACTED] validated: <SET************ENT>
+2025-08-13 16:11:05,332 [INFO] secrets_manager:validate_all_secrets: All required secrets validated successfully
+2025-08-13 16:11:05,332 - movie_service - DEBUG - Initializing MovieManager
+2025-08-13 16:11:05,332 [DEBUG] movie_service:__init__: Initializing MovieManager
+2025-08-13 16:11:05,343 [ERROR] __main__:<module>: Port 5000 is already in use. Trying alternative port 5001
+2025-08-13 16:11:05,343 [INFO] __main__:<module>: Starting NextReel-Lite on http://127.0.0.1:5001
+2025-08-13 16:11:05,344 [INFO] __main__:startup: Starting application warm-up...
+2025-08-13 16:11:05,344 - movie_service - INFO - Starting MovieManager
+2025-08-13 16:11:05,344 [INFO] movie_service:start: Starting MovieManager
+2025-08-13 16:11:05,344 - settings - INFO - Initializing database pool: 127.0.0.1:3306/imdb
+2025-08-13 16:11:05,344 [INFO] settings:init_pool: Initializing database pool: 127.0.0.1:3306/imdb
+2025-08-13 16:11:05,349 - settings - INFO - Database pool initialized successfully in 0.00s (min=3, max=10)
+2025-08-13 16:11:05,349 [INFO] settings:init_pool: Database pool initialized successfully in 0.00s (min=3, max=10)
+2025-08-13 16:11:05,404 - scripts.tmdb_client - DEBUG - Received response from https://api.themoviedb.org/3/movie/62/images in 0.05 seconds. Status code: 200
+2025-08-13 16:11:05,404 [DEBUG] scripts.tmdb_client:_get: Received response from https://api.themoviedb.org/3/movie/62/images in 0.05 seconds. Status code: 200
+2025-08-13 16:11:05,404 - scripts.tmdb_client - DEBUG - Found 1 poster(s) and 1 backdrop(s) for TMDB ID: 62
+2025-08-13 16:11:05,404 [DEBUG] scripts.tmdb_client:get_images_by_tmdb_id: Found 1 poster(s) and 1 backdrop(s) for TMDB ID: 62
+2025-08-13 16:11:05,404 - scripts.tmdb_client - DEBUG - Completed fetching images for TMDB ID: 62 in 0.06 seconds
+2025-08-13 16:11:05,404 [DEBUG] scripts.tmdb_client:get_images_by_tmdb_id: Completed fetching images for TMDB ID: 62 in 0.06 seconds
+2025-08-13 16:11:05,404 - movie_service - DEBUG - Default backdrop set
+2025-08-13 16:11:05,404 [DEBUG] movie_service:start: Default backdrop set
+2025-08-13 16:11:05,408 [INFO] __main__:startup: Application warm-up complete
+2025-08-13 16:11:05,408 [ERROR] __main__:<module>: Application failed to start: [Errno 48] Address already in use
+2025-08-13 16:17:32,117 [INFO] logging_config:setup_logging: Logging initialized with level: INFO
+2025-08-13 16:17:32,119 [INFO] secrets_manager:validate_all_secrets: secret=[REDACTED] validated: 1ce9************************c52f
+2025-08-13 16:17:32,119 [INFO] secrets_manager:validate_all_secrets: secret=[REDACTED] validated: <SET************ENT>
+2025-08-13 16:17:32,119 [INFO] secrets_manager:validate_all_secrets: All required secrets validated successfully
+2025-08-13 16:17:32,120 - movie_service - DEBUG - Initializing MovieManager
+2025-08-13 16:17:32,120 [DEBUG] movie_service:__init__: Initializing MovieManager
+2025-08-13 16:17:32,131 [INFO] __main__:find_available_port: Found available port: 5000
+2025-08-13 16:17:32,131 [INFO] __main__:<module>: Starting NextReel-Lite on http://127.0.0.1:5000
+2025-08-13 16:17:32,131 [INFO] __main__:startup: Starting application warm-up...
+2025-08-13 16:17:32,131 - movie_service - INFO - Starting MovieManager
+2025-08-13 16:17:32,131 [INFO] movie_service:start: Starting MovieManager
+2025-08-13 16:17:32,132 - settings - INFO - Initializing database pool: 127.0.0.1:3306/imdb
+2025-08-13 16:17:32,132 [INFO] settings:init_pool: Initializing database pool: 127.0.0.1:3306/imdb
+2025-08-13 16:17:32,138 - settings - INFO - Database pool initialized successfully in 0.01s (min=3, max=10)
+2025-08-13 16:17:32,138 [INFO] settings:init_pool: Database pool initialized successfully in 0.01s (min=3, max=10)
+2025-08-13 16:17:32,257 - scripts.tmdb_client - DEBUG - Received response from https://api.themoviedb.org/3/movie/62/images in 0.12 seconds. Status code: 200
+2025-08-13 16:17:32,257 [DEBUG] scripts.tmdb_client:_get: Received response from https://api.themoviedb.org/3/movie/62/images in 0.12 seconds. Status code: 200
+2025-08-13 16:17:32,258 - scripts.tmdb_client - DEBUG - Found 1 poster(s) and 1 backdrop(s) for TMDB ID: 62
+2025-08-13 16:17:32,258 [DEBUG] scripts.tmdb_client:get_images_by_tmdb_id: Found 1 poster(s) and 1 backdrop(s) for TMDB ID: 62
+2025-08-13 16:17:32,258 - scripts.tmdb_client - DEBUG - Completed fetching images for TMDB ID: 62 in 0.12 seconds
+2025-08-13 16:17:32,258 [DEBUG] scripts.tmdb_client:get_images_by_tmdb_id: Completed fetching images for TMDB ID: 62 in 0.12 seconds
+2025-08-13 16:17:32,259 - movie_service - DEBUG - Default backdrop set
+2025-08-13 16:17:32,259 [DEBUG] movie_service:start: Default backdrop set
+2025-08-13 16:17:32,265 [INFO] __main__:startup: Application warm-up complete
+2025-08-13 16:17:32,265 [INFO] hypercorn.error:info: Running on http://127.0.0.1:5000 (CTRL + C to quit)
+2025-08-13 16:17:47,939 [INFO] logging_config:setup_logging: Logging initialized with level: INFO
+2025-08-13 16:17:47,941 [INFO] secrets_manager:validate_all_secrets: secret=[REDACTED] validated: 1ce9************************c52f
+2025-08-13 16:17:47,941 [INFO] secrets_manager:validate_all_secrets: secret=[REDACTED] validated: <SET************ENT>
+2025-08-13 16:17:47,941 [INFO] secrets_manager:validate_all_secrets: All required secrets validated successfully
+2025-08-13 16:17:47,942 - movie_service - DEBUG - Initializing MovieManager
+2025-08-13 16:17:47,942 [DEBUG] movie_service:__init__: Initializing MovieManager
+2025-08-13 16:17:47,955 [INFO] __main__:find_available_port: Found available port: 5003
+2025-08-13 16:17:47,955 [INFO] __main__:<module>: Starting NextReel-Lite on http://127.0.0.1:5003
+2025-08-13 16:17:47,956 [INFO] __main__:startup: Starting application warm-up...
+2025-08-13 16:17:47,956 - movie_service - INFO - Starting MovieManager
+2025-08-13 16:17:47,956 [INFO] movie_service:start: Starting MovieManager
+2025-08-13 16:17:47,957 - settings - INFO - Initializing database pool: 127.0.0.1:3306/imdb
+2025-08-13 16:17:47,957 [INFO] settings:init_pool: Initializing database pool: 127.0.0.1:3306/imdb
+2025-08-13 16:17:47,962 - settings - INFO - Database pool initialized successfully in 0.01s (min=3, max=10)
+2025-08-13 16:17:47,962 [INFO] settings:init_pool: Database pool initialized successfully in 0.01s (min=3, max=10)
+2025-08-13 16:17:48,011 - scripts.tmdb_client - DEBUG - Received response from https://api.themoviedb.org/3/movie/62/images in 0.05 seconds. Status code: 200
+2025-08-13 16:17:48,011 [DEBUG] scripts.tmdb_client:_get: Received response from https://api.themoviedb.org/3/movie/62/images in 0.05 seconds. Status code: 200
+2025-08-13 16:17:48,011 - scripts.tmdb_client - DEBUG - Found 1 poster(s) and 1 backdrop(s) for TMDB ID: 62
+2025-08-13 16:17:48,011 [DEBUG] scripts.tmdb_client:get_images_by_tmdb_id: Found 1 poster(s) and 1 backdrop(s) for TMDB ID: 62
+2025-08-13 16:17:48,011 - scripts.tmdb_client - DEBUG - Completed fetching images for TMDB ID: 62 in 0.05 seconds
+2025-08-13 16:17:48,011 [DEBUG] scripts.tmdb_client:get_images_by_tmdb_id: Completed fetching images for TMDB ID: 62 in 0.05 seconds
+2025-08-13 16:17:48,012 - movie_service - DEBUG - Default backdrop set
+2025-08-13 16:17:48,012 [DEBUG] movie_service:start: Default backdrop set
+2025-08-13 16:17:48,014 [INFO] __main__:startup: Application warm-up complete
+2025-08-13 16:17:48,014 [INFO] hypercorn.error:info: Running on http://127.0.0.1:5003 (CTRL + C to quit)
+2025-08-13 16:18:11,929 [INFO] logging_config:setup_logging: Logging initialized with level: INFO
+2025-08-13 16:18:11,932 [INFO] secrets_manager:validate_all_secrets: secret=[REDACTED] validated: 1ce9************************c52f
+2025-08-13 16:18:11,932 [INFO] secrets_manager:validate_all_secrets: secret=[REDACTED] validated: <SET************ENT>
+2025-08-13 16:18:11,932 [INFO] secrets_manager:validate_all_secrets: All required secrets validated successfully
+2025-08-13 16:18:11,932 - movie_service - DEBUG - Initializing MovieManager
+2025-08-13 16:18:11,932 [DEBUG] movie_service:__init__: Initializing MovieManager
+2025-08-13 16:18:11,944 [INFO] __main__:find_available_port: Found available port: 5002
+2025-08-13 16:18:11,944 [INFO] __main__:<module>: Starting NextReel-Lite on http://127.0.0.1:5002
+2025-08-13 16:18:11,944 [INFO] __main__:startup: Starting application warm-up...
+2025-08-13 16:18:11,944 - movie_service - INFO - Starting MovieManager
+2025-08-13 16:18:11,944 [INFO] movie_service:start: Starting MovieManager
+2025-08-13 16:18:11,945 - settings - INFO - Initializing database pool: 127.0.0.1:3306/imdb
+2025-08-13 16:18:11,945 [INFO] settings:init_pool: Initializing database pool: 127.0.0.1:3306/imdb
+2025-08-13 16:18:11,950 - settings - INFO - Database pool initialized successfully in 0.01s (min=3, max=10)
+2025-08-13 16:18:11,950 [INFO] settings:init_pool: Database pool initialized successfully in 0.01s (min=3, max=10)
+2025-08-13 16:18:11,997 - scripts.tmdb_client - DEBUG - Received response from https://api.themoviedb.org/3/movie/62/images in 0.05 seconds. Status code: 200
+2025-08-13 16:18:11,997 [DEBUG] scripts.tmdb_client:_get: Received response from https://api.themoviedb.org/3/movie/62/images in 0.05 seconds. Status code: 200
+2025-08-13 16:18:11,997 - scripts.tmdb_client - DEBUG - Found 1 poster(s) and 1 backdrop(s) for TMDB ID: 62
+2025-08-13 16:18:11,997 [DEBUG] scripts.tmdb_client:get_images_by_tmdb_id: Found 1 poster(s) and 1 backdrop(s) for TMDB ID: 62
+2025-08-13 16:18:11,997 - scripts.tmdb_client - DEBUG - Completed fetching images for TMDB ID: 62 in 0.05 seconds
+2025-08-13 16:18:11,997 [DEBUG] scripts.tmdb_client:get_images_by_tmdb_id: Completed fetching images for TMDB ID: 62 in 0.05 seconds
+2025-08-13 16:18:11,997 - movie_service - DEBUG - Default backdrop set
+2025-08-13 16:18:11,997 [DEBUG] movie_service:start: Default backdrop set
+2025-08-13 16:18:12,000 [INFO] __main__:startup: Application warm-up complete
+2025-08-13 16:18:12,000 [INFO] hypercorn.error:info: Running on http://127.0.0.1:5002 (CTRL + C to quit)
+2025-08-13 16:18:47,332 [INFO] logging_config:setup_logging: Logging initialized with level: INFO
+2025-08-13 16:18:47,335 [INFO] secrets_manager:validate_all_secrets: secret=[REDACTED] validated: 1ce9************************c52f
+2025-08-13 16:18:47,335 [INFO] secrets_manager:validate_all_secrets: secret=[REDACTED] validated: <SET************ENT>
+2025-08-13 16:18:47,335 [INFO] secrets_manager:validate_all_secrets: All required secrets validated successfully
+2025-08-13 16:18:47,336 - movie_service - DEBUG - Initializing MovieManager
+2025-08-13 16:18:47,336 [DEBUG] movie_service:__init__: Initializing MovieManager
+2025-08-13 16:18:47,350 [INFO] __main__:find_available_port: Found available port: 5000
+2025-08-13 16:18:47,350 [INFO] __main__:<module>: Starting NextReel-Lite on http://127.0.0.1:5000
+2025-08-13 16:18:47,351 [INFO] __main__:startup: Starting application warm-up...
+2025-08-13 16:18:47,351 - movie_service - INFO - Starting MovieManager
+2025-08-13 16:18:47,351 [INFO] movie_service:start: Starting MovieManager
+2025-08-13 16:18:47,351 - settings - INFO - Initializing database pool: 127.0.0.1:3306/imdb
+2025-08-13 16:18:47,351 [INFO] settings:init_pool: Initializing database pool: 127.0.0.1:3306/imdb
+2025-08-13 16:18:47,359 - settings - INFO - Database pool initialized successfully in 0.01s (min=3, max=10)
+2025-08-13 16:18:47,359 [INFO] settings:init_pool: Database pool initialized successfully in 0.01s (min=3, max=10)
+2025-08-13 16:18:47,417 - scripts.tmdb_client - DEBUG - Received response from https://api.themoviedb.org/3/movie/62/images in 0.06 seconds. Status code: 200
+2025-08-13 16:18:47,417 [DEBUG] scripts.tmdb_client:_get: Received response from https://api.themoviedb.org/3/movie/62/images in 0.06 seconds. Status code: 200
+2025-08-13 16:18:47,419 - scripts.tmdb_client - DEBUG - Found 1 poster(s) and 1 backdrop(s) for TMDB ID: 62
+2025-08-13 16:18:47,419 [DEBUG] scripts.tmdb_client:get_images_by_tmdb_id: Found 1 poster(s) and 1 backdrop(s) for TMDB ID: 62
+2025-08-13 16:18:47,420 - scripts.tmdb_client - DEBUG - Completed fetching images for TMDB ID: 62 in 0.06 seconds
+2025-08-13 16:18:47,420 [DEBUG] scripts.tmdb_client:get_images_by_tmdb_id: Completed fetching images for TMDB ID: 62 in 0.06 seconds
+2025-08-13 16:18:47,420 - movie_service - DEBUG - Default backdrop set
+2025-08-13 16:18:47,420 [DEBUG] movie_service:start: Default backdrop set
+2025-08-13 16:18:47,428 [INFO] __main__:startup: Application warm-up complete
+2025-08-13 16:18:47,429 [INFO] hypercorn.error:info: Running on http://127.0.0.1:5000 (CTRL + C to quit)
+2025-08-13 16:18:50,280 [INFO] root:add_correlation_id: New request received. Correlation ID: 364f0ad0-b809-467e-aeb0-4293a2679ff0, Path: /
+2025-08-13 16:18:50,281 [WARNING] app:validate_session: Session fingerprint mismatch. Possible hijacking attempt. Session token=[REDACTED]
+2025-08-13 16:18:50,281 [INFO] app:create_session: New session created: DFnrimQU...
+2025-08-13 16:18:50,282 - movie_service - INFO - Adding new user with ID: 48c3e570-765b-48a4-a1d5-980027363ecc and criteria: {'min_year': 1900, 'max_year': 2023, 'min_rating': 7.0, 'genres': ['Action', 'Comedy']}
+2025-08-13 16:18:50,282 [INFO] movie_service:add_user: Adding new user with ID: 48c3e570-765b-48a4-a1d5-980027363ecc and criteria: {'min_year': 1900, 'max_year': 2023, 'min_rating': 7.0, 'genres': ['Action', 'Comedy']}
+2025-08-13 16:18:50,283 - scripts.filter_backend - INFO - Starting fetch_random_movies with criteria: {'min_year': 1900, 'max_year': 2023, 'min_rating': 7.0, 'genres': ['Action', 'Comedy']} and limit: 5
+2025-08-13 16:18:50,283 [INFO] scripts.filter_backend:fetch_random_movies: Starting fetch_random_movies with criteria: {'min_year': 1900, 'max_year': 2023, 'min_rating': 7.0, 'genres': ['Action', 'Comedy']} and limit: 5
+2025-08-13 16:18:50,283 - scripts.filter_backend - DEBUG - Genre conditions applied: tb.genres LIKE %s OR tb.genres LIKE %s
+2025-08-13 16:18:50,283 [DEBUG] scripts.filter_backend:fetch_random_movies: Genre conditions applied: tb.genres LIKE %s OR tb.genres LIKE %s
+2025-08-13 16:18:50,350 - scripts.filter_backend - DEBUG - Query executed in 0.07 seconds
+2025-08-13 16:18:50,350 [DEBUG] scripts.filter_backend:fetch_random_movies: Query executed in 0.07 seconds
+2025-08-13 16:18:50,351 - scripts.filter_backend - DEBUG - Completed fetch_random_movies in 0.07 seconds
+2025-08-13 16:18:50,351 [DEBUG] scripts.filter_backend:fetch_random_movies: Completed fetch_random_movies in 0.07 seconds
+2025-08-13 16:18:50,402 - scripts.movie - INFO - Slug for tconst tt2488496: film/star-wars-episode-vii-the-force-awakens-2015
+2025-08-13 16:18:50,402 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt2488496: film/star-wars-episode-vii-the-force-awakens-2015
+2025-08-13 16:18:50,402 - scripts.movie - INFO - Completed fetch_movie_slug for tt2488496 in 0.00 seconds.
+2025-08-13 16:18:50,402 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt2488496 in 0.00 seconds.
+2025-08-13 16:18:50,402 - scripts.movie - INFO - Slug for tconst tt1798684: film/southpaw-2015
+2025-08-13 16:18:50,402 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt1798684: film/southpaw-2015
+2025-08-13 16:18:50,402 - scripts.movie - INFO - Completed fetch_movie_slug for tt1798684 in 0.00 seconds.
+2025-08-13 16:18:50,402 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt1798684 in 0.00 seconds.
+2025-08-13 16:18:50,402 - scripts.movie - INFO - Slug for tconst tt3553976: film/captain-fantastic-2016
+2025-08-13 16:18:50,402 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt3553976: film/captain-fantastic-2016
+2025-08-13 16:18:50,402 - scripts.movie - INFO - Completed fetch_movie_slug for tt3553976 in 0.00 seconds.
+2025-08-13 16:18:50,402 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt3553976 in 0.00 seconds.
+2025-08-13 16:18:50,402 - scripts.movie - INFO - Slug for tconst tt0409459: film/watchmen-2009
+2025-08-13 16:18:50,402 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0409459: film/watchmen-2009
+2025-08-13 16:18:50,403 - scripts.movie - INFO - Completed fetch_movie_slug for tt0409459 in 0.00 seconds.
+2025-08-13 16:18:50,403 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0409459 in 0.00 seconds.
+2025-08-13 16:18:50,403 - scripts.movie - INFO - Slug for tconst tt0396269: film/wedding-crashers-2005
+2025-08-13 16:18:50,403 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0396269: film/wedding-crashers-2005
+2025-08-13 16:18:50,403 - scripts.movie - INFO - Completed fetch_movie_slug for tt0396269 in 0.00 seconds.
+2025-08-13 16:18:50,403 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0396269 in 0.00 seconds.
+2025-08-13 16:18:50,471 - scripts.tmdb_client - DEBUG - Received response from https://api.themoviedb.org/3/find/tt2488496 in 0.07 seconds. Status code: 200
+2025-08-13 16:18:50,471 [DEBUG] scripts.tmdb_client:_get: Received response from https://api.themoviedb.org/3/find/tt2488496 in 0.07 seconds. Status code: 200
+2025-08-13 16:18:50,473 - scripts.tmdb_client - DEBUG - Received response from https://api.themoviedb.org/3/find/tt3553976 in 0.07 seconds. Status code: 200
+2025-08-13 16:18:50,473 [DEBUG] scripts.tmdb_client:_get: Received response from https://api.themoviedb.org/3/find/tt3553976 in 0.07 seconds. Status code: 200
+2025-08-13 16:18:50,477 - scripts.tmdb_client - DEBUG - Received response from https://api.themoviedb.org/3/find/tt1798684 in 0.08 seconds. Status code: 200
+2025-08-13 16:18:50,477 [DEBUG] scripts.tmdb_client:_get: Received response from https://api.themoviedb.org/3/find/tt1798684 in 0.08 seconds. Status code: 200
+2025-08-13 16:18:50,478 - scripts.movie - INFO - Ratings data: {'tconst': 'tt2488496', 'averageRating': 7.8, 'numVotes': 952771}
+2025-08-13 16:18:50,478 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt2488496', 'averageRating': 7.8, 'numVotes': 952771}
+2025-08-13 16:18:50,478 - scripts.movie - INFO - Fetched movie ratings in 0.01 seconds
+2025-08-13 16:18:50,478 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 16:18:50,479 - scripts.movie - INFO - Ratings data: {'tconst': 'tt3553976', 'averageRating': 7.8, 'numVotes': 227335}
+2025-08-13 16:18:50,479 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt3553976', 'averageRating': 7.8, 'numVotes': 227335}
+2025-08-13 16:18:50,479 - scripts.movie - INFO - Fetched movie ratings in 0.00 seconds
+2025-08-13 16:18:50,479 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.00 seconds
+2025-08-13 16:18:50,480 - scripts.movie - INFO - Ratings data: {'tconst': 'tt1798684', 'averageRating': 7.3, 'numVotes': 249177}
+2025-08-13 16:18:50,480 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt1798684', 'averageRating': 7.3, 'numVotes': 249177}
+2025-08-13 16:18:50,481 - scripts.movie - INFO - Fetched movie ratings in 0.00 seconds
+2025-08-13 16:18:50,481 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.00 seconds
+2025-08-13 16:18:50,486 - scripts.tmdb_client - DEBUG - Received response from https://api.themoviedb.org/3/movie/140607 in 0.01 seconds. Status code: 200
+2025-08-13 16:18:50,486 [DEBUG] scripts.tmdb_client:_get: Received response from https://api.themoviedb.org/3/movie/140607 in 0.01 seconds. Status code: 200
+2025-08-13 16:18:50,488 - scripts.tmdb_client - DEBUG - Received response from https://api.themoviedb.org/3/movie/334533 in 0.01 seconds. Status code: 200
+2025-08-13 16:18:50,488 [DEBUG] scripts.tmdb_client:_get: Received response from https://api.themoviedb.org/3/movie/334533 in 0.01 seconds. Status code: 200
+2025-08-13 16:18:50,490 - scripts.tmdb_client - DEBUG - Received response from https://api.themoviedb.org/3/movie/307081 in 0.01 seconds. Status code: 200
+2025-08-13 16:18:50,490 [DEBUG] scripts.tmdb_client:_get: Received response from https://api.themoviedb.org/3/movie/307081 in 0.01 seconds. Status code: 200
+2025-08-13 16:18:50,501 - scripts.tmdb_client - DEBUG - Received response from https://api.themoviedb.org/3/find/tt0396269 in 0.10 seconds. Status code: 200
+2025-08-13 16:18:50,501 [DEBUG] scripts.tmdb_client:_get: Received response from https://api.themoviedb.org/3/find/tt0396269 in 0.10 seconds. Status code: 200
+2025-08-13 16:18:50,514 - scripts.movie - INFO - Ratings data: {'tconst': 'tt0396269', 'averageRating': 7.0, 'numVotes': 366898}
+2025-08-13 16:18:50,514 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0396269', 'averageRating': 7.0, 'numVotes': 366898}
+2025-08-13 16:18:50,514 - scripts.movie - INFO - Fetched movie ratings in 0.01 seconds
+2025-08-13 16:18:50,514 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 16:18:50,521 - scripts.tmdb_client - DEBUG - Received response from https://api.themoviedb.org/3/movie/9522 in 0.02 seconds. Status code: 200
+2025-08-13 16:18:50,521 [DEBUG] scripts.tmdb_client:_get: Received response from https://api.themoviedb.org/3/movie/9522 in 0.02 seconds. Status code: 200
+2025-08-13 16:18:50,521 - scripts.tmdb_client - DEBUG - Received response from https://api.themoviedb.org/3/find/tt0409459 in 0.12 seconds. Status code: 200
+2025-08-13 16:18:50,521 [DEBUG] scripts.tmdb_client:_get: Received response from https://api.themoviedb.org/3/find/tt0409459 in 0.12 seconds. Status code: 200
+2025-08-13 16:18:50,523 - scripts.tmdb_client - DEBUG - Received response from https://api.themoviedb.org/3/movie/140607/videos in 0.05 seconds. Status code: 200
+2025-08-13 16:18:50,523 [DEBUG] scripts.tmdb_client:_get: Received response from https://api.themoviedb.org/3/movie/140607/videos in 0.05 seconds. Status code: 200
+2025-08-13 16:18:50,529 - scripts.movie - INFO - Ratings data: {'tconst': 'tt0409459', 'averageRating': 7.6, 'numVotes': 566786}
+2025-08-13 16:18:50,529 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0409459', 'averageRating': 7.6, 'numVotes': 566786}
+2025-08-13 16:18:50,529 - scripts.movie - INFO - Fetched movie ratings in 0.01 seconds
+2025-08-13 16:18:50,529 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 16:18:50,531 - scripts.tmdb_client - DEBUG - Received response from https://api.themoviedb.org/3/movie/140607/credits in 0.06 seconds. Status code: 200
+2025-08-13 16:18:50,531 [DEBUG] scripts.tmdb_client:_get: Received response from https://api.themoviedb.org/3/movie/140607/credits in 0.06 seconds. Status code: 200
+2025-08-13 16:18:50,532 - scripts.tmdb_client - DEBUG - Successfully fetched and processed cast information for TMDB ID: 140607 in 0.06 seconds
+2025-08-13 16:18:50,532 [DEBUG] scripts.tmdb_client:get_cast_info_by_tmdb_id: Successfully fetched and processed cast information for TMDB ID: 140607 in 0.06 seconds
+2025-08-13 16:18:50,537 - scripts.tmdb_client - DEBUG - Received response from https://api.themoviedb.org/3/movie/334533/images in 0.06 seconds. Status code: 200
+2025-08-13 16:18:50,537 [DEBUG] scripts.tmdb_client:_get: Received response from https://api.themoviedb.org/3/movie/334533/images in 0.06 seconds. Status code: 200
+2025-08-13 16:18:50,537 - scripts.tmdb_client - DEBUG - Found 1 poster(s) and 1 backdrop(s) for TMDB ID: 334533
+2025-08-13 16:18:50,537 [DEBUG] scripts.tmdb_client:get_images_by_tmdb_id: Found 1 poster(s) and 1 backdrop(s) for TMDB ID: 334533
+2025-08-13 16:18:50,538 - scripts.tmdb_client - DEBUG - Completed fetching images for TMDB ID: 334533 in 0.06 seconds
+2025-08-13 16:18:50,538 [DEBUG] scripts.tmdb_client:get_images_by_tmdb_id: Completed fetching images for TMDB ID: 334533 in 0.06 seconds
+2025-08-13 16:18:50,538 - scripts.tmdb_client - DEBUG - Received response from https://api.themoviedb.org/3/movie/140607/images in 0.07 seconds. Status code: 200
+2025-08-13 16:18:50,538 [DEBUG] scripts.tmdb_client:_get: Received response from https://api.themoviedb.org/3/movie/140607/images in 0.07 seconds. Status code: 200
+2025-08-13 16:18:50,538 - scripts.tmdb_client - DEBUG - Found 1 poster(s) and 1 backdrop(s) for TMDB ID: 140607
+2025-08-13 16:18:50,538 [DEBUG] scripts.tmdb_client:get_images_by_tmdb_id: Found 1 poster(s) and 1 backdrop(s) for TMDB ID: 140607
+2025-08-13 16:18:50,538 - scripts.tmdb_client - DEBUG - Completed fetching images for TMDB ID: 140607 in 0.07 seconds
+2025-08-13 16:18:50,538 [DEBUG] scripts.tmdb_client:get_images_by_tmdb_id: Completed fetching images for TMDB ID: 140607 in 0.07 seconds
+2025-08-13 16:18:50,539 - scripts.tmdb_client - DEBUG - Received response from https://api.themoviedb.org/3/movie/140607/credits in 0.07 seconds. Status code: 200
+2025-08-13 16:18:50,539 [DEBUG] scripts.tmdb_client:_get: Received response from https://api.themoviedb.org/3/movie/140607/credits in 0.07 seconds. Status code: 200
+2025-08-13 16:18:50,540 - scripts.movie - INFO - Completed get_movie_data for tt2488496 in 0.17 seconds (parallel)
+2025-08-13 16:18:50,540 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt2488496 in 0.17 seconds (parallel)
+2025-08-13 16:18:50,555 - scripts.tmdb_client - DEBUG - Received response from https://api.themoviedb.org/3/movie/9522/credits in 0.05 seconds. Status code: 200
+2025-08-13 16:18:50,555 [DEBUG] scripts.tmdb_client:_get: Received response from https://api.themoviedb.org/3/movie/9522/credits in 0.05 seconds. Status code: 200
+2025-08-13 16:18:50,563 - scripts.tmdb_client - DEBUG - Received response from https://api.themoviedb.org/3/movie/9522/credits in 0.06 seconds. Status code: 200
+2025-08-13 16:18:50,563 [DEBUG] scripts.tmdb_client:_get: Received response from https://api.themoviedb.org/3/movie/9522/credits in 0.06 seconds. Status code: 200
+2025-08-13 16:18:50,564 - scripts.tmdb_client - DEBUG - Successfully fetched and processed cast information for TMDB ID: 9522 in 0.06 seconds
+2025-08-13 16:18:50,564 [DEBUG] scripts.tmdb_client:get_cast_info_by_tmdb_id: Successfully fetched and processed cast information for TMDB ID: 9522 in 0.06 seconds
+2025-08-13 16:18:50,564 - scripts.tmdb_client - DEBUG - Received response from https://api.themoviedb.org/3/movie/334533/credits in 0.09 seconds. Status code: 200
+2025-08-13 16:18:50,564 [DEBUG] scripts.tmdb_client:_get: Received response from https://api.themoviedb.org/3/movie/334533/credits in 0.09 seconds. Status code: 200
+2025-08-13 16:18:50,564 - scripts.tmdb_client - DEBUG - Successfully fetched and processed cast information for TMDB ID: 334533 in 0.09 seconds
+2025-08-13 16:18:50,564 [DEBUG] scripts.tmdb_client:get_cast_info_by_tmdb_id: Successfully fetched and processed cast information for TMDB ID: 334533 in 0.09 seconds
+2025-08-13 16:18:50,565 - scripts.tmdb_client - DEBUG - Received response from https://api.themoviedb.org/3/movie/9522/images in 0.06 seconds. Status code: 200
+2025-08-13 16:18:50,565 [DEBUG] scripts.tmdb_client:_get: Received response from https://api.themoviedb.org/3/movie/9522/images in 0.06 seconds. Status code: 200
+2025-08-13 16:18:50,565 - scripts.tmdb_client - DEBUG - Found 1 poster(s) and 1 backdrop(s) for TMDB ID: 9522
+2025-08-13 16:18:50,565 [DEBUG] scripts.tmdb_client:get_images_by_tmdb_id: Found 1 poster(s) and 1 backdrop(s) for TMDB ID: 9522
+2025-08-13 16:18:50,565 - scripts.tmdb_client - DEBUG - Completed fetching images for TMDB ID: 9522 in 0.06 seconds
+2025-08-13 16:18:50,565 [DEBUG] scripts.tmdb_client:get_images_by_tmdb_id: Completed fetching images for TMDB ID: 9522 in 0.06 seconds
+2025-08-13 16:18:50,565 - scripts.tmdb_client - DEBUG - Received response from https://api.themoviedb.org/3/movie/334533/credits in 0.09 seconds. Status code: 200
+2025-08-13 16:18:50,565 [DEBUG] scripts.tmdb_client:_get: Received response from https://api.themoviedb.org/3/movie/334533/credits in 0.09 seconds. Status code: 200
+2025-08-13 16:18:50,590 - scripts.tmdb_client - DEBUG - Received response from https://api.themoviedb.org/3/movie/307081/credits in 0.11 seconds. Status code: 200
+2025-08-13 16:18:50,590 [DEBUG] scripts.tmdb_client:_get: Received response from https://api.themoviedb.org/3/movie/307081/credits in 0.11 seconds. Status code: 200
+2025-08-13 16:18:50,591 - scripts.tmdb_client - DEBUG - Received response from https://api.themoviedb.org/3/movie/307081/credits in 0.11 seconds. Status code: 200
+2025-08-13 16:18:50,591 [DEBUG] scripts.tmdb_client:_get: Received response from https://api.themoviedb.org/3/movie/307081/credits in 0.11 seconds. Status code: 200
+2025-08-13 16:18:50,591 - scripts.tmdb_client - DEBUG - Successfully fetched and processed cast information for TMDB ID: 307081 in 0.11 seconds
+2025-08-13 16:18:50,591 [DEBUG] scripts.tmdb_client:get_cast_info_by_tmdb_id: Successfully fetched and processed cast information for TMDB ID: 307081 in 0.11 seconds
+2025-08-13 16:18:50,591 - scripts.tmdb_client - DEBUG - Received response from https://api.themoviedb.org/3/movie/13183 in 0.07 seconds. Status code: 200
+2025-08-13 16:18:50,591 [DEBUG] scripts.tmdb_client:_get: Received response from https://api.themoviedb.org/3/movie/13183 in 0.07 seconds. Status code: 200
+2025-08-13 16:18:50,592 - scripts.tmdb_client - DEBUG - Received response from https://api.themoviedb.org/3/movie/9522/videos in 0.09 seconds. Status code: 200
+2025-08-13 16:18:50,592 [DEBUG] scripts.tmdb_client:_get: Received response from https://api.themoviedb.org/3/movie/9522/videos in 0.09 seconds. Status code: 200
+2025-08-13 16:18:50,592 - scripts.movie - INFO - Completed get_movie_data for tt0396269 in 0.19 seconds (parallel)
+2025-08-13 16:18:50,592 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0396269 in 0.19 seconds (parallel)
+2025-08-13 16:18:50,595 - scripts.tmdb_client - DEBUG - Received response from https://api.themoviedb.org/3/movie/334533/videos in 0.12 seconds. Status code: 200
+2025-08-13 16:18:50,595 [DEBUG] scripts.tmdb_client:_get: Received response from https://api.themoviedb.org/3/movie/334533/videos in 0.12 seconds. Status code: 200
+2025-08-13 16:18:50,595 - scripts.movie - INFO - Completed get_movie_data for tt3553976 in 0.21 seconds (parallel)
+2025-08-13 16:18:50,595 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt3553976 in 0.21 seconds (parallel)
+2025-08-13 16:18:50,664 - scripts.tmdb_client - DEBUG - Received response from https://api.themoviedb.org/3/movie/307081/videos in 0.19 seconds. Status code: 200
+2025-08-13 16:18:50,664 [DEBUG] scripts.tmdb_client:_get: Received response from https://api.themoviedb.org/3/movie/307081/videos in 0.19 seconds. Status code: 200
+2025-08-13 16:18:50,666 - scripts.tmdb_client - DEBUG - Received response from https://api.themoviedb.org/3/movie/307081/images in 0.19 seconds. Status code: 200
+2025-08-13 16:18:50,666 [DEBUG] scripts.tmdb_client:_get: Received response from https://api.themoviedb.org/3/movie/307081/images in 0.19 seconds. Status code: 200
+2025-08-13 16:18:50,666 - scripts.tmdb_client - DEBUG - Found 1 poster(s) and 1 backdrop(s) for TMDB ID: 307081
+2025-08-13 16:18:50,666 [DEBUG] scripts.tmdb_client:get_images_by_tmdb_id: Found 1 poster(s) and 1 backdrop(s) for TMDB ID: 307081
+2025-08-13 16:18:50,666 - scripts.tmdb_client - DEBUG - Completed fetching images for TMDB ID: 307081 in 0.19 seconds
+2025-08-13 16:18:50,666 [DEBUG] scripts.tmdb_client:get_images_by_tmdb_id: Completed fetching images for TMDB ID: 307081 in 0.19 seconds
+2025-08-13 16:18:50,667 - scripts.tmdb_client - DEBUG - Received response from https://api.themoviedb.org/3/movie/13183/credits in 0.14 seconds. Status code: 200
+2025-08-13 16:18:50,667 [DEBUG] scripts.tmdb_client:_get: Received response from https://api.themoviedb.org/3/movie/13183/credits in 0.14 seconds. Status code: 200
+2025-08-13 16:18:50,668 - scripts.tmdb_client - DEBUG - Successfully fetched and processed cast information for TMDB ID: 13183 in 0.15 seconds
+2025-08-13 16:18:50,668 [DEBUG] scripts.tmdb_client:get_cast_info_by_tmdb_id: Successfully fetched and processed cast information for TMDB ID: 13183 in 0.15 seconds
+2025-08-13 16:18:50,668 - scripts.movie - INFO - Completed get_movie_data for tt1798684 in 0.31 seconds (parallel)
+2025-08-13 16:18:50,668 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt1798684 in 0.31 seconds (parallel)
+2025-08-13 16:18:50,669 - scripts.tmdb_client - DEBUG - Received response from https://api.themoviedb.org/3/movie/13183/credits in 0.15 seconds. Status code: 200
+2025-08-13 16:18:50,669 [DEBUG] scripts.tmdb_client:_get: Received response from https://api.themoviedb.org/3/movie/13183/credits in 0.15 seconds. Status code: 200
+2025-08-13 16:18:50,914 - scripts.tmdb_client - DEBUG - Received response from https://api.themoviedb.org/3/movie/13183/videos in 0.39 seconds. Status code: 200
+2025-08-13 16:18:50,914 [DEBUG] scripts.tmdb_client:_get: Received response from https://api.themoviedb.org/3/movie/13183/videos in 0.39 seconds. Status code: 200
+2025-08-13 16:18:50,914 - scripts.tmdb_client - DEBUG - Received response from https://api.themoviedb.org/3/movie/13183/images in 0.39 seconds. Status code: 200
+2025-08-13 16:18:50,914 [DEBUG] scripts.tmdb_client:_get: Received response from https://api.themoviedb.org/3/movie/13183/images in 0.39 seconds. Status code: 200
+2025-08-13 16:18:50,915 - scripts.tmdb_client - DEBUG - Found 1 poster(s) and 1 backdrop(s) for TMDB ID: 13183
+2025-08-13 16:18:50,915 [DEBUG] scripts.tmdb_client:get_images_by_tmdb_id: Found 1 poster(s) and 1 backdrop(s) for TMDB ID: 13183
+2025-08-13 16:18:50,916 - scripts.tmdb_client - DEBUG - Completed fetching images for TMDB ID: 13183 in 0.39 seconds
+2025-08-13 16:18:50,916 [DEBUG] scripts.tmdb_client:get_images_by_tmdb_id: Completed fetching images for TMDB ID: 13183 in 0.39 seconds
+2025-08-13 16:18:50,916 - scripts.movie - INFO - Completed get_movie_data for tt0409459 in 0.54 seconds (parallel)
+2025-08-13 16:18:50,916 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0409459 in 0.54 seconds (parallel)
+2025-08-13 16:18:50,918 - movie_service - DEBUG - Accessing home
+2025-08-13 16:18:50,918 [DEBUG] movie_service:home: Accessing home
