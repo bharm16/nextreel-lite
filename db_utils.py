@@ -81,35 +81,55 @@ class DatabaseQueryExecutor:
         self.db_pool = db_pool
 
     async def execute_async_query(self, query, params=None, fetch='one'):
-        start_time = time.time()  # Start timing before acquiring connection
-        conn = await self.db_pool.get_async_connection()
-        if not conn:
-            logger.error("Failed to acquire a database connection.")
+        """Execute query using optimized connection pool with context managers"""
+        try:
+            # Use the new execute method which handles connections automatically
+            return await self.db_pool.execute(query, params, fetch)
+        except Exception as e:
+            logger.error(f"An error occurred while executing the query: {e}")
             return None
 
+    async def execute_async_query_legacy(self, query, params=None, fetch='one'):
+        """Legacy method using manual connection management"""
+        start_time = time.time()  # Start timing before acquiring connection
+        
         try:
-            async with conn.cursor() as cursor:
-                await cursor.execute(query, params)
-                if fetch == 'one':
-                    result = await cursor.fetchone()
-                elif fetch == 'all':
-                    result = await cursor.fetchall()
-                elif fetch == 'none':
-                    await conn.commit()
-                    result = None
-                else:
-                    raise ValueError(f"Invalid fetch parameter: {fetch}")
-                return result
+            async with self.db_pool.acquire() as conn:
+                async with conn.cursor() as cursor:
+                    await cursor.execute(query, params)
+                    if fetch == 'one':
+                        result = await cursor.fetchone()
+                    elif fetch == 'all':
+                        result = await cursor.fetchall()
+                    elif fetch == 'none':
+                        await conn.commit()
+                        result = None
+                    else:
+                        raise ValueError(f"Invalid fetch parameter: {fetch}")
+                    return result
         except Exception as e:
             logger.error(f"An error occurred while executing the query: {e}")
             return None
         finally:
-            await self.db_pool.release_async_connection(conn)
             end_time = time.time()  # End timing after releasing connection
             logger.debug(
                 "Query and connection handling executed in %.2f seconds",
                 end_time - start_time,
             )
+
+    async def execute_transaction(self, query_params_list):
+        """Execute multiple queries in a transaction"""
+        try:
+            async with self.db_pool.transaction() as conn:
+                results = []
+                async with conn.cursor() as cursor:
+                    for query, params in query_params_list:
+                        await cursor.execute(query, params)
+                        results.append(cursor.rowcount)
+                return results
+        except Exception as e:
+            logger.error(f"Transaction failed: {e}")
+            raise
 
 
 async def init_pool():

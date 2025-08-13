@@ -142,6 +142,53 @@ def create_app():
             samesite='Lax'
         )
         return response
+    
+    @app.route('/health')
+    async def health_check():
+        """Health check endpoint for load balancers"""
+        return {'status': 'healthy'}, 200
+    
+    @app.route('/ready')
+    async def readiness_check():
+        """Readiness check with database connectivity"""
+        try:
+            # Check database pool health
+            metrics = await movie_manager.db_pool.get_metrics()
+            
+            # Consider unhealthy if circuit breaker is open or too many failures
+            if metrics['circuit_breaker_state'] == 'open':
+                return {'status': 'not_ready', 'reason': 'database_circuit_breaker_open'}, 503
+            
+            if metrics['queries_failed'] > 0 and metrics['queries_executed'] > 0:
+                failure_rate = metrics['queries_failed'] / metrics['queries_executed']
+                if failure_rate > 0.5:  # More than 50% failure rate
+                    return {'status': 'not_ready', 'reason': 'high_db_failure_rate'}, 503
+            
+            return {
+                'status': 'ready',
+                'database': {
+                    'pool_size': metrics['pool_size'],
+                    'free_connections': metrics['free_connections'],
+                    'circuit_breaker_state': metrics['circuit_breaker_state'],
+                    'queries_executed': metrics['queries_executed'],
+                    'avg_query_time_ms': metrics['avg_query_time_ms']
+                }
+            }, 200
+            
+        except Exception as e:
+            return {'status': 'not_ready', 'reason': str(e)}, 503
+    
+    @app.route('/metrics')
+    async def metrics_endpoint():
+        """Detailed metrics endpoint for monitoring"""
+        try:
+            db_metrics = await movie_manager.db_pool.get_metrics()
+            return {
+                'database': db_metrics,
+                'timestamp': time.time()
+            }, 200
+        except Exception as e:
+            return {'error': str(e)}, 500
     @app.route('/movie/<tconst>')
     async def movie_detail(tconst):
         # Extract user_id from the session

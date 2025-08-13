@@ -1732,3 +1732,15 @@ TypeError: cannot use a string pattern on a bytes-like object
 2025-08-13 11:51:47,811 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0302886 in 0.00 seconds.
 2025-08-13 11:51:47,840 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0302886', 'averageRating': 7.0, 'numVotes': 238459}
 2025-08-13 11:51:47,840 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.00 seconds
+2025-08-13 12:08:43,173 [INFO] logging_config:setup_logging: Logging initialized with level: INFO
+2025-08-13 12:08:43,176 [INFO] secrets_manager:validate_all_secrets: Secret 'TMDB_API_KEY' validated: 1ce9************************c52f
+2025-08-13 12:08:43,179 [INFO] secrets_manager:validate_all_secrets: Secret 'FLASK_SECRET_KEY' validated: <SET************ENT>
+2025-08-13 12:08:43,179 [INFO] secrets_manager:validate_all_secrets: All required secrets validated successfully
+2025-08-13 12:08:43,196 [INFO] movie_service:start: Starting MovieManager
+2025-08-13 12:20:18,619 [INFO] logging_config:setup_logging: Logging initialized with level: INFO
+2025-08-13 12:20:18,622 [INFO] secrets_manager:validate_all_secrets: Secret 'TMDB_API_KEY' validated: 1ce9************************c52f
+2025-08-13 12:20:18,622 [INFO] secrets_manager:validate_all_secrets: Secret 'FLASK_SECRET_KEY' validated: <SET************ENT>
+2025-08-13 12:20:18,622 [INFO] secrets_manager:validate_all_secrets: All required secrets validated successfully
+2025-08-13 12:20:18,639 [INFO] movie_service:start: Starting MovieManager
+2025-08-13 12:20:18,639 [INFO] settings:init_pool: Initializing database pool: 127.0.0.1:3306/imdb
+2025-08-13 12:20:18,646 [INFO] settings:init_pool: Database pool initialized successfully in 0.01s (min=3, max=10)
