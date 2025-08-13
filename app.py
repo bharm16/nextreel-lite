@@ -4,6 +4,8 @@ import signal
 import sys
 import time
 import uuid
+import socket
+from contextlib import asynccontextmanager
 
 from redis import asyncio as aioredis
 from quart import Quart, request, redirect, url_for, session, render_template, g
@@ -123,6 +125,37 @@ def create_app():
 
     # Set up Redis for session management using aioredis
 
+    @asynccontextmanager
+    async def lifespan(app: Quart):
+        """Manage app lifecycle - startup and shutdown"""
+        # Startup
+        logger.info("Starting application lifecycle")
+        
+        # Initialize database pool and other resources
+        try:
+            await movie_manager.start()
+            logger.info("MovieManager started successfully")
+        except Exception as e:
+            logger.error(f"Failed to start MovieManager: {e}")
+            raise
+        
+        yield
+        
+        # Shutdown - Clean up resources
+        logger.info("Shutting down application lifecycle")
+        try:
+            # Close MovieManager and database pool properly
+            if hasattr(movie_manager, 'close'):
+                await movie_manager.close()
+            elif hasattr(movie_manager, 'db_pool') and movie_manager.db_pool:
+                await movie_manager.db_pool.close_pool()
+                logger.info("Database pool closed successfully")
+        except Exception as e:
+            logger.error(f"Error during shutdown: {e}")
+    
+    # Apply lifespan to the app
+    app.lifespan = lifespan
+    
     @app.before_serving
     async def startup():
         await movie_manager.start()
@@ -361,7 +394,37 @@ def signal_handler(signum, frame):
     sys.exit(0)
 
 if __name__ == "__main__":
+    import os
+    
+    # Get port from environment or use default
+    port = int(os.environ.get('PORT', 5000))
+    
+    # Setup graceful shutdown handlers
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
-    app.run()
+    
+    # Check if port is available before starting
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        sock.bind(('127.0.0.1', port))
+        sock.close()
+        logger.info(f"Port {port} is available")
+    except OSError:
+        logger.error(f"Port {port} is already in use. Trying alternative port {port + 1}")
+        port = port + 1
+    
+    # Run with proper configuration
+    try:
+        logger.info(f"Starting NextReel-Lite on http://127.0.0.1:{port}")
+        app.run(
+            host='127.0.0.1',
+            port=port,
+            debug=False,
+            use_reloader=False  # Disable reloader to prevent double initialization
+        )
+    except KeyboardInterrupt:
+        logger.info("Application interrupted by user")
+    except Exception as e:
+        logger.error(f"Application failed to start: {e}")
+        sys.exit(1)
 

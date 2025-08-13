@@ -1744,3 +1744,691 @@ TypeError: cannot use a string pattern on a bytes-like object
 2025-08-13 12:20:18,639 [INFO] movie_service:start: Starting MovieManager
 2025-08-13 12:20:18,639 [INFO] settings:init_pool: Initializing database pool: 127.0.0.1:3306/imdb
 2025-08-13 12:20:18,646 [INFO] settings:init_pool: Database pool initialized successfully in 0.01s (min=3, max=10)
+2025-08-13 12:29:07,849 [INFO] logging_config:setup_logging: Logging initialized with level: INFO
+2025-08-13 12:29:07,851 [INFO] secrets_manager:validate_all_secrets: Secret 'TMDB_API_KEY' validated: 1ce9************************c52f
+2025-08-13 12:29:07,851 [INFO] secrets_manager:validate_all_secrets: Secret 'FLASK_SECRET_KEY' validated: <SET************ENT>
+2025-08-13 12:29:07,851 [INFO] secrets_manager:validate_all_secrets: All required secrets validated successfully
+2025-08-13 12:29:07,854 [ERROR] __main__:<module>: Port 5000 is already in use. Trying alternative port 5001
+2025-08-13 12:29:07,854 [INFO] __main__:<module>: Starting NextReel-Lite on http://127.0.0.1:5001
+2025-08-13 12:29:07,856 [INFO] movie_service:start: Starting MovieManager
+2025-08-13 12:29:07,856 [INFO] settings:init_pool: Initializing database pool: 127.0.0.1:3306/imdb
+2025-08-13 12:29:07,874 [INFO] settings:init_pool: Database pool initialized successfully in 0.02s (min=3, max=10)
+2025-08-13 12:29:07,995 [INFO] hypercorn.error:info: Running on http://127.0.0.1:5001 (CTRL + C to quit)
+2025-08-13 12:29:19,259 [INFO] root:add_correlation_id: New request received. Correlation ID: 076c9cdd-b1ec-43b5-ae8d-5b7ad311b97a, Path: /
+2025-08-13 12:29:19,260 [INFO] app:create_session: New session created: z9l4u1TD...
+2025-08-13 12:29:19,260 [INFO] movie_service:add_user: Adding new user with ID: ada10acb-bfff-46ed-9876-132723b069d5 and criteria: {'min_year': 1900, 'max_year': 2023, 'min_rating': 7.0, 'genres': ['Action', 'Comedy']}
+2025-08-13 12:29:19,260 [INFO] scripts.filter_backend:fetch_random_movies: Starting fetch_random_movies with criteria: {'min_year': 1900, 'max_year': 2023, 'min_rating': 7.0, 'genres': ['Action', 'Comedy']} and limit: 20
+2025-08-13 12:29:19,379 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0163651: film/american-pie-1999
+2025-08-13 12:29:19,379 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0163651 in 0.00 seconds.
+2025-08-13 12:29:19,408 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0163651', 'averageRating': 7.0, 'numVotes': 420876}
+2025-08-13 12:29:19,409 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:29:19,459 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0163651 in 0.13 seconds.
+2025-08-13 12:29:19,552 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0098635: film/when-harry-met-sally-1989
+2025-08-13 12:29:19,552 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0098635 in 0.00 seconds.
+2025-08-13 12:29:19,585 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0098635', 'averageRating': 7.7, 'numVotes': 230378}
+2025-08-13 12:29:19,585 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:29:19,739 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0098635 in 0.27 seconds.
+2025-08-13 12:29:19,820 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0302886: film/old-school-2003
+2025-08-13 12:29:19,820 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0302886 in 0.00 seconds.
+2025-08-13 12:29:19,849 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0302886', 'averageRating': 7.0, 'numVotes': 238459}
+2025-08-13 12:29:19,849 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.00 seconds
+2025-08-13 12:29:19,927 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0302886 in 0.18 seconds.
+2025-08-13 12:29:20,019 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0125664: film/man-on-the-moon-1999
+2025-08-13 12:29:20,019 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0125664 in 0.00 seconds.
+2025-08-13 12:29:20,049 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0125664', 'averageRating': 7.4, 'numVotes': 134588}
+2025-08-13 12:29:20,049 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:29:20,207 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0125664 in 0.27 seconds.
+2025-08-13 12:29:20,302 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt12801262: film/luca-2021
+2025-08-13 12:29:20,303 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt12801262 in 0.00 seconds.
+2025-08-13 12:29:20,336 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt12801262', 'averageRating': 7.4, 'numVotes': 178011}
+2025-08-13 12:29:20,336 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:29:20,571 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt12801262 in 0.36 seconds.
+2025-08-13 12:29:20,682 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt6266538: film/vice-2018
+2025-08-13 12:29:20,682 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt6266538 in 0.00 seconds.
+2025-08-13 12:29:20,711 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt6266538', 'averageRating': 7.2, 'numVotes': 155425}
+2025-08-13 12:29:20,712 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:29:20,937 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt6266538 in 0.36 seconds.
+2025-08-13 12:29:21,032 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt6343314: film/creed-ii-2018
+2025-08-13 12:29:21,032 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt6343314 in 0.00 seconds.
+2025-08-13 12:29:21,062 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt6343314', 'averageRating': 7.1, 'numVotes': 148396}
+2025-08-13 12:29:21,062 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:29:21,216 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt6343314 in 0.27 seconds.
+2025-08-13 12:29:21,316 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0455944: film/the-equalizer-2014
+2025-08-13 12:29:21,316 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0455944 in 0.00 seconds.
+2025-08-13 12:29:21,353 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0455944', 'averageRating': 7.2, 'numVotes': 388309}
+2025-08-13 12:29:21,355 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:29:21,511 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0455944 in 0.29 seconds.
+2025-08-13 12:29:21,610 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0089218: film/the-goonies-1985
+2025-08-13 12:29:21,611 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0089218 in 0.00 seconds.
+2025-08-13 12:29:21,642 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0089218', 'averageRating': 7.7, 'numVotes': 287626}
+2025-08-13 12:29:21,642 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:29:21,799 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0089218 in 0.28 seconds.
+2025-08-13 12:29:21,892 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt2382320: film/no-time-to-die-2021
+2025-08-13 12:29:21,892 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt2382320 in 0.00 seconds.
+2025-08-13 12:29:21,921 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt2382320', 'averageRating': 7.3, 'numVotes': 425074}
+2025-08-13 12:29:21,921 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:29:22,144 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt2382320 in 0.34 seconds.
+2025-08-13 12:29:22,221 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0822854: film/shooter-2007
+2025-08-13 12:29:22,221 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0822854 in 0.00 seconds.
+2025-08-13 12:29:22,251 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0822854', 'averageRating': 7.1, 'numVotes': 345767}
+2025-08-13 12:29:22,251 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:29:22,361 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0822854 in 0.21 seconds.
+2025-08-13 12:29:22,460 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0088247: film/the-terminator-1984
+2025-08-13 12:29:22,460 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0088247 in 0.00 seconds.
+2025-08-13 12:29:22,493 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0088247', 'averageRating': 8.1, 'numVotes': 894316}
+2025-08-13 12:29:22,493 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:29:22,648 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0088247 in 0.28 seconds.
+2025-08-13 12:29:22,732 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0258463: film/the-bourne-identity-2002
+2025-08-13 12:29:22,732 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0258463 in 0.00 seconds.
+2025-08-13 12:29:22,765 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0258463', 'averageRating': 7.9, 'numVotes': 562310}
+2025-08-13 12:29:22,765 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.00 seconds
+2025-08-13 12:29:22,854 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0258463 in 0.20 seconds.
+2025-08-13 12:29:22,950 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0942385: film/tropic-thunder-2008
+2025-08-13 12:29:22,950 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0942385 in 0.00 seconds.
+2025-08-13 12:29:22,982 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0942385', 'averageRating': 7.1, 'numVotes': 433036}
+2025-08-13 12:29:22,982 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:29:23,217 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0942385 in 0.36 seconds.
+2025-08-13 12:29:23,317 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0481499: film/the-croods-2013
+2025-08-13 12:29:23,317 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0481499 in 0.00 seconds.
+2025-08-13 12:29:23,353 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0481499', 'averageRating': 7.2, 'numVotes': 224610}
+2025-08-13 12:29:23,354 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:29:23,396 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0481499 in 0.17 seconds.
+2025-08-13 12:29:23,491 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt1160419: film/dune-2021
+2025-08-13 12:29:23,491 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt1160419 in 0.00 seconds.
+2025-08-13 12:29:23,522 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt1160419', 'averageRating': 8.0, 'numVotes': 700766}
+2025-08-13 12:29:23,522 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:29:23,678 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt1160419 in 0.28 seconds.
+2025-08-13 12:29:23,734 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt4572514: film/patriots-day-2016
+2025-08-13 12:29:23,734 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt4572514 in 0.00 seconds.
+2025-08-13 12:29:23,769 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt4572514', 'averageRating': 7.3, 'numVotes': 108775}
+2025-08-13 12:29:23,769 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:29:23,818 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt4572514 in 0.13 seconds.
+2025-08-13 12:29:23,951 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0085334: film/a-christmas-story-1983
+2025-08-13 12:29:23,951 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0085334 in 0.00 seconds.
+2025-08-13 12:29:23,979 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0085334', 'averageRating': 7.9, 'numVotes': 161377}
+2025-08-13 12:29:23,979 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:29:24,100 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0085334 in 0.28 seconds.
+2025-08-13 12:29:24,151 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0311113: film/master-and-commander-the-far-side-of-the-world-2003
+2025-08-13 12:29:24,151 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0311113 in 0.00 seconds.
+2025-08-13 12:29:24,180 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0311113', 'averageRating': 7.5, 'numVotes': 230473}
+2025-08-13 12:29:24,180 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.00 seconds
+2025-08-13 12:29:24,230 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0311113 in 0.12 seconds.
+2025-08-13 12:29:24,328 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0096446: film/willow-1988
+2025-08-13 12:29:24,328 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0096446 in 0.00 seconds.
+2025-08-13 12:29:24,357 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0096446', 'averageRating': 7.2, 'numVotes': 127372}
+2025-08-13 12:29:24,357 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:29:24,594 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0096446 in 0.36 seconds.
+2025-08-13 12:29:50,440 [INFO] logging_config:setup_logging: Logging initialized with level: INFO
+2025-08-13 12:29:50,442 [INFO] secrets_manager:validate_all_secrets: Secret 'TMDB_API_KEY' validated: 1ce9************************c52f
+2025-08-13 12:29:50,442 [INFO] secrets_manager:validate_all_secrets: Secret 'FLASK_SECRET_KEY' validated: <SET************ENT>
+2025-08-13 12:29:50,442 [INFO] secrets_manager:validate_all_secrets: All required secrets validated successfully
+2025-08-13 12:29:50,445 [ERROR] __main__:<module>: Port 5000 is already in use. Trying alternative port 5001
+2025-08-13 12:29:50,445 [INFO] __main__:<module>: Starting NextReel-Lite on http://127.0.0.1:5001
+2025-08-13 12:29:50,445 [INFO] movie_service:start: Starting MovieManager
+2025-08-13 12:29:50,446 [INFO] settings:init_pool: Initializing database pool: 127.0.0.1:3306/imdb
+2025-08-13 12:29:50,453 [INFO] settings:init_pool: Database pool initialized successfully in 0.01s (min=3, max=10)
+2025-08-13 12:29:50,524 [INFO] hypercorn.error:info: Running on http://127.0.0.1:5001 (CTRL + C to quit)
+2025-08-13 12:29:53,544 [INFO] root:add_correlation_id: New request received. Correlation ID: 891d0c48-3223-411a-ae6e-d9cc12bd8ad1, Path: /
+2025-08-13 12:29:53,544 [WARNING] app:validate_session: Session fingerprint mismatch. Possible hijacking attempt. Session token: HO7fOODG...
+2025-08-13 12:29:53,546 [INFO] app:create_session: New session created: rmegLehM...
+2025-08-13 12:29:53,546 [INFO] movie_service:add_user: Adding new user with ID: 0cc26ca8-dfc1-44db-a56b-750f70eaa383 and criteria: {'min_year': 1900, 'max_year': 2023, 'min_rating': 7.0, 'genres': ['Action', 'Comedy']}
+2025-08-13 12:29:53,547 [INFO] scripts.filter_backend:fetch_random_movies: Starting fetch_random_movies with criteria: {'min_year': 1900, 'max_year': 2023, 'min_rating': 7.0, 'genres': ['Action', 'Comedy']} and limit: 20
+2025-08-13 12:29:53,750 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0234215: film/the-matrix-reloaded-2003
+2025-08-13 12:29:53,751 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0234215 in 0.00 seconds.
+2025-08-13 12:29:53,791 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0234215', 'averageRating': 7.2, 'numVotes': 612771}
+2025-08-13 12:29:53,791 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:29:54,025 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0234215 in 0.37 seconds.
+2025-08-13 12:29:54,104 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0097958: film/national-lampoons-christmas-vacation-1989
+2025-08-13 12:29:54,104 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0097958 in 0.00 seconds.
+2025-08-13 12:29:54,134 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0097958', 'averageRating': 7.5, 'numVotes': 205007}
+2025-08-13 12:29:54,134 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:29:54,225 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0097958 in 0.19 seconds.
+2025-08-13 12:29:54,281 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0372588: film/team-america-world-police-2004
+2025-08-13 12:29:54,282 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0372588 in 0.00 seconds.
+2025-08-13 12:29:54,322 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0372588', 'averageRating': 7.2, 'numVotes': 174836}
+2025-08-13 12:29:54,322 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:29:54,368 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0372588 in 0.14 seconds.
+2025-08-13 12:29:54,469 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt4425200: film/john-wick-chapter-2-2017
+2025-08-13 12:29:54,469 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt4425200 in 0.00 seconds.
+2025-08-13 12:29:54,509 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt4425200', 'averageRating': 7.4, 'numVotes': 486667}
+2025-08-13 12:29:54,509 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:29:54,747 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt4425200 in 0.37 seconds.
+2025-08-13 12:29:54,801 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0163651: film/american-pie-1999
+2025-08-13 12:29:54,801 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0163651 in 0.00 seconds.
+2025-08-13 12:29:54,832 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0163651', 'averageRating': 7.0, 'numVotes': 420876}
+2025-08-13 12:29:54,832 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:29:59,830 [ERROR] scripts.tmdb_client:_get: Request error occurred while accessing https://api.themoviedb.org/3/movie/2105/credits: ; Time elapsed: 5.01 seconds
+2025-08-13 12:29:59,831 [ERROR] scripts.tmdb_client:get_cast_info_by_tmdb_id: Error fetching cast information for TMDB ID: 2105. Error: . Time elapsed: 5.02 seconds
+2025-08-13 12:29:59,831 [ERROR] __main__:before_request: Error in session management: 
+2025-08-13 12:29:59,832 [INFO] app:create_session: New session created: VA3ghBOp...
+2025-08-13 12:29:59,832 [INFO] scripts.filter_backend:fetch_random_movies: Starting fetch_random_movies with criteria: {} and limit: 20
+2025-08-13 12:29:59,980 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0057115: film/the-great-escape
+2025-08-13 12:29:59,980 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0057115 in 0.01 seconds.
+2025-08-13 12:30:00,010 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0057115', 'averageRating': 8.2, 'numVotes': 251471}
+2025-08-13 12:30:00,010 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:00,177 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0057115 in 0.30 seconds.
+2025-08-13 12:30:00,271 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0067992: film/willy-wonka-the-chocolate-factory
+2025-08-13 12:30:00,271 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0067992 in 0.00 seconds.
+2025-08-13 12:30:00,299 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0067992', 'averageRating': 7.8, 'numVotes': 211978}
+2025-08-13 12:30:00,300 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:00,526 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0067992 in 0.34 seconds.
+2025-08-13 12:30:00,606 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt3532216: film/american-made-2017
+2025-08-13 12:30:00,606 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt3532216 in 0.00 seconds.
+2025-08-13 12:30:00,639 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt3532216', 'averageRating': 7.1, 'numVotes': 196193}
+2025-08-13 12:30:00,639 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:00,712 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt3532216 in 0.18 seconds.
+2025-08-13 12:30:00,808 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt1905041: film/fast-furious-6-2013
+2025-08-13 12:30:00,808 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt1905041 in 0.00 seconds.
+2025-08-13 12:30:00,838 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt1905041', 'averageRating': 7.0, 'numVotes': 407540}
+2025-08-13 12:30:00,838 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:00,997 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt1905041 in 0.28 seconds.
+2025-08-13 12:30:01,059 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0418689: film/flags-of-our-fathers-2006
+2025-08-13 12:30:01,059 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0418689 in 0.00 seconds.
+2025-08-13 12:30:01,088 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0418689', 'averageRating': 7.1, 'numVotes': 126870}
+2025-08-13 12:30:01,088 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.00 seconds
+2025-08-13 12:30:01,136 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0418689 in 0.13 seconds.
+2025-08-13 12:30:01,189 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt5083738: film/the-favourite-2018
+2025-08-13 12:30:01,189 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt5083738 in 0.00 seconds.
+2025-08-13 12:30:01,220 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt5083738', 'averageRating': 7.5, 'numVotes': 210427}
+2025-08-13 12:30:01,220 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.00 seconds
+2025-08-13 12:30:01,360 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt5083738 in 0.22 seconds.
+2025-08-13 12:30:01,457 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt1205489: film/gran-torino-2008
+2025-08-13 12:30:01,457 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt1205489 in 0.00 seconds.
+2025-08-13 12:30:01,487 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt1205489', 'averageRating': 8.1, 'numVotes': 794656}
+2025-08-13 12:30:01,488 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:01,646 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt1205489 in 0.28 seconds.
+2025-08-13 12:30:01,725 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0120917: film/the-emperors-new-groove-2000
+2025-08-13 12:30:01,725 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0120917 in 0.00 seconds.
+2025-08-13 12:30:01,754 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0120917', 'averageRating': 7.4, 'numVotes': 215566}
+2025-08-13 12:30:01,755 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:01,827 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0120917 in 0.18 seconds.
+2025-08-13 12:30:01,908 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt1211837: film/doctor-strange-2016
+2025-08-13 12:30:01,908 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt1211837 in 0.00 seconds.
+2025-08-13 12:30:01,940 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt1211837', 'averageRating': 7.5, 'numVotes': 774412}
+2025-08-13 12:30:01,940 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:02,034 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt1211837 in 0.20 seconds.
+2025-08-13 12:30:02,134 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt1235166: film/a-prophet-2009
+2025-08-13 12:30:02,134 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt1235166 in 0.00 seconds.
+2025-08-13 12:30:02,168 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt1235166', 'averageRating': 7.8, 'numVotes': 100585}
+2025-08-13 12:30:02,168 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:02,328 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt1235166 in 0.29 seconds.
+2025-08-13 12:30:02,425 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0878804: film/the-blind-side-2009
+2025-08-13 12:30:02,426 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0878804 in 0.00 seconds.
+2025-08-13 12:30:02,460 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0878804', 'averageRating': 7.6, 'numVotes': 348130}
+2025-08-13 12:30:02,461 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:02,621 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0878804 in 0.29 seconds.
+2025-08-13 12:30:02,724 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0087538: film/the-karate-kid-1984
+2025-08-13 12:30:02,724 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0087538 in 0.00 seconds.
+2025-08-13 12:30:02,763 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0087538', 'averageRating': 7.3, 'numVotes': 235692}
+2025-08-13 12:30:02,763 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:02,996 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0087538 in 0.36 seconds.
+2025-08-13 12:30:03,099 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0053291: film/some-like-it-hot
+2025-08-13 12:30:03,099 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0053291 in 0.00 seconds.
+2025-08-13 12:30:03,127 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0053291', 'averageRating': 8.2, 'numVotes': 275287}
+2025-08-13 12:30:03,127 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.00 seconds
+2025-08-13 12:30:03,200 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0053291 in 0.20 seconds.
+2025-08-13 12:30:03,295 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0171804: film/boys-dont-cry-1999
+2025-08-13 12:30:03,295 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0171804 in 0.00 seconds.
+2025-08-13 12:30:03,324 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0171804', 'averageRating': 7.5, 'numVotes': 101124}
+2025-08-13 12:30:03,324 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:03,562 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0171804 in 0.36 seconds.
+2025-08-13 12:30:03,664 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0063442: film/planet-of-the-apes
+2025-08-13 12:30:03,664 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0063442 in 0.01 seconds.
+2025-08-13 12:30:03,698 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0063442', 'averageRating': 8.0, 'numVotes': 186683}
+2025-08-13 12:30:03,699 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:03,926 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0063442 in 0.36 seconds.
+2025-08-13 12:30:04,021 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt5363618: film/sound-of-metal-2019
+2025-08-13 12:30:04,022 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt5363618 in 0.00 seconds.
+2025-08-13 12:30:04,052 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt5363618', 'averageRating': 7.7, 'numVotes': 139723}
+2025-08-13 12:30:04,052 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:04,284 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt5363618 in 0.35 seconds.
+2025-08-13 12:30:04,379 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt5109280: film/raya-and-the-last-dragon-2021
+2025-08-13 12:30:04,379 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt5109280 in 0.00 seconds.
+2025-08-13 12:30:04,409 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt5109280', 'averageRating': 7.3, 'numVotes': 162167}
+2025-08-13 12:30:04,409 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.00 seconds
+2025-08-13 12:30:04,647 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt5109280 in 0.36 seconds.
+2025-08-13 12:30:04,747 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt1655441: film/the-age-of-adaline-2015
+2025-08-13 12:30:04,748 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt1655441 in 0.00 seconds.
+2025-08-13 12:30:04,780 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt1655441', 'averageRating': 7.2, 'numVotes': 192686}
+2025-08-13 12:30:04,781 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:04,937 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt1655441 in 0.29 seconds.
+2025-08-13 12:30:04,996 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt1232829: film/21-jump-street-2012
+2025-08-13 12:30:04,996 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt1232829 in 0.00 seconds.
+2025-08-13 12:30:05,023 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt1232829', 'averageRating': 7.2, 'numVotes': 579992}
+2025-08-13 12:30:05,023 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.00 seconds
+2025-08-13 12:30:05,074 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt1232829 in 0.13 seconds.
+2025-08-13 12:30:05,166 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0870111: film/frostnixon-2008
+2025-08-13 12:30:05,167 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0870111 in 0.00 seconds.
+2025-08-13 12:30:05,198 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0870111', 'averageRating': 7.7, 'numVotes': 110605}
+2025-08-13 12:30:05,198 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:05,358 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0870111 in 0.28 seconds.
+2025-08-13 12:30:05,651 [INFO] root:add_correlation_id: New request received. Correlation ID: cc4b5148-6769-4261-9623-c08c262e4158, Path: /favicon.ico
+2025-08-13 12:30:05,651 [WARNING] app:validate_session: Session fingerprint mismatch. Possible hijacking attempt. Session token: VA3ghBOp...
+2025-08-13 12:30:05,652 [INFO] app:create_session: New session created: IDa7qW3c...
+2025-08-13 12:30:05,652 [INFO] movie_service:add_user: Adding new user with ID: cc499f86-e484-4062-9537-455d855ca71a and criteria: {'min_year': 1900, 'max_year': 2023, 'min_rating': 7.0, 'genres': ['Action', 'Comedy']}
+2025-08-13 12:30:05,652 [INFO] scripts.filter_backend:fetch_random_movies: Starting fetch_random_movies with criteria: {'min_year': 1900, 'max_year': 2023, 'min_rating': 7.0, 'genres': ['Action', 'Comedy']} and limit: 20
+2025-08-13 12:30:05,805 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt3640424: film/allied-2016
+2025-08-13 12:30:05,806 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt3640424 in 0.00 seconds.
+2025-08-13 12:30:05,838 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt3640424', 'averageRating': 7.1, 'numVotes': 163783}
+2025-08-13 12:30:05,838 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:06,003 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt3640424 in 0.29 seconds.
+2025-08-13 12:30:06,078 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt1692486: film/carnage-2011
+2025-08-13 12:30:06,079 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt1692486 in 0.00 seconds.
+2025-08-13 12:30:06,115 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt1692486', 'averageRating': 7.1, 'numVotes': 130272}
+2025-08-13 12:30:06,116 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:06,186 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt1692486 in 0.18 seconds.
+2025-08-13 12:30:06,263 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0238380: film/equilibrium-2002
+2025-08-13 12:30:06,263 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0238380 in 0.00 seconds.
+2025-08-13 12:30:06,294 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0238380', 'averageRating': 7.3, 'numVotes': 340169}
+2025-08-13 12:30:06,294 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:06,367 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0238380 in 0.18 seconds.
+2025-08-13 12:30:06,445 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0087538: film/the-karate-kid-1984
+2025-08-13 12:30:06,445 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0087538 in 0.00 seconds.
+2025-08-13 12:30:06,481 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0087538', 'averageRating': 7.3, 'numVotes': 235692}
+2025-08-13 12:30:06,481 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:06,598 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0087538 in 0.23 seconds.
+2025-08-13 12:30:06,698 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0096438: film/who-framed-roger-rabbit-1988
+2025-08-13 12:30:06,698 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0096438 in 0.00 seconds.
+2025-08-13 12:30:06,729 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0096438', 'averageRating': 7.7, 'numVotes': 209876}
+2025-08-13 12:30:06,729 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:06,890 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0096438 in 0.29 seconds.
+2025-08-13 12:30:06,988 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0337978: film/live-free-or-die-hard-2007
+2025-08-13 12:30:06,988 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0337978 in 0.00 seconds.
+2025-08-13 12:30:07,025 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0337978', 'averageRating': 7.1, 'numVotes': 414033}
+2025-08-13 12:30:07,025 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:07,188 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0337978 in 0.29 seconds.
+2025-08-13 12:30:07,266 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt1276104: film/looper-2012
+2025-08-13 12:30:07,266 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt1276104 in 0.00 seconds.
+2025-08-13 12:30:07,297 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt1276104', 'averageRating': 7.4, 'numVotes': 590002}
+2025-08-13 12:30:07,297 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:07,381 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt1276104 in 0.19 seconds.
+2025-08-13 12:30:07,458 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt7405458: film/a-man-called-otto-2022
+2025-08-13 12:30:07,459 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt7405458 in 0.00 seconds.
+2025-08-13 12:30:07,490 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt7405458', 'averageRating': 7.5, 'numVotes': 109367}
+2025-08-13 12:30:07,490 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.00 seconds
+2025-08-13 12:30:07,566 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt7405458 in 0.18 seconds.
+2025-08-13 12:30:07,622 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt1490017: film/the-lego-movie-2014
+2025-08-13 12:30:07,622 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt1490017 in 0.00 seconds.
+2025-08-13 12:30:07,653 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt1490017', 'averageRating': 7.7, 'numVotes': 374872}
+2025-08-13 12:30:07,653 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:07,794 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt1490017 in 0.22 seconds.
+2025-08-13 12:30:07,892 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt1825683: film/black-panther-2018
+2025-08-13 12:30:07,892 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt1825683 in 0.00 seconds.
+2025-08-13 12:30:07,926 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt1825683', 'averageRating': 7.3, 'numVotes': 809800}
+2025-08-13 12:30:07,926 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:08,088 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt1825683 in 0.29 seconds.
+2025-08-13 12:30:08,144 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0162346: film/ghost-world-2001
+2025-08-13 12:30:08,144 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0162346 in 0.00 seconds.
+2025-08-13 12:30:08,172 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0162346', 'averageRating': 7.3, 'numVotes': 124141}
+2025-08-13 12:30:08,172 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:08,264 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0162346 in 0.17 seconds.
+2025-08-13 12:30:08,363 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0087332: film/ghostbusters-1984
+2025-08-13 12:30:08,364 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0087332 in 0.01 seconds.
+2025-08-13 12:30:08,394 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0087332', 'averageRating': 7.8, 'numVotes': 429026}
+2025-08-13 12:30:08,394 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:08,708 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0087332 in 0.44 seconds.
+2025-08-13 12:30:08,789 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0107614: film/mrs-doubtfire-1993
+2025-08-13 12:30:08,789 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0107614 in 0.00 seconds.
+2025-08-13 12:30:08,818 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0107614', 'averageRating': 7.1, 'numVotes': 279486}
+2025-08-13 12:30:08,818 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:08,888 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0107614 in 0.17 seconds.
+2025-08-13 12:30:08,964 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt1631867: film/edge-of-tomorrow-2014
+2025-08-13 12:30:08,964 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt1631867 in 0.00 seconds.
+2025-08-13 12:30:08,992 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt1631867', 'averageRating': 7.9, 'numVotes': 707242}
+2025-08-13 12:30:08,992 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.00 seconds
+2025-08-13 12:30:09,113 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt1631867 in 0.22 seconds.
+2025-08-13 12:30:09,189 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0804497: film/its-kind-of-a-funny-story-2010
+2025-08-13 12:30:09,189 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0804497 in 0.00 seconds.
+2025-08-13 12:30:09,218 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0804497', 'averageRating': 7.1, 'numVotes': 146103}
+2025-08-13 12:30:09,218 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:09,306 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0804497 in 0.19 seconds.
+2025-08-13 12:30:09,386 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0467406: film/juno-2007
+2025-08-13 12:30:09,386 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0467406 in 0.00 seconds.
+2025-08-13 12:30:09,427 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0467406', 'averageRating': 7.5, 'numVotes': 537429}
+2025-08-13 12:30:09,427 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.02 seconds
+2025-08-13 12:30:09,500 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0467406 in 0.19 seconds.
+2025-08-13 12:30:09,596 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt2948372: film/soul-2020
+2025-08-13 12:30:09,597 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt2948372 in 0.00 seconds.
+2025-08-13 12:30:09,635 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt2948372', 'averageRating': 8.0, 'numVotes': 352340}
+2025-08-13 12:30:09,635 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.02 seconds
+2025-08-13 12:30:09,806 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt2948372 in 0.30 seconds.
+2025-08-13 12:30:09,907 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0328107: film/man-on-fire-2004
+2025-08-13 12:30:09,907 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0328107 in 0.00 seconds.
+2025-08-13 12:30:09,939 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0328107', 'averageRating': 7.7, 'numVotes': 375089}
+2025-08-13 12:30:09,939 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:10,099 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0328107 in 0.28 seconds.
+2025-08-13 12:30:10,202 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt1981677: film/pitch-perfect-2012
+2025-08-13 12:30:10,202 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt1981677 in 0.01 seconds.
+2025-08-13 12:30:10,231 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt1981677', 'averageRating': 7.1, 'numVotes': 320240}
+2025-08-13 12:30:10,231 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:10,471 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt1981677 in 0.37 seconds.
+2025-08-13 12:30:10,566 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0110632: film/natural-born-killers-1994
+2025-08-13 12:30:10,566 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0110632 in 0.00 seconds.
+2025-08-13 12:30:10,593 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0110632', 'averageRating': 7.2, 'numVotes': 243775}
+2025-08-13 12:30:10,593 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.00 seconds
+2025-08-13 12:30:10,754 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0110632 in 0.28 seconds.
+2025-08-13 12:30:15,220 [INFO] root:add_correlation_id: New request received. Correlation ID: 3b6db840-330e-4897-a069-f37284546d31, Path: /next_movie
+2025-08-13 12:30:15,221 [WARNING] app:validate_session: Session fingerprint mismatch. Possible hijacking attempt. Session token: oMAm4l7D...
+2025-08-13 12:30:15,221 [INFO] app:create_session: New session created: r1kUWGR3...
+2025-08-13 12:30:15,221 [INFO] movie_service:add_user: Adding new user with ID: fe94e4f5-8a54-4058-8b7a-6583ba19e360 and criteria: {'min_year': 1900, 'max_year': 2023, 'min_rating': 7.0, 'genres': ['Action', 'Comedy']}
+2025-08-13 12:30:15,222 [INFO] scripts.filter_backend:fetch_random_movies: Starting fetch_random_movies with criteria: {'min_year': 1900, 'max_year': 2023, 'min_rating': 7.0, 'genres': ['Action', 'Comedy']} and limit: 20
+2025-08-13 12:30:15,387 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0119282: film/hercules-1997
+2025-08-13 12:30:15,387 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0119282 in 0.00 seconds.
+2025-08-13 12:30:15,419 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0119282', 'averageRating': 7.3, 'numVotes': 244144}
+2025-08-13 12:30:15,420 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:15,506 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0119282 in 0.20 seconds.
+2025-08-13 12:30:15,603 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0120623: film/a-bugs-life-1998
+2025-08-13 12:30:15,603 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0120623 in 0.00 seconds.
+2025-08-13 12:30:15,630 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0120623', 'averageRating': 7.2, 'numVotes': 304546}
+2025-08-13 12:30:15,630 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.00 seconds
+2025-08-13 12:30:15,792 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0120623 in 0.28 seconds.
+2025-08-13 12:30:15,886 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0314331: film/love-actually-2003
+2025-08-13 12:30:15,886 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0314331 in 0.00 seconds.
+2025-08-13 12:30:15,916 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0314331', 'averageRating': 7.6, 'numVotes': 505156}
+2025-08-13 12:30:15,916 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.00 seconds
+2025-08-13 12:30:16,083 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0314331 in 0.29 seconds.
+2025-08-13 12:30:16,183 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt4172430: film/13-hours-2016
+2025-08-13 12:30:16,183 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt4172430 in 0.00 seconds.
+2025-08-13 12:30:16,221 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt4172430', 'averageRating': 7.3, 'numVotes': 152467}
+2025-08-13 12:30:16,221 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:16,384 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt4172430 in 0.29 seconds.
+2025-08-13 12:30:16,483 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0120735: film/lock-stock-and-two-smoking-barrels-1998
+2025-08-13 12:30:16,484 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0120735 in 0.00 seconds.
+2025-08-13 12:30:16,517 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0120735', 'averageRating': 8.1, 'numVotes': 599281}
+2025-08-13 12:30:16,517 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:16,674 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0120735 in 0.28 seconds.
+2025-08-13 12:30:16,766 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt6266538: film/vice-2018
+2025-08-13 12:30:16,766 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt6266538 in 0.00 seconds.
+2025-08-13 12:30:16,801 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt6266538', 'averageRating': 7.2, 'numVotes': 155425}
+2025-08-13 12:30:16,801 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:16,881 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt6266538 in 0.20 seconds.
+2025-08-13 12:30:16,979 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt1877830: film/the-batman-2022
+2025-08-13 12:30:16,979 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt1877830 in 0.00 seconds.
+2025-08-13 12:30:17,009 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt1877830', 'averageRating': 7.8, 'numVotes': 717138}
+2025-08-13 12:30:17,009 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:17,170 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt1877830 in 0.28 seconds.
+2025-08-13 12:30:17,263 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0365748: film/shaun-of-the-dead-2004
+2025-08-13 12:30:17,264 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0365748 in 0.01 seconds.
+2025-08-13 12:30:17,293 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0365748', 'averageRating': 7.9, 'numVotes': 575963}
+2025-08-13 12:30:17,293 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.00 seconds
+2025-08-13 12:30:17,372 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0365748 in 0.19 seconds.
+2025-08-13 12:30:17,475 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0080339: film/airplane-1980
+2025-08-13 12:30:17,475 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0080339 in 0.00 seconds.
+2025-08-13 12:30:17,507 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0080339', 'averageRating': 7.7, 'numVotes': 250991}
+2025-08-13 12:30:17,507 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:17,672 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0080339 in 0.30 seconds.
+2025-08-13 12:30:17,772 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt1535109: film/captain-phillips-2013
+2025-08-13 12:30:17,772 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt1535109 in 0.00 seconds.
+2025-08-13 12:30:17,801 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt1535109', 'averageRating': 7.8, 'numVotes': 477949}
+2025-08-13 12:30:17,801 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:17,961 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt1535109 in 0.28 seconds.
+2025-08-13 12:30:18,048 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0080120: film/the-warriors
+2025-08-13 12:30:18,048 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0080120 in 0.01 seconds.
+2025-08-13 12:30:18,076 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0080120', 'averageRating': 7.5, 'numVotes': 106957}
+2025-08-13 12:30:18,076 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.00 seconds
+2025-08-13 12:30:18,153 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0080120 in 0.19 seconds.
+2025-08-13 12:30:18,236 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0266987: film/spy-game-2001
+2025-08-13 12:30:18,236 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0266987 in 0.00 seconds.
+2025-08-13 12:30:18,264 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0266987', 'averageRating': 7.0, 'numVotes': 161855}
+2025-08-13 12:30:18,264 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:18,330 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0266987 in 0.17 seconds.
+2025-08-13 12:30:18,481 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt2005151: film/war-dogs-2016
+2025-08-13 12:30:18,482 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt2005151 in 0.01 seconds.
+2025-08-13 12:30:18,519 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt2005151', 'averageRating': 7.1, 'numVotes': 236869}
+2025-08-13 12:30:18,519 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:18,679 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt2005151 in 0.34 seconds.
+2025-08-13 12:30:18,774 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0113277: film/heat-1995
+2025-08-13 12:30:18,775 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0113277 in 0.00 seconds.
+2025-08-13 12:30:18,808 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0113277', 'averageRating': 8.3, 'numVotes': 685792}
+2025-08-13 12:30:18,808 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:18,970 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0113277 in 0.29 seconds.
+2025-08-13 12:30:19,057 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0328107: film/man-on-fire-2004
+2025-08-13 12:30:19,057 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0328107 in 0.00 seconds.
+2025-08-13 12:30:19,083 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0328107', 'averageRating': 7.7, 'numVotes': 375089}
+2025-08-13 12:30:19,083 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.00 seconds
+2025-08-13 12:30:19,155 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0328107 in 0.18 seconds.
+2025-08-13 12:30:19,209 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0302886: film/old-school-2003
+2025-08-13 12:30:19,209 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0302886 in 0.00 seconds.
+2025-08-13 12:30:19,239 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0302886', 'averageRating': 7.0, 'numVotes': 238459}
+2025-08-13 12:30:19,239 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:19,286 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0302886 in 0.13 seconds.
+2025-08-13 12:30:19,339 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0117731: film/star-trek-first-contact-1996
+2025-08-13 12:30:19,339 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0117731 in 0.00 seconds.
+2025-08-13 12:30:19,371 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0117731', 'averageRating': 7.6, 'numVotes': 129526}
+2025-08-13 12:30:19,371 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:19,418 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0117731 in 0.13 seconds.
+2025-08-13 12:30:19,514 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0332379: film/school-of-rock-2003
+2025-08-13 12:30:19,514 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0332379 in 0.00 seconds.
+2025-08-13 12:30:19,542 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0332379', 'averageRating': 7.2, 'numVotes': 318923}
+2025-08-13 12:30:19,543 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:19,699 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0332379 in 0.28 seconds.
+2025-08-13 12:30:19,778 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt1392170: film/the-hunger-games-2012
+2025-08-13 12:30:19,778 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt1392170 in 0.00 seconds.
+2025-08-13 12:30:19,809 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt1392170', 'averageRating': 7.2, 'numVotes': 956049}
+2025-08-13 12:30:19,809 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:19,932 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt1392170 in 0.23 seconds.
+2025-08-13 12:30:20,027 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0360717: film/king-kong-2005
+2025-08-13 12:30:20,028 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0360717 in 0.00 seconds.
+2025-08-13 12:30:20,056 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0360717', 'averageRating': 7.2, 'numVotes': 436057}
+2025-08-13 12:30:20,056 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:20,219 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0360717 in 0.28 seconds.
+2025-08-13 12:30:20,220 [INFO] __main__:next_movie: Requesting next movie for user_id: fe94e4f5-8a54-4058-8b7a-6583ba19e360. Correlation ID: 3b6db840-330e-4897-a069-f37284546d31
+2025-08-13 12:30:20,298 [INFO] root:add_correlation_id: New request received. Correlation ID: e2406054-2806-491f-9291-05052a049e31, Path: /movie/tt0119282
+2025-08-13 12:30:20,299 [WARNING] app:validate_session: Session fingerprint mismatch. Possible hijacking attempt. Session token: eKn-_w9U...
+2025-08-13 12:30:20,299 [INFO] app:create_session: New session created: jnUJ_a08...
+2025-08-13 12:30:20,299 [INFO] movie_service:add_user: Adding new user with ID: 5b1e0fc5-cc2a-414c-9306-f7a5e3c0b80d and criteria: {'min_year': 1900, 'max_year': 2023, 'min_rating': 7.0, 'genres': ['Action', 'Comedy']}
+2025-08-13 12:30:20,299 [INFO] scripts.filter_backend:fetch_random_movies: Starting fetch_random_movies with criteria: {'min_year': 1900, 'max_year': 2023, 'min_rating': 7.0, 'genres': ['Action', 'Comedy']} and limit: 20
+2025-08-13 12:30:20,453 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0369339: film/collateral-2004
+2025-08-13 12:30:20,453 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0369339 in 0.00 seconds.
+2025-08-13 12:30:20,484 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0369339', 'averageRating': 7.5, 'numVotes': 419532}
+2025-08-13 12:30:20,484 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:20,560 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0369339 in 0.18 seconds.
+2025-08-13 12:30:20,660 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0045152: film/singin-in-the-rain
+2025-08-13 12:30:20,660 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0045152 in 0.01 seconds.
+2025-08-13 12:30:20,697 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0045152', 'averageRating': 8.3, 'numVotes': 251377}
+2025-08-13 12:30:20,697 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:20,847 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0045152 in 0.28 seconds.
+2025-08-13 12:30:20,946 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0102266: film/the-last-boy-scout-1991
+2025-08-13 12:30:20,946 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0102266 in 0.00 seconds.
+2025-08-13 12:30:20,976 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0102266', 'averageRating': 7.0, 'numVotes': 108380}
+2025-08-13 12:30:20,976 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:21,207 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0102266 in 0.35 seconds.
+2025-08-13 12:30:21,285 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt2140479: film/the-accountant-2016
+2025-08-13 12:30:21,285 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt2140479 in 0.00 seconds.
+2025-08-13 12:30:21,317 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt2140479', 'averageRating': 7.3, 'numVotes': 307936}
+2025-08-13 12:30:21,317 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:21,391 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt2140479 in 0.18 seconds.
+2025-08-13 12:30:21,468 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt1855199: film/end-of-watch-2012
+2025-08-13 12:30:21,468 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt1855199 in 0.00 seconds.
+2025-08-13 12:30:21,496 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt1855199', 'averageRating': 7.6, 'numVotes': 258673}
+2025-08-13 12:30:21,496 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:21,589 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt1855199 in 0.19 seconds.
+2025-08-13 12:30:21,646 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt1033575: film/the-descendants-2011
+2025-08-13 12:30:21,647 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt1033575 in 0.00 seconds.
+2025-08-13 12:30:21,677 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt1033575', 'averageRating': 7.3, 'numVotes': 246369}
+2025-08-13 12:30:21,677 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.00 seconds
+2025-08-13 12:30:21,729 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt1033575 in 0.13 seconds.
+2025-08-13 12:30:21,809 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt3846674: film/to-all-the-boys-ive-loved-before-2018
+2025-08-13 12:30:21,809 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt3846674 in 0.00 seconds.
+2025-08-13 12:30:21,839 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt3846674', 'averageRating': 7.0, 'numVotes': 117090}
+2025-08-13 12:30:21,840 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:21,913 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt3846674 in 0.18 seconds.
+2025-08-13 12:30:22,010 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt1172049: film/demolition-2015
+2025-08-13 12:30:22,010 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt1172049 in 0.00 seconds.
+2025-08-13 12:30:22,041 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt1172049', 'averageRating': 7.0, 'numVotes': 105506}
+2025-08-13 12:30:22,041 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:22,203 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt1172049 in 0.28 seconds.
+2025-08-13 12:30:22,307 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt1515091: film/sherlock-holmes-a-game-of-shadows-2011
+2025-08-13 12:30:22,307 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt1515091 in 0.00 seconds.
+2025-08-13 12:30:22,340 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt1515091', 'averageRating': 7.4, 'numVotes': 468933}
+2025-08-13 12:30:22,340 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:22,506 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt1515091 in 0.30 seconds.
+2025-08-13 12:30:22,658 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt1798684: film/southpaw-2015
+2025-08-13 12:30:22,659 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt1798684 in 0.01 seconds.
+2025-08-13 12:30:22,699 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt1798684', 'averageRating': 7.3, 'numVotes': 249177}
+2025-08-13 12:30:22,699 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:22,853 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt1798684 in 0.34 seconds.
+2025-08-13 12:30:22,954 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0443453: film/borat-2006
+2025-08-13 12:30:22,954 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0443453 in 0.01 seconds.
+2025-08-13 12:30:22,985 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0443453', 'averageRating': 7.4, 'numVotes': 426619}
+2025-08-13 12:30:22,985 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:23,146 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0443453 in 0.29 seconds.
+2025-08-13 12:30:23,242 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0343818: film/i-robot-2004
+2025-08-13 12:30:23,242 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0343818 in 0.00 seconds.
+2025-08-13 12:30:23,274 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0343818', 'averageRating': 7.1, 'numVotes': 558832}
+2025-08-13 12:30:23,274 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:23,512 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0343818 in 0.36 seconds.
+2025-08-13 12:30:23,657 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt1655442: film/the-artist-2011
+2025-08-13 12:30:23,657 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt1655442 in 0.00 seconds.
+2025-08-13 12:30:23,701 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt1655442', 'averageRating': 7.9, 'numVotes': 245526}
+2025-08-13 12:30:23,705 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.02 seconds
+2025-08-13 12:30:23,865 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt1655442 in 0.32 seconds.
+2025-08-13 12:30:23,963 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0099088: film/back-to-the-future-part-iii-1990
+2025-08-13 12:30:23,967 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0099088 in 0.01 seconds.
+2025-08-13 12:30:24,000 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0099088', 'averageRating': 7.4, 'numVotes': 465365}
+2025-08-13 12:30:24,003 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:24,233 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0099088 in 0.36 seconds.
+2025-08-13 12:30:24,333 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt2582496: film/me-and-earl-and-the-dying-girl-2015
+2025-08-13 12:30:24,333 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt2582496 in 0.00 seconds.
+2025-08-13 12:30:24,391 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt2582496', 'averageRating': 7.7, 'numVotes': 135374}
+2025-08-13 12:30:24,391 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.02 seconds
+2025-08-13 12:30:24,616 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt2582496 in 0.38 seconds.
+2025-08-13 12:30:24,712 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt2194499: film/about-time-2013
+2025-08-13 12:30:24,712 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt2194499 in 0.01 seconds.
+2025-08-13 12:30:24,745 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt2194499', 'averageRating': 7.8, 'numVotes': 368562}
+2025-08-13 12:30:24,745 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:24,908 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt2194499 in 0.29 seconds.
+2025-08-13 12:30:25,009 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt2802144: film/kingsman-the-secret-service-2014
+2025-08-13 12:30:25,009 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt2802144 in 0.01 seconds.
+2025-08-13 12:30:25,037 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt2802144', 'averageRating': 7.7, 'numVotes': 693064}
+2025-08-13 12:30:25,037 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:25,194 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt2802144 in 0.28 seconds.
+2025-08-13 12:30:25,276 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt1057500: film/invictus-2009
+2025-08-13 12:30:25,276 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt1057500 in 0.00 seconds.
+2025-08-13 12:30:25,303 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt1057500', 'averageRating': 7.3, 'numVotes': 164330}
+2025-08-13 12:30:25,303 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.00 seconds
+2025-08-13 12:30:25,393 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt1057500 in 0.19 seconds.
+2025-08-13 12:30:25,487 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0065421: film/the-aristocats
+2025-08-13 12:30:25,487 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0065421 in 0.00 seconds.
+2025-08-13 12:30:25,517 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0065421', 'averageRating': 7.1, 'numVotes': 110131}
+2025-08-13 12:30:25,517 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.00 seconds
+2025-08-13 12:30:25,685 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0065421 in 0.29 seconds.
+2025-08-13 12:30:25,778 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0094898: film/coming-to-america-1988
+2025-08-13 12:30:25,779 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0094898 in 0.00 seconds.
+2025-08-13 12:30:25,809 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0094898', 'averageRating': 7.1, 'numVotes': 216043}
+2025-08-13 12:30:25,809 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:26,037 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0094898 in 0.34 seconds.
+2025-08-13 12:30:26,094 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0119282: film/hercules-1997
+2025-08-13 12:30:26,094 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0119282 in 0.00 seconds.
+2025-08-13 12:30:26,121 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0119282', 'averageRating': 7.3, 'numVotes': 244144}
+2025-08-13 12:30:26,122 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.00 seconds
+2025-08-13 12:30:26,171 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0119282 in 0.13 seconds.
+2025-08-13 12:30:26,292 [INFO] root:add_correlation_id: New request received. Correlation ID: 98c0c63b-1d2e-4bba-aa61-a702f4b1d95d, Path: /static/styles/navbar.css
+2025-08-13 12:30:26,350 [INFO] root:add_correlation_id: New request received. Correlation ID: 94218992-ea7a-4c2f-8f8a-56cd8f156ab7, Path: /static/nextreel-wbg.png
+2025-08-13 12:30:26,356 [INFO] root:add_correlation_id: New request received. Correlation ID: 19db9b8d-6ef8-4f52-9d3c-a3a0f23c5159, Path: /static/styles/circle_progress_bar.css
+2025-08-13 12:30:26,362 [INFO] root:add_correlation_id: New request received. Correlation ID: 9de8c84d-3ce3-420b-bf28-b92509c03c98, Path: /static/styles/footer.css
+2025-08-13 12:30:26,497 [INFO] root:add_correlation_id: New request received. Correlation ID: 685a8bec-73dc-421e-bb47-51ad50a7f5a0, Path: /movie
+2025-08-13 12:30:26,497 [WARNING] app:validate_session: Session fingerprint mismatch. Possible hijacking attempt. Session token: evZP1mmb...
+2025-08-13 12:30:26,498 [INFO] app:create_session: New session created: EoSxp1PQ...
+2025-08-13 12:30:26,498 [INFO] movie_service:add_user: Adding new user with ID: 4763d1b0-1b13-4272-9e75-33a13b34899f and criteria: {'min_year': 1900, 'max_year': 2023, 'min_rating': 7.0, 'genres': ['Action', 'Comedy']}
+2025-08-13 12:30:26,498 [INFO] scripts.filter_backend:fetch_random_movies: Starting fetch_random_movies with criteria: {'min_year': 1900, 'max_year': 2023, 'min_rating': 7.0, 'genres': ['Action', 'Comedy']} and limit: 20
+2025-08-13 12:30:26,738 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt12263384: film/extraction-ii-2023
+2025-08-13 12:30:26,739 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt12263384 in 0.00 seconds.
+2025-08-13 12:30:26,769 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt12263384', 'averageRating': 7.0, 'numVotes': 111348}
+2025-08-13 12:30:26,769 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:27,003 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt12263384 in 0.36 seconds.
+2025-08-13 12:30:27,108 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0120768: film/the-negotiator-1998
+2025-08-13 12:30:27,108 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0120768 in 0.00 seconds.
+2025-08-13 12:30:27,142 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0120768', 'averageRating': 7.3, 'numVotes': 149470}
+2025-08-13 12:30:27,142 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:27,447 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0120768 in 0.44 seconds.
+2025-08-13 12:30:27,542 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0427944: film/thank-you-for-smoking-2005
+2025-08-13 12:30:27,542 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0427944 in 0.00 seconds.
+2025-08-13 12:30:27,581 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0427944', 'averageRating': 7.5, 'numVotes': 225895}
+2025-08-13 12:30:27,581 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:27,737 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0427944 in 0.28 seconds.
+2025-08-13 12:30:27,833 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0066999: film/dirty-harry
+2025-08-13 12:30:27,834 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0066999 in 0.00 seconds.
+2025-08-13 12:30:27,864 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0066999', 'averageRating': 7.7, 'numVotes': 163243}
+2025-08-13 12:30:27,864 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:28,024 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0066999 in 0.28 seconds.
+2025-08-13 12:30:28,123 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0211915: film/amélie-2001
+2025-08-13 12:30:28,123 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0211915 in 0.00 seconds.
+2025-08-13 12:30:28,150 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0211915', 'averageRating': 8.3, 'numVotes': 774459}
+2025-08-13 12:30:28,150 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.00 seconds
+2025-08-13 12:30:28,379 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0211915 in 0.35 seconds.
+2025-08-13 12:30:28,471 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0093105: film/good-morning-vietnam-1987
+2025-08-13 12:30:28,471 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0093105 in 0.00 seconds.
+2025-08-13 12:30:28,503 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0093105', 'averageRating': 7.3, 'numVotes': 148184}
+2025-08-13 12:30:28,504 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:28,803 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0093105 in 0.42 seconds.
+2025-08-13 12:30:28,856 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt2660888: film/star-trek-beyond-2016
+2025-08-13 12:30:28,856 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt2660888 in 0.00 seconds.
+2025-08-13 12:30:28,890 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt2660888', 'averageRating': 7.0, 'numVotes': 253306}
+2025-08-13 12:30:28,890 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:28,987 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt2660888 in 0.18 seconds.
+2025-08-13 12:30:29,086 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0117500: film/the-rock-1996
+2025-08-13 12:30:29,086 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0117500 in 0.00 seconds.
+2025-08-13 12:30:29,113 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0117500', 'averageRating': 7.4, 'numVotes': 349282}
+2025-08-13 12:30:29,113 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.00 seconds
+2025-08-13 12:30:29,339 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0117500 in 0.35 seconds.
+2025-08-13 12:30:29,433 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0090605: film/aliens-1986
+2025-08-13 12:30:29,433 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0090605 in 0.00 seconds.
+2025-08-13 12:30:29,462 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0090605', 'averageRating': 8.4, 'numVotes': 738767}
+2025-08-13 12:30:29,463 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:29,622 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0090605 in 0.28 seconds.
+2025-08-13 12:30:29,878 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt1772341: film/wreck-it-ralph-2012
+2025-08-13 12:30:29,878 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt1772341 in 0.00 seconds.
+2025-08-13 12:30:29,914 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt1772341', 'averageRating': 7.7, 'numVotes': 441892}
+2025-08-13 12:30:29,914 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:30,068 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt1772341 in 0.44 seconds.
+2025-08-13 12:30:30,124 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0109506: film/the-crow-1994
+2025-08-13 12:30:30,125 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0109506 in 0.00 seconds.
+2025-08-13 12:30:30,152 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0109506', 'averageRating': 7.5, 'numVotes': 191697}
+2025-08-13 12:30:30,152 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.00 seconds
+2025-08-13 12:30:30,200 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0109506 in 0.12 seconds.
+2025-08-13 12:30:30,256 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt1131729: film/the-boat-that-rocked-2009
+2025-08-13 12:30:30,256 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt1131729 in 0.00 seconds.
+2025-08-13 12:30:30,284 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt1131729', 'averageRating': 7.3, 'numVotes': 114140}
+2025-08-13 12:30:30,284 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:30,371 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt1131729 in 0.17 seconds.
+2025-08-13 12:30:30,432 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0138097: film/shakespeare-in-love-1998
+2025-08-13 12:30:30,432 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0138097 in 0.00 seconds.
+2025-08-13 12:30:30,466 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0138097', 'averageRating': 7.1, 'numVotes': 230194}
+2025-08-13 12:30:30,466 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:30,515 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0138097 in 0.14 seconds.
+2025-08-13 12:30:30,611 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0800369: film/thor-2011
+2025-08-13 12:30:30,611 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0800369 in 0.00 seconds.
+2025-08-13 12:30:30,640 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0800369', 'averageRating': 7.0, 'numVotes': 876372}
+2025-08-13 12:30:30,640 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.00 seconds
+2025-08-13 12:30:30,730 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0800369 in 0.21 seconds.
+2025-08-13 12:30:30,810 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0045152: film/singin-in-the-rain
+2025-08-13 12:30:30,810 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0045152 in 0.00 seconds.
+2025-08-13 12:30:30,841 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0045152', 'averageRating': 8.3, 'numVotes': 251377}
+2025-08-13 12:30:30,843 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:30,910 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0045152 in 0.17 seconds.
+2025-08-13 12:30:30,963 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0121766: film/star-wars-episode-iii-revenge-of-the-sith-2005
+2025-08-13 12:30:30,963 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0121766 in 0.00 seconds.
+2025-08-13 12:30:30,991 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0121766', 'averageRating': 7.6, 'numVotes': 818535}
+2025-08-13 12:30:30,991 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:31,077 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0121766 in 0.16 seconds.
+2025-08-13 12:30:31,169 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0120669: film/fear-and-loathing-in-las-vegas-1998
+2025-08-13 12:30:31,169 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0120669 in 0.00 seconds.
+2025-08-13 12:30:31,195 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0120669', 'averageRating': 7.5, 'numVotes': 293703}
+2025-08-13 12:30:31,195 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.00 seconds
+2025-08-13 12:30:31,245 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0120669 in 0.16 seconds.
+2025-08-13 12:30:31,335 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0120812: film/rush-hour-1998
+2025-08-13 12:30:31,335 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0120812 in 0.00 seconds.
+2025-08-13 12:30:31,367 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0120812', 'averageRating': 7.0, 'numVotes': 282731}
+2025-08-13 12:30:31,367 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.00 seconds
+2025-08-13 12:30:31,533 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0120812 in 0.28 seconds.
+2025-08-13 12:30:31,663 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt5109280: film/raya-and-the-last-dragon-2021
+2025-08-13 12:30:31,663 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt5109280 in 0.00 seconds.
+2025-08-13 12:30:31,693 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt5109280', 'averageRating': 7.3, 'numVotes': 162167}
+2025-08-13 12:30:31,693 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:31,763 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt5109280 in 0.23 seconds.
+2025-08-13 12:30:31,855 [INFO] scripts.movie:fetch_movie_slug: Slug for tconst tt0076752: film/the-spy-who-loved-me
+2025-08-13 12:30:31,855 [INFO] scripts.movie:fetch_movie_slug: Completed fetch_movie_slug for tt0076752 in 0.00 seconds.
+2025-08-13 12:30:31,884 [INFO] scripts.movie:fetch_movie_ratings: Ratings data: {'tconst': 'tt0076752', 'averageRating': 7.0, 'numVotes': 112983}
+2025-08-13 12:30:31,884 [INFO] scripts.movie:fetch_movie_ratings: Fetched movie ratings in 0.01 seconds
+2025-08-13 12:30:32,043 [INFO] scripts.movie:get_movie_data: Completed get_movie_data for tt0076752 in 0.27 seconds.

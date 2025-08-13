@@ -39,6 +39,15 @@ class MovieManager:
         await self.set_default_backdrop()
         logger.debug("Default backdrop set")
 
+    async def close(self):
+        """Close database connections properly"""
+        try:
+            if self.db_pool:
+                await self.db_pool.close_pool()
+                logger.info("MovieManager database pool closed")
+        except Exception as e:
+            logger.error(f"Error closing MovieManager: {e}")
+
     async def add_user(self, user_id, criteria):
         """
         Add a new user with specific criteria.
