@@ -121,3 +121,37 @@
 2025-08-13 07:57:32,503 [INFO] secrets_manager:validate_all_secrets: All required secrets validated successfully
 2025-08-13 07:57:32,515 [INFO] movie_service:start: Starting MovieManager
 2025-08-13 07:57:32,579 [INFO] hypercorn.error:info: Running on http://127.0.0.1:5000 (CTRL + C to quit)
+2025-08-13 08:17:05,205 [INFO] logging_config:setup_logging: Logging initialized with level: INFO
+2025-08-13 08:17:05,206 [INFO] secrets_manager:validate_all_secrets: Secret 'TMDB_API_KEY' validated: 1ce9************************c52f
+2025-08-13 08:17:05,206 [INFO] secrets_manager:validate_all_secrets: Secret 'FLASK_SECRET_KEY' validated: <SET************ENT>
+2025-08-13 08:17:05,206 [INFO] secrets_manager:validate_all_secrets: All required secrets validated successfully
+2025-08-13 08:17:05,218 [INFO] movie_service:start: Starting MovieManager
+2025-08-13 08:17:05,298 [ERROR] app:log_exception: Exception
+Traceback (most recent call last):
+  File "/Users/bryceharmon/Desktop/nextreel-lite/venv/lib/python3.9/site-packages/quart/app.py", line 1653, in startup
+    await self.ensure_async(func)()
+  File "/Users/bryceharmon/Desktop/nextreel-lite/app.py", line 95, in startup
+    await movie_manager.start()
+  File "/Users/bryceharmon/Desktop/nextreel-lite/movie_service.py", line 36, in start
+    await self.db_pool.init_pool()
+  File "/Users/bryceharmon/Desktop/nextreel-lite/settings.py", line 115, in init_pool
+    self.pool = await aiomysql.create_pool(
+  File "/Users/bryceharmon/Desktop/nextreel-lite/venv/lib/python3.9/site-packages/aiomysql/pool.py", line 29, in _create_pool
+    await pool._fill_free_pool(False)
+  File "/Users/bryceharmon/Desktop/nextreel-lite/venv/lib/python3.9/site-packages/aiomysql/pool.py", line 182, in _fill_free_pool
+    conn = await connect(echo=self._echo, loop=self._loop,
+  File "/Users/bryceharmon/Desktop/nextreel-lite/venv/lib/python3.9/site-packages/aiomysql/connection.py", line 75, in _connect
+    await conn._connect()
+  File "/Users/bryceharmon/Desktop/nextreel-lite/venv/lib/python3.9/site-packages/aiomysql/connection.py", line 540, in _connect
+    await self._request_authentication()
+  File "/Users/bryceharmon/Desktop/nextreel-lite/venv/lib/python3.9/site-packages/aiomysql/connection.py", line 865, in _request_authentication
+    await self.caching_sha2_password_auth(auth_packet)
+  File "/Users/bryceharmon/Desktop/nextreel-lite/venv/lib/python3.9/site-packages/aiomysql/connection.py", line 989, in caching_sha2_password_auth
+    pkt = await self._read_packet()
+  File "/Users/bryceharmon/Desktop/nextreel-lite/venv/lib/python3.9/site-packages/aiomysql/connection.py", line 652, in _read_packet
+    packet.raise_for_error()
+  File "/Users/bryceharmon/Desktop/nextreel-lite/venv/lib/python3.9/site-packages/pymysql/protocol.py", line 221, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "/Users/bryceharmon/Desktop/nextreel-lite/venv/lib/python3.9/site-packages/pymysql/err.py", line 143, in raise_mysql_exception
+    raise errorclass(errno, errval)
+pymysql.err.OperationalError: (1045, "Access denied for user 'root'@'localhost' (using password: YES)")

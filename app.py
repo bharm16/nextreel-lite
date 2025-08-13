@@ -20,6 +20,7 @@ from logging_config import setup_logging, get_logger
 from middleware import add_correlation_id
 from movie_service import MovieManager
 from session_auth import ensure_session
+from session_auth_enhanced import session_security, ensure_secure_session, require_valid_session
 from secrets_manager import secrets_manager
 
 import os
@@ -40,6 +41,9 @@ def create_app():
     
     app = FixedQuart(__name__)
     app.config.from_object(settings.Config)
+    
+    # Initialize session security
+    session_security.init_app(app)
 
 
 
@@ -71,9 +75,20 @@ def create_app():
     async def before_request():
         try:
             await add_correlation_id()
+            
+            # Skip security for static files and health checks
+            if request.path.startswith('/static') or request.path in ['/health', '/ready']:
+                return
+            
             if app.config.get('TESTING'):
                 return
+            
+            # Apply enhanced session security
+            ensure_secure_session()
+            
+            # Legacy session handling for backward compatibility
             ensure_session()
+            
             if not session.get('user_id'):
                 session['user_id'] = str(uuid.uuid4())
                 default_criteria = {"min_year": 1900, "max_year": 2023, "min_rating": 7.0,
@@ -81,12 +96,30 @@ def create_app():
                 await movie_manager.add_user(session['user_id'], default_criteria)
             elif 'watch_queue' not in session:
                 await movie_manager.add_user(session['user_id'], session.get('criteria', {}))
+            
             req_size = sys.getsizeof(await request.get_data())
             logger.debug(
                 "Request Size: %s bytes. Correlation ID: %s", req_size, g.correlation_id
             )
         except Exception as e:
             logger.error(f"Error in session management: {e}")
+            # Don't fail the request, create new session
+            session_security.create_session()
+    
+    # Set security headers
+    @app.after_request
+    async def set_security_headers(response):
+        # HSTS Header (HTTP Strict Transport Security)
+        if app.config.get('SESSION_COOKIE_SECURE'):
+            response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+        
+        # Additional security headers
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+        response.headers['X-XSS-Protection'] = '1; mode=block'
+        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        
+        return response
 
     # Set up Redis for session management using aioredis
 
@@ -94,10 +127,21 @@ def create_app():
     async def startup():
         await movie_manager.start()
 
-    @app.route('/logout')
+    @app.route('/logout', methods=['POST'])  # Use POST for logout
     async def logout():
-        session.clear()
-        return redirect(url_for('home'))
+        """Securely logout and destroy session."""
+        session_security.destroy_session()
+        response = redirect(url_for('home'))
+        # Clear cookie on client side
+        response.set_cookie(
+            app.config['SESSION_COOKIE_NAME'],
+            '',
+            expires=0,
+            secure=app.config.get('SESSION_COOKIE_SECURE', False),
+            httponly=True,
+            samesite='Lax'
+        )
+        return response
     @app.route('/movie/<tconst>')
     async def movie_detail(tconst):
         # Extract user_id from the session

@@ -1,6 +1,7 @@
 import os
 import ssl
 import aiomysql
+import secrets
 from dotenv import load_dotenv
 import time
 import logging
@@ -44,9 +45,44 @@ class Config:
     def TMDB_API_KEY(self):
         return self.get_tmdb_api_key()
 
+    # Session Security Configuration
+    SECRET_KEY = secrets_manager.get_secret('FLASK_SECRET_KEY')
+    
+    # Session Cookie Security
+    SESSION_COOKIE_NAME = 'nextreel_session'
     SESSION_COOKIE_HTTPONLY = True
-    SESSION_COOKIE_SAMESITE = 'Lax'
-    SESSION_COOKIE_SECURE = flask_env != 'development'
+    SESSION_COOKIE_SAMESITE = 'Lax'  # or 'Strict' for higher security
+    
+    # Force HTTPS in production
+    @property
+    def SESSION_COOKIE_SECURE(self):
+        """Enable secure cookies in production."""
+        env = os.getenv('FLASK_ENV', 'development')
+        secure = env != 'development'
+        if env == 'production' and not secure:
+            logger.error("WARNING: Secure cookies disabled in production!")
+        return secure
+    
+    # Additional security headers
+    @property
+    def SESSION_COOKIE_DOMAIN(self):
+        """Set cookie domain for production."""
+        if os.getenv('FLASK_ENV') == 'production':
+            return os.getenv('COOKIE_DOMAIN', None)  # e.g., '.nextreel.com'
+        return None
+    
+    # Session timeouts
+    SESSION_TIMEOUT_MINUTES = int(os.getenv('SESSION_TIMEOUT_MINUTES', 30))
+    SESSION_IDLE_TIMEOUT_MINUTES = int(os.getenv('SESSION_IDLE_TIMEOUT_MINUTES', 15))
+    SESSION_ROTATION_INTERVAL = int(os.getenv('SESSION_ROTATION_INTERVAL', 10))
+    MAX_SESSION_DURATION_HOURS = int(os.getenv('MAX_SESSION_DURATION_HOURS', 24))
+    
+    # Redis session configuration
+    SESSION_TYPE = 'redis'
+    SESSION_PERMANENT = False
+    SESSION_USE_SIGNER = True
+    SESSION_KEY_PREFIX = 'nextreel:session:'
+    PERMANENT_SESSION_LIFETIME = 86400  # 24 hours in seconds
 
     # Expose production database configuration for scripts that need it
     STACKHERO_DB_CONFIG = {
