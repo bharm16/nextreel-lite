@@ -22,7 +22,7 @@ class MovieManager:
         self.db_config = db_config or Config.get_db_config()
         self.db_pool = DatabaseConnectionPool(self.db_config)
         self.movie_fetcher = ImdbRandomMovieFetcher(self.db_pool)
-        self.queue_size = 20
+        self.queue_size = 5  # Reduced from 20 for faster initial loading
         self.default_movie_tmdb_id = 62
         self.default_backdrop_url = None
         self.tmdb_helper = TMDbHelper()  # Initialize TMDbHelper using env key
@@ -161,12 +161,23 @@ class MovieManager:
         limit = self.queue_size - len(queue)
         if limit <= 0:
             return
+        
         rows = await self.movie_fetcher.fetch_random_movies(criteria, limit)
-        for row in rows:
+        
+        # Load movies in parallel instead of sequentially
+        async def fetch_movie_data(row):
             movie = Movie(row["tconst"], self.db_pool)
-            movie_data = await movie.get_movie_data()
-            if movie_data:
+            return await movie.get_movie_data()
+        
+        # Execute all movie data fetches in parallel
+        tasks = [fetch_movie_data(row) for row in rows]
+        movie_results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Add successful results to queue
+        for movie_data in movie_results:
+            if movie_data and not isinstance(movie_data, Exception):
                 queue.append(movie_data)
+        
         session["watch_queue"] = queue
 
     async def _ensure_queue(self):

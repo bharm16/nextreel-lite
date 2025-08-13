@@ -113,9 +113,9 @@ class Config:
     def get_ssl_cert_path():
         return os.getenv('SSL_CERT_PATH') or os.path.join(os.path.dirname(__file__), 'isrgroot.pem')
 
-    # Pool configurations for aiomysql
-    POOL_MIN_SIZE = 5  # Minimum number of connections in the pool
-    POOL_MAX_SIZE = 50  # Maximum number of connections in the pool
+    # Pool configurations for aiomysql - Optimized for performance
+    POOL_MIN_SIZE = 10  # Increased from 5 for better responsiveness
+    POOL_MAX_SIZE = 30  # Reduced from 50 for better resource management
 
     # SSL usage based on environment
     @staticmethod
@@ -144,27 +144,27 @@ class PoolConfig:
     # Optional connection settings
     port: int = 3306
     
-    # Pool settings
-    min_size: int = 5
-    max_size: int = 20
+    # Pool settings - Optimized for performance
+    min_size: int = 10
+    max_size: int = 30
     
-    # Connection lifecycle
-    connect_timeout: int = 10
-    pool_recycle: int = 3600  # Recycle connections after 1 hour
+    # Connection lifecycle - Optimized timeouts
+    connect_timeout: int = 5  # Reduced from 10 for faster failure
+    pool_recycle: int = 1800  # Reduced from 3600 (30 min instead of 1 hour)
     echo: bool = False
     
-    # Health checks
+    # Health checks - More frequent for better reliability
     pool_pre_ping: bool = True
-    ping_interval: int = 30
+    ping_interval: int = 15  # Reduced from 30 for better detection
     
-    # Retry settings
-    max_retries: int = 3
+    # Retry settings - Faster failure recovery
+    max_retries: int = 2  # Reduced from 3 for faster failure
     retry_delay: float = 0.5
     retry_backoff: float = 2.0
     
-    # Circuit breaker
-    circuit_breaker_threshold: int = 5
-    circuit_breaker_timeout: int = 60
+    # Circuit breaker - More responsive
+    circuit_breaker_threshold: int = 3  # Reduced from 5 for faster protection
+    circuit_breaker_timeout: int = 30   # Reduced from 60 for faster recovery
     
     # SSL settings
     ssl_cert_path: Optional[str] = None

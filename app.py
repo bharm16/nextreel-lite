@@ -5,7 +5,10 @@ import sys
 import time
 import uuid
 import socket
+import hashlib
+import json
 from contextlib import asynccontextmanager
+from functools import wraps
 
 from redis import asyncio as aioredis
 from quart import Quart, request, redirect, url_for, session, render_template, g
@@ -95,6 +98,9 @@ def create_app():
         try:
             await add_correlation_id()
             
+            # Track request start time for performance monitoring
+            g.start_time = time.time()
+            
             # Skip security for static files, health checks, and metrics
             if request.path.startswith('/static') or request.path in ['/health', '/ready', '/metrics']:
                 return
@@ -129,9 +135,21 @@ def create_app():
             # Don't fail the request, create new session
             session_security.create_session()
     
-    # Set security headers
+    # Set security headers and performance monitoring
     @app.after_request
     async def set_security_headers(response):
+        # Performance monitoring - log slow requests
+        if hasattr(g, 'start_time'):
+            elapsed = time.time() - g.start_time
+            if elapsed > 1.0:  # Log requests taking more than 1 second
+                logger.warning(
+                    f"Slow request: {request.endpoint} took {elapsed:.2f}s "
+                    f"(user: {session.get('user_id')}, correlation: {g.get('correlation_id')})"
+                )
+            
+            # Add timing header for debugging
+            response.headers['X-Response-Time'] = f"{elapsed:.3f}"
+        
         # HSTS Header (HTTP Strict Transport Security)
         if app.config.get('SESSION_COOKIE_SECURE'):
             response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
@@ -188,9 +206,75 @@ def create_app():
     # Setup metrics middleware
     setup_metrics_middleware(app, metrics_collector)
     
+    def cache_response(ttl=60):
+        """Cache decorator for expensive endpoints"""
+        def decorator(f):
+            @wraps(f)
+            async def wrapper(*args, **kwargs):
+                # Generate cache key from request
+                cache_key = f"response:{request.endpoint}:{request.args}:{session.get('user_id')}"
+                cache_key = hashlib.md5(cache_key.encode()).hexdigest()
+                
+                # Try to get from cache
+                if hasattr(app, 'redis_client'):
+                    try:
+                        cached = await app.redis_client.get(cache_key)
+                        if cached:
+                            logger.debug(f"Cache hit for endpoint {request.endpoint}")
+                            return cached
+                    except Exception as e:
+                        logger.warning(f"Cache read failed: {e}")
+                
+                # Execute function
+                result = await f(*args, **kwargs)
+                
+                # Cache the result
+                if hasattr(app, 'redis_client') and result:
+                    try:
+                        await app.redis_client.setex(cache_key, ttl, result)
+                    except Exception as e:
+                        logger.warning(f"Cache write failed: {e}")
+                
+                return result
+            return wrapper
+        return decorator
+    
+    async def init_redis_pool():
+        """Initialize Redis connection pool for better performance"""
+        redis_url = os.getenv('UPSTASH_REDIS_URL', 'redis://localhost:6379')
+        
+        # Create connection pool with optimized settings
+        pool = aioredis.ConnectionPool.from_url(
+            redis_url,
+            max_connections=50,
+            socket_connect_timeout=5,
+            socket_timeout=5,
+            retry_on_timeout=True,
+            health_check_interval=30,
+            decode_responses=True
+        )
+        
+        return aioredis.Redis(connection_pool=pool)
+
     @app.before_serving
     async def startup():
+        """Warm up connections and caches on startup"""
+        logger.info("Starting application warm-up...")
+        
+        # Initialize Redis pool
+        app.redis_client = await init_redis_pool()
+        
+        # Warm up database connections
         await movie_manager.start()
+        warm_up_tasks = []
+        for i in range(5):  # Create 5 warm connections
+            warm_up_tasks.append(
+                movie_manager.db_pool.execute("SELECT 1", fetch='one')
+            )
+        
+        await asyncio.gather(*warm_up_tasks, return_exceptions=True)
+        
+        logger.info("Application warm-up complete")
 
     @app.route('/logout', methods=['POST'])  # Use POST for logout
     async def logout():
@@ -268,6 +352,7 @@ def create_app():
         return await movie_manager.home(user_id)
 
     @app.route('/movie/<slug>')
+    @cache_response(ttl=300)  # Cache for 5 minutes
     async def movie_details(slug):
         user_id = session.get('user_id')
         logger.debug(
@@ -349,25 +434,8 @@ def create_app():
 
 
         try:
-            # Here, you can log before each significant operation to see its duration
-            filter_start_time = time.time()
-            # Simulate processing and filtering
-            await asyncio.sleep(5)  # Simulate some async operation
-            filter_elapsed_time = time.time() - filter_start_time
-            logger.debug(
-                "Simulated filtering operation took %.2f seconds",
-                filter_elapsed_time,
-            )
-
-            # Before calling the movie_manager's filtered_movie method, log the start time
-            movie_filter_start_time = time.time()
+            # Direct call to movie_manager without artificial delays
             response = await movie_manager.filtered_movie(user_id, form_data)
-            movie_filter_elapsed_time = time.time() - movie_filter_start_time
-            logger.debug(
-                "movie_manager.filtered_movie operation took %.2f seconds. Correlation ID: %s",
-                movie_filter_elapsed_time,
-                g.correlation_id,
-            )
 
             # Log the successful completion and time taken
             elapsed_time = time.time() - start_time
