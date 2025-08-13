@@ -38,6 +38,15 @@ class TMDbHelper:
         tmdb.API_KEY = self.api_key
         self.base_url = TMDB_API_BASE_URL
         self.image_base_url = TMDB_IMAGE_BASE_URL
+        # Create reusable client with optimized timeouts
+        self._client = httpx.AsyncClient(
+            timeout=httpx.Timeout(10.0, connect=3.0),  # Faster timeouts
+            limits=httpx.Limits(
+                max_keepalive_connections=20,
+                max_connections=50,
+                keepalive_expiry=30
+            )
+        )
 
     async def _get(self, endpoint, params=None):
         if params is None:
@@ -45,22 +54,21 @@ class TMDbHelper:
         start_time = time.time()  # Start timing
 
         try:
-            async with httpx.AsyncClient() as client:
-                url = f"{self.base_url}/{endpoint}"
-                params["api_key"] = self.api_key
-                # logger.info(f"Sending GET request to {url} with params: {params}")
-                response = await client.get(url, params=params)
-                response.raise_for_status()  # Will raise an exception for 4XX/5XX responses
+            url = f"{self.base_url}/{endpoint}"
+            params["api_key"] = self.api_key
+            # logger.info(f"Sending GET request to {url} with params: {params}")
+            response = await self._client.get(url, params=params)
+            response.raise_for_status()  # Will raise an exception for 4XX/5XX responses
 
-                elapsed_time = time.time() - start_time
-                logger.debug(
-                    "Received response from %s in %.2f seconds. Status code: %s",
-                    url,
-                    elapsed_time,
-                    response.status_code,
-                )
+            elapsed_time = time.time() - start_time
+            logger.debug(
+                "Received response from %s in %.2f seconds. Status code: %s",
+                url,
+                elapsed_time,
+                response.status_code,
+            )
 
-                return response.json()
+            return response.json()
         except httpx.HTTPStatusError as e:
             elapsed_time = time.time() - start_time
             logger.error(
@@ -198,6 +206,11 @@ class TMDbHelper:
     async def get_backdrop_for_movie(self, tmdb_id):
         all_backdrop_urls = await self.get_all_backdrop_images(tmdb_id)
         return random.choice(all_backdrop_urls) if all_backdrop_urls else None
+    
+    async def close(self):
+        """Close the HTTP client"""
+        if hasattr(self, '_client'):
+            await self._client.aclose()
 
 
 # Class for managing TMDb movie information

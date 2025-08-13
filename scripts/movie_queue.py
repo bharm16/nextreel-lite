@@ -59,10 +59,10 @@ class OptimizedMovieQueue:
         self, 
         db_pool: DatabaseConnectionPool, 
         movie_fetcher: MovieFetcher, 
-        queue_size: int = 10,  # Reduced from 15-20
-        prefetch_threshold: int = 3,  # Start loading when queue has 3 items
-        batch_size: int = 5,  # Fetch 5 movies at a time
-        cache_ttl: int = 3600  # 1 hour cache TTL
+        queue_size: int = 5,           # Reduced from 10 - less memory, faster loads
+        prefetch_threshold: int = 2,    # Reduced from 3 - more responsive
+        batch_size: int = 3,            # Reduced from 5 - smaller batches
+        cache_ttl: int = 7200           # Increased from 3600 - 2 hour cache
     ):
         self.db_pool = db_pool
         self.movie_fetcher = movie_fetcher
@@ -93,22 +93,33 @@ class OptimizedMovieQueue:
         if cls._http_client is None or cls._http_client.is_closed:
             cls._http_client = httpx.AsyncClient(
                 timeout=httpx.Timeout(10.0, connect=5.0),
-                limits=httpx.Limits(max_keepalive_connections=10, max_connections=20)
+                limits=httpx.Limits(
+                    max_keepalive_connections=20,
+                    max_connections=50,
+                    keepalive_expiry=30
+                )
             )
         return cls._http_client
     
     @classmethod
     async def get_redis_client(cls) -> redis.Redis:
-        """Get or create shared Redis client"""
+        """Get or create shared Redis client with optimized connection pool"""
         if cls._redis_client is None:
             # Use environment variable or config for Redis URL
-            redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
-            cls._redis_client = await redis.from_url(
+            redis_url = os.getenv('UPSTASH_REDIS_URL', 'redis://localhost:6379')
+            
+            # Create connection pool with optimized settings
+            pool = redis.ConnectionPool.from_url(
                 redis_url,
-                encoding="utf-8",
-                decode_responses=True,
-                max_connections=10
+                max_connections=50,
+                socket_connect_timeout=5,
+                socket_timeout=5,
+                retry_on_timeout=True,
+                health_check_interval=30,
+                decode_responses=True
             )
+            
+            cls._redis_client = redis.Redis(connection_pool=pool)
         return cls._redis_client
     
     async def get_user_lock(self, user_id: str) -> asyncio.Lock:

@@ -159,104 +159,135 @@ class Movie:
     async def get_movie_data(self):
         start_time = time.time()
 
-        tmdb_id = await self.tmdb_helper.get_tmdb_id_by_tconst(self.tconst)
-        await self.fetch_movie_slug()
+        try:
+            # Check cache first (assuming redis_client exists)
+            cache_key = f"movie:full:{self.tconst}"
+            if hasattr(self, 'redis_client') and self.redis_client:
+                try:
+                    import json
+                    cached = await self.redis_client.get(cache_key)
+                    if cached:
+                        logger.debug(f"Cache hit for movie {self.tconst}")
+                        return json.loads(cached)
+                except Exception as e:
+                    logger.warning(f"Cache read failed: {e}")
 
-        if not tmdb_id:
-            logger.warning(f"No TMDB ID found for tconst: {self.tconst}")
-            return None
+            # Parallel fetch of basic data and TMDB ID
+            basic_tasks = [
+                self.tmdb_helper.get_tmdb_id_by_tconst(self.tconst),
+                self.fetch_movie_slug()
+            ]
+            basic_results = await asyncio.gather(*basic_tasks, return_exceptions=True)
+            
+            tmdb_id = basic_results[0] if not isinstance(basic_results[0], Exception) else None
+            
+            if not tmdb_id:
+                logger.warning(f"No TMDB ID found for tconst: {self.tconst}")
+                return None
 
-        # Execute coroutines concurrently
-        tasks = [
-            self.tmdb_helper.get_movie_info_by_tmdb_id(tmdb_id),
-            self.tmdb_helper.get_credits_by_tmdb_id(tmdb_id),
-            self.tmdb_helper.get_video_url_by_tmdb_id(tmdb_id),
-            self.tmdb_helper.get_cast_info_by_tmdb_id(tmdb_id),
-            self.tmdb_helper.get_images_by_tmdb_id(tmdb_id),
-            self.fetch_movie_ratings(self.tconst),
-        ]
-        results = await asyncio.gather(*tasks)
+            # Execute all data fetching coroutines concurrently with error handling
+            tasks = [
+                self.tmdb_helper.get_movie_info_by_tmdb_id(tmdb_id),
+                self.tmdb_helper.get_credits_by_tmdb_id(tmdb_id),
+                self.tmdb_helper.get_video_url_by_tmdb_id(tmdb_id),
+                self.tmdb_helper.get_cast_info_by_tmdb_id(tmdb_id),
+                self.tmdb_helper.get_images_by_tmdb_id(tmdb_id),
+                self.fetch_movie_ratings(self.tconst),
+            ]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        (
-            movie_info,
-            tmdb_credits,
-            tmdb_movie_trailer,
-            tmdb_cast_info_result,
-            tmdb_image_info,
-            ratings_data,
-        ) = results
-        tmdb_cast_info = (
-            tmdb_cast_info_result[:10] if tmdb_cast_info_result else []
-        )  # Limit to 10 cast members
+            # Process results with error handling
+            movie_info = results[0] if not isinstance(results[0], Exception) else {}
+            tmdb_credits = results[1] if not isinstance(results[1], Exception) else {}
+            tmdb_movie_trailer = results[2] if not isinstance(results[2], Exception) else None
+            tmdb_cast_info_result = results[3] if not isinstance(results[3], Exception) else []
+            tmdb_image_info = results[4] if not isinstance(results[4], Exception) else {}
+            ratings_data = results[5] if not isinstance(results[5], Exception) else None
+            
+            # Log any errors that occurred
+            for i, result in enumerate(results):
+                if isinstance(result, Exception):
+                    logger.warning(f"Task {i} failed for {self.tconst}: {result}")
 
-        backdrop_url = (
-            tmdb_image_info["backdrops"][0]
-            if tmdb_image_info.get("backdrops")
-            else None
-        )
+            tmdb_cast_info = (
+                tmdb_cast_info_result[:10] if tmdb_cast_info_result else []
+            )  # Limit to 10 cast members
 
-        # Use database rating if available; otherwise, fall back to TMDB rating
-        rating = (
-            ratings_data["averageRating"]
-            if ratings_data and ratings_data["averageRating"] != "N/A"
-            else movie_info.get("vote_average", "N/A")
-        )
-        votes = (
-            ratings_data["numVotes"]
-            if ratings_data and ratings_data["numVotes"] != "N/A"
-            else movie_info.get("vote_count", "N/A")
-        )
-
-        directors = [
-            crew["name"]
-            for crew in tmdb_credits.get("crew", [])
-            if crew["job"] == "Director"
-        ]
-        writers = [
-            crew["name"]
-            for crew in tmdb_credits.get("crew", [])
-            if crew["job"] == "Writer"
-        ]
-
-        self.movie_data = {
-            "title": movie_info.get("title", "N/A"),
-            "imdb_id": self.tconst,
-            "tmdb_id": tmdb_id,
-            # "slug": self.slug,
-            "genres": ", ".join(
-                [genre["name"] for genre in movie_info.get("genres", [])]
-            ),
-            "directors": ", ".join(directors),
-            # "writers": ', '.join(writers),
-            # "runtimes": movie_info.get('runtime', 'N/A'),
-            # "countries": ', '.join([country['name'] for country in movie_info.get('production_countries', [])]),
-            # "languages": movie_info.get('original_language', 'N/A'),
-            "rating": rating,
-            "votes": votes,
-            "plot": movie_info.get("overview", "N/A"),
-            "poster_url": (
-                f"{TMDB_IMAGE_BASE_URL}w500{movie_info.get('poster_path')}"
-                if movie_info.get("poster_path")
+            backdrop_url = (
+                tmdb_image_info["backdrops"][0]
+                if tmdb_image_info.get("backdrops")
                 else None
-            ),
-            "year": (
-                movie_info.get("release_date", "N/A")[:4]
-                if movie_info.get("release_date")
-                else "N/A"
-            ),
-            "cast": tmdb_cast_info,
-            "images": tmdb_image_info,
-            "trailer": tmdb_movie_trailer,
-            "credits": tmdb_credits,
-            "backdrop_url": backdrop_url,
-        }
+            )
 
-        method_time = time.time() - start_time
-        logger.info(
-            f"Completed get_movie_data for {self.tconst} in {method_time:.2f} seconds."
-        )
+            # Use database rating if available; otherwise, fall back to TMDB rating
+            rating = (
+                ratings_data["averageRating"]
+                if ratings_data and ratings_data["averageRating"] != "N/A"
+                else movie_info.get("vote_average", "N/A")
+            )
+            votes = (
+                ratings_data["numVotes"]
+                if ratings_data and ratings_data["numVotes"] != "N/A"
+                else movie_info.get("vote_count", "N/A")
+            )
 
-        return self.movie_data
+            directors = [
+                crew["name"]
+                for crew in tmdb_credits.get("crew", [])
+                if crew["job"] == "Director"
+            ]
+
+            self.movie_data = {
+                "title": movie_info.get("title", "N/A"),
+                "imdb_id": self.tconst,
+                "tmdb_id": tmdb_id,
+                "slug": self.slug,
+                "genres": ", ".join(
+                    [genre["name"] for genre in movie_info.get("genres", [])]
+                ),
+                "directors": ", ".join(directors),
+                "rating": rating,
+                "votes": votes,
+                "plot": movie_info.get("overview", "N/A"),
+                "poster_url": (
+                    f"{TMDB_IMAGE_BASE_URL}w500{movie_info.get('poster_path')}"
+                    if movie_info.get("poster_path")
+                    else None
+                ),
+                "year": (
+                    movie_info.get("release_date", "N/A")[:4]
+                    if movie_info.get("release_date")
+                    else "N/A"
+                ),
+                "cast": tmdb_cast_info,
+                "images": tmdb_image_info,
+                "trailer": tmdb_movie_trailer,
+                "credits": tmdb_credits,
+                "backdrop_url": backdrop_url,
+            }
+
+            # Cache the complete result
+            if hasattr(self, 'redis_client') and self.redis_client and self.movie_data:
+                try:
+                    import json
+                    await self.redis_client.setex(
+                        cache_key,
+                        3600,  # 1 hour TTL
+                        json.dumps(self.movie_data)
+                    )
+                except Exception as e:
+                    logger.warning(f"Cache write failed: {e}")
+
+            method_time = time.time() - start_time
+            logger.info(
+                f"Completed get_movie_data for {self.tconst} in {method_time:.2f} seconds (parallel)"
+            )
+
+            return self.movie_data
+            
+        except Exception as e:
+            logger.error(f"Error fetching movie data for {self.tconst}: {e}")
+            return None
 
     async def close(self):
         await self.client.aclose()  # Close the client session when done
