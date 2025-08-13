@@ -25,6 +25,17 @@ from session_auth import ensure_session
 from session_auth_enhanced import session_security, ensure_secure_session, require_valid_session
 from secrets_manager import secrets_manager
 
+# Import metrics components
+from metrics_collector import (
+    MetricsCollector, 
+    metrics_endpoint,
+    setup_metrics_middleware,
+    track_request_metrics,
+    movie_recommendations_total,
+    user_sessions_total,
+    user_actions_total
+)
+
 import os
 from local_env_setup import setup_local_environment
 
@@ -72,14 +83,20 @@ def create_app():
         Session(app)
 
     movie_manager = MovieManager(settings.Config.get_db_config())
+    
+    # Initialize metrics collector
+    metrics_collector = MetricsCollector(
+        db_pool=movie_manager.db_pool,
+        movie_manager=movie_manager
+    )
 
     @app.before_request
     async def before_request():
         try:
             await add_correlation_id()
             
-            # Skip security for static files and health checks
-            if request.path.startswith('/static') or request.path in ['/health', '/ready']:
+            # Skip security for static files, health checks, and metrics
+            if request.path.startswith('/static') or request.path in ['/health', '/ready', '/metrics']:
                 return
             
             if app.config.get('TESTING'):
@@ -96,6 +113,10 @@ def create_app():
                 default_criteria = {"min_year": 1900, "max_year": 2023, "min_rating": 7.0,
                                     "genres": ["Action", "Comedy"]}
                 await movie_manager.add_user(session['user_id'], default_criteria)
+                
+                # Track new user session
+                user_sessions_total.inc()
+                metrics_collector.track_user_activity(session['user_id'])
             elif 'watch_queue' not in session:
                 await movie_manager.add_user(session['user_id'], session.get('criteria', {}))
             
@@ -135,6 +156,10 @@ def create_app():
         try:
             await movie_manager.start()
             logger.info("MovieManager started successfully")
+            
+            # Start metrics collection
+            await metrics_collector.start_collection()
+            logger.info("Metrics collection started")
         except Exception as e:
             logger.error(f"Failed to start MovieManager: {e}")
             raise
@@ -144,6 +169,10 @@ def create_app():
         # Shutdown - Clean up resources
         logger.info("Shutting down application lifecycle")
         try:
+            # Stop metrics collection first
+            await metrics_collector.stop_collection()
+            logger.info("Metrics collection stopped")
+            
             # Close MovieManager and database pool properly
             if hasattr(movie_manager, 'close'):
                 await movie_manager.close()
@@ -155,6 +184,9 @@ def create_app():
     
     # Apply lifespan to the app
     app.lifespan = lifespan
+    
+    # Setup metrics middleware
+    setup_metrics_middleware(app, metrics_collector)
     
     @app.before_serving
     async def startup():
@@ -180,6 +212,11 @@ def create_app():
     async def health_check():
         """Health check endpoint for load balancers"""
         return {'status': 'healthy'}, 200
+    
+    @app.route('/metrics')
+    async def metrics():
+        """Prometheus metrics endpoint"""
+        return await metrics_endpoint()
     
     @app.route('/ready')
     async def readiness_check():
@@ -211,17 +248,6 @@ def create_app():
         except Exception as e:
             return {'status': 'not_ready', 'reason': str(e)}, 503
     
-    @app.route('/metrics')
-    async def metrics_endpoint():
-        """Detailed metrics endpoint for monitoring"""
-        try:
-            db_metrics = await movie_manager.db_pool.get_metrics()
-            return {
-                'database': db_metrics,
-                'timestamp': time.time()
-            }, 200
-        except Exception as e:
-            return {'error': str(e)}, 500
     @app.route('/movie/<tconst>')
     async def movie_detail(tconst):
         # Extract user_id from the session
@@ -264,6 +290,10 @@ def create_app():
     async def next_movie():
         user_id = session.get('user_id')
         logger.info(f"Requesting next movie for user_id: {user_id}. Correlation ID: {g.correlation_id}")
+
+        # Track movie recommendation
+        metrics_collector.track_movie_recommendation('next_movie')
+        user_actions_total.labels(action_type='next_movie').inc()
 
         response = await movie_manager.next_movie(user_id)
         if response:

@@ -1,0 +1,26 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+# Remote write configuration to send metrics to Grafana Cloud
+# Copy this file to prometheus.yml and replace with your actual credentials
+remote_write:
+  - url: https://prometheus-prod-XX-prod-us-east-X.grafana.net/api/prom/push
+    basic_auth:
+      username: YOUR_USER_ID
+      password: YOUR_GRAFANA_API_TOKEN
+
+# Scrape your NextReel application
+scrape_configs:
+  - job_name: 'nextreel-local'
+    static_configs:
+      - targets: ['localhost:5001']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    honor_labels: true
+    
+  # Add system metrics for completeness  
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

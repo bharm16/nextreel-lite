@@ -34,3 +34,7 @@ htmlcov
 *.crt
 *.cer
 secrets/
+
+# Prometheus data and local configs with secrets
+prometheus-data/
+prometheus.yml
