@@ -48,8 +48,8 @@ class Config:
     # Session Security Configuration
     SECRET_KEY = secrets_manager.get_secret('FLASK_SECRET_KEY')
     
-    # Session Cookie Security
-    SESSION_COOKIE_NAME = 'nextreel_session'
+    # Session Cookie Security  
+    SESSION_COOKIE_NAME = 'session'
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'Lax'  # or 'Strict' for higher security
     
@@ -64,12 +64,7 @@ class Config:
         return secure
     
     # Additional security headers
-    @property
-    def SESSION_COOKIE_DOMAIN(self):
-        """Set cookie domain for production."""
-        if os.getenv('FLASK_ENV') == 'production':
-            return os.getenv('COOKIE_DOMAIN', None)  # e.g., '.nextreel.com'
-        return None
+    SESSION_COOKIE_DOMAIN = None if os.getenv('FLASK_ENV') != 'production' else os.getenv('COOKIE_DOMAIN', None)
     
     # Session timeouts
     SESSION_TIMEOUT_MINUTES = int(os.getenv('SESSION_TIMEOUT_MINUTES', 30))
@@ -80,8 +75,8 @@ class Config:
     # Redis session configuration
     SESSION_TYPE = 'redis'
     SESSION_PERMANENT = False
-    SESSION_USE_SIGNER = True
-    SESSION_KEY_PREFIX = 'nextreel:session:'
+    SESSION_USE_SIGNER = False
+    SESSION_KEY_PREFIX = 'session:'
     PERMANENT_SESSION_LIFETIME = 86400  # 24 hours in seconds
 
     # Expose production database configuration for scripts that need it
