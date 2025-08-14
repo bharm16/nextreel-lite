@@ -184,21 +184,59 @@ def create_app():
         
         yield
         
-        # Shutdown - Clean up resources
+        # Shutdown - Clean up resources properly to avoid event loop errors
         logger.info("Shutting down application lifecycle")
         try:
-            # Stop metrics collection first
-            await metrics_collector.stop_collection()
-            logger.info("Metrics collection stopped")
+            # Stop metrics collection first with timeout
+            try:
+                await asyncio.wait_for(metrics_collector.stop_collection(), timeout=5.0)
+                logger.info("Metrics collection stopped")
+            except asyncio.TimeoutError:
+                logger.warning("Metrics collection stop timed out")
+            except Exception as e:
+                logger.warning(f"Error stopping metrics collection: {e}")
+            
+            # Close Redis connections if they exist
+            if hasattr(app, 'redis_client') and app.redis_client:
+                try:
+                    await asyncio.wait_for(app.redis_client.aclose(), timeout=3.0)
+                    logger.info("Redis client closed")
+                except asyncio.TimeoutError:
+                    logger.warning("Redis client close timed out")
+                except Exception as e:
+                    logger.warning(f"Error closing Redis client: {e}")
             
             # Close MovieManager and database pool properly
             if hasattr(movie_manager, 'close'):
-                await movie_manager.close()
+                try:
+                    await asyncio.wait_for(movie_manager.close(), timeout=5.0)
+                    logger.info("MovieManager closed successfully")
+                except asyncio.TimeoutError:
+                    logger.warning("MovieManager close timed out")
+                except Exception as e:
+                    logger.warning(f"Error closing MovieManager: {e}")
             elif hasattr(movie_manager, 'db_pool') and movie_manager.db_pool:
-                await movie_manager.db_pool.close_pool()
-                logger.info("Database pool closed successfully")
+                try:
+                    await asyncio.wait_for(movie_manager.db_pool.close_pool(), timeout=5.0)
+                    logger.info("Database pool closed successfully")
+                except asyncio.TimeoutError:
+                    logger.warning("Database pool close timed out")
+                except Exception as e:
+                    logger.warning(f"Error closing database pool: {e}")
+                    
+            # Close session Redis if configured
+            if 'SESSION_REDIS' in app.config and app.config['SESSION_REDIS']:
+                try:
+                    redis_conn = app.config['SESSION_REDIS']
+                    await asyncio.wait_for(redis_conn.aclose(), timeout=3.0)
+                    logger.info("Session Redis closed")
+                except asyncio.TimeoutError:
+                    logger.warning("Session Redis close timed out")
+                except Exception as e:
+                    logger.warning(f"Error closing session Redis: {e}")
+                    
         except Exception as e:
-            logger.error(f"Error during shutdown: {e}")
+            logger.error(f"Critical error during shutdown: {e}")
     
     # Apply lifespan to the app
     app.lifespan = lifespan
@@ -262,7 +300,11 @@ def create_app():
         logger.info("Starting application warm-up...")
         
         # Initialize Redis pool
-        app.redis_client = await init_redis_pool()
+        try:
+            app.redis_client = await init_redis_pool()
+        except Exception as e:
+            logger.warning(f"Redis pool initialization failed: {e}")
+            app.redis_client = None
         
         # Warm up database connections
         await movie_manager.start()
@@ -275,6 +317,29 @@ def create_app():
         await asyncio.gather(*warm_up_tasks, return_exceptions=True)
         
         logger.info("Application warm-up complete")
+    
+    @app.after_serving
+    async def cleanup():
+        """Clean up resources after serving"""
+        logger.info("Cleaning up resources after serving...")
+        try:
+            # Close movie manager first
+            if movie_manager:
+                await movie_manager.close()
+            
+            # Close Redis client
+            if hasattr(app, 'redis_client') and app.redis_client:
+                try:
+                    await app.redis_client.aclose()
+                except Exception as e:
+                    logger.warning(f"Error closing Redis client: {e}")
+            
+            # Ensure global pool is closed
+            from settings import close_pool
+            await close_pool()
+            
+        except Exception as e:
+            logger.error(f"Error during cleanup: {e}")
 
     @app.route('/logout', methods=['POST'])  # Use POST for logout
     async def logout():
@@ -489,37 +554,72 @@ app = create_app()
 
 def signal_handler(signum, frame):
     logger.info(f"Received signal {signum}. Shutting down gracefully...")
+    # Cancel all tasks and stop the event loop properly
+    try:
+        loop = asyncio.get_event_loop()
+        if loop and loop.is_running():
+            # Cancel all running tasks
+            tasks = asyncio.all_tasks(loop)
+            for task in tasks:
+                task.cancel()
+            # Stop the loop
+            loop.stop()
+    except Exception as e:
+        logger.error(f"Error during signal handling: {e}")
     sys.exit(0)
+
+def check_port_available(port: int, host: str = '127.0.0.1') -> bool:
+    """Check if a port is available for binding."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        try:
+            sock.bind((host, port))
+            sock.close()
+            return True
+        except OSError:
+            return False
+
+def find_available_port(start_port: int = 5000, max_attempts: int = 10, host: str = '127.0.0.1') -> int:
+    """Find an available port starting from start_port."""
+    for i in range(max_attempts):
+        port = start_port + i
+        if check_port_available(port, host):
+            logger.info(f"Found available port: {port}")
+            return port
+        else:
+            logger.debug(f"Port {port} is already in use")
+    
+    logger.error(f"Could not find an available port after {max_attempts} attempts")
+    sys.exit(1)
 
 if __name__ == "__main__":
     import os
     
-    # Get port from environment or use default
-    port = int(os.environ.get('PORT', 5000))
+    # Get host and port from environment
+    host = os.environ.get('HOST', '127.0.0.1')
+    default_port = int(os.environ.get('PORT', 5000))
     
     # Setup graceful shutdown handlers
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
     
-    # Check if port is available before starting
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    try:
-        sock.bind(('127.0.0.1', port))
-        sock.close()
-        logger.info(f"Port {port} is available")
-    except OSError:
-        logger.error(f"Port {port} is already in use. Trying alternative port {port + 1}")
-        port = port + 1
+    # Find an available port
+    port = find_available_port(default_port, max_attempts=10, host=host)
     
     # Run with proper configuration
     try:
-        logger.info(f"Starting NextReel-Lite on http://127.0.0.1:{port}")
+        logger.info(f"Starting NextReel-Lite on http://{host}:{port}")
         app.run(
-            host='127.0.0.1',
+            host=host,
             port=port,
             debug=False,
             use_reloader=False  # Disable reloader to prevent double initialization
         )
+    except OSError as e:
+        if e.errno == 48:  # Address already in use
+            logger.error(f"Port {port} is still in use. Please wait a moment and try again.")
+        else:
+            logger.error(f"Failed to start server: {e}")
+        sys.exit(1)
     except KeyboardInterrupt:
         logger.info("Application interrupted by user")
     except Exception as e:

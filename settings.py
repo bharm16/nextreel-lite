@@ -131,6 +131,8 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from aiomysql import Pool, Connection, DictCursor
+import weakref
+import atexit
 
 
 @dataclass
@@ -526,9 +528,10 @@ class DatabaseConnectionPool:
         self.pool.release(conn)
 
     async def close_pool(self):
-        """Close the pool and cleanup"""
+        """Close the pool and cleanup properly to avoid event loop errors"""
         self._shutdown = True
         
+        # Cancel health check task first
         if self._health_check_task:
             self._health_check_task.cancel()
             try:
@@ -537,9 +540,30 @@ class DatabaseConnectionPool:
                 pass
         
         if self.pool:
-            self.pool.close()
-            await self.pool.wait_closed()
-            logger.info("Database pool closed")
+            try:
+                # Close all connections in the pool gracefully
+                logger.info("Closing database connection pool...")
+                self.pool.close()
+                
+                # Wait for all connections to close with a timeout
+                try:
+                    await asyncio.wait_for(self.pool.wait_closed(), timeout=5.0)
+                    logger.info("Database pool closed successfully")
+                except asyncio.TimeoutError:
+                    logger.warning("Database pool close timed out, forcing shutdown")
+                    # Force close any remaining connections
+                    self.pool.terminate()
+                    
+            except Exception as e:
+                logger.error(f"Error closing database pool: {e}")
+                # Force termination if graceful close fails
+                try:
+                    self.pool.terminate()
+                except Exception as term_e:
+                    logger.error(f"Error terminating database pool: {term_e}")
+            finally:
+                self.pool = None
+                self._connection_creation_times.clear()
 
     def __repr__(self) -> str:
         return (
@@ -550,6 +574,53 @@ class DatabaseConnectionPool:
             f"{self.config.max_size}>"
         )
 
+
+# Global pool instance management
+_pool = None
+
+async def init_pool():
+    """Initialize the global database connection pool."""
+    global _pool
+    if _pool is None:
+        db_config = Config.get_db_config()
+        _pool = DatabaseConnectionPool(db_config)
+        await _pool.init_pool()
+        logger.info("Global database pool initialized")
+    return _pool
+
+async def get_pool():
+    """Get the global database connection pool, initializing if needed."""
+    global _pool
+    if _pool is None:
+        await init_pool()
+    return _pool
+
+async def close_pool():
+    """Close the global database connection pool gracefully."""
+    global _pool
+    if _pool:
+        try:
+            await _pool.close_pool()
+            _pool = None
+            logger.info("Global database pool closed successfully")
+        except Exception as e:
+            logger.error(f"Error closing global database pool: {e}")
+            _pool = None
+
+# Register cleanup at exit
+def _cleanup_pool_sync():
+    """Synchronous cleanup for atexit."""
+    global _pool
+    if _pool:
+        try:
+            # Try to get the event loop
+            loop = asyncio.get_event_loop()
+            if loop and not loop.is_closed():
+                loop.run_until_complete(close_pool())
+        except Exception as e:
+            logger.warning(f"Could not cleanly close pool at exit: {e}")
+
+atexit.register(_cleanup_pool_sync)
 
 # Asynchronous usage example
 async def main():
