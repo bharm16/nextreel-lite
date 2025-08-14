@@ -6,6 +6,13 @@ __pycache__
 build
 dist
 
+# Virtual environments (never commit these)
+venv/
+venv1/
+.venv/
+env/
+ENV/
+
 # Make files
 Makefile
 
@@ -38,3 +45,13 @@ secrets/
 # Prometheus data and local configs with secrets
 prometheus-data/
 prometheus.yml
+
+# Database backups (contain sensitive data and are too large for git)
+backups/
+backup.sh
+
+# Log files (runtime data, can be large, may contain sensitive info)
+logs/*.log
+
+# Integration documentation (internal use only)
+SECURITY_INTEGRATION.md
