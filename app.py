@@ -45,6 +45,7 @@ from metrics_collector import (
 
 import os
 from local_env_setup import setup_local_environment
+from secure_cache import SecureCacheManager, CacheNamespace
 
 setup_logging(log_level=logging.INFO)
 logger = get_logger(__name__)
@@ -71,6 +72,17 @@ def create_app():
 
     @app.before_serving
     async def setup_redis():
+        # Initialize secure cache manager
+        cache_secret = os.getenv('CACHE_SECRET_KEY', app.config['SECRET_KEY'])
+        redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
+        
+        app.secure_cache = SecureCacheManager(
+            redis_url=redis_url,
+            secret_key=cache_secret,
+            enable_monitoring=True
+        )
+        await app.secure_cache.initialize()
+        logger.info("Secure cache manager initialized")
         if os.getenv("FLASK_ENV") == "production":
             # Production Redis configuration
             cache = await aioredis.Redis(
@@ -217,6 +229,16 @@ def create_app():
                 except Exception as e:
                     logger.warning(f"Error closing database pool: {e}")
                     
+            # Close secure cache if configured
+            if hasattr(app, 'secure_cache'):
+                try:
+                    await asyncio.wait_for(app.secure_cache.close(), timeout=3.0)
+                    logger.info("Secure cache closed")
+                except asyncio.TimeoutError:
+                    logger.warning("Secure cache close timed out")
+                except Exception as e:
+                    logger.warning(f"Error closing secure cache: {e}")
+            
             # Close session Redis if configured
             if 'SESSION_REDIS' in app.config and app.config['SESSION_REDIS']:
                 try:
@@ -237,19 +259,20 @@ def create_app():
     # Setup metrics middleware
     setup_metrics_middleware(app, metrics_collector)
     
-    def cache_response(ttl=60):
-        """Cache decorator for expensive endpoints"""
+    def cache_response(ttl=60, namespace=CacheNamespace.API):
+        """Secure cache decorator for expensive endpoints"""
         def decorator(f):
             @wraps(f)
             async def wrapper(*args, **kwargs):
                 # Generate cache key from request
-                cache_key = f"response:{request.endpoint}:{request.args}:{session.get('user_id')}"
+                user_id = session.get('user_id', 'anonymous')
+                cache_key = f"{request.endpoint}:{request.args}:{user_id}"
                 cache_key = hashlib.md5(cache_key.encode()).hexdigest()
                 
-                # Try to get from cache
-                if hasattr(app, 'redis_client'):
+                # Try to get from secure cache
+                if hasattr(app, 'secure_cache'):
                     try:
-                        cached = await app.redis_client.get(cache_key)
+                        cached = await app.secure_cache.get(namespace, cache_key)
                         if cached:
                             logger.debug(f"Cache hit for endpoint {request.endpoint}")
                             return cached
@@ -259,10 +282,10 @@ def create_app():
                 # Execute function
                 result = await f(*args, **kwargs)
                 
-                # Cache the result
-                if hasattr(app, 'redis_client') and result:
+                # Cache the result securely
+                if hasattr(app, 'secure_cache') and result:
                     try:
-                        await app.redis_client.setex(cache_key, ttl, result)
+                        await app.secure_cache.set(namespace, cache_key, result, ttl=ttl)
                     except Exception as e:
                         logger.warning(f"Cache write failed: {e}")
                 
@@ -319,6 +342,13 @@ def create_app():
             # Close movie manager first
             if movie_manager:
                 await movie_manager.close()
+            
+            # Close secure cache
+            if hasattr(app, 'secure_cache'):
+                try:
+                    await app.secure_cache.close()
+                except Exception as e:
+                    logger.warning(f"Error closing secure cache: {e}")
             
             # Close Redis client
             if hasattr(app, 'redis_client') and app.redis_client:

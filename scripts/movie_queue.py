@@ -22,6 +22,7 @@ from scripts.movie import Movie
 from scripts.filter_backend import ImdbRandomMovieFetcher
 from .interfaces import MovieFetcher
 from settings import DatabaseConnectionPool
+from secure_cache import SecureCacheManager, CacheNamespace
 
 logger = get_logger(__name__)
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -58,7 +59,8 @@ class OptimizedMovieQueue:
     def __init__(
         self, 
         db_pool: DatabaseConnectionPool, 
-        movie_fetcher: MovieFetcher, 
+        movie_fetcher: MovieFetcher,
+        secure_cache: Optional[SecureCacheManager] = None,
         queue_size: int = 5,           # Reduced from 10 - less memory, faster loads
         prefetch_threshold: int = 2,    # Reduced from 3 - more responsive
         batch_size: int = 3,            # Reduced from 5 - smaller batches
@@ -66,6 +68,7 @@ class OptimizedMovieQueue:
     ):
         self.db_pool = db_pool
         self.movie_fetcher = movie_fetcher
+        self.secure_cache = secure_cache
         self.queue_size = queue_size
         self.prefetch_threshold = prefetch_threshold
         self.batch_size = batch_size
@@ -129,33 +132,39 @@ class OptimizedMovieQueue:
         return self.queue_locks[user_id]
     
     async def get_cached_movie_data(self, tconst: str) -> Optional[Dict[str, Any]]:
-        """Get movie data from Redis cache"""
+        """Get movie data from secure cache"""
+        if not self.secure_cache:
+            return None
+            
         try:
-            redis_client = await self.get_redis_client()
-            cache_key = f"movie:{tconst}"
-            cached = await redis_client.get(cache_key)
+            cached = await self.secure_cache.get(
+                CacheNamespace.MOVIE, 
+                tconst
+            )
             
             if cached:
                 self.metrics['cache_hits'] += 1
                 logger.debug(f"Cache hit for movie {tconst}")
-                return json.loads(cached)
+                return cached
             
             self.metrics['cache_misses'] += 1
             return None
             
         except Exception as e:
-            logger.warning(f"Redis cache error for {tconst}: {e}")
+            logger.warning(f"Cache error for {tconst}: {e}")
             return None
     
     async def cache_movie_data(self, tconst: str, data: Dict[str, Any]):
-        """Cache movie data in Redis"""
+        """Cache movie data securely"""
+        if not self.secure_cache:
+            return
+            
         try:
-            redis_client = await self.get_redis_client()
-            cache_key = f"movie:{tconst}"
-            await redis_client.setex(
-                cache_key,
-                self.cache_ttl,
-                json.dumps(data)
+            await self.secure_cache.set(
+                CacheNamespace.MOVIE,
+                tconst,
+                data,
+                ttl=self.cache_ttl
             )
             logger.debug(f"Cached movie data for {tconst}")
         except Exception as e:
