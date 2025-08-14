@@ -52,3 +52,6 @@ backup.sh
 
 # Log files (runtime data, can be large, may contain sensitive info)
 logs/*.log
+
+# Integration documentation (internal use only)
+SECURITY_INTEGRATION.md

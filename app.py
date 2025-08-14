@@ -25,7 +25,11 @@ from logging_config import setup_logging, get_logger
 from middleware import add_correlation_id
 from movie_service import MovieManager
 from session_auth import ensure_session
-from session_auth_enhanced import session_security, ensure_secure_session, require_valid_session
+from session_security_enhanced import (
+    EnhancedSessionSecurity, 
+    add_security_headers,
+    require_secure_session
+)
 from secrets_manager import secrets_manager
 
 # Import metrics components
@@ -58,8 +62,8 @@ def create_app():
     app = FixedQuart(__name__)
     app.config.from_object(settings.Config)
     
-    # Initialize session security
-    session_security.init_app(app)
+    # Initialize enhanced session security
+    session_security = EnhancedSessionSecurity(app)
 
 
 
@@ -108,9 +112,7 @@ def create_app():
             if app.config.get('TESTING'):
                 return
             
-            # Apply enhanced session security
-            ensure_secure_session()
-            
+            # Enhanced session security is handled automatically by EnhancedSessionSecurity
             # Legacy session handling for backward compatibility
             ensure_session()
             
@@ -133,7 +135,7 @@ def create_app():
         except Exception as e:
             logger.error(f"Error in session management: {e}")
             # Don't fail the request, create new session
-            session_security.create_session()
+            await session_security.create_session()
     
     # Set security headers and performance monitoring
     @app.after_request
@@ -150,17 +152,8 @@ def create_app():
             # Add timing header for debugging
             response.headers['X-Response-Time'] = f"{elapsed:.3f}"
         
-        # HSTS Header (HTTP Strict Transport Security)
-        if app.config.get('SESSION_COOKIE_SECURE'):
-            response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
-        
-        # Additional security headers
-        response.headers['X-Content-Type-Options'] = 'nosniff'
-        response.headers['X-Frame-Options'] = 'SAMEORIGIN'
-        response.headers['X-XSS-Protection'] = '1; mode=block'
-        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
-        
-        return response
+        # Apply enhanced security headers
+        return await add_security_headers(response)
 
     # Set up Redis for session management using aioredis
 
@@ -344,7 +337,7 @@ def create_app():
     @app.route('/logout', methods=['POST'])  # Use POST for logout
     async def logout():
         """Securely logout and destroy session."""
-        session_security.destroy_session()
+        await session_security.destroy_session()
         response = redirect(url_for('home'))
         # Clear cookie on client side
         response.set_cookie(
