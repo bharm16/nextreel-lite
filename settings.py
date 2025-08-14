@@ -91,7 +91,9 @@ class Config:
     # Dynamically switch database configurations based on FLASK_ENV
     @staticmethod
     def get_db_config():
+        """Get database configuration based on environment"""
         if flask_env == 'development':
+            # Development configuration - local MySQL
             return {
                 'host': os.getenv('DB_HOST', '127.0.0.1'),
                 'user': os.getenv('DB_USER', 'root'),
@@ -99,13 +101,15 @@ class Config:
                 'database': os.getenv('DB_NAME', 'imdb'),
                 'port': int(os.getenv('DB_PORT', 3306)),
             }
-        else:  # Production configuration
+        else:
+            # Production configuration - use production database variables
+            # These can be your cloud provider's database or any production MySQL
             return {
-                'host': os.getenv('STACKHERO_DB_HOST'),
-                'user': os.getenv('STACKHERO_DB_USER'),
-                'password': os.getenv('STACKHERO_DB_PASSWORD'),
-                'database': os.getenv('STACKHERO_DB_NAME'),
-                'port': int(os.getenv('STACKHERO_DB_PORT', 3306)),
+                'host': os.getenv('PROD_DB_HOST', os.getenv('STACKHERO_DB_HOST', os.getenv('DB_HOST'))),
+                'user': os.getenv('PROD_DB_USER', os.getenv('STACKHERO_DB_USER', os.getenv('DB_USER'))),
+                'password': os.getenv('PROD_DB_PASSWORD', os.getenv('STACKHERO_DB_PASSWORD', os.getenv('DB_PASSWORD'))),
+                'database': os.getenv('PROD_DB_NAME', os.getenv('STACKHERO_DB_NAME', os.getenv('DB_NAME'))),
+                'port': int(os.getenv('PROD_DB_PORT', os.getenv('STACKHERO_DB_PORT', os.getenv('DB_PORT', 3306)))),
             }
 
     # SSL Certificate Path
@@ -242,14 +246,47 @@ class CircuitBreaker:
 
 
 def _create_ssl_context(ssl_cert_path):
-    """Create an SSL context if a valid certificate path is provided."""
-    if ssl_cert_path and os.path.isfile(ssl_cert_path):
-        context = ssl.create_default_context(cafile=ssl_cert_path)
-        logger.info("SSL context created successfully.")
+    """Create an SSL context with enhanced security settings."""
+    try:
+        # If no certificate path, use system defaults
+        if not ssl_cert_path or not os.path.isfile(ssl_cert_path):
+            if flask_env == 'production':
+                # In production, try system certificates
+                context = ssl.create_default_context()
+                logger.info("Using system default SSL certificates")
+            else:
+                # In development, SSL is optional
+                logger.info("SSL certificate not found, SSL optional in development")
+                return None
+        else:
+            # Use provided certificate
+            context = ssl.create_default_context(cafile=ssl_cert_path)
+            logger.info(f"Using SSL certificate: {ssl_cert_path}")
+        
+        # Configure context for MySQL
+        context.check_hostname = False  # MySQL doesn't use hostname verification
+        
+        # Set verification mode based on environment
+        if flask_env == 'production':
+            context.verify_mode = ssl.CERT_REQUIRED
+        else:
+            # In development, make SSL optional
+            context.verify_mode = ssl.CERT_NONE
+            
+        # Set minimum TLS version to 1.2
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
+        
+        # Use strong ciphers only
+        context.set_ciphers('ECDHE+AESGCM:ECDHE+CHACHA20:DHE+AESGCM:DHE+CHACHA20:!aNULL:!MD5:!DSS')
+        
+        logger.info("SSL context created with enhanced security settings")
         return context
-    elif ssl_cert_path:
-        logger.error("SSL certificate file not found at %s", ssl_cert_path)
-    return None  # Return None if no valid SSL context
+        
+    except Exception as e:
+        logger.error("Failed to create SSL context: %s", e)
+        if flask_env == 'production':
+            raise  # Re-raise in production
+        return None  # Continue without SSL in development
 
 
 class DatabaseConnectionPool:
