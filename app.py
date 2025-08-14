@@ -199,7 +199,7 @@ def create_app():
             # Close Redis connections if they exist
             if hasattr(app, 'redis_client') and app.redis_client:
                 try:
-                    await asyncio.wait_for(app.redis_client.close(), timeout=3.0)
+                    await asyncio.wait_for(app.redis_client.aclose(), timeout=3.0)
                     logger.info("Redis client closed")
                 except asyncio.TimeoutError:
                     logger.warning("Redis client close timed out")
@@ -228,8 +228,7 @@ def create_app():
             if 'SESSION_REDIS' in app.config and app.config['SESSION_REDIS']:
                 try:
                     redis_conn = app.config['SESSION_REDIS']
-                    await asyncio.wait_for(redis_conn.close(), timeout=3.0)
-                    await asyncio.wait_for(redis_conn.wait_closed(), timeout=2.0)
+                    await asyncio.wait_for(redis_conn.aclose(), timeout=3.0)
                     logger.info("Session Redis closed")
                 except asyncio.TimeoutError:
                     logger.warning("Session Redis close timed out")
@@ -301,7 +300,11 @@ def create_app():
         logger.info("Starting application warm-up...")
         
         # Initialize Redis pool
-        app.redis_client = await init_redis_pool()
+        try:
+            app.redis_client = await init_redis_pool()
+        except Exception as e:
+            logger.warning(f"Redis pool initialization failed: {e}")
+            app.redis_client = None
         
         # Warm up database connections
         await movie_manager.start()
@@ -314,6 +317,29 @@ def create_app():
         await asyncio.gather(*warm_up_tasks, return_exceptions=True)
         
         logger.info("Application warm-up complete")
+    
+    @app.after_serving
+    async def cleanup():
+        """Clean up resources after serving"""
+        logger.info("Cleaning up resources after serving...")
+        try:
+            # Close movie manager first
+            if movie_manager:
+                await movie_manager.close()
+            
+            # Close Redis client
+            if hasattr(app, 'redis_client') and app.redis_client:
+                try:
+                    await app.redis_client.aclose()
+                except Exception as e:
+                    logger.warning(f"Error closing Redis client: {e}")
+            
+            # Ensure global pool is closed
+            from settings import close_pool
+            await close_pool()
+            
+        except Exception as e:
+            logger.error(f"Error during cleanup: {e}")
 
     @app.route('/logout', methods=['POST'])  # Use POST for logout
     async def logout():

@@ -47,6 +47,10 @@ class MovieManager:
                 logger.info("MovieManager database pool closed")
         except Exception as e:
             logger.error(f"Error closing MovieManager: {e}")
+    
+    async def stop(self):
+        """Alias for close() method for consistency"""
+        await self.close()
 
     async def add_user(self, user_id, criteria):
         """
