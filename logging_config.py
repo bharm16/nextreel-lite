@@ -15,10 +15,16 @@ import time
 from datetime import datetime
 from dotenv import load_dotenv
 
-# Load environment
-load_dotenv('.env.production')
-if not os.getenv('GRAFANA_LOKI_URL'):
-    load_dotenv('.env')
+# Load environment based on FLASK_ENV
+flask_env = os.getenv('FLASK_ENV', 'development')
+if flask_env == 'development':
+    load_dotenv('.env.development')
+    if not os.getenv('GRAFANA_LOKI_URL'):
+        load_dotenv('.env')
+else:
+    load_dotenv('.env.production')
+    if not os.getenv('GRAFANA_LOKI_URL'):
+        load_dotenv('.env')
 
 # Loki configuration
 LOKI_URL = os.getenv('GRAFANA_LOKI_URL', 'https://logs-prod-036.grafana.net')
@@ -143,7 +149,7 @@ class LokiHandler(logging.Handler):
         except Exception as e:
             print(f"Failed to send logs to Loki: {e}")
 
-def setup_logging():
+def setup_logging(log_level=logging.INFO):
     """Set up logging with Loki integration"""
     # Create logs directory
     log_dir = Path('logs')
@@ -163,7 +169,7 @@ def setup_logging():
         datefmt='%Y-%m-%d %H:%M:%S'
     )
     console_handler.setFormatter(console_format)
-    console_handler.setLevel(logging.INFO)
+    console_handler.setLevel(log_level)
     root_logger.addHandler(console_handler)
     
     # File handler with rotation
@@ -197,6 +203,10 @@ def setup_logging():
 
 # Create logger for import
 logger = logging.getLogger(__name__)
+
+def get_logger(name):
+    """Get a logger instance for a given name - maintains backward compatibility"""
+    return logging.getLogger(name)
 
 # Auto-setup if imported
 setup_logging()
