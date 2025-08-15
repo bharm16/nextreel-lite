@@ -19,7 +19,7 @@ HOW TO USE:
 YOUR NEW CREDENTIALS:
 - URL: https://logs-prod-036.grafana.net
 - User ID: 1304607
-- New API Key: glc_eyJvIjoiMTUwODY2MyIsIm4iOiJzdGFjay0xMzQ2ODEzLWludGVncmF0aW9uLWh0dHAtbG9ncy1hcGkta2V5IiwiayI6IjEwQVVaeEI4dERtU3E3MVExNlRNTjA4NiIsIm0iOnsiciI6InByb2QtdXMtZWFzdC0wIn19
+- New API Key: [YOUR_GRAFANA_API_KEY_HERE]
 """
 
 import os
@@ -34,7 +34,7 @@ from datetime import datetime
 LOKI_CONFIG = {
     'GRAFANA_LOKI_URL': 'https://logs-prod-036.grafana.net',
     'GRAFANA_LOKI_USER': '1304607',
-    'GRAFANA_LOKI_KEY': 'glc_eyJvIjoiMTUwODY2MyIsIm4iOiJzdGFjay0xMzQ2ODEzLWludGVncmF0aW9uLWh0dHAtbG9ncy1hcGkta2V5IiwiayI6IjEwQVVaeEI4dERtU3E3MVExNlRNTjA4NiIsIm0iOnsiciI6InByb2QtdXMtZWFzdC0wIn19'
+    'GRAFANA_LOKI_KEY': '[YOUR_GRAFANA_API_KEY_HERE]'
 }
 
 def update_env_file():
