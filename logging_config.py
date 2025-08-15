@@ -1,230 +1,202 @@
-import logging
-import logging.handlers
-import json
+"""
+Enhanced Logging Configuration with Loki Integration
+This sends all NextReel logs to Grafana Cloud
+"""
 import os
 import sys
-import time
-import re
-from datetime import datetime
-from typing import Any, Dict, Optional
-import traceback
+import logging
+import logging.handlers
 from pathlib import Path
+import json
+import requests
+import threading
+import queue
+import time
+from datetime import datetime
+from dotenv import load_dotenv
 
-# Grafana Loki handler
-try:
-    import logging_loki
-    LOKI_AVAILABLE = True
-except ImportError:
-    LOKI_AVAILABLE = False
-    print("Warning: python-logging-loki not installed. Run: pip install python-logging-loki")
+# Load environment
+load_dotenv('.env.production')
+if not os.getenv('GRAFANA_LOKI_URL'):
+    load_dotenv('.env')
 
-# Configuration from environment
-GRAFANA_LOKI_URL = os.getenv('GRAFANA_LOKI_URL')
-GRAFANA_LOKI_USER = os.getenv('GRAFANA_LOKI_USER')
-GRAFANA_LOKI_KEY = os.getenv('GRAFANA_LOKI_KEY')
+# Loki configuration
+LOKI_URL = os.getenv('GRAFANA_LOKI_URL', 'https://logs-prod-036.grafana.net')
+LOKI_USER = os.getenv('GRAFANA_LOKI_USER', '1304607')
+LOKI_KEY = os.getenv('GRAFANA_LOKI_KEY', '')
 
-
-class RedactFilter(logging.Filter):
-    """Enhanced logging filter to redact common secret patterns."""
-
-    patterns = ["password", "secret", "api_key", "token", "key"]
-
-    def filter(self, record: logging.LogRecord) -> bool:
-        try:
-            message = record.getMessage()
-            for pattern in self.patterns:
-                regex = re.compile(rf"(?i){pattern}[=:\s]+([^\s,]+)")
-                message = regex.sub(f"{pattern}=[REDACTED]", message)
-            record.msg = message
-            record.args = None
-        except:
-            pass
-        return True
-
-
-class StructuredFormatter(logging.Formatter):
-    """Formats logs as structured JSON for better parsing in Loki"""
+class LokiHandler(logging.Handler):
+    """Custom handler to send logs to Grafana Loki"""
     
-    def format(self, record: logging.LogRecord) -> str:
-        log_obj = {
-            'timestamp': datetime.utcnow().isoformat(),
-            'level': record.levelname,
-            'logger': record.name,
-            'message': record.getMessage(),
-            'module': record.module,
-            'function': record.funcName,
-            'line': record.lineno,
-            'environment': os.getenv('FLASK_ENV', 'development'),
+    def __init__(self, url=None, user=None, key=None):
+        super().__init__()
+        self.url = url or LOKI_URL
+        self.user = user or LOKI_USER
+        self.key = key or LOKI_KEY
+        self.session = requests.Session()
+        self.session.auth = (self.user, self.key)
+        self.session.headers.update({'Content-Type': 'application/json'})
+        
+        # Buffer for batching logs
+        self.buffer = queue.Queue(maxsize=1000)
+        self.batch_size = 10
+        self.flush_interval = 5  # seconds
+        
+        # Start background thread for sending logs
+        self.sender_thread = threading.Thread(target=self._sender_loop, daemon=True)
+        self.sender_thread.start()
+    
+    def emit(self, record):
+        """Handle a log record"""
+        try:
+            # Format the log entry
+            log_entry = self.format_log_entry(record)
+            
+            # Add to buffer (non-blocking)
+            try:
+                self.buffer.put_nowait(log_entry)
+            except queue.Full:
+                # If buffer is full, drop oldest and add new
+                try:
+                    self.buffer.get_nowait()
+                    self.buffer.put_nowait(log_entry)
+                except:
+                    pass
+                    
+        except Exception as e:
+            self.handleError(record)
+    
+    def format_log_entry(self, record):
+        """Format a log record for Loki"""
+        # Create labels for the stream
+        labels = {
+            "application": "nextreel",
+            "environment": os.getenv('FLASK_ENV', 'development'),
+            "level": record.levelname.lower(),
+            "module": record.module,
+            "function": record.funcName
         }
         
-        # Add correlation ID if available
-        if hasattr(record, 'correlation_id'):
-            log_obj['correlation_id'] = record.correlation_id
-            
-        # Add user ID if available
-        if hasattr(record, 'user_id'):
-            log_obj['user_id'] = record.user_id
-        
-        # Add any extra fields
-        for key, value in record.__dict__.items():
-            if key not in ['name', 'msg', 'args', 'created', 'filename', 'funcName',
-                          'levelname', 'levelno', 'lineno', 'module', 'msecs',
-                          'getMessage', 'pathname', 'process', 'processName', 
-                          'relativeCreated', 'thread', 'threadName', 'exc_info', 
-                          'exc_text', 'stack_info', 'correlation_id', 'user_id']:
-                log_obj[key] = value
-                
+        # Format the log message
         if record.exc_info:
-            log_obj['exception'] = {
-                'type': record.exc_info[0].__name__,
-                'message': str(record.exc_info[1]),
-                'traceback': ''.join(traceback.format_exception(*record.exc_info))
-            }
-            
-        return json.dumps(log_obj)
-
-
-def setup_logging(log_level: int = logging.INFO) -> None:
-    """Configure application logging with Grafana Cloud integration."""
+            message = self.format(record)
+        else:
+            message = record.getMessage()
+        
+        # Create timestamp in nanoseconds
+        timestamp = str(int(record.created * 1e9))
+        
+        return {
+            "labels": labels,
+            "timestamp": timestamp,
+            "message": message
+        }
     
+    def _sender_loop(self):
+        """Background thread to batch and send logs"""
+        while True:
+            try:
+                self._flush_batch()
+                time.sleep(self.flush_interval)
+            except:
+                time.sleep(self.flush_interval * 2)  # Back off on error
+    
+    def _flush_batch(self):
+        """Send a batch of logs to Loki"""
+        batch = []
+        
+        # Collect logs from buffer
+        while not self.buffer.empty() and len(batch) < self.batch_size:
+            try:
+                batch.append(self.buffer.get_nowait())
+            except queue.Empty:
+                break
+        
+        if not batch:
+            return
+        
+        # Group by labels (streams)
+        streams = {}
+        for entry in batch:
+            labels_key = json.dumps(entry['labels'], sort_keys=True)
+            if labels_key not in streams:
+                streams[labels_key] = {
+                    "stream": entry['labels'],
+                    "values": []
+                }
+            streams[labels_key]['values'].append([
+                entry['timestamp'],
+                entry['message']
+            ])
+        
+        # Send to Loki
+        payload = {"streams": list(streams.values())}
+        
+        try:
+            response = self.session.post(
+                f"{self.url}/loki/api/v1/push",
+                json=payload,
+                timeout=5
+            )
+            if response.status_code != 204:
+                print(f"Loki error: {response.status_code} - {response.text}")
+        except Exception as e:
+            print(f"Failed to send logs to Loki: {e}")
+
+def setup_logging():
+    """Set up logging with Loki integration"""
     # Create logs directory
     log_dir = Path('logs')
     log_dir.mkdir(exist_ok=True)
     
-    # Standard format for local files
-    log_format = "%(asctime)s [%(levelname)s] %(name)s:%(funcName)s: %(message)s"
+    # Root logger configuration
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.DEBUG)
+    
+    # Clear existing handlers
+    root_logger.handlers.clear()
     
     # Console handler
     console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setFormatter(logging.Formatter(log_format))
-    console_handler.addFilter(RedactFilter())
+    console_format = logging.Formatter(
+        '%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    console_handler.setFormatter(console_format)
+    console_handler.setLevel(logging.INFO)
+    root_logger.addHandler(console_handler)
     
-    # Rotating file handler
+    # File handler with rotation
     file_handler = logging.handlers.RotatingFileHandler(
         log_dir / 'nextreel.log',
-        maxBytes=10_000_000,
+        maxBytes=10_000_000,  # 10MB
         backupCount=5
     )
-    file_handler.setFormatter(logging.Formatter(log_format))
-    file_handler.addFilter(RedactFilter())
+    file_format = logging.Formatter(
+        '%(asctime)s [%(levelname)s] %(name)s:%(funcName)s:%(lineno)d - %(message)s'
+    )
+    file_handler.setFormatter(file_format)
+    file_handler.setLevel(logging.DEBUG)
+    root_logger.addHandler(file_handler)
     
-    handlers = [console_handler, file_handler]
-    
-    # Grafana Loki handler (disabled until proper API key is obtained)
-    # For Loki integration, you need a specific "Log Push API Key" from Grafana Cloud
-    # Go to: https://grafana.com/orgs/[your-org]/api-keys → Create API Key → Role: MetricsPublisher
-    loki_enabled = False  # Set to True when you have the correct Loki API key
-    
-    if LOKI_AVAILABLE and loki_enabled and all([GRAFANA_LOKI_URL, GRAFANA_LOKI_USER, GRAFANA_LOKI_KEY]):
+    # Loki handler
+    if LOKI_KEY:
         try:
-            # Create Loki handler with authentication
-            loki_handler = logging_loki.LokiHandler(
-                url=f"{GRAFANA_LOKI_URL}/loki/api/v1/push",
-                tags={"application": "nextreel", "environment": os.getenv('FLASK_ENV', 'development')},
-                auth=(GRAFANA_LOKI_USER, GRAFANA_LOKI_KEY),
-                version="1"
-            )
-            loki_handler.setFormatter(StructuredFormatter())
-            loki_handler.addFilter(RedactFilter())
-            handlers.append(loki_handler)
-            print("✅ Grafana Loki logging enabled")
+            loki_handler = LokiHandler()
+            loki_format = logging.Formatter('%(message)s')
+            loki_handler.setFormatter(loki_format)
+            loki_handler.setLevel(logging.INFO)
+            root_logger.addHandler(loki_handler)
+            print("✓ Loki logging enabled")
         except Exception as e:
-            print(f"⚠️  Failed to setup Loki logging: {e}")
+            print(f"⚠ Could not enable Loki logging: {e}")
     else:
-        print("ℹ️  Grafana Loki disabled - using local logging only")
+        print("⚠ Loki API key not found - logs won't be sent to Grafana")
     
-    # Configure root logger
-    logging.basicConfig(
-        level=log_level, 
-        handlers=handlers,
-        format=log_format
-    )
-    
-    # Reduce noise from libraries
-    logging.getLogger("httpx").setLevel(logging.WARNING)
-    logging.getLogger("urllib3").setLevel(logging.WARNING)
-    logging.getLogger("requests").setLevel(logging.WARNING)
-    
-    logging.getLogger(__name__).info(
-        "Logging initialized with level: %s", logging.getLevelName(log_level)
-    )
+    return root_logger
 
+# Create logger for import
+logger = logging.getLogger(__name__)
 
-def get_logger(name: str) -> logging.Logger:
-    """Get or create a logger with enhanced capabilities"""
-    
-    logger = logging.getLogger(name)
-    
-    # Skip if already configured via setup_logging
-    if len(logging.getLogger().handlers) > 0:
-        return logger
-    
-    # Fallback configuration if setup_logging wasn't called
-    level = logging.DEBUG if os.getenv('FLASK_ENV') == 'development' else logging.INFO
-    logger.setLevel(level)
-    
-    # Local file handler
-    log_dir = Path('logs')
-    log_dir.mkdir(exist_ok=True)
-    
-    file_handler = logging.handlers.RotatingFileHandler(
-        log_dir / 'nextreel.log',
-        maxBytes=10_000_000,
-        backupCount=5
-    )
-    file_handler.setFormatter(logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    ))
-    file_handler.addFilter(RedactFilter())
-    logger.addHandler(file_handler)
-    
-    # Console handler for development
-    if os.getenv('FLASK_ENV') == 'development':
-        console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setFormatter(logging.Formatter(
-            '%(asctime)s - %(levelname)s - %(message)s'
-        ))
-        console_handler.addFilter(RedactFilter())
-        logger.addHandler(console_handler)
-    
-    # Grafana Loki handler
-    if LOKI_AVAILABLE and all([GRAFANA_LOKI_URL, GRAFANA_LOKI_USER, GRAFANA_LOKI_KEY]):
-        try:
-            # Create Loki handler with authentication
-            loki_handler = logging_loki.LokiHandler(
-                url=f"{GRAFANA_LOKI_URL}/loki/api/v1/push",
-                tags={"application": "nextreel", "environment": os.getenv('FLASK_ENV', 'development')},
-                auth=(GRAFANA_LOKI_USER, GRAFANA_LOKI_KEY),
-                version="1"
-            )
-            loki_handler.setFormatter(StructuredFormatter())
-            loki_handler.addFilter(RedactFilter())
-            logger.addHandler(loki_handler)
-            logger.info("Grafana Loki logging enabled")
-        except Exception as e:
-            logger.error(f"Failed to setup Loki logging: {e}")
-    
-    return logger
-
-
-class CorrelationLoggerAdapter(logging.LoggerAdapter):
-    """Logger adapter that adds correlation ID and user ID to log records"""
-    
-    def process(self, msg, kwargs):
-        # Add correlation_id and user_id from context if available
-        try:
-            from quart import g, session
-            if hasattr(g, 'correlation_id'):
-                self.extra['correlation_id'] = g.correlation_id
-            if 'user_id' in session:
-                self.extra['user_id'] = session['user_id']
-        except:
-            pass
-        
-        return msg, kwargs
-
-
-def get_correlation_logger(name: str) -> CorrelationLoggerAdapter:
-    """Get a logger that automatically includes correlation ID and user ID"""
-    base_logger = get_logger(name)
-    return CorrelationLoggerAdapter(base_logger, {})
+# Auto-setup if imported
+setup_logging()

@@ -1,0 +1,34 @@
+{
+  "dashboard": {
+    "title": "NextReel Application Logs",
+    "panels": [
+      {
+        "title": "Log Volume",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(rate({application=\"nextreel\"}[5m])) by (level)"
+          }
+        ]
+      },
+      {
+        "title": "Recent Logs",
+        "type": "logs",
+        "targets": [
+          {
+            "expr": "{application=\"nextreel\"}"
+          }
+        ]
+      },
+      {
+        "title": "Errors",
+        "type": "logs",
+        "targets": [
+          {
+            "expr": "{application=\"nextreel\", level=\"error\"}"
+          }
+        ]
+      }
+    ]
+  }
+}
