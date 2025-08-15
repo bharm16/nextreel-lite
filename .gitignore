@@ -55,3 +55,7 @@ logs/*.log
 
 # Integration documentation (internal use only)
 SECURITY_INTEGRATION.md
+
+# Production environment files (added by setup script)
+.env.production.backup*
+.production_secrets.json
