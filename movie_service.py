@@ -22,7 +22,7 @@ class MovieManager:
         self.db_config = db_config or Config.get_db_config()
         self.db_pool = DatabaseConnectionPool(self.db_config)
         self.movie_fetcher = ImdbRandomMovieFetcher(self.db_pool)
-        self.queue_size = 5  # Reduced from 20 for faster initial loading
+        self.queue_size = 2  # Reduced from 5 for instant initial loading
         self.default_movie_tmdb_id = 62
         self.default_backdrop_url = None
         self.tmdb_helper = TMDbHelper()  # Initialize TMDbHelper using env key
@@ -71,7 +71,7 @@ class MovieManager:
     async def home(self, user_id):
         logger.debug("Accessing home")
 
-        await self._ensure_queue()
+        asyncio.create_task(self._ensure_queue())
 
         return await render_template(
             "home.html", default_backdrop_url=self.default_backdrop_url
