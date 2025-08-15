@@ -1,360 +1,239 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="scroll-smooth">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Refine Filters – Nextreel</title>
-    <!-- Google Fonts for typography -->
-    <link rel="preconnect" href="https://fonts.gstatic.com">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&family=Merriweather:wght@400;700&display=swap" rel="stylesheet">
-    <!-- Bootstrap CSS for responsive grid -->
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-    <!-- Font Awesome for icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    <style>
-        :root {
-            --primary-dark: #0d233b;    /* dark blue for hero */
-            --primary:      #122e51;    /* slightly lighter for elements */
-            --accent:       #2eb84a;    /* vibrant green */
-            --light-bg:     #f7f8fc;    /* page background */
-            --text:         #333;       /* default text colour */
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Refine Filters – Nextreel</title>
+  <meta name="description" content="Fine-tune your movie recommendations by score, votes, year, and genre." />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <!-- Tailwind CSS (CDN). For production, compile Tailwind instead of using the CDN. -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'media',
+      theme: {
+        extend: {
+          colors: {
+            primary: '#02243f', // deep navy, matches home
+            accent: '#2db830',  // brand green, matches home
+          },
+          boxShadow: {
+            soft: '0 10px 25px rgba(2, 36, 63, 0.08)'
+          }
         }
-
-        body {
-            font-family: 'Poppins', sans-serif;
-            background-color: var(--light-bg);
-            color: var(--text);
-            margin: 0;
-            padding: 0;
-        }
-
-        /* Hero Section */
-        .filter-hero {
-            position: relative;
-            background: linear-gradient(135deg, var(--primary-dark) 0%, #0d2c4a 80%);
-            color: #fff;
-            padding: 4.5rem 0 4rem;
-            text-align: center;
-            overflow: hidden;
-        }
-        .filter-hero h1 {
-            font-family: 'Merriweather', serif;
-            font-weight: 700;
-            font-size: 2.8rem;
-            margin-bottom: 0.5rem;
-        }
-        .filter-hero p {
-            font-size: 1.15rem;
-            max-width: 720px;
-            margin: 0 auto;
-            opacity: 0.85;
-        }
-
-        /* Wrapper and Card */
-        .filter-wrapper {
-            padding: 3rem 0 4rem;
-        }
-        .filter-card {
-            background: #fff;
-            border-radius: 16px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
-            padding: 2.5rem 2rem;
-            border-top: 5px solid var(--accent);
-        }
-        .filter-row {
-            display: flex;
-            flex-wrap: wrap;
-            margin: -1rem -0.75rem;
-        }
-        .filter-col {
-            flex: 1 1 50%;
-            padding: 1rem 0.75rem;
-        }
-        @media (max-width: 768px) {
-            .filter-col {
-                flex-basis: 100%;
-            }
-        }
-
-        /* Headings and Groups */
-        .filter-group {
-            margin-bottom: 1.8rem;
-        }
-        .filter-heading {
-            font-family: 'Merriweather', serif;
-            font-weight: 700;
-            font-size: 1.4rem;
-            color: var(--primary);
-            display: flex;
-            align-items: center;
-            margin-bottom: 1rem;
-        }
-        .filter-heading i {
-            color: var(--accent);
-            margin-right: 0.6rem;
-            font-size: 1.4rem;
-        }
-        .filter-group label {
-            font-weight: 600;
-            margin-bottom: 0.35rem;
-            display: block;
-        }
-
-        /* Form Inputs */
-        .form-control {
-            border-radius: 50px;
-            border: 2px solid #e0e0e5;
-            padding: 0.65rem 1.15rem;
-            font-size: 0.95rem;
-            box-shadow: none;
-            transition: border-color 0.2s ease;
-        }
-        .form-control:focus {
-            border-color: var(--accent);
-            box-shadow: 0 0 0 0.15rem rgba(46, 184, 74, 0.25);
-        }
-
-        /* Genre Chips */
-        .genre-grid {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.6rem;
-            margin-top: 0.5rem;
-        }
-        .genre-chip {
-            position: relative;
-        }
-        .genre-chip input {
-            position: absolute;
-            opacity: 0;
-            pointer-events: none;
-        }
-        .genre-chip span {
-            display: inline-block;
-            padding: 0.6rem 1.2rem;
-            border: 2px solid #d8d8dc;
-            border-radius: 25px;
-            background-color: #f7f7fa;
-            color: #555;
-            font-size: 0.9rem;
-            font-weight: 600;
-            transition: all 0.2s ease;
-            cursor: pointer;
-        }
-        .genre-chip input:checked + span {
-            background-color: var(--accent);
-            border-color: var(--accent);
-            color: #fff;
-        }
-        .select-all {
-            display: flex;
-            align-items: center;
-            font-weight: 600;
-            margin-bottom: 0.75rem;
-        }
-        .select-all input {
-            margin-right: 0.5rem;
-        }
-
-        /* Button Group */
-        .button-group {
-            text-align: center;
-            margin-top: 2rem;
-        }
-        .btn-apply {
-            background: var(--accent);
-            border: none;
-            color: #fff;
-            font-weight: 700;
-            padding: 0.9rem 2.0rem;
-            font-size: 1.05rem;
-            border-radius: 50px;
-            transition: background 0.25s ease;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            box-shadow: 0 4px 12px rgba(46, 184, 74, 0.3);
-        }
-        .btn-apply:hover {
-            background: #25a041;
-        }
-        .btn-reset {
-            background: #e5e5ea;
-            border: none;
-            color: #555;
-            font-weight: 600;
-            padding: 0.8rem 1.8rem;
-            font-size: 0.95rem;
-            border-radius: 50px;
-            transition: background 0.2s ease;
-            margin-right: 0.75rem;
-        }
-        .btn-reset:hover {
-            background: #d7d7dc;
-        }
-
-        /* Responsive typography */
-        @media (max-width: 768px) {
-            .filter-hero h1 {
-                font-size: 2.2rem;
-            }
-            .filter-hero p {
-                font-size: 1rem;
-            }
-        }
-    </style>
+      }
+    }
+  </script>
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: 'Poppins', system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif; }
+    .font-brand-serif { font-family: 'Merriweather', Georgia, Cambria, 'Times New Roman', Times, serif; }
+  </style>
 </head>
-<body>
-    <!-- Navigation Bar (included via Jinja) -->
-    {% include 'navbar.html' %}
+<body class="bg-white text-slate-800 dark:bg-slate-950 dark:text-slate-100 antialiased">
+  <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:shadow dark:focus:bg-slate-900">Skip to content</a>
 
-    <section class="filter-hero">
-        <div class="container">
-            <h1>Customize Your Queue</h1>
-            <p>Fine‑tune the movies you see by adjusting score, votes, release year and genres.</p>
+  <!-- Tailwind Navbar (kept consistent with home) -->
+  <header class="sticky top-0 z-50 bg-primary/95 backdrop-blur supports-[backdrop-filter]:bg-primary/80 text-white shadow">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+      <div class="flex h-16 items-center justify-between">
+        <a href="/" class="flex items-center gap-2 group" aria-label="Nextreel home">
+          <svg class="h-6 w-6 transition-transform group-hover:rotate-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M4 6a2 2 0 0 1 2-2h8l6 6v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6z" opacity=".3"/>
+            <path d="M14 4v4a2 2 0 0 0 2 2h4"/>
+          </svg>
+          <span class="font-brand-serif text-xl font-bold tracking-tight">Nextreel</span>
+        </a>
+        <nav class="hidden gap-2 md:flex">
+          <a href="/next_movie" class="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent/70 focus:ring-offset-primary/20">
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+            Pick a Movie
+          </a>
+          <a href="/setFilters" aria-current="page" class="inline-flex items-center gap-2 rounded-xl border border-accent px-4 py-2 text-sm font-semibold text-accent bg-white/0 hover:bg-accent/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent/70 focus:ring-offset-primary/20">
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5h18v2H3zm4 6h10v2H7zm3 6h4v2h-4z"/></svg>
+            Set Filters
+          </a>
+        </nav>
+        <button id="menuBtn" class="inline-flex items-center justify-center rounded-lg p-2 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white md:hidden" aria-controls="mobileMenu" aria-expanded="false" aria-label="Open menu">
+          <svg class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg>
+        </button>
+      </div>
+    </div>
+    <div id="mobileMenu" class="hidden md:hidden border-t border-white/10">
+      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-3 space-y-2">
+        <a href="/next_movie" class="block w-full rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white text-center">Pick a Movie</a>
+        <a href="/setFilters" class="block w-full rounded-lg border border-accent px-4 py-2 text-sm font-semibold text-accent text-center">Set Filters</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section class="relative isolate">
+    <div class="absolute inset-0 -z-10 bg-gradient-to-br from-primary via-primary/90 to-slate-900"></div>
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+      <div class="flex min-h-[40vh] items-center justify-center py-12 text-center">
+        <div class="max-w-3xl text-white">
+          <h1 class="font-brand-serif text-3xl sm:text-4xl font-extrabold tracking-tight">Customize Your Queue</h1>
+          <p class="mt-3 text-sm/7 sm:text-base/7 opacity-90">Fine‑tune the movies you see by adjusting score, votes, release year and genres.</p>
+          <div class="mt-6 flex items-center justify-center gap-3">
+            <a href="#filters" class="inline-flex items-center gap-2 rounded-2xl bg-accent px-5 py-2.5 text-sm font-semibold text-white shadow hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-white">Jump to Filters</a>
+          </div>
         </div>
-    </section>
+      </div>
+    </div>
+  </section>
 
-    <section class="filter-wrapper">
-        <div class="container">
-            <div class="row justify-content-center">
-                <div class="col-lg-10 col-md-11">
-                    <form action="/filtered_movie" method="post" class="filter-card">
-                        <div class="filter-row">
-                            <div class="filter-col">
-                                <!-- Score Range -->
-                                <div class="filter-group">
-                                    <div class="filter-heading"><i class="fas fa-star"></i>IMDb Score Range</div>
-                                    <label for="imdb_score_min">Min Score</label>
-                                    <input type="number" class="form-control" id="imdb_score_min" name="imdb_score_min" min="1" max="10" step="0.1" value="{{ current_filters.get('imdb_score_min', 7.0) }}">
-                                    <label for="imdb_score_max" class="mt-3">Max Score</label>
-                                    <input type="number" class="form-control" id="imdb_score_max" name="imdb_score_max" min="1" max="10" step="0.1" value="{{ current_filters.get('imdb_score_max', 10.0) }}">
-                                </div>
-                                <!-- Vote Range -->
-                                <div class="filter-group">
-                                    <div class="filter-heading"><i class="fas fa-users"></i>Vote Count Range</div>
-                                    <label for="num_votes_min">Min Votes</label>
-                                    <input type="number" class="form-control" id="num_votes_min" name="num_votes_min" min="0" value="{{ current_filters.get('num_votes_min', 100000) }}">
-                                    <label for="num_votes_max" class="mt-3">Max Votes</label>
-                                    <input type="number" class="form-control" id="num_votes_max" name="num_votes_max" min="1" max="2000000" value="{{ current_filters.get('num_votes_max', 200000) }}">
-                                </div>
-                            </div>
-                            <div class="filter-col">
-                                <!-- Year Range -->
-                                <div class="filter-group">
-                                    <div class="filter-heading"><i class="fas fa-calendar-alt"></i>Release Year Range</div>
-                                    <label for="year_min">Earliest</label>
-                                    <input type="number" class="form-control" id="year_min" name="year_min" min="1900" value="{{ current_filters.get('year_min', 1900) }}">
-                                    <label for="year_max" class="mt-3">Latest</label>
-                                    <input type="number" class="form-control" id="year_max" name="year_max" max="2023" value="{{ current_filters.get('year_max', 2023) }}">
-                                </div>
-                                <!-- Genres -->
-                                <div class="filter-group">
-                                    <div class="filter-heading"><i class="fas fa-tags"></i>Select Genres</div>
-                                    <div class="select-all">
-                                        <input type="checkbox" id="selectAll" checked>
-                                        <label for="selectAll">Select All</label>
-                                    </div>
-                                    <div class="genre-grid">
-                                        <label class="genre-chip">
-                                            <input type="checkbox" name="genres[]" value="Action" checked>
-                                            <span>Action</span>
-                                        </label>
-                                        <label class="genre-chip">
-                                            <input type="checkbox" name="genres[]" value="Adventure" checked>
-                                            <span>Adventure</span>
-                                        </label>
-                                        <label class="genre-chip">
-                                            <input type="checkbox" name="genres[]" value="Animation" checked>
-                                            <span>Animation</span>
-                                        </label>
-                                        <label class="genre-chip">
-                                            <input type="checkbox" name="genres[]" value="Biography" checked>
-                                            <span>Biography</span>
-                                        </label>
-                                        <label class="genre-chip">
-                                            <input type="checkbox" name="genres[]" value="Comedy" checked>
-                                            <span>Comedy</span>
-                                        </label>
-                                        <label class="genre-chip">
-                                            <input type="checkbox" name="genres[]" value="Crime" checked>
-                                            <span>Crime</span>
-                                        </label>
-                                        <label class="genre-chip">
-                                            <input type="checkbox" name="genres[]" value="Documentary" checked>
-                                            <span>Documentary</span>
-                                        </label>
-                                        <label class="genre-chip">
-                                            <input type="checkbox" name="genres[]" value="Drama" checked>
-                                            <span>Drama</span>
-                                        </label>
-                                        <label class="genre-chip">
-                                            <input type="checkbox" name="genres[]" value="Fantasy" checked>
-                                            <span>Fantasy</span>
-                                        </label>
-                                        <label class="genre-chip">
-                                            <input type="checkbox" name="genres[]" value="Horror" checked>
-                                            <span>Horror</span>
-                                        </label>
-                                        <label class="genre-chip">
-                                            <input type="checkbox" name="genres[]" value="Musical" checked>
-                                            <span>Musical</span>
-                                        </label>
-                                        <label class="genre-chip">
-                                            <input type="checkbox" name="genres[]" value="Sci-Fi" checked>
-                                            <span>Sci-Fi</span>
-                                        </label>
-                                        <label class="genre-chip">
-                                            <input type="checkbox" name="genres[]" value="Sport" checked>
-                                            <span>Sport</span>
-                                        </label>
-                                        <label class="genre-chip">
-                                            <input type="checkbox" name="genres[]" value="Thriller" checked>
-                                            <span>Thriller</span>
-                                        </label>
-                                        <label class="genre-chip">
-                                            <input type="checkbox" name="genres[]" value="War" checked>
-                                            <span>War</span>
-                                        </label>
-                                        <label class="genre-chip">
-                                            <input type="checkbox" name="genres[]" value="Western" checked>
-                                            <span>Western</span>
-                                        </label>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="button-group">
-                            <button type="reset" class="btn-reset">Reset</button>
-                            <button type="submit" class="btn-apply">Apply Filters</button>
-                        </div>
-                    </form>
+  <!-- Filters Card -->
+  <main id="main">
+    <section id="filters" class="py-12 sm:py-16 bg-slate-50 dark:bg-slate-900/40">
+      <div class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
+        <form action="/filtered_movie" method="post" class="rounded-2xl bg-white dark:bg-slate-900 p-6 sm:p-8 shadow-soft ring-1 ring-slate-200/60 dark:ring-white/10 border-t-4 border-accent">
+          <div class="grid grid-cols-1 gap-8 md:grid-cols-2">
+            <!-- Left column -->
+            <div class="space-y-8">
+              <!-- Score Range -->
+              <section aria-labelledby="score-heading" class="space-y-3">
+                <h2 id="score-heading" class="flex items-center text-lg font-semibold text-primary dark:text-white">
+                  <svg class="mr-2 h-5 w-5 text-accent" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                  IMDb Score Range
+                </h2>
+                <div>
+                  <label for="imdb_score_min" class="block text-sm font-medium">Min Score</label>
+                  <input type="number" id="imdb_score_min" name="imdb_score_min" min="1" max="10" step="0.1" value="{{ current_filters.get('imdb_score_min', 7.0) }}" class="mt-1 w-full rounded-2xl border-2 border-slate-200 px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30">
                 </div>
-            </div>
-        </div>
-    </section>
+                <div>
+                  <label for="imdb_score_max" class="block text-sm font-medium">Max Score</label>
+                  <input type="number" id="imdb_score_max" name="imdb_score_max" min="1" max="10" step="0.1" value="{{ current_filters.get('imdb_score_max', 10.0) }}" class="mt-1 w-full rounded-2xl border-2 border-slate-200 px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30">
+                </div>
+              </section>
 
-    <!-- Scripts for Bootstrap (optional) -->
-    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
-    <script>
-        // Select All functionality
-        const selectAllChk   = document.getElementById('selectAll');
-        const genreCbs = document.querySelectorAll('.genre-chip input[type="checkbox"]');
-        function toggleAllGenres(isChecked) {
-            genreCbs.forEach(function(cb) {
-                cb.checked = isChecked;
-            });
-        }
-        function updateSelectAllState() {
-            const allChecked = Array.from(genreCbs).every(cb => cb.checked);
-            selectAllChk.checked = allChecked;
-        }
-        selectAllChk.addEventListener('change', function() {
-            toggleAllGenres(this.checked);
-        });
-        genreCbs.forEach(function(cb) {
-            cb.addEventListener('change', updateSelectAllState);
-        });
-    </script>
+              <!-- Vote Range -->
+              <section aria-labelledby="votes-heading" class="space-y-3">
+                <h2 id="votes-heading" class="flex items-center text-lg font-semibold text-primary dark:text-white">
+                  <svg class="mr-2 h-5 w-5 text-accent" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 12c2.21 0 4-1.79 4-4S14.21 4 12 4 8 5.79 8 8s1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                  Vote Count Range
+                </h2>
+                <div>
+                  <label for="num_votes_min" class="block text-sm font-medium">Min Votes</label>
+                  <input type="number" id="num_votes_min" name="num_votes_min" min="0" value="{{ current_filters.get('num_votes_min', 100000) }}" class="mt-1 w-full rounded-2xl border-2 border-slate-200 px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30">
+                </div>
+                <div>
+                  <label for="num_votes_max" class="block text-sm font-medium">Max Votes</label>
+                  <input type="number" id="num_votes_max" name="num_votes_max" min="1" max="2000000" value="{{ current_filters.get('num_votes_max', 200000) }}" class="mt-1 w-full rounded-2xl border-2 border-slate-200 px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30">
+                </div>
+              </section>
+            </div>
+
+            <!-- Right column -->
+            <div class="space-y-8">
+              <!-- Year Range -->
+              <section aria-labelledby="year-heading" class="space-y-3">
+                <h2 id="year-heading" class="flex items-center text-lg font-semibold text-primary dark:text-white">
+                  <svg class="mr-2 h-5 w-5 text-accent" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19 4h-1V2h-2v2H8V2H6v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 16H5V10h14v10z"/></svg>
+                  Release Year Range
+                </h2>
+                <div>
+                  <label for="year_min" class="block text-sm font-medium">Earliest</label>
+                  <input type="number" id="year_min" name="year_min" min="1900" value="{{ current_filters.get('year_min', 1900) }}" class="mt-1 w-full rounded-2xl border-2 border-slate-200 px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30">
+                </div>
+                <div>
+                  <label for="year_max" class="block text-sm font-medium">Latest</label>
+                  <input type="number" id="year_max" name="year_max" value="{{ current_filters.get('year_max', 2023) }}" class="mt-1 w-full rounded-2xl border-2 border-slate-200 px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30">
+                </div>
+              </section>
+
+              <!-- Genres -->
+              <section aria-labelledby="genres-heading" class="space-y-3">
+                <h2 id="genres-heading" class="flex items-center text-lg font-semibold text-primary dark:text-white">
+                  <svg class="mr-2 h-5 w-5 text-accent" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20 2H8c-1.1 0-2 .9-2 2v2H4c-1.1 0-2 .9-2 2v10a2 2 0 0 0 2 2h12c1.1 0 2-.9 2-2v-2h2c1.1 0 2-.9 2-2V4a2 2 0 0 0-2-2zm-4 16H4V8h12v10zm4-4h-2V4h2v10z"/></svg>
+                  Select Genres
+                </h2>
+                <div class="flex items-center gap-2 text-sm font-medium">
+                  <input type="checkbox" id="selectAll" checked class="h-4 w-4 rounded border-slate-300 text-accent focus:ring-accent" />
+                  <label for="selectAll">Select All</label>
+                </div>
+                <div class="genre-grid mt-2 flex flex-wrap gap-2">
+                  {% set genres = ['Action','Adventure','Animation','Biography','Comedy','Crime','Documentary','Drama','Fantasy','Horror','Musical','Sci-Fi','Sport','Thriller','War','Western'] %}
+                  {% for g in genres %}
+                  <label class="relative">
+                    <input type="checkbox" name="genres[]" value="{{ g }}" {% if current_filters.get('genres_selected', [])|length == 0 or g in current_filters.get('genres_selected', []) %}checked{% endif %} class="peer sr-only" />
+                    <span class="inline-block select-none rounded-full border-2 border-slate-300 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-700 transition peer-checked:border-accent peer-checked:bg-accent peer-checked:text-white">{{ g }}</span>
+                  </label>
+                  {% endfor %}
+                </div>
+              </section>
+            </div>
+          </div>
+
+          <!-- Buttons -->
+          <div class="mt-10 flex items-center justify-center gap-3">
+            <button type="reset" class="inline-flex items-center justify-center rounded-full bg-slate-200 px-6 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-300 focus:outline-none focus:ring-2 focus:ring-primary/30">Reset</button>
+            <button type="submit" class="inline-flex items-center justify-center rounded-full bg-accent px-7 py-3 text-sm font-bold uppercase tracking-wide text-white shadow shadow-black/10 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-accent/40">Apply Filters</button>
+          </div>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer (simple) -->
+  <footer class="border-t border-slate-200/60 dark:border-white/10 bg-white dark:bg-slate-950">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10">
+      <div class="grid gap-8 md:grid-cols-3 md:items-start">
+        <div>
+          <a href="/" class="inline-flex items-center gap-2 text-primary dark:text-white">
+            <svg class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 6a2 2 0 0 1 2-2h8l6 6v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6z" opacity=".3"/><path d="M14 4v4a2 2 0 0 0 2 2h4"/></svg>
+            <span class="font-brand-serif text-lg font-bold">Nextreel</span>
+          </a>
+          <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">&copy; 2025 Nextreel. All rights reserved.</p>
+        </div>
+        <div class="text-sm">
+          <ul class="space-y-2">
+            <li><a class="text-slate-600 hover:text-primary dark:text-slate-300 dark:hover:text-white" href="#">About Us</a></li>
+            <li><a class="text-slate-600 hover:text-primary dark:text-slate-300 dark:hover:text-white" href="#">Privacy Policy</a></li>
+            <li><a class="text-slate-600 hover:text-primary dark:text-slate-300 dark:hover:text-white" href="#">DMCA</a></li>
+          </ul>
+        </div>
+        <div class="text-sm">
+          <h3 class="font-semibold text-slate-900 dark:text-white">Contact</h3>
+          <p class="mt-2 text-slate-600 dark:text-slate-300">Email: <a class="underline decoration-accent/50 underline-offset-4 hover:decoration-accent" href="mailto:bryce@nxtreel.com">bryce@nxtreel.com</a></p>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Tiny JS: navbar toggle + Select All -->
+  <script>
+    // Navbar mobile toggle
+    const menuBtn = document.getElementById('menuBtn');
+    const mobileMenu = document.getElementById('mobileMenu');
+    if (menuBtn && mobileMenu) {
+      menuBtn.addEventListener('click', () => {
+        const isOpen = mobileMenu.classList.toggle('hidden');
+        const expanded = !isOpen;
+        menuBtn.setAttribute('aria-expanded', String(expanded));
+        menuBtn.setAttribute('aria-label', expanded ? 'Close menu' : 'Open menu');
+      });
+    }
+
+    // Select All genres
+    const selectAllChk = document.getElementById('selectAll');
+    const genreGrid   = document.querySelector('.genre-grid');
+    const genreBoxes  = () => Array.from(genreGrid.querySelectorAll('input[type="checkbox"]'));
+
+    function setAllGenres(checked) {
+      genreBoxes().forEach(cb => cb.checked = checked);
+    }
+    function updateSelectAllState() {
+      const boxes = genreBoxes();
+      const allChecked = boxes.length > 0 && boxes.every(cb => cb.checked);
+      selectAllChk.checked = allChecked;
+    }
+
+    if (selectAllChk && genreGrid) {
+      selectAllChk.addEventListener('change', (e) => setAllGenres(e.target.checked));
+      genreGrid.addEventListener('change', updateSelectAllState);
+    }
+  </script>
 </body>
 </html>
