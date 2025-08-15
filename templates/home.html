@@ -1,203 +1,217 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="scroll-smooth">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nextreel – Your Personalized Movie Journey</title>
-    <!-- Google Fonts for typography -->
-    <link rel="preconnect" href="https://fonts.gstatic.com">
-    <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700&family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
-    <!-- Bootstrap CSS for responsive layout -->
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-    <!-- Font Awesome for icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    <style>
-        /* Root variables for easy customization */
-        :root {
-            --primary-color: #02243f;   /* deep navy used in existing navbar */
-            --accent-color:  #2db830;   /* green used for action buttons */
-            --light-bg:      #f8f9fa;   /* light grey for feature section */
-            --dark-text:     #333333;
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Nextreel – Your Personalized Movie Journey</title>
+  <meta name="description" content="Pick a movie fast with smart filters, a data‑rich library, and your personal queue." />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700&family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <!-- Tailwind CSS (CDN). For production, prefer a compiled build. -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    // Tailwind CDN config: brand colors
+    tailwind.config = {
+      darkMode: 'media',
+      theme: {
+        extend: {
+          colors: {
+            primary: '#02243f', // deep navy
+            accent: '#2db830',  // brand green
+          },
+          boxShadow: {
+            soft: '0 10px 25px rgba(2, 36, 63, 0.08)'
+          }
         }
-        body {
-            font-family: 'Poppins', sans-serif;
-            color: var(--dark-text);
-            margin: 0;
-            padding: 0;
-            overflow-x: hidden;
-        }
-        /* Navigation bar styling */
-        .navbar {
-            background-color: var(--primary-color);
-            padding: 0.75rem 1rem;
-        }
-        .navbar-brand {
-            font-family: 'Merriweather', serif;
-            font-weight: 700;
-            font-size: 1.5rem;
-            color: #ffffff;
-        }
-        .navbar-brand:hover {
-            color: #ffffff;
-            text-decoration: none;
-        }
-        .btn-action {
-            background-color: var(--accent-color);
-            color: #ffffff;
-        }
-        .btn-action:hover {
-            background-color: #28a428;
-            color: #ffffff;
-        }
-        .btn-secondary {
-            background-color: transparent;
-            border: 2px solid var(--accent-color);
-            color: var(--accent-color);
-        }
-        .btn-secondary:hover {
-            background-color: var(--accent-color);
-            color: #ffffff;
-        }
-        /* Hero section with backdrop */
-        .hero-section {
-            height: 90vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            color: #ffffff;
-            background-image: linear-gradient(rgba(2,36,63,0.65), rgba(2,36,63,0.65)), url('https://image.tmdb.org/t/p/original/dMrAwwB7PMC4SjgsTbgmEJblaYd.jpg');
-            background-size: cover;
-            background-position: center;
-            position: relative;
-        }
-        .hero-title {
-            font-family: 'Merriweather', serif;
-            font-size: 3rem;
-            font-weight: 700;
-            margin-bottom: 0.5rem;
-        }
-        .hero-subtitle {
-            font-size: 1.25rem;
-            max-width: 700px;
-            margin: 0 auto 1.5rem;
-        }
-        /* Features section */
-        .features-section {
-            background-color: var(--light-bg);
-            padding: 4rem 0;
-        }
-        .feature-title {
-            font-family: 'Merriweather', serif;
-            font-size: 1.5rem;
-            margin-top: 1rem;
-            margin-bottom: 0.5rem;
-        }
-        .features-section p {
-            font-size: 0.95rem;
-        }
-        /* Footer styling */
-        .footer-section {
-            background-color: var(--primary-color);
-            color: #ffffff;
-            padding: 2rem 0;
-            font-size: 0.9rem;
-        }
-        .footer-section a {
-            color: var(--accent-color);
-            text-decoration: none;
-        }
-        .footer-section a:hover {
-            text-decoration: underline;
-        }
-        /* Responsive adjustments */
-        @media (max-width: 768px) {
-            .hero-title {
-                font-size: 2rem;
-            }
-            .hero-subtitle {
-                font-size: 1rem;
-            }
-        }
-    </style>
+      }
+    }
+  </script>
+  <style>
+    :root { color-scheme: light dark; }
+    html, body { height: 100%; }
+    body { font-family: 'Poppins', system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif; }
+    .font-brand-serif { font-family: 'Merriweather', Georgia, Cambria, 'Times New Roman', Times, serif; }
+  </style>
 </head>
-<body>
-    <!-- Navigation Bar -->
-    <nav class="navbar navbar-expand-lg navbar-dark">
-        <div class="container">
-            <a class="navbar-brand" href="/">Nextreel</a>
-            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse justify-content-end" id="navbarNav">
-                <div class="navbar-nav">
-                    <a class="btn btn-action mr-2 mb-2 mb-lg-0" href="/next_movie" role="button">Pick a Movie</a>
-                    <a class="btn btn-secondary" href="/setFilters" role="button">Set Filters</a>
-                </div>
-            </div>
-        </div>
-    </nav>
+<body class="bg-white text-slate-800 dark:bg-slate-950 dark:text-slate-100 antialiased">
+  <!-- Skip link for accessibility -->
+  <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:shadow soft dark:focus:bg-slate-900">Skip to content</a>
 
-    <!-- Hero Section -->
-    <header class="hero-section">
-        <div class="container">
-            <h1 class="hero-title">Discover Your Next Favorite Film</h1>
-            <p class="hero-subtitle">Explore a world of cinema with personalised recommendations built from rich movie databases and your unique preferences.</p>
-            <div class="mt-4">
-                <a class="btn btn-action btn-lg mr-3" href="/next_movie" role="button">Pick a Movie</a>
-                <a class="btn btn-secondary btn-lg" href="/setFilters" role="button">Set Filters</a>
-            </div>
-        </div>
-    </header>
+  <!-- Site Header / Navbar -->
+  <header class="sticky top-0 z-50 bg-primary/95 backdrop-blur supports-[backdrop-filter]:bg-primary/80 text-white shadow">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+      <div class="flex h-16 items-center justify-between">
+        <!-- Brand -->
+        <a href="/" class="flex items-center gap-2 group" aria-label="Nextreel home">
+          <svg class="h-6 w-6 transition-transform group-hover:rotate-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M4 6a2 2 0 0 1 2-2h8l6 6v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6z" opacity=".3"/>
+            <path d="M14 4v4a2 2 0 0 0 2 2h4"/>
+          </svg>
+          <span class="font-brand-serif text-xl font-bold tracking-tight">Nextreel</span>
+        </a>
 
-    <!-- Features Section -->
-    <section class="features-section">
-        <div class="container">
-            <div class="row">
-                <div class="col-md-4 text-center mb-4">
-                    <i class="fas fa-film fa-3x mb-3" style="color: var(--primary-color);"></i>
-                    <h3 class="feature-title">Data‑rich Library</h3>
-                    <p>Access thousands of titles via The Movie Database and IMDb to stay current with the latest releases and timeless classics.</p>
-                </div>
-                <div class="col-md-4 text-center mb-4">
-                    <i class="fas fa-sliders-h fa-3x mb-3" style="color: var(--primary-color);"></i>
-                    <h3 class="feature-title">Custom Filters</h3>
-                    <p>Refine your search by year, rating, number of votes, genre and language to find the perfect match for your mood.</p>
-                </div>
-                <div class="col-md-4 text-center mb-4">
-                    <i class="fas fa-list fa-3x mb-3" style="color: var(--primary-color);"></i>
-                    <h3 class="feature-title">Queue &amp; History</h3>
-                    <p>Manage a personalised movie queue, review previously watched titles and navigate back and forth with ease.</p>
-                </div>
+        <!-- Desktop actions -->
+        <nav class="hidden gap-2 md:flex">
+          <a href="/next_movie" class="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent/70 focus:ring-offset-primary/20">
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+            Pick a Movie
+          </a>
+          <a href="/setFilters" class="inline-flex items-center gap-2 rounded-xl border border-accent px-4 py-2 text-sm font-semibold text-accent hover:bg-accent/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent/70 focus:ring-offset-primary/20">
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5h18v2H3zm4 6h10v2H7zm3 6h4v2h-4z"/></svg>
+            Set Filters
+          </a>
+        </nav>
+
+        <!-- Mobile menu button -->
+        <button id="menuBtn" class="inline-flex items-center justify-center rounded-lg p-2 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white md:hidden" aria-controls="mobileMenu" aria-expanded="false" aria-label="Open menu">
+          <svg class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Mobile dropdown -->
+    <div id="mobileMenu" class="hidden md:hidden border-t border-white/10">
+      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-3 space-y-2">
+        <a href="/next_movie" class="block w-full rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white text-center">Pick a Movie</a>
+        <a href="/setFilters" class="block w-full rounded-lg border border-accent px-4 py-2 text-sm font-semibold text-accent text-center">Set Filters</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section class="relative isolate">
+    <div class="absolute inset-0 -z-10">
+      <div class="absolute inset-0 bg-[url('https://image.tmdb.org/t/p/original/dMrAwwB7PMC4SjgsTbgmEJblaYd.jpg')] bg-cover bg-center"></div>
+      <div class="absolute inset-0 bg-gradient-to-b from-primary/80 via-primary/60 to-primary/80"></div>
+    </div>
+
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+      <div class="flex min-h-[80vh] items-center justify-center py-16 text-center">
+        <div class="max-w-3xl text-white mx-auto">
+          <h1 class="font-brand-serif text-4xl font-extrabold tracking-tight sm:text-5xl">Discover Your Next Favorite Film</h1>
+          <p class="mt-4 text-base/7 sm:text-lg/8 opacity-95">Explore a world of cinema with personalized recommendations built from rich movie databases and your unique preferences.</p>
+          <div class="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:items-center sm:justify-center">
+            <a href="/next_movie" class="inline-flex items-center justify-center gap-2 rounded-2xl bg-accent px-6 py-3 text-base font-semibold text-white shadow-lg shadow-black/10 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-white">
+              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+              Pick a Movie
+            </a>
+            <a href="/setFilters" class="inline-flex items-center justify-center gap-2 rounded-2xl bg-white/10 px-6 py-3 text-base font-semibold text-white ring-1 ring-inset ring-white/40 backdrop-blur hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white">
+              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5h18v2H3zm4 6h10v2H7zm3 6h4v2h-4z"/></svg>
+              Set Filters
+            </a>
+          </div>
+
+          <!-- Small benefits row -->
+          <dl class="mt-8 grid grid-cols-1 gap-4 text-sm sm:grid-cols-3 place-items-center text-center">
+            <div class="flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 ring-1 ring-inset ring-white/30">
+              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 6h16v12H4z" opacity=".3"/><path d="M6 9h4v2H6zm0 4h7v2H6z"/></svg>
+              <span>Data‑rich library</span>
             </div>
+            <div class="flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 ring-1 ring-inset ring-white/30">
+              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 7h16v2H4zm2 4h12v2H6zm3 4h6v2H9z"/></svg>
+              <span>Smart filters</span>
+            </div>
+            <div class="flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 ring-1 ring-inset ring-white/30">
+              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4h10v2H7zM5 8h14v12H5z" opacity=".3"/><path d="M8 10h8v2H8zm0 4h5v2H8z"/></svg>
+              <span>Queue & history</span>
+            </div>
+          </dl>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <main id="main" class="relative">
+    <section class="py-16 sm:py-20 bg-slate-50 dark:bg-slate-900/40">
+      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div class="mx-auto max-w-2xl text-center">
+          <h2 class="font-brand-serif text-3xl font-bold tracking-tight sm:text-4xl text-primary dark:text-white">Built for how you actually pick movies</h2>
+          <p class="mt-3 text-sm/7 text-slate-600 dark:text-slate-300">Fast, filterable, and focused on finishing your scroll.</p>
+        </div>
+
+        <div class="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <!-- Card 1 -->
+          <div class="rounded-2xl bg-white dark:bg-slate-900 p-6 shadow-soft ring-1 ring-slate-200/60 dark:ring-white/10">
+            <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary dark:bg-white/10 dark:text-white">
+              <svg class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 6h16v12H4z" opacity=".3"/><path d="M6 9h4v2H6zm0 4h7v2H6z"/></svg>
+            </div>
+            <h3 class="mt-5 text-lg font-semibold">Data‑rich Library</h3>
+            <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">Access thousands of titles via TMDB & IMDb to stay current with the latest releases and timeless classics.</p>
+          </div>
+
+          <!-- Card 2 -->
+          <div class="rounded-2xl bg-white dark:bg-slate-900 p-6 shadow-soft ring-1 ring-slate-200/60 dark:ring-white/10">
+            <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary dark:bg-white/10 dark:text-white">
+              <svg class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5h18v2H3zm4 6h10v2H7zm3 6h4v2h-4z"/></svg>
+            </div>
+            <h3 class="mt-5 text-lg font-semibold">Custom Filters</h3>
+            <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">Filter by year, rating, votes, genre, and language to match your mood.</p>
+          </div>
+
+          <!-- Card 3 -->
+          <div class="rounded-2xl bg-white dark:bg-slate-900 p-6 shadow-soft ring-1 ring-slate-200/60 dark:ring-white/10">
+            <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary dark:bg-white/10 dark:text-white">
+              <svg class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5 4h14v2H5zM3 8h18v12H3z" opacity=".3"/><path d="M7 10h10v2H7zm0 4h7v2H7z"/></svg>
+            </div>
+            <h3 class="mt-5 text-lg font-semibold">Queue & History</h3>
+            <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">Save picks to a queue and quickly revisit what you’ve watched.</p>
+          </div>
+        </div>
+
+        <!-- Secondary CTA -->
+        <div class="mt-12 flex flex-col items-stretch justify-center gap-3 sm:flex-row">
+          <a href="/next_movie" class="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-6 py-3 text-base font-semibold text-white shadow hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-primary/40">
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+            Start Picking
+          </a>
+          <a href="/setFilters" class="inline-flex items-center justify-center gap-2 rounded-2xl border border-primary/30 px-6 py-3 text-base font-semibold text-primary hover:bg-primary/5 dark:text-white dark:border-white/20 dark:hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-primary/40">
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5h18v2H3zm4 6h10v2H7zm3 6h4v2h-4z"/></svg>
+            Tweak Filters
+          </a>
+        </div>
+      </div>
     </section>
+  </main>
 
-    <!-- Footer -->
-    <footer class="footer-section">
-        <div class="container">
-            <div class="row">
-                <div class="col-md-4 text-center text-md-left mb-3">
-                    <h5 class="font-weight-bold">Nextreel</h5>
-                    <p class="small mb-0">&copy; 2025 Nextreel. All rights reserved.</p>
-                </div>
-                <div class="col-md-4 text-center mb-3">
-                    <ul class="list-unstyled mb-0">
-                        <li><a href="#">About Us</a></li>
-                        <li><a href="#">Privacy Policy</a></li>
-                        <li><a href="#">DMCA</a></li>
-                    </ul>
-                </div>
-                <div class="col-md-4 text-center text-md-right">
-                    <h5 class="font-weight-bold">Contact</h5>
-                    <p class="small mb-0">Email:&nbsp;<a href="mailto:bryce@nxtreel.com">bryce@nxtreel.com</a></p>
-                </div>
-            </div>
+  <!-- Footer -->
+  <footer class="border-t border-slate-200/60 dark:border-white/10 bg-white dark:bg-slate-950">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10">
+      <div class="grid gap-8 md:grid-cols-3 md:items-start">
+        <div>
+          <a href="/" class="inline-flex items-center gap-2 text-primary dark:text-white">
+            <svg class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 6a2 2 0 0 1 2-2h8l6 6v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6z" opacity=".3"/><path d="M14 4v4a2 2 0 0 0 2 2h4"/></svg>
+            <span class="font-brand-serif text-lg font-bold">Nextreel</span>
+          </a>
+          <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">&copy; 2025 Nextreel. All rights reserved.</p>
         </div>
-    </footer>
+        <div class="text-sm">
+          <ul class="space-y-2">
+            <li><a class="text-slate-600 hover:text-primary dark:text-slate-300 dark:hover:text-white" href="#">About Us</a></li>
+            <li><a class="text-slate-600 hover:text-primary dark:text-slate-300 dark:hover:text-white" href="#">Privacy Policy</a></li>
+            <li><a class="text-slate-600 hover:text-primary dark:text-slate-300 dark:hover:text-white" href="#">DMCA</a></li>
+          </ul>
+        </div>
+        <div class="text-sm">
+          <h3 class="font-semibold text-slate-900 dark:text-white">Contact</h3>
+          <p class="mt-2 text-slate-600 dark:text-slate-300">Email: <a class="underline decoration-accent/50 underline-offset-4 hover:decoration-accent" href="mailto:bryce@nxtreel.com">bryce@nxtreel.com</a></p>
+        </div>
+      </div>
+    </div>
+  </footer>
 
-    <!-- Scripts for Bootstrap functionality -->
-    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
+  <!-- Minimal JS for mobile menu toggling -->
+  <script>
+    const menuBtn = document.getElementById('menuBtn');
+    const mobileMenu = document.getElementById('mobileMenu');
+    if (menuBtn && mobileMenu) {
+      menuBtn.addEventListener('click', () => {
+        const isOpen = mobileMenu.classList.toggle('hidden');
+        const expanded = !isOpen;
+        menuBtn.setAttribute('aria-expanded', String(expanded));
+        menuBtn.setAttribute('aria-label', expanded ? 'Close menu' : 'Open menu');
+      });
+    }
+  </script>
 </body>
 </html>
