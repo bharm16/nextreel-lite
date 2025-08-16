@@ -57,8 +57,18 @@
       z-index:5; border:0; border-radius:999px; padding:.75rem;
       background:#00000066; color:white;
       backdrop-filter: blur(6px);
+      transition: opacity 0.2s ease;
     }
-    .arrow-btn:disabled{opacity:.35; cursor:not-allowed;}
+    .arrow-btn:hover:not(:disabled){
+      background:#00000088;
+      cursor:pointer;
+    }
+    .arrow-btn:disabled{
+      opacity:.25; 
+      cursor:not-allowed;
+      pointer-events: none;
+      background:#00000033;
+    }
     .arrow-left{ left: 12px; }
     .arrow-right{ right: 12px; }
 
@@ -147,7 +157,7 @@
   <!-- HERO / BACKDROP -->
   <section class="hero position-relative">
     <!-- Prev -->
-    <form method="POST" action="/previous_movie" style="display:inline;">
+    <form method="POST" action="/previous_movie" id="prev-form" style="display:inline;">
       <button type="submit" class="arrow-btn arrow-left" {% if previous_count == 0 %}disabled{% endif %} aria-label="Previous movie">
         <i class="fas fa-arrow-left"></i>
       </button>
@@ -208,7 +218,7 @@
           <!-- Divider + Prev/Next buttons -->
           <div class="divider my-4"></div>
           <div class="d-flex gap-2">
-            <form method="POST" action="/previous_movie" style="display:inline;">
+            <form method="POST" action="/previous_movie" id="prev-form-bottom" style="display:inline;">
               <button type="submit" class="btn btn-outline-light" {% if previous_count == 0 %}disabled{% endif %}>
                 ← Previous
               </button>
@@ -287,6 +297,29 @@
         const url = btn.getAttribute("data-video-url");
         if(url){ window.open(url, "_blank"); }
         else { alert("Trailer not available."); }
+      });
+    })();
+
+    // Prevent form submission when previous button is disabled
+    (function(){
+      const prevForms = document.querySelectorAll('#prev-form, #prev-form-bottom');
+      prevForms.forEach(form => {
+        form.addEventListener('submit', (e) => {
+          const btn = form.querySelector('button');
+          if (btn && btn.disabled) {
+            e.preventDefault();
+            return false;
+          }
+        });
+      });
+      
+      // Additional safety: remove href/action from disabled buttons
+      const disabledBtns = document.querySelectorAll('button[disabled]');
+      disabledBtns.forEach(btn => {
+        btn.onclick = (e) => {
+          e.preventDefault();
+          return false;
+        };
       });
     })();
   </script>

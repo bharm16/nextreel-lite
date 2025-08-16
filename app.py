@@ -514,7 +514,17 @@ def create_app():
         user_id = session.get('user_id')
         logger.info(f"Requesting previous movie for user_id: {user_id}. Correlation ID: {g.correlation_id}")
         response = await movie_manager.previous_movie(user_id)
-        return response if response else ('No previous movies', 200)
+        
+        # If no previous movie available, redirect back to current movie
+        if response is None:
+            current_movie = session.get('current_movie')
+            if current_movie and current_movie.get('imdb_id'):
+                return redirect(url_for('movie_detail', tconst=current_movie.get('imdb_id')))
+            else:
+                # Fallback to home if no current movie
+                return redirect(url_for('home'))
+        
+        return response
 
     @app.route('/setFilters')
     async def set_filters():

@@ -268,14 +268,11 @@ class MovieManager:
         Navigate to the previous movie in the viewing history.
         """
         prev_stack, future_stack = self._get_user_stacks()
-        
-        # Debug logging
-        logger.info(f"DEBUG - Before: prev_stack length: {len(prev_stack)}, future_stack length: {len(future_stack)}")
-        logger.info(f"DEBUG - Current movie: {session.get('current_movie', {}).get('title', 'None')}")
 
         # Check if we have any previous movies
         if not prev_stack:
             logger.info(f"No previous movies available for user_id: {user_id}")
+            # Don't redirect anywhere, just return None
             return None
 
         # Save current movie to future stack for forward navigation
@@ -286,14 +283,10 @@ class MovieManager:
         # Get the previous movie
         previous_movie = prev_stack.pop()
         
-        # Debug logging
-        logger.info(f"DEBUG - Moving to: {previous_movie.get('title', 'Unknown')}")
-        logger.info(f"DEBUG - After: prev_stack length: {len(prev_stack)}, future_stack length: {len(future_stack)}")
-        
         # Update the current movie
         session["current_movie"] = previous_movie
         
-        # CRITICAL: Save the modified stacks back to session
+        # Save the modified stacks back to session
         session["previous_movies_stack"] = prev_stack
         session["future_movies_stack"] = future_stack
 
