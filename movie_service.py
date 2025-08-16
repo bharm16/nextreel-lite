@@ -220,48 +220,84 @@ class MovieManager:
         return None
 
     async def next_movie(self, user_id):
+        """
+        Navigate to the next movie in the queue or future stack.
+        """
         prev_stack, future_stack = self._get_user_stacks()
         queue = session.setdefault("watch_queue", [])
 
         current_movie = None
 
+        # Check future stack first (for forward navigation after going back)
         if future_stack:
             current_movie = future_stack.pop()
+        # Otherwise get from queue
         elif queue:
             current_movie = queue.pop(0)
+        # If queue is empty, load more movies
         else:
             await self._load_movies_into_queue()
             queue = session.get("watch_queue", [])
             if queue:
                 current_movie = queue.pop(0)
 
+        # Save the current movie to previous stack before moving forward
         previous = session.get("current_movie")
         if previous and current_movie != previous:
             prev_stack.append(previous)
 
+        # Update session with new current movie
         session["current_movie"] = current_movie
+        
+        # CRITICAL: Save the modified stacks back to session
+        session["previous_movies_stack"] = prev_stack
+        session["future_movies_stack"] = future_stack
+        session["watch_queue"] = queue
 
         if current_movie:
             tconst = current_movie.get("imdb_id")
             self._mark_movie_seen(tconst)
+            logger.info(f"Navigating to next movie {tconst} for user_id: {user_id}")
             return redirect(url_for("movie_detail", tconst=tconst))
         else:
-            logger.info("No next movie available.")
+            logger.info(f"No next movie available for user_id: {user_id}")
+            return None
 
     async def previous_movie(self, user_id):
+        """
+        Navigate to the previous movie in the viewing history.
+        """
         prev_stack, future_stack = self._get_user_stacks()
 
+        # Check if we have any previous movies
+        if not prev_stack:
+            logger.info(f"No previous movies available for user_id: {user_id}")
+            # Don't redirect anywhere, just return None
+            return None
+
+        # Save current movie to future stack for forward navigation
         current_movie = session.get("current_movie")
         if current_movie:
             future_stack.append(current_movie)
 
-        if prev_stack:
-            current_movie = prev_stack.pop()
-            session["current_movie"] = current_movie
-            tconst = current_movie.get("imdb_id") if current_movie else None
-            if tconst:
-                return redirect(url_for("movie_detail", tconst=tconst))
-        logger.info("No next movie available.")
+        # Get the previous movie
+        previous_movie = prev_stack.pop()
+        
+        # Update the current movie
+        session["current_movie"] = previous_movie
+        
+        # Save the modified stacks back to session
+        session["previous_movies_stack"] = prev_stack
+        session["future_movies_stack"] = future_stack
+
+        # Navigate to the previous movie
+        tconst = previous_movie.get("imdb_id")
+        if tconst:
+            logger.info(f"Navigating to previous movie {tconst} for user_id: {user_id}")
+            return redirect(url_for("movie_detail", tconst=tconst))
+        else:
+            logger.error(f"Previous movie missing imdb_id for user_id: {user_id}")
+            return None
 
     async def set_filters(self, user_id):
         logger.info(f"Setting filters for user_id: {user_id}")

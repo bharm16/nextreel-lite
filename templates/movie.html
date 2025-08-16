@@ -2,7 +2,9 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Title</title>
+    <!-- Dynamic title with movie name and year -->
+    <title>{% if movie and movie.title %}{{ movie.title }}{% if movie.year %} ({{ movie.year }}){% endif %} - NextReel{% else %}Movie Details - NextReel{% endif %}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 
 

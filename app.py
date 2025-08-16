@@ -68,7 +68,12 @@ def create_app():
 
 
 
+    # Session configuration
     app.config['SESSION_TYPE'] = 'redis'
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Changed from 'Strict' to 'Lax'
+    app.config['PERMANENT_SESSION_LIFETIME'] = 86400  # 24 hours
+    app.config['SESSION_REFRESH_EACH_REQUEST'] = False  # Don't refresh on every request
 
     @app.before_serving
     async def setup_redis():
@@ -118,18 +123,25 @@ def create_app():
             g.start_time = time.time()
             
             # Skip security for static files, health checks, and metrics
-            if request.path.startswith('/static') or request.path in ['/health', '/ready', '/metrics']:
+            skip_paths = ['/static', '/favicon.ico', '/health', '/ready', '/metrics']
+            if any(request.path.startswith(path) for path in skip_paths):
                 return
             
             if app.config.get('TESTING'):
                 return
             
-            # Enhanced session security is handled automatically by EnhancedSessionSecurity
-            # Legacy session handling for backward compatibility
-            ensure_session()
+            # Simple session validation - just check if token exists
+            # REMOVED ensure_session() which was destroying sessions on every request
             
-            if not session.get('user_id'):
+            # Check if we need to create a new session
+            if 'session_token' not in session:
+                from session_auth import generate_session_token
+                session['session_token'] = generate_session_token()
                 session['user_id'] = str(uuid.uuid4())
+                session['created_at'] = time.time()
+                logger.info(f"Created new session for user: {session['user_id']}")
+                
+                # Add default criteria
                 default_criteria = {"min_year": 1900, "max_year": 2023, "min_rating": 7.0,
                                     "genres": ["Action", "Comedy"]}
                 await movie_manager.add_user(session['user_id'], default_criteria)
@@ -137,8 +149,28 @@ def create_app():
                 # Track new user session
                 user_sessions_total.inc()
                 metrics_collector.track_user_activity(session['user_id'])
-            elif 'watch_queue' not in session:
-                await movie_manager.add_user(session['user_id'], session.get('criteria', {}))
+            
+            # Check session age (optional - basic timeout)
+            if 'created_at' in session:
+                session_age = time.time() - session['created_at']
+                max_age = 24 * 60 * 60  # 24 hours
+                if session_age > max_age:
+                    # Session too old, create new one
+                    session.clear()
+                    from session_auth import generate_session_token
+                    session['session_token'] = generate_session_token()
+                    session['user_id'] = str(uuid.uuid4())
+                    session['created_at'] = time.time()
+                    logger.info("Session expired, created new session")
+            
+            # Initialize user in movie manager if needed
+            user_id = session.get('user_id')
+            if user_id and 'initialized' not in session:
+                criteria = session.get('criteria', {"min_year": 1900, "max_year": 2023, 
+                                                    "min_rating": 7.0, "genres": ["Action", "Comedy"]})
+                await movie_manager.add_user(user_id, criteria)
+                session['initialized'] = True
+                logger.info(f"Initialized user {user_id} in movie manager")
             
             req_size = sys.getsizeof(await request.get_data())
             logger.debug(
@@ -146,8 +178,8 @@ def create_app():
             )
         except Exception as e:
             logger.error(f"Error in session management: {e}")
-            # Don't fail the request, create new session
-            await session_security.create_session()
+            # Don't fail the request, just log the error
+            pass
     
     # Set security headers and performance monitoring
     @app.after_request
@@ -482,7 +514,17 @@ def create_app():
         user_id = session.get('user_id')
         logger.info(f"Requesting previous movie for user_id: {user_id}. Correlation ID: {g.correlation_id}")
         response = await movie_manager.previous_movie(user_id)
-        return response if response else ('No previous movies', 200)
+        
+        # If no previous movie available, redirect back to current movie
+        if response is None:
+            current_movie = session.get('current_movie')
+            if current_movie and current_movie.get('imdb_id'):
+                return redirect(url_for('movie_detail', tconst=current_movie.get('imdb_id')))
+            else:
+                # Fallback to home if no current movie
+                return redirect(url_for('home'))
+        
+        return response
 
     @app.route('/setFilters')
     async def set_filters():
