@@ -1,21 +1,7 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<!-- Font Awesome Icons -->
+<script src="https://kit.fontawesome.com/ac5381aca9.js" crossorigin="anonymous"></script>
 
-  <!-- Bootstrap 5 (stable) -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
-
-  <!-- Fonts & Icons -->
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap">
-  <script src="https://kit.fontawesome.com/ac5381aca9.js" crossorigin="anonymous"></script>
-
-  <!-- Dynamic title with movie name and year -->
-  <title>{% if movie and movie.title %}{{ movie.title }}{% if movie.year %} ({{ movie.year }}){% endif %} - NextReel{% else %}Movie Details - NextReel{% endif %}</title>
-
-  <style>
+<style>
     :root{
       --bg: #0b0f14;
       --card:#0f1720;
@@ -151,19 +137,16 @@
       .movie-card{ margin-top:-80px; }
     }
   </style>
-</head>
-
-<body>
   <!-- HERO / BACKDROP -->
-  <section class="hero position-relative">
+  <section class="hero relative">
     <!-- Prev -->
-    <form method="POST" action="/previous_movie" id="prev-form" style="display:inline;">
+    <form method="POST" action="/previous_movie" id="prev-form" class="inline">
       <button type="submit" class="arrow-btn arrow-left" {% if previous_count == 0 %}disabled{% endif %} aria-label="Previous movie">
         <i class="fas fa-arrow-left"></i>
       </button>
     </form>
     <!-- Next -->
-    <form method="POST" action="/next_movie" style="display:inline;">
+    <form method="POST" action="/next_movie" class="inline">
       <button type="submit" class="arrow-btn arrow-right" aria-label="Next movie">
         <i class="fas fa-arrow-right"></i>
       </button>
@@ -171,17 +154,17 @@
   </section>
 
   <!-- CONTENT -->
-  <main class="container-lg">
-    <div class="movie-card p-4 p-md-5">
-      <div class="row g-4 g-lg-5 align-items-start">
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="movie-card p-4 md:p-8">
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-4 lg:gap-8 items-start">
 
         <!-- Poster -->
-        <div class="col-12 col-md-4 d-flex justify-content-center justify-content-md-start">
+        <div class="col-span-1 md:col-span-4 flex justify-center md:justify-start">
           <img class="poster" src="{{ movie.poster_url }}" alt="Poster for {{ movie.title }}">
         </div>
 
         <!-- Details -->
-        <div class="col-12 col-md-8">
+        <div class="col-span-1 md:col-span-8">
           <h1 class="title mb-2">{{ movie.title }}</h1>
 
           <div class="meta mb-3">
@@ -191,7 +174,7 @@
           </div>
 
           <!-- Genres (built from CSV below) -->
-          <div class="d-flex flex-wrap gap-2 mb-4" id="genre-info">{{ movie.genres }}</div>
+          <div class="flex flex-wrap gap-2 mb-4" id="genre-info">{{ movie.genres }}</div>
 
           <!-- Plot -->
           <p class="plot mb-4">{{ movie.plot }}</p>
@@ -217,14 +200,14 @@
 
           <!-- Divider + Prev/Next buttons -->
           <div class="divider my-4"></div>
-          <div class="d-flex gap-2">
-            <form method="POST" action="/previous_movie" id="prev-form-bottom" style="display:inline;">
-              <button type="submit" class="btn btn-outline-light" {% if previous_count == 0 %}disabled{% endif %}>
+          <div class="flex gap-2">
+            <form method="POST" action="/previous_movie" id="prev-form-bottom" class="inline">
+              <button type="submit" class="px-4 py-2 border border-white rounded-lg text-white hover:bg-white/10 disabled:opacity-25 disabled:cursor-not-allowed" {% if previous_count == 0 %}disabled{% endif %}>
                 ← Previous
               </button>
             </form>
-            <form method="POST" action="/next_movie" style="display:inline;">
-              <button type="submit" class="btn btn-light">
+            <form method="POST" action="/next_movie" class="inline">
+              <button type="submit" class="px-4 py-2 bg-white text-black rounded-lg hover:bg-gray-100">
                 Next →
               </button>
             </form>
@@ -233,8 +216,8 @@
       </div>
 
       <!-- Cast -->
-      <div class="mt-5">
-        <h2 class="h5 fw-bold mb-3">Cast</h2>
+      <div class="mt-8">
+        <h2 class="text-lg font-bold mb-3">Cast</h2>
         <div class="cast-strip">
           {% for actor in movie.cast %}
           <div class="actor-card">
@@ -252,8 +235,7 @@
     </div>
   </main>
 
-  <!-- JS (no jQuery needed) -->
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- JavaScript -->
   <script>
     // Build up to 3 genre chips from CSV text already in #genre-info
     (function(){
@@ -323,5 +305,3 @@
       });
     })();
   </script>
-</body>
-</html>

@@ -1,0 +1,57 @@
+<!-- Modern Reusable Navbar Component -->
+<!-- Include this at the top of your page templates -->
+<header class="sticky top-0 z-50 bg-primary/95 backdrop-blur supports-[backdrop-filter]:bg-primary/80 text-white shadow">
+  <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <div class="flex h-16 items-center justify-between">
+      <!-- Brand -->
+      <a href="/" class="flex items-center gap-2 group" aria-label="Nextreel home">
+        <svg class="h-6 w-6 transition-transform group-hover:rotate-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M4 6a2 2 0 0 1 2-2h8l6 6v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6z" opacity=".3"/>
+          <path d="M14 4v4a2 2 0 0 0 2 2h4"/>
+        </svg>
+        <span class="font-brand-serif text-xl font-bold tracking-tight">Nextreel</span>
+      </a>
+
+      <!-- Desktop actions -->
+      <nav class="hidden gap-2 md:flex">
+        <a href="/next_movie" class="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent/70 focus:ring-offset-primary/20">
+          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+          Pick a Movie
+        </a>
+        <a href="/setFilters" class="inline-flex items-center gap-2 rounded-xl border border-accent px-4 py-2 text-sm font-semibold text-accent hover:bg-accent/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent/70 focus:ring-offset-primary/20">
+          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5h18v2H3zm4 6h10v2H7zm3 6h4v2h-4z"/></svg>
+          Set Filters
+        </a>
+      </nav>
+
+      <!-- Mobile menu button -->
+      <button id="menuBtn" class="inline-flex items-center justify-center rounded-lg p-2 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white md:hidden" aria-controls="mobileMenu" aria-expanded="false" aria-label="Open menu">
+        <svg class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Mobile dropdown -->
+  <div id="mobileMenu" class="hidden md:hidden border-t border-white/10">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-3 space-y-2">
+      <a href="/next_movie" class="block w-full rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white text-center">Pick a Movie</a>
+      <a href="/setFilters" class="block w-full rounded-lg border border-accent px-4 py-2 text-sm font-semibold text-accent text-center">Set Filters</a>
+    </div>
+  </div>
+</header>
+
+<!-- Mobile menu toggle script (include once per page) -->
+<script>
+  (function() {
+    const menuBtn = document.getElementById('menuBtn');
+    const mobileMenu = document.getElementById('mobileMenu');
+    if (menuBtn && mobileMenu) {
+      menuBtn.addEventListener('click', () => {
+        const isOpen = mobileMenu.classList.toggle('hidden');
+        const expanded = !isOpen;
+        menuBtn.setAttribute('aria-expanded', String(expanded));
+        menuBtn.setAttribute('aria-label', expanded ? 'Close menu' : 'Open menu');
+      });
+    }
+  })();
+</script>
