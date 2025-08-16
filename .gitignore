@@ -60,3 +60,8 @@ SECURITY_INTEGRATION.md
 # Production environment files (added by setup script)
 .env.production.backup*
 .production_secrets.json
+
+# Test and bug report files
+bug_report_*.txt
+test_report_*.json
+comprehensive_test.py
