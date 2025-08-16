@@ -12,7 +12,8 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap">
   <script src="https://kit.fontawesome.com/ac5381aca9.js" crossorigin="anonymous"></script>
 
-  <title>{{ movie.title }} · Details</title>
+  <!-- Dynamic title with movie name and year -->
+  <title>{% if movie and movie.title %}{{ movie.title }}{% if movie.year %} ({{ movie.year }}){% endif %} - NextReel{% else %}Movie Details - NextReel{% endif %}</title>
 
   <style>
     :root{
