@@ -20,8 +20,8 @@
       --card:#0f1720;
       --text:#e6edf3;
       --muted:#9fb0bf;
-      --accent:#22c55e;       /* rating fill */
-      --accent-2:#16a34a;     /* rating fill end */
+      --accent:#22c55e;
+      --accent-2:#16a34a;
       --chip:#12202b;
       --chip-ring:#1f3b4c40;
       --border:#22303d;
@@ -81,7 +81,7 @@
     }
     .dot{opacity:.5;}
 
-    /* Genre chips (built from CSV by JS) */
+    /* Genre chips */
     .genre-chip{
       border:1px solid var(--border);
       background:var(--chip); color:var(--muted);
@@ -90,31 +90,21 @@
 
     .plot{ color:#d7e1ea; line-height:1.65; }
 
-    /* RATING — simple, integrated graphic */
+    /* RATING CHIP (votes inside) */
     .rating-wrap{
-      display:grid; grid-template-columns:auto 1fr auto; gap:1rem; align-items:center;
+      display:flex; flex-wrap:wrap; gap:1rem; align-items:center;
     }
     .rating-chip{
-      display:inline-flex; align-items:center; gap:.45rem;
+      display:flex; align-items:flex-start; gap:.6rem;
       background:var(--chip); border:1px solid var(--chip-ring);
-      border-radius:999px; padding:.4rem .65rem; font-weight:700;
+      border-radius:14px; padding:.55rem .75rem; font-weight:700;
     }
-    .rating-chip i{ font-size:1rem; color:#ffd166; }
-    .rating-number{font-size:1.05rem;}
-    .rating-outof{color:var(--muted); font-weight:600; font-size:.95rem;}
-
-    .rating-meter{
-      position:relative; height:10px; border-radius:999px; overflow:hidden;
-      background:#1b2a36; border:1px solid var(--border);
-    }
-    .rating-fill{
-      position:absolute; left:0; top:0; bottom:0; width:0%;
-      background:linear-gradient(90deg, var(--accent), var(--accent-2));
-      transition:width .6s cubic-bezier(.2,.8,.2,1);
-    }
-    .votes{
-      color:var(--muted); font-weight:600; font-size:.95rem; white-space:nowrap;
-    }
+    .rating-chip i{ font-size:1rem; color:#ffd166; line-height:1.2; margin-top:.1rem; }
+    .rating-stack{ display:flex; flex-direction:column; line-height:1.1; }
+    .rating-line{ display:flex; align-items:baseline; gap:.35rem; }
+    .rating-number{ font-size:1.1rem; }
+    .rating-outof{ color:var(--muted); font-weight:600; font-size:.95rem; }
+    .rating-votes-mini{ color:var(--muted); font-weight:600; font-size:.85rem; }
 
     /* Trailer button */
     .trailer-btn{
@@ -144,13 +134,10 @@
     .actor-card .actor-name{ color:#dbe7f1; font-weight:600; }
     .actor-card .character{ color:var(--muted); border-top:1px solid var(--border); }
 
-    /* Small helpers */
     .divider{ height:1px; background:var(--border); }
 
     @media (max-width: 992px){
       .movie-card{ margin-top:-80px; }
-      .rating-wrap{ grid-template-columns: 1fr; }
-      .votes{ justify-self:start; }
     }
   </style>
 </head>
@@ -198,23 +185,19 @@
           <!-- Plot -->
           <p class="plot mb-4">{{ movie.plot }}</p>
 
-          <!-- Rating: chip + meter + votes -->
+          <!-- Rating chip (with votes beneath /10) -->
           <div class="rating-wrap mb-4">
             <div class="rating-chip">
               <i class="fa-solid fa-star"></i>
-              <span class="rating-number">{{ '%.1f'|format(movie.rating) }}</span>
-              <span class="rating-outof">/10</span>
+              <div class="rating-stack">
+                <div class="rating-line">
+                  <span class="rating-number">{{ '%.1f'|format(movie.rating) }}</span>
+                  <span class="rating-outof">/10</span>
+                </div>
+                <div class="rating-votes-mini"><span id="vote-number">{{ movie.votes }}</span> ratings</div>
+              </div>
             </div>
 
-            <div class="rating-meter" aria-label="User rating meter">
-              <div class="rating-fill" style="width: {{ movie.rating * 10 }}%;"></div>
-            </div>
-
-            <div class="votes"><span id="vote-number">{{ movie.votes }}</span> ratings</div>
-          </div>
-
-          <!-- Actions -->
-          <div class="d-flex flex-wrap gap-2">
             <button class="trailer-btn" id="play-button" data-video-url="{{ movie.trailer }}">
               <i class="fa-solid fa-play"></i>
               Play Trailer
