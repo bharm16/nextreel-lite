@@ -1,0 +1,29 @@
+{
+  "name": "nextreel-lite",
+  "version": "1.0.0",
+  "description": "Nextreel is designed to provide a comprehensive solution for managing and interacting with movie data. It integrates with The Movie Database (TMDB) API for data retrieval and offers features like setting filters, managing a movie queue, and handling movie data operations.",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build-css": "npx tailwindcss -i ./static/css/input.css -o ./static/css/output.css --minify",
+    "watch-css": "npx tailwindcss -i ./static/css/input.css -o ./static/css/output.css --watch"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bharm16/nextreel-lite.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/bharm16/nextreel-lite/issues"
+  },
+  "homepage": "https://github.com/bharm16/nextreel-lite#readme",
+  "devDependencies": {
+    "tailwindcss": "^3.4.17"
+  }
+}

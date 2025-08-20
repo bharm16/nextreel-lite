@@ -7,24 +7,8 @@
   <meta name="description" content="Fine-tune your movie recommendations by score, votes, year, and genre." />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
-  <!-- Tailwind CSS (CDN). For production, compile Tailwind instead of using the CDN. -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'media',
-      theme: {
-        extend: {
-          colors: {
-            primary: '#02243f', // deep navy, matches home
-            accent: '#2db830',  // brand green, matches home
-          },
-          boxShadow: {
-            soft: '0 10px 25px rgba(2, 36, 63, 0.08)'
-          }
-        }
-      }
-    }
-  </script>
+  <!-- Compiled Tailwind CSS -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/output.css') }}">
   <style>
     :root { color-scheme: light dark; }
     body { font-family: 'Poppins', system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif; }

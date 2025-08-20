@@ -7,73 +7,18 @@
   <meta name="description" content="Pick a movie fast with smart filters, a data‑rich library, and your personal queue." />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700&family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
-  <!-- Tailwind CSS (CDN). For production, prefer a compiled build. -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    // Tailwind CDN config: brand colors
-    tailwind.config = {
-      darkMode: 'media',
-      theme: {
-        extend: {
-          colors: {
-            primary: '#02243f', // deep navy
-            accent: '#2db830',  // brand green
-          },
-          boxShadow: {
-            soft: '0 10px 25px rgba(2, 36, 63, 0.08)'
-          }
-        }
-      }
-    }
-  </script>
+  <!-- Compiled Tailwind CSS -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/output.css') }}">
   <style>
-    :root { color-scheme: light dark; }
-    html, body { height: 100%; }
+    /* Basic fallback styles in case CSS doesn't load */
     body { 
-      font-family: 'Poppins', system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif;
+      font-family: 'Poppins', system-ui, sans-serif;
       margin: 0;
       padding: 0;
     }
-    .font-brand-serif { font-family: 'Merriweather', Georgia, Cambria, 'Times New Roman', Times, serif; }
-    
-    /* Critical CSS fallbacks for when Tailwind CDN fails */
-    .bg-primary { background-color: #02243f; }
-    .bg-accent { background-color: #2db830; }
-    .text-white { color: white; }
-    .hidden { display: none; }
-    .flex { display: flex; }
-    .items-center { align-items: center; }
-    .justify-between { justify-content: space-between; }
-    .justify-center { justify-content: center; }
-    .mx-auto { margin-left: auto; margin-right: auto; }
-    .px-4 { padding-left: 1rem; padding-right: 1rem; }
-    .py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
-    .py-3 { padding-top: 0.75rem; padding-bottom: 0.75rem; }
-    .px-6 { padding-left: 1.5rem; padding-right: 1.5rem; }
-    .gap-2 { gap: 0.5rem; }
-    .rounded-xl { border-radius: 0.75rem; }
-    .rounded-2xl { border-radius: 1rem; }
-    .shadow { box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1); }
-    .font-semibold { font-weight: 600; }
-    .font-bold { font-weight: 700; }
-    .text-sm { font-size: 0.875rem; line-height: 1.25rem; }
-    .text-base { font-size: 1rem; line-height: 1.5rem; }
-    .text-xl { font-size: 1.25rem; line-height: 1.75rem; }
-    .text-3xl { font-size: 1.875rem; line-height: 2.25rem; }
-    .text-4xl { font-size: 2.25rem; line-height: 2.5rem; }
-    .min-h-screen { min-height: 100vh; }
-    .sticky { position: sticky; }
-    .top-0 { top: 0; }
-    .z-50 { z-index: 50; }
-    .h-16 { height: 4rem; }
-    .h-6 { height: 1.5rem; }
-    .w-6 { width: 1.5rem; }
-    .max-w-7xl { max-width: 80rem; }
-    
-    /* Ensure content is visible even without Tailwind */
-    header { background-color: #02243f; color: white; }
-    main { background-color: #f8fafc; color: #1e293b; }
-    footer { background-color: white; color: #475569; border-top: 1px solid #e2e8f0; }
+    .font-brand-serif { 
+      font-family: 'Merriweather', Georgia, serif; 
+    }
   </style>
 </head>
 <body class="bg-white text-slate-800 dark:bg-slate-950 dark:text-slate-100 antialiased">
