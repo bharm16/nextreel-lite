@@ -581,8 +581,8 @@ async def add_security_headers(response):
         # Enable XSS protection
         response.headers['X-XSS-Protection'] = '1; mode=block'
         
-        # CSP header
-        response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline';"
+        # CSP header - include TMDB images and Font Awesome
+        response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://kit.fontawesome.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' https://image.tmdb.org data:; font-src 'self' https://ka-f.fontawesome.com; connect-src 'self' https://ka-f.fontawesome.com;"
         
         # Referrer policy
         response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
