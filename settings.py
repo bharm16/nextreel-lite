@@ -115,7 +115,7 @@ class Config:
     # SSL Certificate Path
     @staticmethod
     def get_ssl_cert_path():
-        return os.getenv('SSL_CERT_PATH') or os.path.join(os.path.dirname(__file__), 'isrgroot.pem')
+        return os.getenv('SSL_CERT_PATH', None)
 
     # Pool configurations for aiomysql - Optimized for performance
     POOL_MIN_SIZE = 10  # Increased from 5 for better responsiveness

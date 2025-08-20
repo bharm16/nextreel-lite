@@ -20,7 +20,7 @@ class SSLCertificateValidator:
     """Comprehensive SSL certificate validation for database connections"""
     
     def __init__(self, cert_path: str = None):
-        self.cert_path = cert_path or os.path.join(os.path.dirname(__file__), 'isrgroot.pem')
+        self.cert_path = cert_path
         self.validation_results = {}
         
     def validate_certificate_file(self) -> Dict[str, Any]:
@@ -34,6 +34,11 @@ class SSLCertificateValidator:
         }
         
         try:
+            # If no cert path specified, skip validation
+            if not self.cert_path:
+                results['errors'].append("No certificate file specified - will use system defaults")
+                return results
+            
             # Check file existence
             if not os.path.exists(self.cert_path):
                 results['errors'].append(f"Certificate file not found: {self.cert_path}")
@@ -85,7 +90,7 @@ class SSLCertificateValidator:
         """Create a properly configured SSL context"""
         try:
             # Try to create context with the certificate file
-            if os.path.exists(self.cert_path):
+            if self.cert_path and os.path.exists(self.cert_path):
                 context = ssl.create_default_context(cafile=self.cert_path)
             else:
                 # Fall back to system certificates
@@ -247,7 +252,7 @@ async def run_ssl_validation():
     print("="*60 + "\n")
     
     # Initialize validator
-    cert_path = Config.get_ssl_cert_path() if hasattr(Config, 'get_ssl_cert_path') else 'isrgroot.pem'
+    cert_path = Config.get_ssl_cert_path() if hasattr(Config, 'get_ssl_cert_path') else None
     validator = SSLCertificateValidator(cert_path)
     
     # Step 1: Validate Certificate File
