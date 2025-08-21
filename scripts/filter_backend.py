@@ -35,21 +35,30 @@ class MovieQueryBuilder:
             "AND tr.averagerating BETWEEN %s AND %s "
             "AND tr.numVotes >= %s AND tr.numVotes <= %s "
             "AND tb.titleType = %s "
-            "AND tb.language LIKE %s"
+            "AND (%s = 'any' OR tb.language LIKE %s OR tb.language IS NULL)"  # Handle 'any' language option
         )
 
     @staticmethod
     def build_parameters(criteria: Dict[str, Any]) -> List[Any]:
-        language = "%" + criteria.get("language", "en") + "%"
+        # Handle language parameter - 'any' means no language filter
+        lang = criteria.get("language", "en")
+        if lang == "any":
+            language_check = "any"
+            language_pattern = "%"  # Won't be used but needed for parameter count
+        else:
+            language_check = lang
+            language_pattern = "%" + lang + "%"
+        
         return [
             criteria.get("min_year", 1900),
-            criteria.get("max_year", 2023),
+            criteria.get("max_year", 2025),  # Updated default to include recent movies
             criteria.get("min_rating", 7.0),
             criteria.get("max_rating", 10),
             criteria.get("min_votes", 100000),
             criteria.get("max_votes", 1000000),
             criteria.get("title_type", "movie"),
-            language,
+            language_check,
+            language_pattern,
         ]
 
     @staticmethod
@@ -57,6 +66,10 @@ class MovieQueryBuilder:
         genre_conditions: List[str] = []
         genres = criteria.get("genres")
         if genres:
+            # If 15+ genres are selected, it's essentially "any genre" - skip the filter
+            if len(genres) >= 15:
+                logger.info("15+ genres selected, skipping genre filter for performance")
+                return []
             genre_conditions = [" OR ".join(["tb.genres LIKE %s" for _ in genres])]
             parameters.extend(["%" + genre + "%" for genre in genres])
         return genre_conditions
@@ -170,12 +183,10 @@ def extract_movie_filter_criteria(form_data):
     if genres:
         criteria['genres'] = genres
 
-    # Handling language criteria
-    if form_data.get('language'):
-        criteria['language'] = form_data.get('language')
-    else:
-        print("defaulting to english")
-        criteria['language'] = 'en'  # Default to English
+    # Handling language criteria - support user selection
+    language = form_data.get('language', 'en')
+    criteria['language'] = language
+    logger.debug(f"Language filter set to: {language}")
 
     return criteria
 

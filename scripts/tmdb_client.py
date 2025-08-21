@@ -88,6 +88,34 @@ class TMDbHelper:
             )
             raise
 
+    async def get_age_rating_by_tmdb_id(self, tmdb_id):
+        """Get age rating (certification) for a movie from TMDB."""
+        try:
+            # Use release_dates endpoint instead of releases for better data
+            data = await self._get(f"movie/{tmdb_id}/release_dates")
+            
+            # Look for US rating first
+            us_releases = [r for r in data.get("results", []) if r.get("iso_3166_1") == "US"]
+            if us_releases and us_releases[0].get("release_dates"):
+                for release in us_releases[0]["release_dates"]:
+                    certification = release.get("certification", "").strip()
+                    if certification:
+                        return certification
+            
+            # Fallback to first available rating from any country
+            for country in data.get("results", []):
+                if country.get("release_dates"):
+                    for release in country["release_dates"]:
+                        certification = release.get("certification", "").strip()
+                        if certification:
+                            return certification
+            
+            return "Not Rated"
+            
+        except Exception as e:
+            logger.warning(f"Error fetching age rating for TMDB ID {tmdb_id}: {e}")
+            return "Not Rated"
+
     async def get_cast_info_by_tmdb_id(self, tmdb_id):
         # logger.info(f"Fetching cast information for TMDB ID: {tmdb_id}")
 

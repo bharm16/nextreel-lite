@@ -127,6 +127,38 @@
                 </div>
               </section>
 
+              <!-- Language Selection -->
+              <section aria-labelledby="language-heading" class="space-y-3">
+                <h2 id="language-heading" class="flex items-center text-lg font-semibold text-primary dark:text-white">
+                  <svg class="mr-2 h-5 w-5 text-accent" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M12.87 15.07l-2.54-2.51.03-.03c1.74-1.94 2.98-4.17 3.71-6.53H17V4h-7V2H8v2H1v1.99h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/>
+                  </svg>
+                  Language
+                </h2>
+                <div>
+                  <label for="language" class="block text-sm font-medium">Select Language</label>
+                  <select id="language" name="language" class="mt-1 w-full rounded-2xl border-2 border-slate-200 px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30 dark:bg-slate-800 dark:border-slate-700 dark:text-white">
+                    <option value="any" {% if current_filters.get('language', 'en') == 'any' %}selected{% endif %}>Any Language</option>
+                    <option value="en" {% if current_filters.get('language', 'en') == 'en' %}selected{% endif %}>English</option>
+                    <option value="es" {% if current_filters.get('language') == 'es' %}selected{% endif %}>Spanish</option>
+                    <option value="fr" {% if current_filters.get('language') == 'fr' %}selected{% endif %}>French</option>
+                    <option value="de" {% if current_filters.get('language') == 'de' %}selected{% endif %}>German</option>
+                    <option value="it" {% if current_filters.get('language') == 'it' %}selected{% endif %}>Italian</option>
+                    <option value="pt" {% if current_filters.get('language') == 'pt' %}selected{% endif %}>Portuguese</option>
+                    <option value="ru" {% if current_filters.get('language') == 'ru' %}selected{% endif %}>Russian</option>
+                    <option value="ja" {% if current_filters.get('language') == 'ja' %}selected{% endif %}>Japanese</option>
+                    <option value="ko" {% if current_filters.get('language') == 'ko' %}selected{% endif %}>Korean</option>
+                    <option value="zh" {% if current_filters.get('language') == 'zh' %}selected{% endif %}>Chinese</option>
+                    <option value="hi" {% if current_filters.get('language') == 'hi' %}selected{% endif %}>Hindi</option>
+                    <option value="ar" {% if current_filters.get('language') == 'ar' %}selected{% endif %}>Arabic</option>
+                    <option value="tr" {% if current_filters.get('language') == 'tr' %}selected{% endif %}>Turkish</option>
+                    <option value="nl" {% if current_filters.get('language') == 'nl' %}selected{% endif %}>Dutch</option>
+                    <option value="sv" {% if current_filters.get('language') == 'sv' %}selected{% endif %}>Swedish</option>
+                    <option value="pl" {% if current_filters.get('language') == 'pl' %}selected{% endif %}>Polish</option>
+                  </select>
+                </div>
+              </section>
+
               <!-- Genres -->
               <section aria-labelledby="genres-heading" class="space-y-3">
                 <h2 id="genres-heading" class="flex items-center text-lg font-semibold text-primary dark:text-white">

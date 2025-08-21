@@ -166,7 +166,9 @@ class MovieManager:
         if limit <= 0:
             return
         
-        rows = await self.movie_fetcher.fetch_random_movies(criteria, limit)
+        # Get extra movies since some might be filtered out by language
+        fetch_limit = limit * 3 if criteria.get("min_year", 1900) >= 2024 else limit
+        rows = await self.movie_fetcher.fetch_random_movies(criteria, fetch_limit)
         
         # Load movies in parallel instead of sequentially
         async def fetch_movie_data(row):
@@ -177,10 +179,34 @@ class MovieManager:
         tasks = [fetch_movie_data(row) for row in rows]
         movie_results = await asyncio.gather(*tasks, return_exceptions=True)
         
+        # Filter by language if specified (using TMDB data)
+        desired_lang = criteria.get("language", "en")
+        
         # Add successful results to queue
         for movie_data in movie_results:
             if movie_data and not isinstance(movie_data, Exception):
-                queue.append(movie_data)
+                # Skip language filtering if "any" is selected
+                if desired_lang == "any":
+                    queue.append(movie_data)
+                else:
+                    # Check language from TMDB data
+                    original_lang = movie_data.get("original_language", "unknown")
+                    spoken_langs = movie_data.get("spoken_languages", [])
+                    
+                    # Include movie if:
+                    # - Language filter is English and movie is English OR unknown
+                    # - Language filter matches original language
+                    # - Language filter matches any spoken language
+                    if desired_lang == "en":
+                        # For English, be more permissive (include unknown)
+                        if original_lang in ["en", "unknown", None] or "en" in spoken_langs:
+                            queue.append(movie_data)
+                    elif original_lang == desired_lang or desired_lang in spoken_langs:
+                        queue.append(movie_data)
+                
+                # Stop if we have enough movies
+                if len(queue) >= session.get("queue_size", self.queue_size):
+                    break
         
         session["watch_queue"] = queue
 
