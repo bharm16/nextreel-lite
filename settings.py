@@ -81,13 +81,8 @@ class Config:
     PERMANENT_SESSION_LIFETIME = 86400  # 24 hours in seconds
 
     # Expose production database configuration for scripts that need it
-    STACKHERO_DB_CONFIG = {
-        "host": os.getenv("STACKHERO_DB_HOST"),
-        "user": os.getenv("STACKHERO_DB_USER"),
-        "password": os.getenv("STACKHERO_DB_PASSWORD"),
-        "database": os.getenv("STACKHERO_DB_NAME"),
-        "port": int(os.getenv("STACKHERO_DB_PORT", 3306)),
-    }
+    # Legacy config - kept for backward compatibility but not used
+    STACKHERO_DB_CONFIG = {}
 
     # Dynamically switch database configurations based on FLASK_ENV
     @staticmethod
@@ -106,25 +101,11 @@ class Config:
             # Production configuration - use production database variables
             # These can be your cloud provider's database or any production MySQL
             return {
-                "host": os.getenv(
-                    "PROD_DB_HOST", os.getenv("STACKHERO_DB_HOST", os.getenv("DB_HOST"))
-                ),
-                "user": os.getenv(
-                    "PROD_DB_USER", os.getenv("STACKHERO_DB_USER", os.getenv("DB_USER"))
-                ),
-                "password": os.getenv(
-                    "PROD_DB_PASSWORD",
-                    os.getenv("STACKHERO_DB_PASSWORD", os.getenv("DB_PASSWORD")),
-                ),
-                "database": os.getenv(
-                    "PROD_DB_NAME", os.getenv("STACKHERO_DB_NAME", os.getenv("DB_NAME"))
-                ),
-                "port": int(
-                    os.getenv(
-                        "PROD_DB_PORT",
-                        os.getenv("STACKHERO_DB_PORT", os.getenv("DB_PORT", 3306)),
-                    )
-                ),
+                "host": os.getenv("PROD_DB_HOST", os.getenv("DB_HOST", "127.0.0.1")),
+                "user": os.getenv("PROD_DB_USER", os.getenv("DB_USER", "root")),
+                "password": os.getenv("PROD_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
+                "database": os.getenv("PROD_DB_NAME", os.getenv("DB_NAME", "imdb")),
+                "port": int(os.getenv("PROD_DB_PORT", os.getenv("DB_PORT", 3306))),
             }
 
     # SSL Certificate Path
