@@ -3,15 +3,15 @@
 
 <style>
     :root{
-      --bg: #0b0f14;
-      --card:#0f1720;
-      --text:#e6edf3;
-      --muted:#9fb0bf;
+      --bg: #f8fafc;
+      --card:#ffffff;
+      --text:#0f172a;
+      --muted:#64748b;
       --accent:#22c55e;
       --accent-2:#16a34a;
-      --chip:#12202b;
-      --chip-ring:#1f3b4c40;
-      --border:#22303d;
+      --chip:#f1f5f9;
+      --chip-ring:#e2e8f040;
+      --border:#e2e8f0;
     }
 
     html,body{height:100%;}
@@ -26,34 +26,37 @@
       position:relative;
       min-height:46vh;
       background:
-        radial-gradient(1000px 400px at 10% 0%, #0b0f14 0%, #0b0f14d6 60%, #0b0f1400 100%),
-        linear-gradient(0deg, #0b0f14 0%, #0b0f14d6 40%, #0b0f1400 70%),
+        radial-gradient(1000px 400px at 10% 0%, #f8fafc 0%, #f8fafcd6 60%, #f8fafc00 100%),
+        linear-gradient(0deg, #f8fafc 0%, #f8fafcd6 40%, #f8fafc00 70%),
         url('https://image.tmdb.org/t/p/original{{ movie.backdrop_url }}') center/cover no-repeat;
       border-bottom:1px solid var(--border);
     }
     .hero::after{
       content:"";
       position:absolute; inset:0;
-      background:linear-gradient(180deg, #0b0f1400 0%, #0b0f14 85%);
+      background:linear-gradient(180deg, #f8fafc00 0%, #f8fafc 85%);
     }
 
     /* Edge arrows */
     .arrow-btn{
       position:absolute; top:50%; transform:translateY(-50%);
-      z-index:5; border:0; border-radius:999px; padding:.75rem;
-      background:#00000066; color:white;
+      z-index:5; border:1px solid #e2e8f0; border-radius:999px; padding:.75rem;
+      background:#ffffffee; color:#0f172a;
       backdrop-filter: blur(6px);
-      transition: opacity 0.2s ease;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      transition: all 0.2s ease;
     }
     .arrow-btn:hover:not(:disabled){
-      background:#00000088;
+      background:#ffffff;
+      box-shadow: 0 6px 12px rgba(0,0,0,0.15);
       cursor:pointer;
     }
     .arrow-btn:disabled{
-      opacity:.25; 
+      opacity:.4; 
       cursor:not-allowed;
       pointer-events: none;
-      background:#00000033;
+      background:#ffffff99;
+      border-color: #f1f5f9;
     }
     .arrow-left{ left: 12px; }
     .arrow-right{ right: 12px; }
@@ -62,12 +65,12 @@
     .movie-card{
       position:relative; z-index:6; margin-top:-120px;
       background:var(--card); border:1px solid var(--border);
-      border-radius:20px; box-shadow:0 10px 40px #00000066;
+      border-radius:20px; box-shadow:0 10px 40px rgba(0,0,0,0.1);
     }
 
     .poster{
       width:100%; max-width:340px; border-radius:14px; border:1px solid var(--border);
-      box-shadow: 0 20px 40px #0009;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.1);
     }
 
     .title{
@@ -85,7 +88,7 @@
       border-radius:999px; padding:.35rem .7rem; font-size:.85rem; font-weight:600;
     }
 
-    .plot{ color:#d7e1ea; line-height:1.65; }
+    .plot{ color:#475569; line-height:1.65; }
 
     /* RATING CHIP (votes inside) */
     .rating-wrap{
@@ -106,8 +109,13 @@
     /* Trailer button */
     .trailer-btn{
       display:inline-flex; align-items:center; gap:.6rem;
-      border-radius:12px; padding:.6rem .9rem; border:1px solid var(--border);
-      background:#101a22; color:#e8f0f6; font-weight:600;
+      border-radius:12px; padding:.6rem .9rem; border:1px solid #cbd5e1;
+      background:white; color:#475569; font-weight:600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .trailer-btn:hover {
+      background: #f8fafc;
     }
     .trailer-btn i{ font-size:.95rem; }
 
@@ -117,10 +125,10 @@
       -webkit-overflow-scrolling:touch; scrollbar-width:thin;
     }
     .cast-strip::-webkit-scrollbar { height:6px; }
-    .cast-strip::-webkit-scrollbar-thumb { background:#244154; border-radius:999px; }
+    .cast-strip::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:999px; }
 
     .actor-card{
-      background:#0f1620; border:1px solid var(--border);
+      background:#ffffff; border:1px solid var(--border);
       width:135px; min-width:135px; border-radius:14px; overflow:hidden;
     }
     .actor-card img{ width:100%; height:180px; object-fit:cover; }
@@ -128,10 +136,28 @@
       padding:.5rem .6rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
       font-size:.85rem;
     }
-    .actor-card .actor-name{ color:#dbe7f1; font-weight:600; }
+    .actor-card .actor-name{ color:#0f172a; font-weight:600; }
     .actor-card .character{ color:var(--muted); border-top:1px solid var(--border); }
 
     .divider{ height:1px; background:var(--border); }
+    
+    /* Bottom navigation buttons */
+    .nav-btn-prev, .nav-btn-next {
+      padding: 0.5rem 1rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 0.5rem;
+      background: white;
+      color: #475569;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .nav-btn-prev:hover:not(:disabled), .nav-btn-next:hover {
+      background: #f8fafc;
+    }
+    .nav-btn-prev:disabled {
+      opacity: 0.25;
+      cursor: not-allowed;
+    }
 
     /* Floating stats container */
     .stats-container{
@@ -144,7 +170,7 @@
       border: 1px solid var(--border);
       border-radius: 16px;
       padding: 1.5rem;
-      box-shadow: 0 10px 40px #00000066;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.1);
       z-index: 10;
     }
 
@@ -249,12 +275,12 @@
           <div class="divider my-4"></div>
           <div class="flex gap-2">
             <form method="POST" action="/previous_movie" id="prev-form-bottom" class="inline">
-              <button type="submit" class="px-4 py-2 border border-white rounded-lg text-white hover:bg-white/10 disabled:opacity-25 disabled:cursor-not-allowed" {% if previous_count == 0 %}disabled{% endif %}>
+              <button type="submit" class="nav-btn-prev" {% if previous_count == 0 %}disabled{% endif %}>
                 ← Previous
               </button>
             </form>
             <form method="POST" action="/next_movie" class="inline">
-              <button type="submit" class="px-4 py-2 bg-white text-black rounded-lg hover:bg-gray-100">
+              <button type="submit" class="nav-btn-next">
                 Next →
               </button>
             </form>

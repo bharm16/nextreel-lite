@@ -10,13 +10,13 @@
   <!-- Compiled Tailwind CSS -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/output.css') }}">
   <style>
-    :root { color-scheme: light dark; }
+    :root { color-scheme: light; }
     body { font-family: 'Poppins', system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif; }
     .font-brand-serif { font-family: 'Merriweather', Georgia, Cambria, 'Times New Roman', Times, serif; }
   </style>
 </head>
-<body class="bg-white text-slate-800 dark:bg-slate-950 dark:text-slate-100 antialiased">
-  <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:shadow dark:focus:bg-slate-900">Skip to content</a>
+<body class="bg-white text-slate-800 antialiased">
+  <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:shadow">Skip to content</a>
 
   <!-- Tailwind Navbar (kept consistent with home) -->
   <header class="sticky top-0 z-50 bg-primary/95 backdrop-blur supports-[backdrop-filter]:bg-primary/80 text-white shadow">
@@ -70,15 +70,15 @@
 
   <!-- Filters Card -->
   <main id="main">
-    <section id="filters" class="py-12 sm:py-16 bg-slate-50 dark:bg-slate-900/40">
+    <section id="filters" class="py-12 sm:py-16 bg-slate-50">
       <div class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
-        <form action="/filtered_movie" method="post" class="rounded-2xl bg-white dark:bg-slate-900 p-6 sm:p-8 shadow-soft ring-1 ring-slate-200/60 dark:ring-white/10 border-t-4 border-accent">
+        <form action="/filtered_movie" method="post" class="rounded-2xl bg-white p-6 sm:p-8 shadow-soft ring-1 ring-slate-200/60 border-t-4 border-accent">
           <div class="grid grid-cols-1 gap-8 md:grid-cols-2">
             <!-- Left column -->
             <div class="space-y-8">
               <!-- Score Range -->
               <section aria-labelledby="score-heading" class="space-y-3">
-                <h2 id="score-heading" class="flex items-center text-lg font-semibold text-primary dark:text-white">
+                <h2 id="score-heading" class="flex items-center text-lg font-semibold text-primary">
                   <svg class="mr-2 h-5 w-5 text-accent" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
                   IMDb Score Range
                 </h2>
@@ -94,7 +94,7 @@
 
               <!-- Vote Range -->
               <section aria-labelledby="votes-heading" class="space-y-3">
-                <h2 id="votes-heading" class="flex items-center text-lg font-semibold text-primary dark:text-white">
+                <h2 id="votes-heading" class="flex items-center text-lg font-semibold text-primary">
                   <svg class="mr-2 h-5 w-5 text-accent" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 12c2.21 0 4-1.79 4-4S14.21 4 12 4 8 5.79 8 8s1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
                   Vote Count Range
                 </h2>
@@ -113,7 +113,7 @@
             <div class="space-y-8">
               <!-- Year Range -->
               <section aria-labelledby="year-heading" class="space-y-3">
-                <h2 id="year-heading" class="flex items-center text-lg font-semibold text-primary dark:text-white">
+                <h2 id="year-heading" class="flex items-center text-lg font-semibold text-primary">
                   <svg class="mr-2 h-5 w-5 text-accent" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19 4h-1V2h-2v2H8V2H6v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 16H5V10h14v10z"/></svg>
                   Release Year Range
                 </h2>
@@ -129,7 +129,7 @@
 
               <!-- Language Selection -->
               <section aria-labelledby="language-heading" class="space-y-3">
-                <h2 id="language-heading" class="flex items-center text-lg font-semibold text-primary dark:text-white">
+                <h2 id="language-heading" class="flex items-center text-lg font-semibold text-primary">
                   <svg class="mr-2 h-5 w-5 text-accent" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                     <path d="M12.87 15.07l-2.54-2.51.03-.03c1.74-1.94 2.98-4.17 3.71-6.53H17V4h-7V2H8v2H1v1.99h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/>
                   </svg>
@@ -137,7 +137,7 @@
                 </h2>
                 <div>
                   <label for="language" class="block text-sm font-medium">Select Language</label>
-                  <select id="language" name="language" class="mt-1 w-full rounded-2xl border-2 border-slate-200 px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30 dark:bg-slate-800 dark:border-slate-700 dark:text-white">
+                  <select id="language" name="language" class="mt-1 w-full rounded-2xl border-2 border-slate-200 px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30">
                     <option value="any" {% if current_filters.get('language', 'en') == 'any' %}selected{% endif %}>Any Language</option>
                     <option value="en" {% if current_filters.get('language', 'en') == 'en' %}selected{% endif %}>English</option>
                     <option value="es" {% if current_filters.get('language') == 'es' %}selected{% endif %}>Spanish</option>
@@ -161,7 +161,7 @@
 
               <!-- Genres -->
               <section aria-labelledby="genres-heading" class="space-y-3">
-                <h2 id="genres-heading" class="flex items-center text-lg font-semibold text-primary dark:text-white">
+                <h2 id="genres-heading" class="flex items-center text-lg font-semibold text-primary">
                   <svg class="mr-2 h-5 w-5 text-accent" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20 2H8c-1.1 0-2 .9-2 2v2H4c-1.1 0-2 .9-2 2v10a2 2 0 0 0 2 2h12c1.1 0 2-.9 2-2v-2h2c1.1 0 2-.9 2-2V4a2 2 0 0 0-2-2zm-4 16H4V8h12v10zm4-4h-2V4h2v10z"/></svg>
                   Select Genres
                 </h2>
@@ -193,26 +193,26 @@
   </main>
 
   <!-- Footer (simple) -->
-  <footer class="border-t border-slate-200/60 dark:border-white/10 bg-white dark:bg-slate-950">
+  <footer class="border-t border-slate-200/60 bg-white">
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10">
       <div class="grid gap-8 md:grid-cols-3 md:items-start">
         <div>
-          <a href="/" class="inline-flex items-center gap-2 text-primary dark:text-white">
+          <a href="/" class="inline-flex items-center gap-2 text-primary">
             <svg class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 6a2 2 0 0 1 2-2h8l6 6v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6z" opacity=".3"/><path d="M14 4v4a2 2 0 0 0 2 2h4"/></svg>
             <span class="font-brand-serif text-lg font-bold">Nextreel</span>
           </a>
-          <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">&copy; 2025 Nextreel. All rights reserved.</p>
+          <p class="mt-3 text-sm text-slate-600">&copy; 2025 Nextreel. All rights reserved.</p>
         </div>
         <div class="text-sm">
           <ul class="space-y-2">
-            <li><a class="text-slate-600 hover:text-primary dark:text-slate-300 dark:hover:text-white" href="#">About Us</a></li>
-            <li><a class="text-slate-600 hover:text-primary dark:text-slate-300 dark:hover:text-white" href="#">Privacy Policy</a></li>
-            <li><a class="text-slate-600 hover:text-primary dark:text-slate-300 dark:hover:text-white" href="#">DMCA</a></li>
+            <li><a class="text-slate-600 hover:text-primary" href="#">About Us</a></li>
+            <li><a class="text-slate-600 hover:text-primary" href="#">Privacy Policy</a></li>
+            <li><a class="text-slate-600 hover:text-primary" href="#">DMCA</a></li>
           </ul>
         </div>
         <div class="text-sm">
-          <h3 class="font-semibold text-slate-900 dark:text-white">Contact</h3>
-          <p class="mt-2 text-slate-600 dark:text-slate-300">Email: <a class="underline decoration-accent/50 underline-offset-4 hover:decoration-accent" href="mailto:bryce@nxtreel.com">bryce@nxtreel.com</a></p>
+          <h3 class="font-semibold text-slate-900">Contact</h3>
+          <p class="mt-2 text-slate-600">Email: <a class="underline decoration-accent/50 underline-offset-4 hover:decoration-accent" href="mailto:bryce@nxtreel.com">bryce@nxtreel.com</a></p>
         </div>
       </div>
     </div>
