@@ -194,6 +194,7 @@ class Movie:
                 self.tmdb_helper.get_images_by_tmdb_id(tmdb_id),
                 self.tmdb_helper.get_age_rating_by_tmdb_id(tmdb_id),
                 self.fetch_movie_ratings(self.tconst),
+                self.tmdb_helper.get_watch_providers_by_tmdb_id(tmdb_id),
             ]
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -205,6 +206,7 @@ class Movie:
             tmdb_image_info = results[4] if not isinstance(results[4], Exception) else {}
             age_rating = results[5] if not isinstance(results[5], Exception) else "Not Rated"
             ratings_data = results[6] if not isinstance(results[6], Exception) else None
+            watch_providers = results[7] if not isinstance(results[7], Exception) else None
             
             # Log any errors that occurred
             for i, result in enumerate(results):
@@ -286,6 +288,7 @@ class Movie:
                 "production_countries": ", ".join(country_names) if country_names else "Unknown",
                 "status": movie_info.get("status", "Unknown"),
                 "tagline": movie_info.get("tagline", ""),
+                "watch_providers": watch_providers,
             }
 
             # Cache the complete result

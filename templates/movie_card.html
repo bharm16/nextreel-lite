@@ -161,17 +161,11 @@
 
     /* Floating stats container */
     .stats-container{
-      position: fixed;
-      right: 2rem;
-      top: 50%;
-      transform: translateY(-50%);
-      width: 280px;
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: 16px;
       padding: 1.5rem;
       box-shadow: 0 10px 40px rgba(0,0,0,0.1);
-      z-index: 10;
     }
 
     .stats-container h3{
@@ -198,9 +192,95 @@
       text-align: center;
     }
 
+    /* Watch Providers */
+    .watch-providers {
+      margin-top: 1rem;
+      padding: 1rem;
+      background: var(--chip);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+
+    .watch-providers h3 {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.025em;
+    }
+
+    .provider-section {
+      margin-bottom: 1rem;
+    }
+
+    .provider-section:last-child {
+      margin-bottom: 0;
+    }
+
+    .provider-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    .provider-label i {
+      font-size: 0.625rem;
+    }
+
+    .provider-logos {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .provider-logo {
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: white;
+    }
+
+    .provider-logo img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .justwatch-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      margin-top: 0.75rem;
+      padding: 0.35rem 0.7rem;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--muted);
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+
+    .justwatch-link:hover {
+      background: white;
+      color: var(--text);
+    }
+
+    .justwatch-link i {
+      font-size: 0.625rem;
+    }
+
     @media (max-width: 1400px){
-      .stats-container{
-        display: none;
+      .floating-containers{
+        display: none !important;
       }
     }
 
@@ -308,43 +388,179 @@
     </div>
   </main>
 
-  <!-- Floating Movie Stats -->
-  <div class="stats-container">
-    <h3>Movie Details</h3>
-    <div class="space-y-3">
-      <!-- Runtime, Budget, Revenue, Language -->
-      {% if movie.runtime and movie.runtime != "0 min" and movie.runtime != "Unknown" %}
-      <div class="flex">
-        <i class="fas fa-clock"></i>
-        <span>{{ movie.runtime }}</span>
+  <!-- Floating Containers -->
+  <div class="floating-containers" id="floating-containers" style="position: absolute; right: 2rem; top: 0; width: 280px; z-index: 10;">
+    <!-- Movie Details Container -->
+    <div class="stats-container" style="position: relative; margin-bottom: 1rem;">
+      <h3>Movie Details</h3>
+      <div class="space-y-3">
+        <!-- Runtime, Budget, Revenue, Language -->
+        {% if movie.runtime and movie.runtime != "0 min" and movie.runtime != "Unknown" %}
+        <div class="flex">
+          <i class="fas fa-clock"></i>
+          <span>{{ movie.runtime }}</span>
+        </div>
+        {% endif %}
+        
+        {% if movie.original_language and movie.original_language != "unknown" %}
+        <div class="flex">
+          <i class="fas fa-language"></i>
+          <span>{{ movie.original_language.upper() }}</span>
+        </div>
+        {% endif %}
+        
+        {% if movie.budget and movie.budget != "Unknown" and movie.budget != "$0" %}
+        <div class="flex">
+          <i class="fas fa-dollar-sign"></i>
+          <span>Budget: {{ movie.budget }}</span>
+        </div>
+        {% endif %}
+        
+        {% if movie.revenue and movie.revenue != "Unknown" and movie.revenue != "$0" %}
+        <div class="flex">
+          <i class="fas fa-chart-line"></i>
+          <span>Revenue: {{ movie.revenue }}</span>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Where to Watch Container -->
+    {% if movie.watch_providers %}
+    <div class="stats-container" style="position: relative;">
+      <h3>Where to Watch</h3>
+      
+      {% if movie.watch_providers.stream %}
+      <div class="provider-section">
+        <div class="provider-label">
+          <i class="fas fa-play-circle"></i>
+          Stream
+        </div>
+        <div class="provider-logos">
+          {% for provider in movie.watch_providers.stream %}
+          <div class="provider-logo" title="{{ provider.provider_name }}">
+            {% if provider.logo_path %}
+            <img src="{{ provider.logo_path }}" alt="{{ provider.provider_name }}">
+            {% else %}
+            <span style="display: flex; align-items: center; justify-content: center; height: 100%; font-size: 0.65rem; padding: 0.25rem; text-align: center;">{{ provider.provider_name }}</span>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
       </div>
       {% endif %}
       
-      {% if movie.original_language and movie.original_language != "unknown" %}
-      <div class="flex">
-        <i class="fas fa-language"></i>
-        <span>{{ movie.original_language.upper() }}</span>
+      {% if movie.watch_providers.rent %}
+      <div class="provider-section">
+        <div class="provider-label">
+          <i class="fas fa-ticket-alt"></i>
+          Rent
+        </div>
+        <div class="provider-logos">
+          {% for provider in movie.watch_providers.rent %}
+          <div class="provider-logo" title="{{ provider.provider_name }}">
+            {% if provider.logo_path %}
+            <img src="{{ provider.logo_path }}" alt="{{ provider.provider_name }}">
+            {% else %}
+            <span style="display: flex; align-items: center; justify-content: center; height: 100%; font-size: 0.65rem; padding: 0.25rem; text-align: center;">{{ provider.provider_name }}</span>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
       </div>
       {% endif %}
       
-      {% if movie.budget and movie.budget != "Unknown" and movie.budget != "$0" %}
-      <div class="flex">
-        <i class="fas fa-dollar-sign"></i>
-        <span>Budget: {{ movie.budget }}</span>
+      {% if movie.watch_providers.buy %}
+      <div class="provider-section">
+        <div class="provider-label">
+          <i class="fas fa-shopping-cart"></i>
+          Buy
+        </div>
+        <div class="provider-logos">
+          {% for provider in movie.watch_providers.buy %}
+          <div class="provider-logo" title="{{ provider.provider_name }}">
+            {% if provider.logo_path %}
+            <img src="{{ provider.logo_path }}" alt="{{ provider.provider_name }}">
+            {% else %}
+            <span style="display: flex; align-items: center; justify-content: center; height: 100%; font-size: 0.65rem; padding: 0.25rem; text-align: center;">{{ provider.provider_name }}</span>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
       </div>
       {% endif %}
       
-      {% if movie.revenue and movie.revenue != "Unknown" and movie.revenue != "$0" %}
-      <div class="flex">
-        <i class="fas fa-chart-line"></i>
-        <span>Revenue: {{ movie.revenue }}</span>
-      </div>
+      {% if movie.watch_providers.justwatch_link %}
+      <a href="{{ movie.watch_providers.justwatch_link }}" target="_blank" class="justwatch-link">
+        <i class="fas fa-external-link-alt"></i>
+        View all on JustWatch
+      </a>
       {% endif %}
     </div>
+    {% endif %}
   </div>
 
   <!-- JavaScript -->
   <script>
+    // Sticky floating containers on scroll
+    (function() {
+      const floatingContainers = document.getElementById('floating-containers');
+      if (!floatingContainers) return;
+      
+      const movieCard = document.querySelector('.movie-card');
+      if (!movieCard) return;
+      
+      // Store initial position
+      let movieCardRect = movieCard.getBoundingClientRect();
+      let initialTop = movieCardRect.top + window.pageYOffset;
+      
+      // Initially position containers at the same level as movie card
+      floatingContainers.style.top = initialTop + 'px';
+      
+      function handleScroll() {
+        const scrollY = window.scrollY || window.pageYOffset;
+        const windowHeight = window.innerHeight;
+        const containerHeight = floatingContainers.offsetHeight;
+        
+        // Calculate when to start sticking (when movie card top reaches viewport top)
+        const triggerPoint = initialTop - 20;
+        
+        if (scrollY >= triggerPoint) {
+          // Fixed positioning when scrolled past trigger point
+          if (containerHeight < windowHeight - 40) {
+            // Center vertically if containers fit
+            floatingContainers.style.position = 'fixed';
+            floatingContainers.style.top = '50%';
+            floatingContainers.style.transform = 'translateY(-50%)';
+          } else {
+            // Stick to top if containers are too tall
+            floatingContainers.style.position = 'fixed';
+            floatingContainers.style.top = '20px';
+            floatingContainers.style.transform = 'none';
+          }
+        } else {
+          // Absolute positioning before trigger point
+          floatingContainers.style.position = 'absolute';
+          floatingContainers.style.top = initialTop + 'px';
+          floatingContainers.style.transform = 'none';
+        }
+      }
+      
+      // Update on resize to recalculate positions
+      function handleResize() {
+        movieCardRect = movieCard.getBoundingClientRect();
+        initialTop = movieCardRect.top + window.pageYOffset;
+        handleScroll();
+      }
+      
+      // Attach event listeners
+      window.addEventListener('scroll', handleScroll);
+      window.addEventListener('resize', handleResize);
+      
+      // Initial positioning
+      handleScroll();
+    })();
+
     // Build up to 3 genre chips from CSV text already in #genre-info
     (function(){
       const el = document.getElementById("genre-info");

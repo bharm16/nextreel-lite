@@ -88,6 +88,56 @@ class TMDbHelper:
             )
             raise
 
+    async def get_watch_providers_by_tmdb_id(self, tmdb_id, region="US"):
+        """Get watch providers for a movie from TMDB."""
+        try:
+            data = await self._get(f"movie/{tmdb_id}/watch/providers")
+            
+            # Get providers for the specified region (default US)
+            region_data = data.get("results", {}).get(region, {})
+            
+            providers = {}
+            
+            # Get streaming providers
+            if "flatrate" in region_data:
+                providers["stream"] = [
+                    {
+                        "provider_name": p.get("provider_name"),
+                        "logo_path": f"{self.image_base_url}w92{p.get('logo_path')}" if p.get("logo_path") else None
+                    }
+                    for p in region_data["flatrate"][:4]  # Limit to 4 providers
+                ]
+            
+            # Get rental providers
+            if "rent" in region_data:
+                providers["rent"] = [
+                    {
+                        "provider_name": p.get("provider_name"),
+                        "logo_path": f"{self.image_base_url}w92{p.get('logo_path')}" if p.get("logo_path") else None
+                    }
+                    for p in region_data["rent"][:4]  # Limit to 4 providers
+                ]
+            
+            # Get purchase providers
+            if "buy" in region_data:
+                providers["buy"] = [
+                    {
+                        "provider_name": p.get("provider_name"),
+                        "logo_path": f"{self.image_base_url}w92{p.get('logo_path')}" if p.get("logo_path") else None
+                    }
+                    for p in region_data["buy"][:4]  # Limit to 4 providers
+                ]
+            
+            # Add JustWatch link if available
+            if "link" in region_data:
+                providers["justwatch_link"] = region_data["link"]
+            
+            return providers if providers else None
+            
+        except Exception as e:
+            logger.warning(f"Error fetching watch providers for TMDB ID {tmdb_id}: {e}")
+            return None
+
     async def get_age_rating_by_tmdb_id(self, tmdb_id):
         """Get age rating (certification) for a movie from TMDB."""
         try:
