@@ -3,15 +3,15 @@
 
 <style>
     :root{
-      --bg: #0b0f14;
-      --card:#0f1720;
-      --text:#e6edf3;
-      --muted:#9fb0bf;
+      --bg: #f8fafc;
+      --card:#ffffff;
+      --text:#0f172a;
+      --muted:#64748b;
       --accent:#22c55e;
       --accent-2:#16a34a;
-      --chip:#12202b;
-      --chip-ring:#1f3b4c40;
-      --border:#22303d;
+      --chip:#f1f5f9;
+      --chip-ring:#e2e8f040;
+      --border:#e2e8f0;
     }
 
     html,body{height:100%;}
@@ -26,34 +26,37 @@
       position:relative;
       min-height:46vh;
       background:
-        radial-gradient(1000px 400px at 10% 0%, #0b0f14 0%, #0b0f14d6 60%, #0b0f1400 100%),
-        linear-gradient(0deg, #0b0f14 0%, #0b0f14d6 40%, #0b0f1400 70%),
+        radial-gradient(1000px 400px at 10% 0%, #f8fafc 0%, #f8fafcd6 60%, #f8fafc00 100%),
+        linear-gradient(0deg, #f8fafc 0%, #f8fafcd6 40%, #f8fafc00 70%),
         url('https://image.tmdb.org/t/p/original{{ movie.backdrop_url }}') center/cover no-repeat;
       border-bottom:1px solid var(--border);
     }
     .hero::after{
       content:"";
       position:absolute; inset:0;
-      background:linear-gradient(180deg, #0b0f1400 0%, #0b0f14 85%);
+      background:linear-gradient(180deg, #f8fafc00 0%, #f8fafc 85%);
     }
 
     /* Edge arrows */
     .arrow-btn{
       position:absolute; top:50%; transform:translateY(-50%);
-      z-index:5; border:0; border-radius:999px; padding:.75rem;
-      background:#00000066; color:white;
+      z-index:5; border:1px solid #e2e8f0; border-radius:999px; padding:.75rem;
+      background:#ffffffee; color:#0f172a;
       backdrop-filter: blur(6px);
-      transition: opacity 0.2s ease;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      transition: all 0.2s ease;
     }
     .arrow-btn:hover:not(:disabled){
-      background:#00000088;
+      background:#ffffff;
+      box-shadow: 0 6px 12px rgba(0,0,0,0.15);
       cursor:pointer;
     }
     .arrow-btn:disabled{
-      opacity:.25; 
+      opacity:.4; 
       cursor:not-allowed;
       pointer-events: none;
-      background:#00000033;
+      background:#ffffff99;
+      border-color: #f1f5f9;
     }
     .arrow-left{ left: 12px; }
     .arrow-right{ right: 12px; }
@@ -62,12 +65,12 @@
     .movie-card{
       position:relative; z-index:6; margin-top:-120px;
       background:var(--card); border:1px solid var(--border);
-      border-radius:20px; box-shadow:0 10px 40px #00000066;
+      border-radius:20px; box-shadow:0 10px 40px rgba(0,0,0,0.1);
     }
 
     .poster{
       width:100%; max-width:340px; border-radius:14px; border:1px solid var(--border);
-      box-shadow: 0 20px 40px #0009;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.1);
     }
 
     .title{
@@ -85,7 +88,7 @@
       border-radius:999px; padding:.35rem .7rem; font-size:.85rem; font-weight:600;
     }
 
-    .plot{ color:#d7e1ea; line-height:1.65; }
+    .plot{ color:#475569; line-height:1.65; }
 
     /* RATING CHIP (votes inside) */
     .rating-wrap{
@@ -106,8 +109,13 @@
     /* Trailer button */
     .trailer-btn{
       display:inline-flex; align-items:center; gap:.6rem;
-      border-radius:12px; padding:.6rem .9rem; border:1px solid var(--border);
-      background:#101a22; color:#e8f0f6; font-weight:600;
+      border-radius:12px; padding:.6rem .9rem; border:1px solid #cbd5e1;
+      background:white; color:#475569; font-weight:600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .trailer-btn:hover {
+      background: #f8fafc;
     }
     .trailer-btn i{ font-size:.95rem; }
 
@@ -117,10 +125,10 @@
       -webkit-overflow-scrolling:touch; scrollbar-width:thin;
     }
     .cast-strip::-webkit-scrollbar { height:6px; }
-    .cast-strip::-webkit-scrollbar-thumb { background:#244154; border-radius:999px; }
+    .cast-strip::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:999px; }
 
     .actor-card{
-      background:#0f1620; border:1px solid var(--border);
+      background:#ffffff; border:1px solid var(--border);
       width:135px; min-width:135px; border-radius:14px; overflow:hidden;
     }
     .actor-card img{ width:100%; height:180px; object-fit:cover; }
@@ -128,10 +136,170 @@
       padding:.5rem .6rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
       font-size:.85rem;
     }
-    .actor-card .actor-name{ color:#dbe7f1; font-weight:600; }
+    .actor-card .actor-name{ color:#0f172a; font-weight:600; }
     .actor-card .character{ color:var(--muted); border-top:1px solid var(--border); }
 
     .divider{ height:1px; background:var(--border); }
+    
+    /* Bottom navigation buttons */
+    .nav-btn-prev, .nav-btn-next {
+      padding: 0.5rem 1rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 0.5rem;
+      background: white;
+      color: #475569;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .nav-btn-prev:hover:not(:disabled), .nav-btn-next:hover {
+      background: #f8fafc;
+    }
+    .nav-btn-prev:disabled {
+      opacity: 0.25;
+      cursor: not-allowed;
+    }
+
+    /* Floating stats container */
+    .stats-container{
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.5rem;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+    }
+
+    .stats-container h3{
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+      color: var(--text);
+    }
+
+    .stats-container .space-y-3 > * + *{
+      margin-top: 0.75rem;
+    }
+
+    .stats-container .flex{
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.875rem;
+    }
+
+    .stats-container i{
+      color: var(--muted);
+      width: 16px;
+      text-align: center;
+    }
+
+    /* Watch Providers */
+    .watch-providers {
+      margin-top: 1rem;
+      padding: 1rem;
+      background: var(--chip);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+
+    .watch-providers h3 {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.025em;
+    }
+
+    .provider-section {
+      margin-bottom: 1rem;
+    }
+
+    .provider-section:last-child {
+      margin-bottom: 0;
+    }
+
+    .provider-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    .provider-label i {
+      font-size: 0.625rem;
+    }
+
+    .provider-logos {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .provider-logo-link {
+      display: inline-block;
+      text-decoration: none;
+      transition: transform 0.2s ease, opacity 0.2s ease;
+    }
+
+    .provider-logo-link:hover {
+      transform: scale(1.1);
+      opacity: 0.9;
+    }
+
+    .provider-logo {
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: white;
+      cursor: pointer;
+      transition: box-shadow 0.2s ease;
+    }
+
+    .provider-logo-link:hover .provider-logo {
+      box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+
+    .provider-logo img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .justwatch-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      margin-top: 0.75rem;
+      padding: 0.35rem 0.7rem;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--muted);
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+
+    .justwatch-link:hover {
+      background: white;
+      color: var(--text);
+    }
+
+    .justwatch-link i {
+      font-size: 0.625rem;
+    }
+
+    @media (max-width: 1400px){
+      .floating-containers{
+        display: none !important;
+      }
+    }
 
     @media (max-width: 992px){
       .movie-card{ margin-top:-80px; }
@@ -165,12 +333,14 @@
 
         <!-- Details -->
         <div class="col-span-1 md:col-span-8">
-          <h1 class="title mb-2">{{ movie.title }}</h1>
+          <h1 class="title mb-2">{{ movie.title }} ({{ movie.year }})</h1>
 
           <div class="meta mb-3">
-            <span>{{ movie.year }}</span>
-            <span class="dot">•</span>
             <span>Directed by {{ movie.directors }}</span>
+            {% if movie.age_rating and movie.age_rating != "Not Rated" %}
+            <span class="dot">•</span>
+            <span>{{ movie.age_rating }}</span>
+            {% endif %}
           </div>
 
           <!-- Genres (built from CSV below) -->
@@ -202,12 +372,12 @@
           <div class="divider my-4"></div>
           <div class="flex gap-2">
             <form method="POST" action="/previous_movie" id="prev-form-bottom" class="inline">
-              <button type="submit" class="px-4 py-2 border border-white rounded-lg text-white hover:bg-white/10 disabled:opacity-25 disabled:cursor-not-allowed" {% if previous_count == 0 %}disabled{% endif %}>
+              <button type="submit" class="nav-btn-prev" {% if previous_count == 0 %}disabled{% endif %}>
                 ← Previous
               </button>
             </form>
             <form method="POST" action="/next_movie" class="inline">
-              <button type="submit" class="px-4 py-2 bg-white text-black rounded-lg hover:bg-gray-100">
+              <button type="submit" class="nav-btn-next">
                 Next →
               </button>
             </form>
@@ -235,8 +405,194 @@
     </div>
   </main>
 
+  <!-- Floating Containers -->
+  <div class="floating-containers" id="floating-containers" style="position: absolute; right: 2rem; top: 0; width: 280px; z-index: 10;">
+    <!-- Movie Details Container -->
+    <div class="stats-container" style="position: relative; margin-bottom: 1rem;">
+      <h3>Movie Details</h3>
+      <div class="space-y-3">
+        <!-- Runtime, Budget, Revenue, Language -->
+        {% if movie.runtime and movie.runtime != "0 min" and movie.runtime != "Unknown" %}
+        <div class="flex">
+          <i class="fas fa-clock"></i>
+          <span>{{ movie.runtime }}</span>
+        </div>
+        {% endif %}
+        
+        {% if movie.original_language and movie.original_language != "unknown" %}
+        <div class="flex">
+          <i class="fas fa-language"></i>
+          <span>{{ movie.original_language.upper() }}</span>
+        </div>
+        {% endif %}
+        
+        {% if movie.budget and movie.budget != "Unknown" and movie.budget != "$0" %}
+        <div class="flex">
+          <i class="fas fa-dollar-sign"></i>
+          <span>Budget: {{ movie.budget }}</span>
+        </div>
+        {% endif %}
+        
+        {% if movie.revenue and movie.revenue != "Unknown" and movie.revenue != "$0" %}
+        <div class="flex">
+          <i class="fas fa-chart-line"></i>
+          <span>Revenue: {{ movie.revenue }}</span>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Where to Watch Container -->
+    {% if movie.watch_providers %}
+    <div class="stats-container" style="position: relative;">
+      <h3>Where to Watch</h3>
+      
+      {% if movie.watch_providers.stream %}
+      <div class="provider-section">
+        <div class="provider-label">
+          <i class="fas fa-play-circle"></i>
+          Stream
+        </div>
+        <div class="provider-logos">
+          {% for provider in movie.watch_providers.stream %}
+          <a href="{{ movie.watch_providers.justwatch_link if movie.watch_providers.justwatch_link else '#' }}" 
+             target="_blank" 
+             class="provider-logo-link"
+             title="Watch on {{ provider.provider_name }}">
+            <div class="provider-logo">
+              {% if provider.logo_path %}
+              <img src="{{ provider.logo_path }}" alt="{{ provider.provider_name }}">
+              {% else %}
+              <span style="display: flex; align-items: center; justify-content: center; height: 100%; font-size: 0.65rem; padding: 0.25rem; text-align: center;">{{ provider.provider_name }}</span>
+              {% endif %}
+            </div>
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+      
+      {% if movie.watch_providers.rent %}
+      <div class="provider-section">
+        <div class="provider-label">
+          <i class="fas fa-ticket-alt"></i>
+          Rent
+        </div>
+        <div class="provider-logos">
+          {% for provider in movie.watch_providers.rent %}
+          <a href="{{ movie.watch_providers.justwatch_link if movie.watch_providers.justwatch_link else '#' }}" 
+             target="_blank" 
+             class="provider-logo-link"
+             title="Rent on {{ provider.provider_name }}">
+            <div class="provider-logo">
+              {% if provider.logo_path %}
+              <img src="{{ provider.logo_path }}" alt="{{ provider.provider_name }}">
+              {% else %}
+              <span style="display: flex; align-items: center; justify-content: center; height: 100%; font-size: 0.65rem; padding: 0.25rem; text-align: center;">{{ provider.provider_name }}</span>
+              {% endif %}
+            </div>
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+      
+      {% if movie.watch_providers.buy %}
+      <div class="provider-section">
+        <div class="provider-label">
+          <i class="fas fa-shopping-cart"></i>
+          Buy
+        </div>
+        <div class="provider-logos">
+          {% for provider in movie.watch_providers.buy %}
+          <a href="{{ movie.watch_providers.justwatch_link if movie.watch_providers.justwatch_link else '#' }}" 
+             target="_blank" 
+             class="provider-logo-link"
+             title="Buy on {{ provider.provider_name }}">
+            <div class="provider-logo">
+              {% if provider.logo_path %}
+              <img src="{{ provider.logo_path }}" alt="{{ provider.provider_name }}">
+              {% else %}
+              <span style="display: flex; align-items: center; justify-content: center; height: 100%; font-size: 0.65rem; padding: 0.25rem; text-align: center;">{{ provider.provider_name }}</span>
+              {% endif %}
+            </div>
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+      
+      {% if movie.watch_providers.justwatch_link %}
+      <a href="{{ movie.watch_providers.justwatch_link }}" target="_blank" class="justwatch-link">
+        <i class="fas fa-external-link-alt"></i>
+        View all on JustWatch
+      </a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
   <!-- JavaScript -->
   <script>
+    // Sticky floating containers on scroll
+    (function() {
+      const floatingContainers = document.getElementById('floating-containers');
+      if (!floatingContainers) return;
+      
+      const movieCard = document.querySelector('.movie-card');
+      if (!movieCard) return;
+      
+      // Store initial position
+      let movieCardRect = movieCard.getBoundingClientRect();
+      let initialTop = movieCardRect.top + window.pageYOffset;
+      
+      // Initially position containers at the same level as movie card
+      floatingContainers.style.top = initialTop + 'px';
+      
+      function handleScroll() {
+        const scrollY = window.scrollY || window.pageYOffset;
+        const windowHeight = window.innerHeight;
+        const containerHeight = floatingContainers.offsetHeight;
+        
+        // Calculate when to start sticking (when movie card top reaches viewport top)
+        const triggerPoint = initialTop - 20;
+        
+        if (scrollY >= triggerPoint) {
+          // Fixed positioning when scrolled past trigger point
+          if (containerHeight < windowHeight - 40) {
+            // Center vertically if containers fit
+            floatingContainers.style.position = 'fixed';
+            floatingContainers.style.top = '50%';
+            floatingContainers.style.transform = 'translateY(-50%)';
+          } else {
+            // Stick to top if containers are too tall
+            floatingContainers.style.position = 'fixed';
+            floatingContainers.style.top = '20px';
+            floatingContainers.style.transform = 'none';
+          }
+        } else {
+          // Absolute positioning before trigger point
+          floatingContainers.style.position = 'absolute';
+          floatingContainers.style.top = initialTop + 'px';
+          floatingContainers.style.transform = 'none';
+        }
+      }
+      
+      // Update on resize to recalculate positions
+      function handleResize() {
+        movieCardRect = movieCard.getBoundingClientRect();
+        initialTop = movieCardRect.top + window.pageYOffset;
+        handleScroll();
+      }
+      
+      // Attach event listeners
+      window.addEventListener('scroll', handleScroll);
+      window.addEventListener('resize', handleResize);
+      
+      // Initial positioning
+      handleScroll();
+    })();
+
     // Build up to 3 genre chips from CSV text already in #genre-info
     (function(){
       const el = document.getElementById("genre-info");
@@ -261,14 +617,16 @@
 
     // Format votes (e.g., 245000 -> 245K, 1_200_000 -> 1.2M)
     (function(){
-      const voteEl = document.getElementById("vote-number");
-      if(!voteEl) return;
-      const num = parseInt(voteEl.textContent.replace(/[^0-9]/g,''), 10);
-      if(isNaN(num)) return;
-      let out = num.toString();
-      if(num >= 1_000_000) out = (num/1_000_000).toFixed(1).replace(/\.0$/, "") + "M";
-      else if(num >= 1_000) out = (num/1_000).toFixed(1).replace(/\.0$/, "") + "K";
-      voteEl.textContent = out;
+      const voteElements = document.querySelectorAll("#vote-number, #vote-number-floating");
+      voteElements.forEach(voteEl => {
+        if(!voteEl) return;
+        const num = parseInt(voteEl.textContent.replace(/[^0-9]/g,''), 10);
+        if(isNaN(num)) return;
+        let out = num.toString();
+        if(num >= 1_000_000) out = (num/1_000_000).toFixed(1).replace(/\.0$/, "") + "M";
+        else if(num >= 1_000) out = (num/1_000).toFixed(1).replace(/\.0$/, "") + "K";
+        voteEl.textContent = out;
+      });
     })();
 
     // Trailer opener

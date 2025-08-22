@@ -192,7 +192,9 @@ class Movie:
                 self.tmdb_helper.get_video_url_by_tmdb_id(tmdb_id),
                 self.tmdb_helper.get_cast_info_by_tmdb_id(tmdb_id),
                 self.tmdb_helper.get_images_by_tmdb_id(tmdb_id),
+                self.tmdb_helper.get_age_rating_by_tmdb_id(tmdb_id),
                 self.fetch_movie_ratings(self.tconst),
+                self.tmdb_helper.get_watch_providers_by_tmdb_id(tmdb_id),
             ]
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -202,7 +204,9 @@ class Movie:
             tmdb_movie_trailer = results[2] if not isinstance(results[2], Exception) else None
             tmdb_cast_info_result = results[3] if not isinstance(results[3], Exception) else []
             tmdb_image_info = results[4] if not isinstance(results[4], Exception) else {}
-            ratings_data = results[5] if not isinstance(results[5], Exception) else None
+            age_rating = results[5] if not isinstance(results[5], Exception) else "Not Rated"
+            ratings_data = results[6] if not isinstance(results[6], Exception) else None
+            watch_providers = results[7] if not isinstance(results[7], Exception) else None
             
             # Log any errors that occurred
             for i, result in enumerate(results):
@@ -237,6 +241,16 @@ class Movie:
                 if crew["job"] == "Director"
             ]
 
+            # Format budget and revenue
+            budget = movie_info.get("budget", 0)
+            revenue = movie_info.get("revenue", 0)
+            budget_formatted = f"${budget:,}" if budget > 0 else "Unknown"
+            revenue_formatted = f"${revenue:,}" if revenue > 0 else "Unknown"
+            
+            # Get production countries
+            countries = movie_info.get("production_countries", [])
+            country_names = [country.get("name", "") for country in countries[:3]]  # Limit to 3
+            
             self.movie_data = {
                 "title": movie_info.get("title", "N/A"),
                 "imdb_id": self.tconst,
@@ -264,6 +278,17 @@ class Movie:
                 "trailer": tmdb_movie_trailer,
                 "credits": tmdb_credits,
                 "backdrop_url": backdrop_url,
+                "original_language": movie_info.get("original_language", "unknown"),
+                "spoken_languages": [lang.get("iso_639_1") for lang in movie_info.get("spoken_languages", [])],
+                # New TMDB data
+                "age_rating": age_rating,
+                "budget": budget_formatted,
+                "revenue": revenue_formatted,
+                "runtime": f"{movie_info.get('runtime', 0)} min" if movie_info.get('runtime') else "Unknown",
+                "production_countries": ", ".join(country_names) if country_names else "Unknown",
+                "status": movie_info.get("status", "Unknown"),
+                "tagline": movie_info.get("tagline", ""),
+                "watch_providers": watch_providers,
             }
 
             # Cache the complete result

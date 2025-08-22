@@ -65,3 +65,9 @@ SECURITY_INTEGRATION.md
 bug_report_*.txt
 test_report_*.json
 comprehensive_test.py
+
+logs/nextreel.log.1
+
+logs/nextreel.log.2
+
+logs/nextreel.log.3
