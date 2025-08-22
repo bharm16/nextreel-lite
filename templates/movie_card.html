@@ -238,6 +238,17 @@
       flex-wrap: wrap;
     }
 
+    .provider-logo-link {
+      display: inline-block;
+      text-decoration: none;
+      transition: transform 0.2s ease, opacity 0.2s ease;
+    }
+
+    .provider-logo-link:hover {
+      transform: scale(1.1);
+      opacity: 0.9;
+    }
+
     .provider-logo {
       width: 40px;
       height: 40px;
@@ -245,6 +256,12 @@
       overflow: hidden;
       border: 1px solid var(--border);
       background: white;
+      cursor: pointer;
+      transition: box-shadow 0.2s ease;
+    }
+
+    .provider-logo-link:hover .provider-logo {
+      box-shadow: 0 4px 8px rgba(0,0,0,0.15);
     }
 
     .provider-logo img {
@@ -438,13 +455,18 @@
         </div>
         <div class="provider-logos">
           {% for provider in movie.watch_providers.stream %}
-          <div class="provider-logo" title="{{ provider.provider_name }}">
-            {% if provider.logo_path %}
-            <img src="{{ provider.logo_path }}" alt="{{ provider.provider_name }}">
-            {% else %}
-            <span style="display: flex; align-items: center; justify-content: center; height: 100%; font-size: 0.65rem; padding: 0.25rem; text-align: center;">{{ provider.provider_name }}</span>
-            {% endif %}
-          </div>
+          <a href="{{ movie.watch_providers.justwatch_link if movie.watch_providers.justwatch_link else '#' }}" 
+             target="_blank" 
+             class="provider-logo-link"
+             title="Watch on {{ provider.provider_name }}">
+            <div class="provider-logo">
+              {% if provider.logo_path %}
+              <img src="{{ provider.logo_path }}" alt="{{ provider.provider_name }}">
+              {% else %}
+              <span style="display: flex; align-items: center; justify-content: center; height: 100%; font-size: 0.65rem; padding: 0.25rem; text-align: center;">{{ provider.provider_name }}</span>
+              {% endif %}
+            </div>
+          </a>
           {% endfor %}
         </div>
       </div>
@@ -458,13 +480,18 @@
         </div>
         <div class="provider-logos">
           {% for provider in movie.watch_providers.rent %}
-          <div class="provider-logo" title="{{ provider.provider_name }}">
-            {% if provider.logo_path %}
-            <img src="{{ provider.logo_path }}" alt="{{ provider.provider_name }}">
-            {% else %}
-            <span style="display: flex; align-items: center; justify-content: center; height: 100%; font-size: 0.65rem; padding: 0.25rem; text-align: center;">{{ provider.provider_name }}</span>
-            {% endif %}
-          </div>
+          <a href="{{ movie.watch_providers.justwatch_link if movie.watch_providers.justwatch_link else '#' }}" 
+             target="_blank" 
+             class="provider-logo-link"
+             title="Rent on {{ provider.provider_name }}">
+            <div class="provider-logo">
+              {% if provider.logo_path %}
+              <img src="{{ provider.logo_path }}" alt="{{ provider.provider_name }}">
+              {% else %}
+              <span style="display: flex; align-items: center; justify-content: center; height: 100%; font-size: 0.65rem; padding: 0.25rem; text-align: center;">{{ provider.provider_name }}</span>
+              {% endif %}
+            </div>
+          </a>
           {% endfor %}
         </div>
       </div>
@@ -478,13 +505,18 @@
         </div>
         <div class="provider-logos">
           {% for provider in movie.watch_providers.buy %}
-          <div class="provider-logo" title="{{ provider.provider_name }}">
-            {% if provider.logo_path %}
-            <img src="{{ provider.logo_path }}" alt="{{ provider.provider_name }}">
-            {% else %}
-            <span style="display: flex; align-items: center; justify-content: center; height: 100%; font-size: 0.65rem; padding: 0.25rem; text-align: center;">{{ provider.provider_name }}</span>
-            {% endif %}
-          </div>
+          <a href="{{ movie.watch_providers.justwatch_link if movie.watch_providers.justwatch_link else '#' }}" 
+             target="_blank" 
+             class="provider-logo-link"
+             title="Buy on {{ provider.provider_name }}">
+            <div class="provider-logo">
+              {% if provider.logo_path %}
+              <img src="{{ provider.logo_path }}" alt="{{ provider.provider_name }}">
+              {% else %}
+              <span style="display: flex; align-items: center; justify-content: center; height: 100%; font-size: 0.65rem; padding: 0.25rem; text-align: center;">{{ provider.provider_name }}</span>
+              {% endif %}
+            </div>
+          </a>
           {% endfor %}
         </div>
       </div>
