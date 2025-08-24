@@ -71,3 +71,9 @@ logs/nextreel.log.1
 logs/nextreel.log.2
 
 logs/nextreel.log.3
+
+# Development and optimization scripts (not needed in production)
+scripts/filter_backend_optimized.py
+execute_db_optimization.py
+execute_prod_db_optimization.py
+test_performance_improvements.py
