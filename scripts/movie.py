@@ -97,24 +97,46 @@ class Movie:
         self.client = httpx.AsyncClient()  # Initialize once and reuse
 
     async def fetch_movie_slug(self):
-        start_time = time.time()  # Start timing
-
-        query = """
-           SELECT slug FROM `title.basics` WHERE tconst = %s;
-           """
-        result = await self.query_executor.execute_async_query(
-            query, [self.tconst], fetch="one"
-        )
-        if result:
-            self.slug = result["slug"]  # Assuming the column name in the DB is 'slug'
-            logger.info(f"Slug for tconst {self.tconst}: {self.slug}")
-        else:
-            logger.warning(f"No slug found for tconst: {self.tconst}")
+        """Fetch slug from cache tables first, then fallback to main table."""
+        start_time = time.time()
+        
+        # Try cache tables first (they're faster and already loaded)
+        cache_queries = [
+            "SELECT slug FROM popular_movies_cache WHERE tconst = %s",
+            "SELECT slug FROM recent_movies_cache WHERE tconst = %s"
+        ]
+        
+        for query in cache_queries:
+            try:
+                result = await self.query_executor.execute_async_query(
+                    query, [self.tconst], fetch="one"
+                )
+                if result and result.get("slug"):
+                    self.slug = result["slug"]
+                    logger.debug(f"Slug from cache for {self.tconst}: {self.slug}")
+                    return
+            except Exception:
+                continue  # Try next cache table
+        
+        # Fallback to main table only if not found in cache
+        try:
+            query = "SELECT slug FROM `title.basics` WHERE tconst = %s"
+            result = await self.query_executor.execute_async_query(
+                query, [self.tconst], fetch="one"
+            )
+            if result and result.get("slug"):
+                self.slug = result["slug"]
+                logger.debug(f"Slug from main table for {self.tconst}: {self.slug}")
+            else:
+                # Most movies don't have slugs, so don't log this as a warning
+                self.slug = None
+                logger.debug(f"No slug found for tconst: {self.tconst}")
+        except Exception as e:
+            logger.error(f"Error fetching slug for {self.tconst}: {e}")
+            self.slug = None
 
         method_time = time.time() - start_time
-        logger.info(
-            f"Completed fetch_movie_slug for {self.tconst} in {method_time:.2f} seconds."
-        )
+        logger.debug(f"Completed fetch_movie_slug for {self.tconst} in {method_time:.2f} seconds.")
 
     # Assume the necessary imports and setup for logging are done elsewhere in your code
 
