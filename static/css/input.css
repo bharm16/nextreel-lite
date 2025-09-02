@@ -1,3 +1,5 @@
+@import "./tokens.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -9,7 +11,10 @@
   }
   
   body {
+    font-family: var(--font-sans);
     @apply antialiased;
+    background: var(--color-bg);
+    color: var(--color-text);
   }
 }
 
@@ -28,11 +33,16 @@
   }
   
   .card {
-    @apply rounded-2xl bg-white p-6 shadow-soft ring-1 ring-slate-200/60;
+    border-radius: var(--radius-2xl);
+    background: var(--color-surface);
+    box-shadow: var(--color-elev-shadow);
+    @apply p-6 ring-1;
+    --tw-ring-color: var(--color-border);
   }
   
   .navbar {
-    @apply sticky top-0 z-50 bg-primary/95 backdrop-blur supports-[backdrop-filter]:bg-primary/80 text-white shadow;
+    @apply sticky top-0 z-50 text-white shadow;
+    background-color: color-mix(in oklab, var(--color-primary) 95%, transparent);
   }
 }
 
@@ -41,4 +51,40 @@
   .text-balance {
     text-wrap: balance;
   }
+
+  .bg-surface {
+    background: var(--color-surface);
+  }
+
+  .bg-surface-alt {
+    background: var(--color-surface-alt);
+  }
+
+  .text-body {
+    color: var(--color-text);
+  }
+
+  .text-muted {
+    color: var(--color-text-muted);
+  }
+
+  .ring-border {
+    --tw-ring-color: var(--color-border);
+  }
+
+  .border-token {
+    border-color: var(--color-border);
+  }
+
+  .chip {
+    background: var(--color-chip);
+    border: 1px solid var(--color-chip-ring);
+  }
+
+  .brand-serif { font-family: var(--font-serif); }
+  .brand-sans { font-family: var(--font-sans); }
+
+  .elev-soft { box-shadow: var(--color-elev-shadow); }
+
+  .aspect-poster { aspect-ratio: 2 / 3; }
 }

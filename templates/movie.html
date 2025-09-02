@@ -9,14 +9,25 @@
     <!-- Bootstrap CSS removed - using Tailwind instead -->
     
     <!-- Fonts -->
+    <link rel="preconnect" href="https://image.tmdb.org" crossorigin>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700&family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
     
-    <!-- Font Awesome (for movie card icons) -->
-    <script src="https://kit.fontawesome.com/ac5381aca9.js" crossorigin="anonymous"></script>
-    
     <!-- Compiled Tailwind CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/output.css') }}">
+    {% if movie and movie.poster_url %}
+    <link rel="preload" as="image" href="{{ movie.poster_url }}" fetchpriority="high" imagesizes="(min-width: 768px) 340px, 60vw">
+    {% endif %}
+    <script>
+      (() => {
+        try {
+          const pref = localStorage.getItem('nr-theme');
+          if (pref === 'light' || pref === 'dark') {
+            document.documentElement.setAttribute('data-theme', pref);
+          }
+        } catch (e) {}
+      })();
+    </script>
     
     <style>
         :root { color-scheme: light dark; }
@@ -29,14 +40,11 @@
             max-width: 100%;
         }
         
-        /* Light theme background */
-        body {
-            background: #f8fafc !important;
-        }
+        /* Light theme background is handled by tokens via output.css */
     </style>
 </head>
 
-<body>
+<body class="bg-surface text-body">
 
 <!-- Include the modern navbar -->
 {% include 'navbar_modern.html' %}

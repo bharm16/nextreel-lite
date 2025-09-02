@@ -1,17 +1,15 @@
-<!-- Font Awesome Icons -->
-<script src="https://kit.fontawesome.com/ac5381aca9.js" crossorigin="anonymous"></script>
-
 <style>
     :root{
-      --bg: #f8fafc;
-      --card:#ffffff;
-      --text:#0f172a;
-      --muted:#64748b;
-      --accent:#22c55e;
-      --accent-2:#16a34a;
-      --chip:#f1f5f9;
-      --chip-ring:#e2e8f040;
-      --border:#e2e8f0;
+      /* Map local variables to global tokens if present, with fallbacks */
+      --bg: var(--color-bg, #f8fafc);
+      --card: var(--color-surface, #ffffff);
+      --text: var(--color-text, #0f172a);
+      --muted: var(--color-text-muted, #64748b);
+      --accent: var(--color-accent, #22c55e);
+      --accent-2: var(--color-accent, #16a34a);
+      --chip: var(--color-chip, #f1f5f9);
+      --chip-ring: var(--color-chip-ring, #e2e8f040);
+      --border: var(--color-border, #e2e8f0);
     }
 
     html,body{height:100%;}
@@ -28,7 +26,7 @@
       background:
         radial-gradient(1000px 400px at 10% 0%, #f8fafc 0%, #f8fafcd6 60%, #f8fafc00 100%),
         linear-gradient(0deg, #f8fafc 0%, #f8fafcd6 40%, #f8fafc00 70%),
-        url('https://image.tmdb.org/t/p/original{{ movie.backdrop_url }}') center/cover no-repeat;
+        url('https://image.tmdb.org/t/p/w1280{{ movie.backdrop_url }}') center/cover no-repeat;
     }
     .hero::after{
       content:"";
@@ -309,25 +307,26 @@
     <!-- Prev -->
     <form method="POST" action="/previous_movie" id="prev-form" class="inline">
       <button type="submit" class="arrow-btn arrow-left" {% if previous_count == 0 %}disabled{% endif %} aria-label="Previous movie">
-        <i class="fas fa-arrow-left"></i>
+        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15 19l-7-7 7-7"/></svg>
       </button>
     </form>
     <!-- Next -->
-    <form method="POST" action="/next_movie" class="inline">
+    <form method="POST" action="/next_movie" id="next-form" class="inline">
       <button type="submit" class="arrow-btn arrow-right" aria-label="Next movie">
-        <i class="fas fa-arrow-right"></i>
+        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
       </button>
     </form>
   </section>
 
   <!-- CONTENT -->
   <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div id="movie-status" class="sr-only" role="status" aria-live="polite"></div>
     <div class="movie-card p-4 md:p-8">
       <div class="grid grid-cols-1 md:grid-cols-12 gap-4 lg:gap-8 items-start">
 
         <!-- Poster -->
         <div class="col-span-1 md:col-span-4 flex justify-center md:justify-start">
-          <img class="poster" src="{{ movie.poster_url }}" alt="Poster for {{ movie.title }}">
+          <img class="poster aspect-poster" src="{{ movie.poster_url }}" alt="Poster for {{ movie.title }}" fetchpriority="high" decoding="async">
         </div>
 
         <!-- Details -->
@@ -351,7 +350,7 @@
           <!-- Rating chip (with votes beneath /10) -->
           <div class="rating-wrap mb-4">
             <div class="rating-chip">
-              <i class="fa-solid fa-star"></i>
+              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="#ffd166" aria-hidden="true"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
               <div class="rating-stack">
                 <div class="rating-line">
                   <span class="rating-number">{{ '%.1f'|format(movie.rating) }}</span>
@@ -362,7 +361,7 @@
             </div>
 
             <button class="trailer-btn" id="play-button" data-video-url="{{ movie.trailer }}">
-              <i class="fa-solid fa-play"></i>
+              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
               Play Trailer
             </button>
           </div>
@@ -413,28 +412,28 @@
         <!-- Runtime, Budget, Revenue, Language -->
         {% if movie.runtime and movie.runtime != "0 min" and movie.runtime != "Unknown" %}
         <div class="flex">
-          <i class="fas fa-clock"></i>
+          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1a11 11 0 1 0 0 22 11 11 0 0 0 0-22zm1 11H7v-2h4V5h2v7z"/></svg>
           <span>{{ movie.runtime }}</span>
         </div>
         {% endif %}
         
         {% if movie.original_language and movie.original_language != "unknown" %}
         <div class="flex">
-          <i class="fas fa-language"></i>
+          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 4h16v2H4zm6 4h10v2H10zm0 4h8v2h-8zm0 4h6v2h-6zM4 8h4v2H4zM4 12h4v2H4zM4 16h4v2H4z"/></svg>
           <span>{{ movie.original_language.upper() }}</span>
         </div>
         {% endif %}
         
         {% if movie.budget and movie.budget != "Unknown" and movie.budget != "$0" %}
         <div class="flex">
-          <i class="fas fa-dollar-sign"></i>
+          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1a3 3 0 0 1 3 3v1h2v2h-2v8h2v2h-2v1a3 3 0 0 1-3 3h-1a3 3 0 0 1-3-3v-1H6v-2h2V7H6V5h2V4a3 3 0 0 1 3-3h1zm-1 6v8h1a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1h-1z"/></svg>
           <span>Budget: {{ movie.budget }}</span>
         </div>
         {% endif %}
         
         {% if movie.revenue and movie.revenue != "Unknown" and movie.revenue != "$0" %}
         <div class="flex">
-          <i class="fas fa-chart-line"></i>
+          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 3h2v16h16v2H3z" opacity="0.3"/><path d="M7 15l4-4 3 3 5-6 1.5 1.3-6.5 7.7-3-3-4 4z"/></svg>
           <span>Revenue: {{ movie.revenue }}</span>
         </div>
         {% endif %}
@@ -449,7 +448,7 @@
       {% if movie.watch_providers.stream %}
       <div class="provider-section">
         <div class="provider-label">
-          <i class="fas fa-play-circle"></i>
+          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
           Stream
         </div>
         <div class="provider-logos">
@@ -474,7 +473,7 @@
       {% if movie.watch_providers.rent %}
       <div class="provider-section">
         <div class="provider-label">
-          <i class="fas fa-ticket-alt"></i>
+          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h14v6h-2a2 2 0 1 0 0 4h2v6H5a2 2 0 0 1-2-2v-3a2 2 0 1 0 0-4V7z"/></svg>
           Rent
         </div>
         <div class="provider-logos">
@@ -499,7 +498,7 @@
       {% if movie.watch_providers.buy %}
       <div class="provider-section">
         <div class="provider-label">
-          <i class="fas fa-shopping-cart"></i>
+          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4h-2l-1 2H1v2h2l3.6 7.59-1.35 2.45A2 2 0 0 0 7 20h12v-2H7l1.1-2h7.45a2 2 0 0 0 1.79-1.11L21 9H6.42l-1-2H7V4z"/></svg>
           Buy
         </div>
         <div class="provider-logos">
@@ -523,7 +522,7 @@
       
       {% if movie.watch_providers.justwatch_link %}
       <a href="{{ movie.watch_providers.justwatch_link }}" target="_blank" class="justwatch-link">
-        <i class="fas fa-external-link-alt"></i>
+        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M14 3h7v7h-2V6.41l-9.29 9.3-1.42-1.42 9.3-9.29H14V3z"/><path d="M5 5h7v2H7v10h10v-5h2v7H5z"/></svg>
         View all on JustWatch
       </a>
       {% endif %}
@@ -639,26 +638,27 @@
       });
     })();
 
-    // Prevent form submission when previous button is disabled
+    // Prevent submit when disabled + set loading states
     (function(){
-      const prevForms = document.querySelectorAll('#prev-form, #prev-form-bottom');
-      prevForms.forEach(form => {
+      const status = document.getElementById('movie-status');
+      function guardDisabled(form){
         form.addEventListener('submit', (e) => {
           const btn = form.querySelector('button');
           if (btn && btn.disabled) {
             e.preventDefault();
             return false;
           }
+          if (btn) {
+            btn.setAttribute('aria-busy', 'true');
+          }
+          if (status) {
+            status.textContent = form.id && form.id.includes('prev') ? 'Loading previous movie…' : 'Loading next movie…';
+          }
         });
-      });
-      
-      // Additional safety: remove href/action from disabled buttons
-      const disabledBtns = document.querySelectorAll('button[disabled]');
-      disabledBtns.forEach(btn => {
-        btn.onclick = (e) => {
-          e.preventDefault();
-          return false;
-        };
+      }
+      ['#prev-form', '#prev-form-bottom', '#next-form'].forEach(sel => {
+        const f = document.querySelector(sel);
+        if (f) guardDisabled(f);
       });
     })();
   </script>

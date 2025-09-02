@@ -13,7 +13,7 @@
       </a>
 
       <!-- Desktop actions -->
-      <nav class="hidden gap-2 md:flex">
+      <nav class="hidden gap-2 md:flex items-center">
         <a href="/next_movie" class="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent/70 focus:ring-offset-primary/20">
           <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
           Pick a Movie
@@ -22,6 +22,10 @@
           <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5h18v2H3zm4 6h10v2H7zm3 6h4v2h-4z"/></svg>
           Set Filters
         </a>
+        <button id="themeToggle" class="ml-2 inline-flex items-center justify-center rounded-lg p-2 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white" aria-pressed="false" aria-label="Toggle dark mode">
+          <svg id="iconSun" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.76 4.84l-1.8-1.79-1.41 1.41 1.79 1.8 1.42-1.42zM1 13h3v-2H1v2zm10 10h2v-3h-2v3zM4.96 19.78l1.41 1.41 1.8-1.79-1.42-1.42-1.79 1.8zM20 11v2h3v-2h-3zm-2.34-7.95l-1.41 1.41 1.79 1.8 1.41-1.42-1.79-1.79zM12 7a5 5 0 100 10 5 5 0 000-10zm7.04 12.78l-1.79-1.8-1.41 1.42 1.79 1.79 1.41-1.41zM13 1h-2v3h2V1z"/></svg>
+          <svg id="iconMoon" class="h-5 w-5 hidden" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.74 2.15A9 9 0 1021 12.26 7 7 0 0112.74 2.15z"/></svg>
+        </button>
       </nav>
 
       <!-- Mobile menu button -->
@@ -36,6 +40,7 @@
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-3 space-y-2">
       <a href="/next_movie" class="block w-full rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white text-center">Pick a Movie</a>
       <a href="/setFilters" class="block w-full rounded-lg border border-accent px-4 py-2 text-sm font-semibold text-accent text-center">Set Filters</a>
+      <button id="themeToggleMobile" class="block w-full rounded-lg px-4 py-2 text-sm font-semibold text-white text-center bg-white/10">Toggle Theme</button>
     </div>
   </div>
 </header>
@@ -43,6 +48,20 @@
 <!-- Mobile menu toggle script (include once per page) -->
 <script>
   (function() {
+    function setTheme(next) {
+      try { localStorage.setItem('nr-theme', next); } catch (e) {}
+      document.documentElement.setAttribute('data-theme', next);
+      const pressed = next === 'dark';
+      const tbtn = document.getElementById('themeToggle');
+      if (tbtn) tbtn.setAttribute('aria-pressed', String(pressed));
+      const sun = document.getElementById('iconSun');
+      const moon = document.getElementById('iconMoon');
+      if (sun && moon) {
+        sun.classList.toggle('hidden', pressed);
+        moon.classList.toggle('hidden', !pressed);
+      }
+    }
+
     const menuBtn = document.getElementById('menuBtn');
     const mobileMenu = document.getElementById('mobileMenu');
     if (menuBtn && mobileMenu) {
@@ -53,5 +72,22 @@
         menuBtn.setAttribute('aria-label', expanded ? 'Close menu' : 'Open menu');
       });
     }
+
+    const t = document.getElementById('themeToggle');
+    const tm = document.getElementById('themeToggleMobile');
+    if (t) t.addEventListener('click', () => {
+      const current = document.documentElement.getAttribute('data-theme');
+      setTheme(current === 'dark' ? 'light' : 'dark');
+    });
+    if (tm) tm.addEventListener('click', () => {
+      const current = document.documentElement.getAttribute('data-theme');
+      setTheme(current === 'dark' ? 'light' : 'dark');
+    });
+
+    // Initialize toggle visuals from stored pref
+    try {
+      const pref = localStorage.getItem('nr-theme');
+      if (pref === 'dark' || pref === 'light') setTheme(pref);
+    } catch (e) {}
   })();
 </script>

@@ -5,10 +5,23 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Nextreel – Your Personalized Movie Journey</title>
   <meta name="description" content="Pick a movie fast with smart filters, a data‑rich library, and your personal queue." />
+  <link rel="preconnect" href="https://image.tmdb.org" crossorigin>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700&family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="preload" as="image" imagesrcset="https://image.tmdb.org/t/p/w780/dMrAwwB7PMC4SjgsTbgmEJblaYd.jpg 780w, https://image.tmdb.org/t/p/w1280/dMrAwwB7PMC4SjgsTbgmEJblaYd.jpg 1280w" imagesizes="100vw" href="https://image.tmdb.org/t/p/w1280/dMrAwwB7PMC4SjgsTbgmEJblaYd.jpg" fetchpriority="low">
   <!-- Compiled Tailwind CSS -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/output.css') }}">
+  <script>
+    // Apply saved theme before paint to avoid flash
+    (() => {
+      try {
+        const pref = localStorage.getItem('nr-theme');
+        if (pref === 'light' || pref === 'dark') {
+          document.documentElement.setAttribute('data-theme', pref);
+        }
+      } catch (e) {}
+    })();
+  </script>
   <style>
     /* Basic fallback styles in case CSS doesn't load */
     body { 
@@ -21,7 +34,7 @@
     }
   </style>
 </head>
-<body class="bg-white text-slate-800 antialiased">
+<body class="bg-surface text-body antialiased">
   <!-- Skip link for accessibility -->
   <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:shadow soft">Skip to content</a>
 
@@ -39,7 +52,7 @@
         </a>
 
         <!-- Desktop actions -->
-        <nav class="hidden gap-2 md:flex">
+        <nav class="hidden gap-2 md:flex items-center">
           <a href="/next_movie" class="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent/70 focus:ring-offset-primary/20">
             <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
             Pick a Movie
@@ -48,6 +61,10 @@
             <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5h18v2H3zm4 6h10v2H7zm3 6h4v2h-4z"/></svg>
             Set Filters
           </a>
+          <button id="themeToggle" class="ml-2 inline-flex items-center justify-center rounded-lg p-2 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white" aria-pressed="false" aria-label="Toggle dark mode">
+            <svg id="iconSun" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.76 4.84l-1.8-1.79-1.41 1.41 1.79 1.8 1.42-1.42zM1 13h3v-2H1v2zm10 10h2v-3h-2v3zM4.96 19.78l1.41 1.41 1.8-1.79-1.42-1.42-1.79 1.8zM20 11v2h3v-2h-3zm-2.34-7.95l-1.41 1.41 1.79 1.8 1.41-1.42-1.79-1.79zM12 7a5 5 0 100 10 5 5 0 000-10zm7.04 12.78l-1.79-1.8-1.41 1.42 1.79 1.79 1.41-1.41zM13 1h-2v3h2V1z"/></svg>
+            <svg id="iconMoon" class="h-5 w-5 hidden" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.74 2.15A9 9 0 1021 12.26 7 7 0 0112.74 2.15z"/></svg>
+          </button>
         </nav>
 
         <!-- Mobile menu button -->
@@ -62,6 +79,7 @@
       <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-3 space-y-2">
         <a href="/next_movie" class="block w-full rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white text-center">Pick a Movie</a>
         <a href="/setFilters" class="block w-full rounded-lg border border-accent px-4 py-2 text-sm font-semibold text-accent text-center">Set Filters</a>
+        <button id="themeToggleMobile" class="block w-full rounded-lg px-4 py-2 text-sm font-semibold text-white text-center bg-white/10">Toggle Theme</button>
       </div>
     </div>
   </header>
@@ -72,7 +90,7 @@
       <!-- Fallback gradient background that always works -->
       <div class="absolute inset-0 bg-gradient-to-br from-primary via-primary/90 to-primary/80"></div>
       <!-- Optional background image that loads if available -->
-      <div class="absolute inset-0 bg-cover bg-center opacity-30" style="background-image: url('https://image.tmdb.org/t/p/original/dMrAwwB7PMC4SjgsTbgmEJblaYd.jpg');"></div>
+      <div class="absolute inset-0 bg-cover bg-center opacity-30" style="background-image: url('https://image.tmdb.org/t/p/w1280/dMrAwwB7PMC4SjgsTbgmEJblaYd.jpg');"></div>
       <div class="absolute inset-0 bg-gradient-to-b from-primary/60 via-primary/40 to-primary/60"></div>
     </div>
 
@@ -204,6 +222,34 @@
         menuBtn.setAttribute('aria-label', expanded ? 'Close menu' : 'Open menu');
       });
     }
+    // Theme toggle
+    function setTheme(next) {
+      try { localStorage.setItem('nr-theme', next); } catch (e) {}
+      document.documentElement.setAttribute('data-theme', next);
+      const pressed = next === 'dark';
+      const tbtn = document.getElementById('themeToggle');
+      if (tbtn) tbtn.setAttribute('aria-pressed', String(pressed));
+      const sun = document.getElementById('iconSun');
+      const moon = document.getElementById('iconMoon');
+      if (sun && moon) {
+        sun.classList.toggle('hidden', pressed);
+        moon.classList.toggle('hidden', !pressed);
+      }
+    }
+    const t = document.getElementById('themeToggle');
+    const tm = document.getElementById('themeToggleMobile');
+    if (t) t.addEventListener('click', () => {
+      const current = document.documentElement.getAttribute('data-theme');
+      setTheme(current === 'dark' ? 'light' : 'dark');
+    });
+    if (tm) tm.addEventListener('click', () => {
+      const current = document.documentElement.getAttribute('data-theme');
+      setTheme(current === 'dark' ? 'light' : 'dark');
+    });
+    try {
+      const pref = localStorage.getItem('nr-theme');
+      if (pref === 'dark' || pref === 'light') setTheme(pref);
+    } catch (e) {}
     
     // Graceful background image loading with fallback
     document.addEventListener('DOMContentLoaded', function() {
@@ -220,7 +266,7 @@
           console.log('Hero image failed to load, using gradient fallback');
         };
         // Trigger the load
-        img.src = 'https://image.tmdb.org/t/p/original/dMrAwwB7PMC4SjgsTbgmEJblaYd.jpg';
+        img.src = 'https://image.tmdb.org/t/p/w1280/dMrAwwB7PMC4SjgsTbgmEJblaYd.jpg';
       }
     });
   </script>

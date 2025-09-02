@@ -5,17 +5,28 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Refine Filters – Nextreel</title>
   <meta name="description" content="Fine-tune your movie recommendations by score, votes, year, and genre." />
+  <link rel="preconnect" href="https://image.tmdb.org" crossorigin>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
   <!-- Compiled Tailwind CSS -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/output.css') }}">
+  <script>
+    (() => {
+      try {
+        const pref = localStorage.getItem('nr-theme');
+        if (pref === 'light' || pref === 'dark') {
+          document.documentElement.setAttribute('data-theme', pref);
+        }
+      } catch (e) {}
+    })();
+  </script>
   <style>
     :root { color-scheme: light; }
     body { font-family: 'Poppins', system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif; }
     .font-brand-serif { font-family: 'Merriweather', Georgia, Cambria, 'Times New Roman', Times, serif; }
   </style>
 </head>
-<body class="bg-white text-slate-800 antialiased">
+<body class="bg-surface text-body antialiased">
   <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:shadow">Skip to content</a>
 
   <!-- Tailwind Navbar (kept consistent with home) -->
@@ -70,9 +81,10 @@
 
   <!-- Filters Card -->
   <main id="main">
-    <section id="filters" class="py-12 sm:py-16 bg-slate-50">
+    <section id="filters" class="py-12 sm:py-16 bg-surface-alt">
       <div class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
-        <form action="/filtered_movie" method="post" class="rounded-2xl bg-white p-6 sm:p-8 shadow-soft ring-1 ring-slate-200/60 border-t-4 border-accent">
+        <form action="/filtered_movie" method="post" class="card border-t-4" style="border-top-color: var(--color-accent)" aria-describedby="filters-status">
+          <div id="filters-status" class="sr-only" role="status" aria-live="polite"></div>
           <div class="grid grid-cols-1 gap-8 md:grid-cols-2">
             <!-- Left column -->
             <div class="space-y-8">
@@ -185,8 +197,27 @@
           <!-- Buttons -->
           <div class="mt-10 flex items-center justify-center gap-3">
             <button type="reset" class="inline-flex items-center justify-center rounded-full bg-slate-200 px-6 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-300 focus:outline-none focus:ring-2 focus:ring-primary/30">Reset</button>
-            <button type="submit" class="inline-flex items-center justify-center rounded-full bg-accent px-7 py-3 text-sm font-bold uppercase tracking-wide text-white shadow shadow-black/10 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-accent/40">Apply Filters</button>
+            <button id="applyBtn" type="submit" class="inline-flex items-center justify-center gap-2 rounded-full bg-accent px-7 py-3 text-sm font-bold uppercase tracking-wide text-white shadow shadow-black/10 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-accent/40" aria-busy="false">
+              <svg class="h-4 w-4 hidden animate-spin motion-reduce:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10" opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
+              <span>Apply Filters</span>
+            </button>
           </div>
+          <script>
+            (function(){
+              const form = document.currentScript?.previousElementSibling?.closest('form') || document.querySelector('form[action="/filtered_movie"][method="post"]');
+              const applyBtn = document.getElementById('applyBtn');
+              const status = document.getElementById('filters-status');
+              if (form && applyBtn && status) {
+                form.addEventListener('submit', () => {
+                  applyBtn.setAttribute('aria-busy', 'true');
+                  status.textContent = 'Applying filters…';
+                  const spinner = applyBtn.querySelector('svg');
+                  if (spinner) spinner.classList.remove('hidden');
+                  applyBtn.setAttribute('disabled', 'true');
+                });
+              }
+            })();
+          </script>
         </form>
       </div>
     </section>
