@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://image.tmdb.org" crossorigin>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700&family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
-  <link rel="preload" as="image" imagesrcset="https://image.tmdb.org/t/p/w780/dMrAwwB7PMC4SjgsTbgmEJblaYd.jpg 780w, https://image.tmdb.org/t/p/w1280/dMrAwwB7PMC4SjgsTbgmEJblaYd.jpg 1280w" imagesizes="100vw" href="https://image.tmdb.org/t/p/w1280/dMrAwwB7PMC4SjgsTbgmEJblaYd.jpg" fetchpriority="low">
+  <meta name="theme-color" content="#02243f">
   <!-- Compiled Tailwind CSS -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/output.css') }}">
   <script>
@@ -36,53 +36,9 @@
 </head>
 <body class="bg-surface text-body antialiased">
   <!-- Skip link for accessibility -->
-  <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:shadow soft">Skip to content</a>
+  <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:shadow">Skip to content</a>
 
-  <!-- Site Header / Navbar -->
-  <header class="sticky top-0 z-50 bg-primary/95 backdrop-blur supports-[backdrop-filter]:bg-primary/80 text-white shadow">
-    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-      <div class="flex h-16 items-center justify-between">
-        <!-- Brand -->
-        <a href="/" class="flex items-center gap-2 group" aria-label="Nextreel home">
-          <svg class="h-6 w-6 transition-transform group-hover:rotate-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M4 6a2 2 0 0 1 2-2h8l6 6v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6z" opacity=".3"/>
-            <path d="M14 4v4a2 2 0 0 0 2 2h4"/>
-          </svg>
-          <span class="font-brand-serif text-xl font-bold tracking-tight">Nextreel</span>
-        </a>
-
-        <!-- Desktop actions -->
-        <nav class="hidden gap-2 md:flex items-center">
-          <a href="/next_movie" class="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent/70 focus:ring-offset-primary/20">
-            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
-            Pick a Movie
-          </a>
-          <a href="/setFilters" class="inline-flex items-center gap-2 rounded-xl border border-accent px-4 py-2 text-sm font-semibold text-accent hover:bg-accent/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent/70 focus:ring-offset-primary/20">
-            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5h18v2H3zm4 6h10v2H7zm3 6h4v2h-4z"/></svg>
-            Set Filters
-          </a>
-          <button id="themeToggle" class="ml-2 inline-flex items-center justify-center rounded-lg p-2 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white" aria-pressed="false" aria-label="Toggle dark mode">
-            <svg id="iconSun" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.76 4.84l-1.8-1.79-1.41 1.41 1.79 1.8 1.42-1.42zM1 13h3v-2H1v2zm10 10h2v-3h-2v3zM4.96 19.78l1.41 1.41 1.8-1.79-1.42-1.42-1.79 1.8zM20 11v2h3v-2h-3zm-2.34-7.95l-1.41 1.41 1.79 1.8 1.41-1.42-1.79-1.79zM12 7a5 5 0 100 10 5 5 0 000-10zm7.04 12.78l-1.79-1.8-1.41 1.42 1.79 1.79 1.41-1.41zM13 1h-2v3h2V1z"/></svg>
-            <svg id="iconMoon" class="h-5 w-5 hidden" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.74 2.15A9 9 0 1021 12.26 7 7 0 0112.74 2.15z"/></svg>
-          </button>
-        </nav>
-
-        <!-- Mobile menu button -->
-        <button id="menuBtn" class="inline-flex items-center justify-center rounded-lg p-2 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white md:hidden" aria-controls="mobileMenu" aria-expanded="false" aria-label="Open menu">
-          <svg class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg>
-        </button>
-      </div>
-    </div>
-
-    <!-- Mobile dropdown -->
-    <div id="mobileMenu" class="hidden md:hidden border-t border-white/10">
-      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-3 space-y-2">
-        <a href="/next_movie" class="block w-full rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white text-center">Pick a Movie</a>
-        <a href="/setFilters" class="block w-full rounded-lg border border-accent px-4 py-2 text-sm font-semibold text-accent text-center">Set Filters</a>
-        <button id="themeToggleMobile" class="block w-full rounded-lg px-4 py-2 text-sm font-semibold text-white text-center bg-white/10">Toggle Theme</button>
-      </div>
-    </div>
-  </header>
+  {% include 'navbar_modern.html' %}
 
   <!-- Hero -->
   <section class="relative isolate">
@@ -90,15 +46,17 @@
       <!-- Fallback gradient background that always works -->
       <div class="absolute inset-0 bg-gradient-to-br from-primary via-primary/90 to-primary/80"></div>
       <!-- Optional background image that loads if available -->
-      <div class="absolute inset-0 bg-cover bg-center opacity-30" style="background-image: url('https://image.tmdb.org/t/p/w1280/dMrAwwB7PMC4SjgsTbgmEJblaYd.jpg');"></div>
+      {% if default_backdrop_url %}
+      <div class="absolute inset-0 bg-cover bg-center opacity-25" style="background-image:url('{{ default_backdrop_url }}');"></div>
+      {% endif %}
       <div class="absolute inset-0 bg-gradient-to-b from-primary/60 via-primary/40 to-primary/60"></div>
     </div>
 
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-      <div class="flex min-h-[80vh] items-center justify-center py-16 text-center">
+      <div class="flex min-h-[70vh] items-center justify-center py-16 text-center">
         <div class="max-w-3xl text-white mx-auto">
-          <h1 class="font-brand-serif text-4xl font-extrabold tracking-tight sm:text-5xl">Discover Your Next Favorite Film</h1>
-          <p class="mt-4 text-base/7 sm:text-lg/8 opacity-95">Explore a world of cinema with personalized recommendations built from rich movie databases and your unique preferences.</p>
+          <h1 class="font-brand-serif text-4xl font-extrabold tracking-tight sm:text-5xl">Stop Scrolling. Start Watching.</h1>
+          <p class="mt-4 text-base/7 sm:text-lg/8 opacity-95">Data‑driven recommendations tailored to your taste. Filter by what matters, then pick confidently in minutes.</p>
           <div class="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:items-center sm:justify-center">
             <a href="/next_movie" class="inline-flex items-center justify-center gap-2 rounded-2xl bg-accent px-6 py-3 text-base font-semibold text-white shadow-lg shadow-black/10 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-white">
               <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
@@ -110,61 +68,101 @@
             </a>
           </div>
 
-          <!-- Small benefits row -->
-          <dl class="mt-8 grid grid-cols-1 gap-4 text-sm sm:grid-cols-3 place-items-center text-center">
-            <div class="flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 ring-1 ring-inset ring-white/30">
-              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 6h16v12H4z" opacity=".3"/><path d="M6 9h4v2H6zm0 4h7v2H6z"/></svg>
-              <span>Data‑rich library</span>
-            </div>
-            <div class="flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 ring-1 ring-inset ring-white/30">
-              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 7h16v2H4zm2 4h12v2H6zm3 4h6v2H9z"/></svg>
-              <span>Smart filters</span>
-            </div>
-            <div class="flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 ring-1 ring-inset ring-white/30">
-              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4h10v2H7zM5 8h14v12H5z" opacity=".3"/><path d="M8 10h8v2H8zm0 4h5v2H8z"/></svg>
-              <span>Queue & history</span>
-            </div>
-          </dl>
+          <!-- Providers row -->
+          <div class="mt-8 flex items-center justify-center gap-4 opacity-90">
+            <span class="text-xs uppercase tracking-wide text-white/80">Data from</span>
+            <span class="inline-flex items-center rounded-full bg-white/10 px-3 py-1 text-xs font-semibold ring-1 ring-inset ring-white/20">TMDB</span>
+            <span class="inline-flex items-center rounded-full bg-white/10 px-3 py-1 text-xs font-semibold ring-1 ring-inset ring-white/20">IMDb</span>
+          </div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- Features -->
+  <!-- Main -->
   <main id="main" class="relative">
+    <!-- How it works -->
     <section class="py-16 sm:py-20 bg-slate-50">
       <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div class="mx-auto max-w-2xl text-center">
-          <h2 class="font-brand-serif text-3xl font-bold tracking-tight sm:text-4xl text-primary">Built for how you actually pick movies</h2>
-          <p class="mt-3 text-sm/7 text-slate-600">Fast, filterable, and focused on finishing your scroll.</p>
+          <h2 class="font-brand-serif text-3xl font-bold tracking-tight sm:text-4xl text-primary">How Nextreel Works</h2>
+          <p class="mt-3 text-sm/7 text-slate-600">Three simple steps to go from endless scrolling to a confident pick.</p>
+        </div>
+        <ol class="mt-10 grid gap-6 sm:grid-cols-3">
+          <li class="rounded-2xl bg-white p-6 shadow-soft ring-1 ring-slate-200/60">
+            <div class="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary font-bold">1</div>
+            <h3 class="mt-4 text-lg font-semibold">Set your filters</h3>
+            <p class="mt-1 text-sm text-slate-600">Dial in year, ratings, votes, genres, and language to match your mood.</p>
+          </li>
+          <li class="rounded-2xl bg-white p-6 shadow-soft ring-1 ring-slate-200/60">
+            <div class="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary font-bold">2</div>
+            <h3 class="mt-4 text-lg font-semibold">Get a recommendation</h3>
+            <p class="mt-1 text-sm text-slate-600">We surface a strong candidate from a data‑rich catalog sourced from TMDB & IMDb.</p>
+          </li>
+          <li class="rounded-2xl bg-white p-6 shadow-soft ring-1 ring-slate-200/60">
+            <div class="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary font-bold">3</div>
+            <h3 class="mt-4 text-lg font-semibold">Track and refine</h3>
+            <p class="mt-1 text-sm text-slate-600">Save to your queue, review history, adjust filters and keep watching.</p>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- Capabilities -->
+    <section class="py-16 sm:py-20">
+      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div class="mx-auto max-w-2xl text-center">
+          <h2 class="font-brand-serif text-3xl font-bold tracking-tight sm:text-4xl text-primary">Built for real‑world decisions</h2>
+          <p class="mt-3 text-sm/7 text-slate-600">Fast, filterable, and focused on helping you finish your scroll.</p>
         </div>
 
         <div class="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          <!-- Card 1 -->
           <div class="rounded-2xl bg-white p-6 shadow-soft ring-1 ring-slate-200/60">
             <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
               <svg class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 6h16v12H4z" opacity=".3"/><path d="M6 9h4v2H6zm0 4h7v2H6z"/></svg>
             </div>
-            <h3 class="mt-5 text-lg font-semibold">Data‑rich Library</h3>
-            <p class="mt-2 text-sm text-slate-600">Access thousands of titles via TMDB & IMDb to stay current with the latest releases and timeless classics.</p>
+            <h3 class="mt-5 text-lg font-semibold">Data‑rich library</h3>
+            <p class="mt-2 text-sm text-slate-600">Thousands of titles from TMDB & IMDb with images, ratings and details.</p>
           </div>
 
-          <!-- Card 2 -->
           <div class="rounded-2xl bg-white p-6 shadow-soft ring-1 ring-slate-200/60">
             <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
               <svg class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5h18v2H3zm4 6h10v2H7zm3 6h4v2h-4z"/></svg>
             </div>
-            <h3 class="mt-5 text-lg font-semibold">Custom Filters</h3>
-            <p class="mt-2 text-sm text-slate-600">Filter by year, rating, votes, genre, and language to match your mood.</p>
+            <h3 class="mt-5 text-lg font-semibold">Smart filters</h3>
+            <p class="mt-2 text-sm text-slate-600">Control year, rating, votes, genre, and language in seconds.</p>
           </div>
 
-          <!-- Card 3 -->
           <div class="rounded-2xl bg-white p-6 shadow-soft ring-1 ring-slate-200/60">
             <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
               <svg class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5 4h14v2H5zM3 8h18v12H3z" opacity=".3"/><path d="M7 10h10v2H7zm0 4h7v2H7z"/></svg>
             </div>
-            <h3 class="mt-5 text-lg font-semibold">Queue & History</h3>
-            <p class="mt-2 text-sm text-slate-600">Save picks to a queue and quickly revisit what you've watched.</p>
+            <h3 class="mt-5 text-lg font-semibold">Queue & history</h3>
+            <p class="mt-2 text-sm text-slate-600">Save contenders and revisit what you’ve watched, all in one place.</p>
+          </div>
+
+          <div class="rounded-2xl bg-white p-6 shadow-soft ring-1 ring-slate-200/60">
+            <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <svg class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm1 5v5h4v2h-6V7z"/></svg>
+            </div>
+            <h3 class="mt-5 text-lg font-semibold">Fast by design</h3>
+            <p class="mt-2 text-sm text-slate-600">Optimized queries, caching and async I/O keep recommendations snappy.</p>
+          </div>
+
+          <div class="rounded-2xl bg-white p-6 shadow-soft ring-1 ring-slate-200/60">
+            <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <svg class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm-1 14l-4-4 1.41-1.41L11 12.17l6.59-6.58L19 7l-8 9z"/></svg>
+            </div>
+            <h3 class="mt-5 text-lg font-semibold">Privacy‑conscious</h3>
+            <p class="mt-2 text-sm text-slate-600">Secure sessions and layered protections designed for safe browsing.</p>
+          </div>
+
+          <div class="rounded-2xl bg-white p-6 shadow-soft ring-1 ring-slate-200/60">
+            <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <svg class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 13h2a7 7 0 0014 0h2a9 9 0 01-18 0zm9-9a9 9 0 019 9h-2a7 7 0 00-14 0H3a9 9 0 019-9z"/></svg>
+            </div>
+            <h3 class="mt-5 text-lg font-semibold">Observable</h3>
+            <p class="mt-2 text-sm text-slate-600">Instrumentation and metrics to monitor performance and reliability.</p>
           </div>
         </div>
 
@@ -181,12 +179,29 @@
         </div>
       </div>
     </section>
+
+    <!-- Callout band -->
+    <section class="relative py-14">
+      <div class="absolute inset-0 -z-10 bg-gradient-to-r from-primary/5 to-primary/10"></div>
+      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div class="flex flex-col items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-soft sm:flex-row">
+          <div>
+            <h3 class="font-brand-serif text-2xl font-bold text-primary">Ready to find something great?</h3>
+            <p class="mt-1 text-sm text-slate-600">Kick off with a strong recommendation or refine your criteria first.</p>
+          </div>
+          <div class="flex items-center gap-3">
+            <a href="/next_movie" class="inline-flex items-center justify-center rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-white shadow hover:shadow-lg">Pick a Movie</a>
+            <a href="/setFilters" class="inline-flex items-center justify-center rounded-xl border border-slate-300 px-5 py-2.5 text-sm font-semibold text-primary hover:bg-slate-50">Set Filters</a>
+          </div>
+        </div>
+      </div>
+    </section>
   </main>
 
   <!-- Footer -->
   <footer class="border-t border-slate-200/60 bg-white">
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10">
-      <div class="grid gap-8 md:grid-cols-3 md:items-start">
+      <div class="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <a href="/" class="inline-flex items-center gap-2 text-primary">
             <svg class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 6a2 2 0 0 1 2-2h8l6 6v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6z" opacity=".3"/><path d="M14 4v4a2 2 0 0 0 2 2h4"/></svg>
@@ -195,8 +210,16 @@
           <p class="mt-3 text-sm text-slate-600">&copy; 2025 Nextreel. All rights reserved.</p>
         </div>
         <div class="text-sm">
-          <ul class="space-y-2">
-            <li><a class="text-slate-600 hover:text-primary" href="#">About Us</a></li>
+          <h3 class="font-semibold text-slate-900">Product</h3>
+          <ul class="mt-2 space-y-2">
+            <li><a class="text-slate-600 hover:text-primary" href="/next_movie">Pick a Movie</a></li>
+            <li><a class="text-slate-600 hover:text-primary" href="/setFilters">Set Filters</a></li>
+          </ul>
+        </div>
+        <div class="text-sm">
+          <h3 class="font-semibold text-slate-900">Company</h3>
+          <ul class="mt-2 space-y-2">
+            <li><a class="text-slate-600 hover:text-primary" href="#">About</a></li>
             <li><a class="text-slate-600 hover:text-primary" href="#">Privacy Policy</a></li>
             <li><a class="text-slate-600 hover:text-primary" href="#">DMCA</a></li>
           </ul>
@@ -209,64 +232,20 @@
     </div>
   </footer>
 
-  <!-- Minimal JS for mobile menu toggling and image loading -->
+  <!-- Minimal JS: graceful hero image fallback when provided (navbar scripts included via partial) -->
   <script>
-    // Mobile menu toggle
-    const menuBtn = document.getElementById('menuBtn');
-    const mobileMenu = document.getElementById('mobileMenu');
-    if (menuBtn && mobileMenu) {
-      menuBtn.addEventListener('click', () => {
-        const isOpen = mobileMenu.classList.toggle('hidden');
-        const expanded = !isOpen;
-        menuBtn.setAttribute('aria-expanded', String(expanded));
-        menuBtn.setAttribute('aria-label', expanded ? 'Close menu' : 'Open menu');
-      });
-    }
-    // Theme toggle
-    function setTheme(next) {
-      try { localStorage.setItem('nr-theme', next); } catch (e) {}
-      document.documentElement.setAttribute('data-theme', next);
-      const pressed = next === 'dark';
-      const tbtn = document.getElementById('themeToggle');
-      if (tbtn) tbtn.setAttribute('aria-pressed', String(pressed));
-      const sun = document.getElementById('iconSun');
-      const moon = document.getElementById('iconMoon');
-      if (sun && moon) {
-        sun.classList.toggle('hidden', pressed);
-        moon.classList.toggle('hidden', !pressed);
-      }
-    }
-    const t = document.getElementById('themeToggle');
-    const tm = document.getElementById('themeToggleMobile');
-    if (t) t.addEventListener('click', () => {
-      const current = document.documentElement.getAttribute('data-theme');
-      setTheme(current === 'dark' ? 'light' : 'dark');
-    });
-    if (tm) tm.addEventListener('click', () => {
-      const current = document.documentElement.getAttribute('data-theme');
-      setTheme(current === 'dark' ? 'light' : 'dark');
-    });
-    try {
-      const pref = localStorage.getItem('nr-theme');
-      if (pref === 'dark' || pref === 'light') setTheme(pref);
-    } catch (e) {}
-    
-    // Graceful background image loading with fallback
     document.addEventListener('DOMContentLoaded', function() {
-      const heroSection = document.querySelector('.bg-cover.bg-center.opacity-30');
-      if (heroSection) {
-        const img = new Image();
-        img.onload = function() {
-          // Image loaded successfully, it's already set via inline style
-          console.log('Hero image loaded');
-        };
-        img.onerror = function() {
-          // Image failed to load, remove the background-image style
-          heroSection.style.backgroundImage = 'none';
-          console.log('Hero image failed to load, using gradient fallback');
-        };
-        // Trigger the load
-        img.src = 'https://image.tmdb.org/t/p/w1280/dMrAwwB7PMC4SjgsTbgmEJblaYd.jpg';
+      const heroBg = document.querySelector('.bg-cover.bg-center.opacity-25');
+      if (heroBg) {
+        const style = heroBg.getAttribute('style') || '';
+        const match = style.match(/url\('(.*)'\)/);
+        const url = match ? match[1] : null;
+        if (url) {
+          const img = new Image();
+          img.onload = function() { /* loaded */ };
+          img.onerror = function() { heroBg.style.backgroundImage = 'none'; };
+          img.src = url;
+        }
       }
     });
   </script>
