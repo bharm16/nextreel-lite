@@ -310,18 +310,35 @@ def extract_movie_filter_criteria(form_data):
     # Initialize an empty criteria dictionary
     criteria = {}
 
-    # Handling various other criteria (year, IMDb score, number of votes)
-    if form_data.get('year_min'):
+    # Range criteria with explicit "no min/max" support
+    # Year
+    if 'year_no_min' in form_data:
+        criteria['min_year'] = 1900
+    elif form_data.get('year_min'):
         criteria['min_year'] = int(form_data.get('year_min'))
-    if form_data.get('year_max'):
+    if 'year_no_max' in form_data:
+        criteria['max_year'] = 2025
+    elif form_data.get('year_max'):
         criteria['max_year'] = int(form_data.get('year_max'))
-    if form_data.get('imdb_score_min'):
+
+    # IMDb Score
+    if 'score_no_min' in form_data:
+        criteria['min_rating'] = 1.0
+    elif form_data.get('imdb_score_min'):
         criteria['min_rating'] = float(form_data.get('imdb_score_min'))
-    if form_data.get('imdb_score_max'):
+    if 'score_no_max' in form_data:
+        criteria['max_rating'] = 10.0
+    elif form_data.get('imdb_score_max'):
         criteria['max_rating'] = float(form_data.get('imdb_score_max'))
-    if form_data.get('num_votes_min'):
+
+    # Votes
+    if 'votes_no_min' in form_data:
+        criteria['min_votes'] = 0
+    elif form_data.get('num_votes_min'):
         criteria['min_votes'] = int(form_data.get('num_votes_min'))
-    if form_data.get('num_votes_max'):
+    if 'votes_no_max' in form_data:
+        criteria['max_votes'] = 2000000
+    elif form_data.get('num_votes_max'):
         criteria['max_votes'] = int(form_data.get('num_votes_max'))
 
     # Handling genre criteria
@@ -366,4 +383,3 @@ async def main():
 if __name__ == "__main__":
     import asyncio
     asyncio.run(main())
-

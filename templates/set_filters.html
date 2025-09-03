@@ -84,6 +84,21 @@
     <section id="filters" class="py-12 sm:py-16 bg-surface-alt">
       <div class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
         <form action="/filtered_movie" method="post" class="card border-t-4" style="border-top-color: var(--color-accent)" aria-describedby="filters-status">
+          {% set has_filters = current_filters is defined and current_filters|length > 0 %}
+          {% set current_filters_ui = current_filters_ui or {} %}
+          {# Normalize defaults and detect unset bounds based on saved UI toggles #}
+          {% set rating_min_default = 7.0 %}
+          {% set rating_max_default = 10.0 %}
+          {% set votes_min_default  = 100000 %}
+          {% set votes_max_default  = 200000 %}
+          {% set year_min_default   = 1900 %}
+          {% set year_max_default   = 2025 %}
+          {% set noScoreMin = current_filters_ui.get('score_no_min', False) %}
+          {% set noScoreMax = current_filters_ui.get('score_no_max', False) %}
+          {% set noVotesMin = current_filters_ui.get('votes_no_min', False) %}
+          {% set noVotesMax = current_filters_ui.get('votes_no_max', False) %}
+          {% set noYearMin  = current_filters_ui.get('year_no_min',  False) %}
+          {% set noYearMax  = current_filters_ui.get('year_no_max',  False) %}
           <div id="filters-status" class="sr-only" role="status" aria-live="polite"></div>
           <div class="grid grid-cols-1 gap-8 md:grid-cols-2">
             <!-- Left column -->
@@ -95,12 +110,34 @@
                   IMDb Score Range
                 </h2>
                 <div>
-                  <label for="imdb_score_min" class="block text-sm font-medium">Min Score</label>
-                  <input type="number" id="imdb_score_min" name="imdb_score_min" min="1" max="10" step="0.1" value="{{ current_filters.get('imdb_score_min', 7.0) }}" class="mt-1 w-full rounded-2xl border-2 border-slate-200 px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30">
+                  <div class="flex items-center justify-between">
+                    <label for="imdb_score_min" class="block text-sm font-medium">Min Score</label>
+                    <label class="flex items-center gap-1 text-xs text-slate-600">
+                      <input type="checkbox" id="score_no_min" name="score_no_min" class="h-3.5 w-3.5 rounded border-slate-300 text-accent focus:ring-accent" {% if noScoreMin %}checked{% endif %}>
+                      No min
+                    </label>
+                  </div>
+                  <input type="number" id="imdb_score_min" name="imdb_score_min" min="1" max="10" step="0.1" value="{{ (current_filters.get('min_rating', rating_min_default)) if not noScoreMin else '' }}" {% if noScoreMin %}disabled{% endif %} class="mt-1 w-full rounded-2xl border-2 border-slate-200 px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30" placeholder="Any">
                 </div>
                 <div>
-                  <label for="imdb_score_max" class="block text-sm font-medium">Max Score</label>
-                  <input type="number" id="imdb_score_max" name="imdb_score_max" min="1" max="10" step="0.1" value="{{ current_filters.get('imdb_score_max', 10.0) }}" class="mt-1 w-full rounded-2xl border-2 border-slate-200 px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30">
+                  <div class="flex items-center justify-between">
+                    <label for="imdb_score_max" class="block text-sm font-medium">Max Score</label>
+                    <label class="flex items-center gap-1 text-xs text-slate-600">
+                      <input type="checkbox" id="score_no_max" name="score_no_max" class="h-3.5 w-3.5 rounded border-slate-300 text-accent focus:ring-accent" {% if noScoreMax %}checked{% endif %}>
+                      No max
+                    </label>
+                  </div>
+                  <input type="number" id="imdb_score_max" name="imdb_score_max" min="1" max="10" step="0.1" value="{{ (current_filters.get('max_rating', rating_max_default)) if not noScoreMax else '' }}" {% if noScoreMax %}disabled{% endif %} class="mt-1 w-full rounded-2xl border-2 border-slate-200 px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30" placeholder="Any">
+                </div>
+                <div class="mt-2">
+                  <div class="flex items-center justify-between text-xs text-slate-600">
+                    <span id="score_range_label" class="tabular-nums">Score: —</span>
+                    <span class="tabular-nums">1 – 10</span>
+                  </div>
+                  <div class="mt-2 grid grid-cols-2 gap-2 items-center">
+                    <input type="range" id="score_min_range" min="1" max="10" step="0.1" value="{{ current_filters.get('min_rating', rating_min_default) }}" class="w-full" oninput="(function(el){var n=document.getElementById('imdb_score_min');var t=document.getElementById('score_no_min');if(t&&t.checked){t.checked=false;n.removeAttribute('disabled');}n.value=el.value;var max=document.getElementById('score_max_range').value;var lab=document.getElementById('score_range_label');if(lab){lab.textContent='Score: '+parseFloat(el.value).toFixed(1)+' – '+parseFloat(max).toFixed(1);} })(this)">
+                    <input type="range" id="score_max_range" min="1" max="10" step="0.1" value="{{ current_filters.get('max_rating', rating_max_default) }}" class="w-full" oninput="(function(el){var n=document.getElementById('imdb_score_max');var t=document.getElementById('score_no_max');if(t&&t.checked){t.checked=false;n.removeAttribute('disabled');}n.value=el.value;var min=document.getElementById('score_min_range').value;var lab=document.getElementById('score_range_label');if(lab){lab.textContent='Score: '+parseFloat(min).toFixed(1)+' – '+parseFloat(el.value).toFixed(1);} })(this)">
+                  </div>
                 </div>
               </section>
 
@@ -111,12 +148,34 @@
                   Vote Count Range
                 </h2>
                 <div>
-                  <label for="num_votes_min" class="block text-sm font-medium">Min Votes</label>
-                  <input type="number" id="num_votes_min" name="num_votes_min" min="0" value="{{ current_filters.get('num_votes_min', 100000) }}" class="mt-1 w-full rounded-2xl border-2 border-slate-200 px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30">
+                  <div class="flex items-center justify-between">
+                    <label for="num_votes_min" class="block text-sm font-medium">Min Votes</label>
+                    <label class="flex items-center gap-1 text-xs text-slate-600">
+                      <input type="checkbox" id="votes_no_min" name="votes_no_min" class="h-3.5 w-3.5 rounded border-slate-300 text-accent focus:ring-accent" {% if noVotesMin %}checked{% endif %}>
+                      No min
+                    </label>
+                  </div>
+                  <input type="number" id="num_votes_min" name="num_votes_min" min="0" value="{{ (current_filters.get('min_votes', votes_min_default)) if not noVotesMin else '' }}" {% if noVotesMin %}disabled{% endif %} class="mt-1 w-full rounded-2xl border-2 border-slate-200 px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30" placeholder="Any">
                 </div>
                 <div>
-                  <label for="num_votes_max" class="block text-sm font-medium">Max Votes</label>
-                  <input type="number" id="num_votes_max" name="num_votes_max" min="1" max="2000000" value="{{ current_filters.get('num_votes_max', 200000) }}" class="mt-1 w-full rounded-2xl border-2 border-slate-200 px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30">
+                  <div class="flex items-center justify-between">
+                    <label for="num_votes_max" class="block text-sm font-medium">Max Votes</label>
+                    <label class="flex items-center gap-1 text-xs text-slate-600">
+                      <input type="checkbox" id="votes_no_max" name="votes_no_max" class="h-3.5 w-3.5 rounded border-slate-300 text-accent focus:ring-accent" {% if noVotesMax %}checked{% endif %}>
+                      No max
+                    </label>
+                  </div>
+                  <input type="number" id="num_votes_max" name="num_votes_max" min="1" max="2000000" value="{{ (current_filters.get('max_votes', votes_max_default)) if not noVotesMax else '' }}" {% if noVotesMax %}disabled{% endif %} class="mt-1 w-full rounded-2xl border-2 border-slate-200 px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30" placeholder="Any">
+                </div>
+                <div class="mt-2">
+                  <div class="flex items-center justify-between text-xs text-slate-600">
+                    <span id="votes_range_label" class="tabular-nums">Votes: —</span>
+                    <span class="tabular-nums">0 – 2,000,000</span>
+                  </div>
+                  <div class="mt-2 grid grid-cols-2 gap-2 items-center">
+                    <input type="range" id="votes_min_range" min="0" max="2000000" step="10000" value="{{ current_filters.get('min_votes', votes_min_default) }}" class="w-full" oninput="(function(el){var n=document.getElementById('num_votes_min');var t=document.getElementById('votes_no_min');if(t&&t.checked){t.checked=false;n.removeAttribute('disabled');}n.value=el.value;var max=document.getElementById('votes_max_range').value;var lab=document.getElementById('votes_range_label');if(lab){var f=function(v){return v>=1000000?(v/1000000).toFixed(1).replace(/\\.0$/,'')+'M':v>=1000?Math.round(v/1000)+'k':String(v)};lab.textContent='Votes: '+f(parseInt(el.value,10))+' – '+f(parseInt(max,10));} })(this)">
+                    <input type="range" id="votes_max_range" min="0" max="2000000" step="10000" value="{{ current_filters.get('max_votes', votes_max_default) }}" class="w-full" oninput="(function(el){var n=document.getElementById('num_votes_max');var t=document.getElementById('votes_no_max');if(t&&t.checked){t.checked=false;n.removeAttribute('disabled');}n.value=el.value;var min=document.getElementById('votes_min_range').value;var lab=document.getElementById('votes_range_label');if(lab){var f=function(v){return v>=1000000?(v/1000000).toFixed(1).replace(/\\.0$/,'')+'M':v>=1000?Math.round(v/1000)+'k':String(v)};lab.textContent='Votes: '+f(parseInt(min,10))+' – '+f(parseInt(el.value,10));} })(this)">
+                  </div>
                 </div>
               </section>
             </div>
@@ -130,12 +189,34 @@
                   Release Year Range
                 </h2>
                 <div>
-                  <label for="year_min" class="block text-sm font-medium">Earliest</label>
-                  <input type="number" id="year_min" name="year_min" min="1900" value="{{ current_filters.get('year_min', 1900) }}" class="mt-1 w-full rounded-2xl border-2 border-slate-200 px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30">
+                  <div class="flex items-center justify-between">
+                    <label for="year_min" class="block text-sm font-medium">Earliest</label>
+                    <label class="flex items-center gap-1 text-xs text-slate-600">
+                      <input type="checkbox" id="year_no_min" name="year_no_min" class="h-3.5 w-3.5 rounded border-slate-300 text-accent focus:ring-accent" {% if noYearMin %}checked{% endif %}>
+                      No min
+                    </label>
+                  </div>
+                  <input type="number" id="year_min" name="year_min" min="1900" value="{{ (current_filters.get('min_year', year_min_default)) if not noYearMin else '' }}" {% if noYearMin %}disabled{% endif %} class="mt-1 w-full rounded-2xl border-2 border-slate-200 px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30" placeholder="Any">
                 </div>
                 <div>
-                  <label for="year_max" class="block text-sm font-medium">Latest</label>
-                  <input type="number" id="year_max" name="year_max" value="{{ current_filters.get('year_max', 2023) }}" class="mt-1 w-full rounded-2xl border-2 border-slate-200 px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30">
+                  <div class="flex items-center justify-between">
+                    <label for="year_max" class="block text-sm font-medium">Latest</label>
+                    <label class="flex items-center gap-1 text-xs text-slate-600">
+                      <input type="checkbox" id="year_no_max" name="year_no_max" class="h-3.5 w-3.5 rounded border-slate-300 text-accent focus:ring-accent" {% if noYearMax %}checked{% endif %}>
+                      No max
+                    </label>
+                  </div>
+                  <input type="number" id="year_max" name="year_max" value="{{ (current_filters.get('max_year', year_max_default)) if not noYearMax else '' }}" {% if noYearMax %}disabled{% endif %} class="mt-1 w-full rounded-2xl border-2 border-slate-200 px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30" placeholder="Any">
+                </div>
+                <div class="mt-2">
+                  <div class="flex items-center justify-between text-xs text-slate-600">
+                    <span id="year_range_label" class="tabular-nums">Year: —</span>
+                    <span class="tabular-nums">1900 – 2025</span>
+                  </div>
+                  <div class="mt-2 grid grid-cols-2 gap-2 items-center">
+                    <input type="range" id="year_min_range" min="1900" max="2025" step="1" value="{{ current_filters.get('min_year', year_min_default) }}" class="w-full" oninput="(function(el){var n=document.getElementById('year_min');var t=document.getElementById('year_no_min');if(t&&t.checked){t.checked=false;n.removeAttribute('disabled');}n.value=el.value;var max=document.getElementById('year_max_range').value;var lab=document.getElementById('year_range_label');if(lab){lab.textContent='Year: '+parseInt(el.value,10)+' – '+parseInt(max,10);} })(this)">
+                    <input type="range" id="year_max_range" min="1900" max="2025" step="1" value="{{ current_filters.get('max_year', year_max_default) }}" class="w-full" oninput="(function(el){var n=document.getElementById('year_max');var t=document.getElementById('year_no_max');if(t&&t.checked){t.checked=false;n.removeAttribute('disabled');}n.value=el.value;var min=document.getElementById('year_min_range').value;var lab=document.getElementById('year_range_label');if(lab){lab.textContent='Year: '+parseInt(min,10)+' – '+parseInt(el.value,10);} })(this)">
+                  </div>
                 </div>
               </section>
 
@@ -185,13 +266,20 @@
                   {% set genres = ['Action','Adventure','Animation','Biography','Comedy','Crime','Documentary','Drama','Fantasy','Horror','Musical','Sci-Fi','Sport','Thriller','War','Western'] %}
                   {% for g in genres %}
                   <label class="relative">
-                    <input type="checkbox" name="genres[]" value="{{ g }}" {% if current_filters.get('genres_selected', [])|length == 0 or g in current_filters.get('genres_selected', []) %}checked{% endif %} class="peer sr-only" />
+                    {% set selected_genres = current_filters.get('genres', []) if has_filters else [] %}
+                    <input type="checkbox" name="genres[]" value="{{ g }}" {% if selected_genres|length == 0 or g in selected_genres %}checked{% endif %} class="peer sr-only" />
                     <span class="inline-block select-none rounded-full border-2 border-slate-300 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-700 transition peer-checked:border-accent peer-checked:bg-accent peer-checked:text-white">{{ g }}</span>
                   </label>
                   {% endfor %}
                 </div>
               </section>
             </div>
+          </div>
+
+          <!-- Active Filters Summary -->
+          <div class="mt-6">
+            <div class="text-sm font-semibold text-primary mb-2">Active Filters</div>
+            <div id="activeFilters" class="flex flex-wrap gap-2"></div>
           </div>
 
           <!-- Buttons -->
@@ -204,7 +292,14 @@
           </div>
           <script>
             (function(){
-              const form = document.currentScript?.previousElementSibling?.closest('form') || document.querySelector('form[action="/filtered_movie"][method="post"]');
+              var form = (function(){
+                try {
+                  var s = document.currentScript; if (!s) return null;
+                  var prev = s.previousElementSibling; if (!prev) return null;
+                  var found = prev.closest ? prev.closest('form') : null; if (found) return found;
+                } catch (e) {}
+                return document.querySelector('form[action="/filtered_movie"][method="post"]');
+              })();
               const applyBtn = document.getElementById('applyBtn');
               const status = document.getElementById('filters-status');
               if (form && applyBtn && status) {
@@ -263,6 +358,8 @@
       });
     }
 
+    // Auto-apply disabled: use the Apply button to submit changes.
+
     // Select All genres
     const selectAllChk = document.getElementById('selectAll');
     const genreGrid   = document.querySelector('.genre-grid');
@@ -278,9 +375,231 @@
     }
 
     if (selectAllChk && genreGrid) {
-      selectAllChk.addEventListener('change', (e) => setAllGenres(e.target.checked));
-      genreGrid.addEventListener('change', updateSelectAllState);
+      selectAllChk.addEventListener('change', (e) => {
+        setAllGenres(e.target.checked);
+        updateSelectAllState();
+      });
+      genreGrid.addEventListener('change', () => {
+        updateSelectAllState();
+        renderActiveFilters();
+      });
     }
+
+    // No min/max toggles wiring
+    function wireNoBound(toggleId, inputId, pairedRangeId) {
+      const toggle = document.getElementById(toggleId);
+      const input = document.getElementById(inputId);
+      const pairedRange = pairedRangeId ? document.getElementById(pairedRangeId) : null;
+      if (!toggle || !input) return;
+      function applyState(trigger) {
+        if (toggle.checked) {
+          input.value = '';
+          input.setAttribute('disabled', 'true');
+        } else {
+          input.removeAttribute('disabled');
+        }
+        renderActiveFilters();
+      }
+      toggle.addEventListener('change', () => applyState(false));
+      // Apply initial state on load
+      applyState(false);
+    }
+
+    wireNoBound('score_no_min', 'imdb_score_min', 'score_min_range');
+    wireNoBound('score_no_max', 'imdb_score_max', 'score_max_range');
+    wireNoBound('votes_no_min', 'num_votes_min', 'votes_min_range');
+    wireNoBound('votes_no_max', 'num_votes_max', 'votes_max_range');
+    wireNoBound('year_no_min', 'year_min', 'year_min_range');
+    wireNoBound('year_no_max', 'year_max', 'year_max_range');
+
+    // Dual-range slider wiring + sync with number inputs
+    function clamp(val, min, max) { return Math.max(min, Math.min(max, val)); }
+    function toNum(el) { const v = parseFloat(el.value); return isNaN(v) ? null : v; }
+    function fmtScore(v) { return v.toFixed(1); }
+    function fmtVotes(v) {
+      if (v >= 1000000) return (v/1000000).toFixed(1).replace(/\.0$/,'') + 'M';
+      if (v >= 1000) return (v/1000).toFixed(0) + 'k';
+      return String(v);
+    }
+    function fmtYear(v) { return String(Math.round(v)); }
+
+    function createRangePair({
+      minRangeId, maxRangeId, minInputId, maxInputId,
+      noMinToggleId, noMaxToggleId, min, max, step,
+      labelId, labelPrefix, formatter
+    }) {
+      const rMin = document.getElementById(minRangeId);
+      const rMax = document.getElementById(maxRangeId);
+      const nMin = document.getElementById(minInputId);
+      const nMax = document.getElementById(maxInputId);
+      const tNoMin = document.getElementById(noMinToggleId);
+      const tNoMax = document.getElementById(noMaxToggleId);
+      const label = document.getElementById(labelId);
+      if (!rMin || !rMax || !nMin || !nMax || !label) return;
+
+      function updateLabel() {
+        const noMin = tNoMin && tNoMin.checked;
+        const noMax = tNoMax && tNoMax.checked;
+        const lo = toNum(nMin);
+        const hi = toNum(nMax);
+        const loText = noMin || lo === null ? 'Any' : formatter(lo);
+        const hiText = noMax || hi === null ? 'Any' : formatter(hi);
+        label.textContent = `${labelPrefix}: ${loText} – ${hiText}`;
+      }
+
+      function syncRangesFromNumbers() {
+        const nvMin = toNum(nMin);
+        const nvMax = toNum(nMax);
+        if (nvMin !== null) rMin.value = String(clamp(nvMin, min, max));
+        if (nvMax !== null) rMax.value = String(clamp(nvMax, min, max));
+        updateLabel();
+      }
+
+      function syncNumbersFromRanges() {
+        const rvMin = parseFloat(rMin.value);
+        const rvMax = parseFloat(rMax.value);
+        // Ensure ordering
+        if (rvMin > rvMax) {
+          if (document.activeElement === rMin) {
+            rMax.value = String(rvMin);
+          } else {
+            rMin.value = String(rvMax);
+          }
+        }
+        // If user moves slider while 'No min/max' is set, re-enable that bound
+        if (tNoMin && tNoMin.checked) { tNoMin.checked = false; nMin.removeAttribute('disabled'); }
+        if (tNoMax && tNoMax.checked) { tNoMax.checked = false; nMax.removeAttribute('disabled'); }
+        nMin.value = rMin.value;
+        nMax.value = rMax.value;
+        updateLabel();
+      }
+
+      // Wire events
+      rMin.addEventListener('input', syncNumbersFromRanges);
+      rMax.addEventListener('input', syncNumbersFromRanges);
+      rMin.addEventListener('change', syncNumbersFromRanges);
+      rMax.addEventListener('change', syncNumbersFromRanges);
+      const onNumChange = () => { syncRangesFromNumbers(); };
+      nMin.addEventListener('input', onNumChange);
+      nMin.addEventListener('change', onNumChange);
+      nMax.addEventListener('input', onNumChange);
+      nMax.addEventListener('change', onNumChange);
+
+      // Initial sync and label
+      syncRangesFromNumbers();
+      updateLabel();
+    }
+
+    // Create pairs
+    createRangePair({
+      minRangeId: 'score_min_range', maxRangeId: 'score_max_range',
+      minInputId: 'imdb_score_min', maxInputId: 'imdb_score_max',
+      noMinToggleId: 'score_no_min', noMaxToggleId: 'score_no_max',
+      min: 1, max: 10, step: 0.1, labelId: 'score_range_label', labelPrefix: 'Score', formatter: fmtScore
+    });
+    createRangePair({
+      minRangeId: 'votes_min_range', maxRangeId: 'votes_max_range',
+      minInputId: 'num_votes_min', maxInputId: 'num_votes_max',
+      noMinToggleId: 'votes_no_min', noMaxToggleId: 'votes_no_max',
+      min: 0, max: 2000000, step: 10000, labelId: 'votes_range_label', labelPrefix: 'Votes', formatter: fmtVotes
+    });
+    createRangePair({
+      minRangeId: 'year_min_range', maxRangeId: 'year_max_range',
+      minInputId: 'year_min', maxInputId: 'year_max',
+      noMinToggleId: 'year_no_min', noMaxToggleId: 'year_no_max',
+      min: 1900, max: 2025, step: 1, labelId: 'year_range_label', labelPrefix: 'Year', formatter: fmtYear
+    });
+
+    // Active Filters chips
+    function qs(id) { return document.getElementById(id); }
+    const chipsEl = qs('activeFilters');
+    function clearChips() { if (chipsEl) chipsEl.innerHTML = ''; }
+    function addChip(text, onRemove) {
+      if (!chipsEl) return;
+      const chip = document.createElement('span');
+      chip.className = 'inline-flex items-center gap-1 rounded-full bg-slate-200 text-slate-800 px-3 py-1 text-xs font-medium';
+      chip.textContent = text;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'ml-1 rounded-full bg-slate-300/70 hover:bg-slate-400 px-1 text-[10px] leading-none';
+      btn.setAttribute('aria-label', `Remove ${text}`);
+      btn.textContent = '×';
+      btn.addEventListener('click', () => { onRemove(); renderActiveFilters(); });
+      chip.appendChild(btn);
+      chipsEl.appendChild(chip);
+    }
+
+    function renderActiveFilters() {
+      clearChips();
+      // Score
+      const scoreNoMin = (function(el){ return el ? !!el.checked : false; })(qs('score_no_min'));
+      const scoreNoMax = (function(el){ return el ? !!el.checked : false; })(qs('score_no_max'));
+      const sMin = toNum(qs('imdb_score_min'));
+      const sMax = toNum(qs('imdb_score_max'));
+      if (!scoreNoMin || !scoreNoMax) {
+        var sMinVal = (sMin == null ? 1 : sMin);
+        var sMaxVal = (sMax == null ? 10 : sMax);
+        if (!scoreNoMin) addChip('Score ≥ ' + fmtScore(sMinVal), function(){ var el = qs('score_no_min'); if (el) { el.checked = true; el.dispatchEvent(new Event('change')); }});
+        if (!scoreNoMax) addChip('Score ≤ ' + fmtScore(sMaxVal), function(){ var el = qs('score_no_max'); if (el) { el.checked = true; el.dispatchEvent(new Event('change')); }});
+      }
+      // Votes
+      const votesNoMin = (function(el){ return el ? !!el.checked : false; })(qs('votes_no_min'));
+      const votesNoMax = (function(el){ return el ? !!el.checked : false; })(qs('votes_no_max'));
+      const vMin = toNum(qs('num_votes_min'));
+      const vMax = toNum(qs('num_votes_max'));
+      if (!votesNoMin || !votesNoMax) {
+        var vMinVal = (vMin == null ? 0 : vMin);
+        var vMaxVal = (vMax == null ? 2000000 : vMax);
+        if (!votesNoMin) addChip('Votes ≥ ' + fmtVotes(vMinVal), function(){ var el = qs('votes_no_min'); if (el) { el.checked = true; el.dispatchEvent(new Event('change')); }});
+        if (!votesNoMax) addChip('Votes ≤ ' + fmtVotes(vMaxVal), function(){ var el = qs('votes_no_max'); if (el) { el.checked = true; el.dispatchEvent(new Event('change')); }});
+      }
+      // Year
+      const yearNoMin = (function(el){ return el ? !!el.checked : false; })(qs('year_no_min'));
+      const yearNoMax = (function(el){ return el ? !!el.checked : false; })(qs('year_no_max'));
+      const yMin = toNum(qs('year_min'));
+      const yMax = toNum(qs('year_max'));
+      if (!yearNoMin || !yearNoMax) {
+        var yMinVal = (yMin == null ? 1900 : yMin);
+        var yMaxVal = (yMax == null ? 2025 : yMax);
+        if (!yearNoMin) addChip('Year ≥ ' + fmtYear(yMinVal), function(){ var el = qs('year_no_min'); if (el) { el.checked = true; el.dispatchEvent(new Event('change')); }});
+        if (!yearNoMax) addChip('Year ≤ ' + fmtYear(yMaxVal), function(){ var el = qs('year_no_max'); if (el) { el.checked = true; el.dispatchEvent(new Event('change')); }});
+      }
+      // Language
+      const langSel = document.getElementById('language');
+      if (langSel && langSel.value && langSel.value !== 'any') {
+        var label = (langSel.options && langSel.options[langSel.selectedIndex] && langSel.options[langSel.selectedIndex].text) ? langSel.options[langSel.selectedIndex].text : langSel.value;
+        addChip('Language: ' + label, function(){ langSel.value = 'any'; langSel.dispatchEvent(new Event('change')); });
+      }
+      // Genres
+      document.querySelectorAll('.genre-grid input[type="checkbox"]').forEach(cb => {
+        if (cb.checked) {
+          addChip(cb.value, () => { cb.checked = false; cb.dispatchEvent(new Event('change', { bubbles: true })); });
+        }
+      });
+    }
+
+    // Wire language change
+    const languageSelect = document.getElementById('language');
+    if (languageSelect) {
+      languageSelect.addEventListener('change', () => { renderActiveFilters(); });
+    }
+
+    // Handle Reset button to refresh states
+    const formEl = document.querySelector('form[action="/filtered_movie"][method="post"]');
+    if (formEl) {
+      formEl.addEventListener('reset', () => {
+        setTimeout(() => {
+          // Trigger change on toggles to re-apply disabled states
+          ['score_no_min','score_no_max','votes_no_min','votes_no_max','year_no_min','year_no_max'].forEach(id => {
+            const el = document.getElementById(id); if (el) el.dispatchEvent(new Event('change'));
+          });
+          renderActiveFilters();
+        }, 0);
+      }, false);
+    }
+
+    // Initial render
+    renderActiveFilters();
   </script>
 </body>
 </html>

@@ -24,6 +24,7 @@ import settings
 from logging_config import setup_logging, get_logger
 from middleware import add_correlation_id
 from movie_service import MovieManager
+from scripts.filter_backend import extract_movie_filter_criteria
 from session_auth import ensure_session
 from session_security_enhanced import (
     EnhancedSessionSecurity, 
@@ -530,6 +531,7 @@ def create_app():
     async def set_filters():
         user_id = session.get('user_id')  # Extract user_id from session
         current_filters = session.get('current_filters', {})  # Retrieve current filters from session
+        current_filters_ui = session.get('current_filters_ui', {})  # UI state (toggles)
 
         start_time = time.time()  # Capture start time for operation
         logger.info(f"Starting to set filters for user_id: {user_id} with current filters: {current_filters}. Correlation ID: {g.correlation_id}")
@@ -537,7 +539,7 @@ def create_app():
 
         try:
             # Pass current_filters to the template
-            response = await render_template('set_filters.html', current_filters=current_filters)
+            response = await render_template('set_filters.html', current_filters=current_filters, current_filters_ui=current_filters_ui)
 
             # Log the successful completion and time taken
             elapsed_time = time.time() - start_time
@@ -556,8 +558,27 @@ def create_app():
         user_id = session.get('user_id')  # Extract user_id from session
         form_data = await request.form  # Await the form data
 
-        # Store form data in session for persistence
-        session['current_filters'] = form_data.to_dict()
+        # Normalize and store current filters for UI persistence
+        try:
+            normalized_filters = extract_movie_filter_criteria(form_data)
+            session['current_filters'] = normalized_filters
+        except Exception as e:
+            logger.warning(f"Failed to normalize current filters for session persistence: {e}")
+            session['current_filters'] = form_data.to_dict()
+
+        # Persist UI toggle state so the Set Filters page reflects user intent
+        try:
+            toggles = {
+                'score_no_min': 'score_no_min' in form_data,
+                'score_no_max': 'score_no_max' in form_data,
+                'votes_no_min': 'votes_no_min' in form_data,
+                'votes_no_max': 'votes_no_max' in form_data,
+                'year_no_min':  'year_no_min'  in form_data,
+                'year_no_max':  'year_no_max'  in form_data,
+            }
+            session['current_filters_ui'] = toggles
+        except Exception as e:
+            logger.warning(f"Failed to persist UI toggle state: {e}")
 
         start_time = time.time()  # Capture start time for operation
         logger.info(f"Starting filtering movies for user_id: {user_id} with form data: {form_data}. Correlation ID: {g.correlation_id}")
@@ -690,4 +711,3 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error(f"Application failed to start: {e}")
         sys.exit(1)
-
