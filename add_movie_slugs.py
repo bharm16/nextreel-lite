@@ -48,26 +48,58 @@ async def add_slug_column(pool):
                 """)
                 logger.info("Slug column added to 'title.basics' table.")
 
-async def populate_slugs(pool):
+async def populate_slugs(pool, batch_size=500):
     async with pool.acquire() as conn:
         async with conn.cursor(aiomysql.DictCursor) as cur:
+            # Only fetch movies that don't already have a slug (idempotent)
+            await cur.execute("""
+                SELECT COUNT(*) AS cnt FROM `title.basics`
+                WHERE `slug` IS NULL AND `titleType` = 'movie';
+            """)
+            count_row = await cur.fetchone()
+            total_remaining = count_row['cnt'] if count_row else 0
+            logger.info(f"Found {total_remaining} movies without slugs")
+
+            if total_remaining == 0:
+                logger.info("All movies already have slugs — nothing to do")
+                return
+
             await cur.execute("""
                 SELECT `tconst`, `primaryTitle`, `startYear` FROM `title.basics`
                 WHERE `slug` IS NULL AND `titleType` = 'movie';
             """)
             movies = await cur.fetchall()
             slugs = {}
+            processed = 0
+            batch = []
             for movie in movies:
                 slug = await create_slug(movie['primaryTitle'], movie['startYear'])
                 if slug in slugs:
                     slug += f"-{movie['startYear']}"
                 slugs[slug] = True
-                await cur.execute("""
+                batch.append((f'film/{slug}', movie['tconst']))
+                processed += 1
+
+                if len(batch) >= batch_size:
+                    await cur.executemany("""
+                        UPDATE `title.basics`
+                        SET `slug` = %s
+                        WHERE `tconst` = %s AND `slug` IS NULL;
+                    """, batch)
+                    await conn.commit()
+                    logger.info(f"Progress: {processed}/{total_remaining} slugs added")
+                    batch = []
+
+            # Final batch
+            if batch:
+                await cur.executemany("""
                     UPDATE `title.basics`
                     SET `slug` = %s
-                    WHERE `tconst` = %s;
-                """, (f'film/{slug}', movie['tconst']))
-                logger.info(f"Slug '{slug}' added to movie with tconst: {movie['tconst']}")
+                    WHERE `tconst` = %s AND `slug` IS NULL;
+                """, batch)
+                await conn.commit()
+
+            logger.info(f"Completed: {processed}/{total_remaining} slugs added")
 
 async def main():
     pool = await aiomysql.create_pool(**DB_CONFIG)

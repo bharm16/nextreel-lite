@@ -1,10 +1,30 @@
 import hashlib
+import logging
 import os
 import secrets
+import time
+import uuid
+
 from quart import request, session
 
-SESSION_TOKEN_KEY = "session_token"
-SESSION_FINGERPRINT_KEY = "session_fp"
+from session_keys import (
+    SESSION_TOKEN_KEY,
+    SESSION_FINGERPRINT_KEY,
+    USER_ID_KEY,
+    CREATED_AT_KEY,
+    INITIALIZED_KEY,
+    CRITERIA_KEY,
+)
+
+logger = logging.getLogger(__name__)
+
+DEFAULT_CRITERIA = {
+    "min_year": 1900,
+    "max_year": 2023,
+    "min_rating": 7.0,
+    "genres": ["Action", "Comedy"],
+}
+SESSION_MAX_AGE = 24 * 60 * 60  # 24 hours
 
 
 def generate_session_token() -> str:
@@ -14,7 +34,10 @@ def generate_session_token() -> str:
 
 def generate_fingerprint(user_agent: str, ip: str) -> str:
     """Generate a fingerprint tied to the user agent and IP."""
-    data = f"{user_agent}|{ip}|{os.getenv('FLASK_SECRET_KEY', '')}"
+    secret = os.getenv('FLASK_SECRET_KEY', '')
+    if not secret:
+        logger.warning("FLASK_SECRET_KEY not set — fingerprinting is weakened")
+    data = f"{user_agent}|{ip}|{secret}"
     return hashlib.sha256(data.encode()).hexdigest()
 
 
@@ -30,3 +53,53 @@ def ensure_session() -> None:
         session.clear()
         session[SESSION_TOKEN_KEY] = generate_session_token()
         session[SESSION_FINGERPRINT_KEY] = current_fp
+
+
+async def init_session(movie_manager, metrics_collector=None):
+    """Initialize or refresh the user session.
+
+    If ``EnhancedSessionSecurity`` already created the session token (via its
+    own ``before_request`` handler), this function only ensures the user is
+    registered with the movie manager — it does **not** re-create the session.
+
+    When no token exists yet (e.g. tests or when the enhanced handler is
+    disabled), this function falls back to creating one itself.
+    """
+    from metrics_collector import user_sessions_total
+
+    # If enhanced security already set the token, skip token creation
+    is_new = False
+    if SESSION_TOKEN_KEY not in session:
+        session[SESSION_TOKEN_KEY] = generate_session_token()
+        session[CREATED_AT_KEY] = time.time()
+        is_new = True
+
+    # Ensure a user_id is always present
+    if USER_ID_KEY not in session:
+        session[USER_ID_KEY] = str(uuid.uuid4())
+        is_new = True
+
+    if is_new:
+        logger.info("Created new session for user: %s", session[USER_ID_KEY])
+        await movie_manager.add_user(session[USER_ID_KEY], DEFAULT_CRITERIA)
+        user_sessions_total.inc()
+        if metrics_collector:
+            metrics_collector.track_user_activity(session[USER_ID_KEY])
+
+    # Check session age
+    if CREATED_AT_KEY in session:
+        session_age = time.time() - session[CREATED_AT_KEY]
+        if session_age > SESSION_MAX_AGE:
+            session.clear()
+            session[SESSION_TOKEN_KEY] = generate_session_token()
+            session[USER_ID_KEY] = str(uuid.uuid4())
+            session[CREATED_AT_KEY] = time.time()
+            logger.info("Session expired, created new session")
+
+    # Ensure user is initialised in movie manager
+    user_id = session.get(USER_ID_KEY)
+    if user_id and INITIALIZED_KEY not in session:
+        criteria = session.get(CRITERIA_KEY, DEFAULT_CRITERIA)
+        await movie_manager.add_user(user_id, criteria)
+        session[INITIALIZED_KEY] = True
+        logger.info("Initialized user %s in movie manager", user_id)

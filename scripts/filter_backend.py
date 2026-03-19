@@ -11,13 +11,6 @@ from settings import Config, DatabaseConnectionPool
 from db_utils import DatabaseQueryExecutor
 from .interfaces import MovieFetcher
 
-# Use os.path.dirname to go up one level from the current script's directory
-# Use os.path.dirname to go up one level from the current script's directory
-parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-# Now change the working directory to the parent directory
-os.chdir(parent_dir)
-
 logger = get_logger(__name__)
 
 
@@ -287,14 +280,6 @@ class ImdbRandomMovieFetcher(MovieFetcher):
                 self.use_fulltext = False
                 return await self.fetch_random_movies(criteria, limit)
             raise
-
-    # async def fetch_random_movie(self, criteria):
-    #     base_query = build_base_query()
-    #     parameters = build_parameters(criteria)
-    #     genre_conditions = build_genre_conditions(criteria, parameters)
-    #     full_query = base_query + (
-    #         f" AND ({genre_conditions[0]})" if genre_conditions else "") + " ORDER BY RAND() LIMIT 1"
-    #     return await self.db_query_executor.execute_async_query(full_query, parameters)
 
 
 def extract_movie_filter_criteria(form_data):

@@ -20,47 +20,53 @@ os.chdir(parent_dir)
 logger = get_logger(__name__)
 
 
-async def read_tsv_and_update_database(tsv_file_path, database_pool):
+async def read_tsv_and_update_database(tsv_file_path, database_pool, batch_size=500):
     """
     Reads a TSV file and updates the averageRating and numVotes in the database.
-    Logs each update operation.
+    Uses batch execution for performance.
 
     :param tsv_file_path: Path to the TSV file containing the updates.
     :param database_pool: DatabaseConnectionPool instance for DB operations.
+    :param batch_size: Number of rows per batch commit.
     """
+    if not os.path.isfile(tsv_file_path):
+        logger.error(f"TSV file not found: {tsv_file_path}")
+        return
+
     connection = None
     try:
-        # Establish a database connection from the pool
         connection = await database_pool.get_async_connection()
         logger.info("Successfully connected to database.")
 
+        update_sql = """
+        UPDATE `title.ratings`
+        SET `averageRating` = %s, `numVotes` = %s
+        WHERE `tconst` = %s
+        """
+
         async with connection.cursor() as cursor:
-            # Open the TSV file for reading
             with open(tsv_file_path, 'r', encoding='utf-8') as tsvfile:
                 reader = csv.DictReader(tsvfile, delimiter='\t')
+                batch = []
+                total = 0
+
                 for row in reader:
-                    # Extract data from the current row
-                    tconst = row['tconst']
-                    averageRating = row['averageRating']
-                    numVotes = row['numVotes']
+                    batch.append((row['averageRating'], row['numVotes'], row['tconst']))
 
-                    # Prepare the UPDATE statement
-                    update_sql = """
-                    UPDATE `title.ratings`
-                    SET `averageRating` = %s, `numVotes` = %s
-                    WHERE `tconst` = %s
-                    """
+                    if len(batch) >= batch_size:
+                        await cursor.executemany(update_sql, batch)
+                        await connection.commit()
+                        total += len(batch)
+                        logger.info(f"Committed batch — {total} rows updated so far")
+                        batch = []
 
-                    # Log the update operation
-                    logger.info(
-                        f"Updating {tconst} with averageRating {averageRating} and numVotes {numVotes}."
-                    )
+                # Final batch
+                if batch:
+                    await cursor.executemany(update_sql, batch)
+                    await connection.commit()
+                    total += len(batch)
 
-                    # Execute the update query
-                    await cursor.execute(update_sql, (averageRating, numVotes, tconst))
-
-            await connection.commit()
-            logger.info("Database updated successfully.")
+            logger.info(f"Database updated successfully. Total rows: {total}")
 
     except Exception as e:
         logger.error(f"An error occurred: {e}")
