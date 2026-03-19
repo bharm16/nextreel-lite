@@ -55,20 +55,30 @@ def ensure_session() -> None:
 async def init_session(movie_manager, metrics_collector=None):
     """Initialize or refresh the user session.
 
-    Creates a new session if none exists, expires old sessions, and
-    ensures the user is registered in the movie manager.  Designed to
-    be called from a ``before_request`` handler.
+    If ``EnhancedSessionSecurity`` already created the session token (via its
+    own ``before_request`` handler), this function only ensures the user is
+    registered with the movie manager — it does **not** re-create the session.
+
+    When no token exists yet (e.g. tests or when the enhanced handler is
+    disabled), this function falls back to creating one itself.
     """
     from metrics_collector import user_sessions_total
 
+    # If enhanced security already set the token, skip token creation
+    is_new = False
     if SESSION_TOKEN_KEY not in session:
         session[SESSION_TOKEN_KEY] = generate_session_token()
-        session[USER_ID_KEY] = str(uuid.uuid4())
         session[CREATED_AT_KEY] = time.time()
+        is_new = True
+
+    # Ensure a user_id is always present
+    if USER_ID_KEY not in session:
+        session[USER_ID_KEY] = str(uuid.uuid4())
+        is_new = True
+
+    if is_new:
         logger.info("Created new session for user: %s", session[USER_ID_KEY])
-
         await movie_manager.add_user(session[USER_ID_KEY], DEFAULT_CRITERIA)
-
         user_sessions_total.inc()
         if metrics_collector:
             metrics_collector.track_user_activity(session[USER_ID_KEY])

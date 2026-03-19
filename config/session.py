@@ -38,6 +38,6 @@ class SessionConfig:
     # Redis session backend
     SESSION_TYPE = "redis"
     SESSION_PERMANENT = False
-    SESSION_USE_SIGNER = False
+    SESSION_USE_SIGNER = True
     SESSION_KEY_PREFIX = "session:"
     PERMANENT_SESSION_LIFETIME = 86400  # 24 hours in seconds

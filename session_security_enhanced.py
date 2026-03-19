@@ -129,15 +129,27 @@ class EnhancedSessionSecurity:
     
     def _init_encryption(self):
         """Initialize encryption for sensitive session data"""
-        # Use app secret key to derive encryption key
-        secret = self.app.config.get('SECRET_KEY', 'default-dev-key').encode()
-        
-        # Derive a proper encryption key using PBKDF2
+        secret = self.app.config.get('SECRET_KEY')
+        if not secret:
+            raise RuntimeError(
+                "SECRET_KEY must be set in app config — refusing to start with no key"
+            )
+        secret = secret.encode() if isinstance(secret, str) else secret
+
+        # Use a configurable salt; fall back to a per-deployment env var
+        salt = os.getenv('SESSION_ENCRYPTION_SALT', '').encode() or os.urandom(16)
+        # Persist a generated salt so restarts stay consistent
+        if not os.getenv('SESSION_ENCRYPTION_SALT'):
+            logger.warning(
+                "SESSION_ENCRYPTION_SALT not set — sessions will not survive restarts. "
+                "Set this env var for production deployments."
+            )
+
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
             length=32,
-            salt=b'nextreel-session-salt',  # In production, use unique salt
-            iterations=100000,
+            salt=salt,
+            iterations=600_000,
         )
         key = base64.urlsafe_b64encode(kdf.derive(secret))
         self.encryption_key = Fernet(key)

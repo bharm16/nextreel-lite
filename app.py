@@ -59,7 +59,7 @@ def create_app():
         raise RuntimeError("Failed to validate required secrets. Check logs for details.")
 
     app = FixedQuart(__name__)
-    app.config.from_object(settings.Config)
+    app.config.from_object(settings.Config())
 
     # Initialize enhanced session security
     session_security = EnhancedSessionSecurity(app)
@@ -133,8 +133,12 @@ def create_app():
                 "Request Size: %s bytes. Correlation ID: %s", req_size, g.correlation_id
             )
         except Exception as e:
-            logger.error(f"Error in session management: {e}")
-            pass
+            logger.error(f"Error in session management: {e}", exc_info=True)
+            # Let the request proceed without a session rather than crashing,
+            # but surface the error clearly so it can be investigated.
+            # Critical auth failures should still propagate.
+            if isinstance(e, RuntimeError):
+                raise
 
     @app.after_request
     async def set_security_headers(response):

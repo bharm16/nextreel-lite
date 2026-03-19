@@ -488,25 +488,56 @@ class SecureConnectionPool:
                 logger.error(f"Health monitor error: {e}")
 
     async def _connection_cleanup(self):
-        """Clean up idle and old connections"""
+        """Clean up idle and old connections.
+
+        Checked-out connections that exceed idle_timeout or pool_recycle are
+        logged as warnings (they'll be cleaned up when released).  Additionally,
+        the underlying aiomysql pool is asked to release free connections that
+        are no longer needed to stay above min_size.
+        """
         while not self._shutdown:
             try:
                 await asyncio.sleep(30)  # Run every 30 seconds
 
-                # Clean up idle connections
-                now = datetime.now()
+                stale_ids = []
                 for conn_id, metadata in list(self.connections.items()):
-                    # Check idle timeout
                     if metadata.idle_seconds() > self.config.idle_timeout:
-                        logger.info(f"Closing idle connection {metadata.connection_id}")
-                        # Connection will be cleaned up when released
+                        logger.warning(
+                            "Connection %s checked out for %.0fs (idle timeout %ds) — "
+                            "will be recycled on release",
+                            metadata.connection_id,
+                            metadata.idle_seconds(),
+                            self.config.idle_timeout,
+                        )
+                        stale_ids.append(conn_id)
 
-                    # Check max age (pool_recycle)
                     if metadata.age_seconds() > self.config.pool_recycle:
-                        logger.info(
-                            f"Recycling old connection {metadata.connection_id}"
+                        logger.warning(
+                            "Connection %s age %.0fs exceeds pool_recycle %ds",
+                            metadata.connection_id,
+                            metadata.age_seconds(),
+                            self.config.pool_recycle,
                         )
                         self.metrics["connections_recycled"] += 1
+                        stale_ids.append(conn_id)
+
+                # Shrink pool free list: close excess free connections above min_size
+                if self.pool and hasattr(self.pool, 'freesize') and hasattr(self.pool, 'minsize'):
+                    excess = self.pool.freesize - self.pool.minsize
+                    closed = 0
+                    while excess > 0 and self.pool.freesize > self.pool.minsize:
+                        try:
+                            conn = await asyncio.wait_for(
+                                self.pool.acquire(), timeout=1.0,
+                            )
+                            conn.close()
+                            self.metrics["connections_closed"] += 1
+                            excess -= 1
+                            closed += 1
+                        except Exception:
+                            break
+                    if closed:
+                        logger.info("Closed %d excess free connections", closed)
 
             except asyncio.CancelledError:
                 break
@@ -530,7 +561,7 @@ class SecureConnectionPool:
             return True
 
         if self.circuit_breaker_last_failure:
-            elapsed = (datetime.now() - self.circuit_breaker_last_failure).seconds
+            elapsed = (datetime.now() - self.circuit_breaker_last_failure).total_seconds()
             if elapsed > self.config.circuit_breaker_timeout:
                 self.circuit_breaker_state = "half-open"
                 logger.info("Circuit breaker entering half-open state")

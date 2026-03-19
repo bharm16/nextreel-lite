@@ -173,11 +173,13 @@ class SecureCacheManager:
     
     def _derive_encryption_key(self, secret: str) -> bytes:
         """Derive encryption key from secret"""
+        import os as _os
+        salt = _os.getenv('CACHE_ENCRYPTION_SALT', '').encode() or b'nextreel-cache-v1'
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
             length=32,
-            salt=b'nextreel-cache-v1',
-            iterations=100000,
+            salt=salt,
+            iterations=600_000,
         )
         key = base64.urlsafe_b64encode(kdf.derive(secret.encode()))
         return key

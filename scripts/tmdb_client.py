@@ -30,14 +30,18 @@ logger = get_logger(__name__)
 
 
 class TMDbHelper:
+    # Semaphore shared across all instances to respect TMDb rate limits (~40 req/s)
+    _rate_semaphore = asyncio.Semaphore(30)
+
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or get_tmdb_api_key()
         tmdb.API_KEY = self.api_key
         self.base_url = TMDB_API_BASE_URL
         self.image_base_url = TMDB_IMAGE_BASE_URL
+        self._max_retries = 3
         # Create reusable client with optimized timeouts
         self._client = httpx.AsyncClient(
-            timeout=httpx.Timeout(10.0, connect=3.0),  # Faster timeouts
+            timeout=httpx.Timeout(10.0, connect=3.0),
             limits=httpx.Limits(
                 max_keepalive_connections=20,
                 max_connections=50,
@@ -48,42 +52,64 @@ class TMDbHelper:
     async def _get(self, endpoint, params=None):
         if params is None:
             params = {}
-        start_time = time.time()  # Start timing
 
-        try:
-            url = f"{self.base_url}/{endpoint}"
-            params["api_key"] = self.api_key
-            # logger.info(f"Sending GET request to {url} with params: {params}")
-            response = await self._client.get(url, params=params)
-            response.raise_for_status()  # Will raise an exception for 4XX/5XX responses
+        url = f"{self.base_url}/{endpoint}"
+        params["api_key"] = self.api_key
 
-            elapsed_time = time.time() - start_time
-            logger.debug(
-                "Received response from %s in %.2f seconds. Status code: %s",
-                url,
-                elapsed_time,
-                response.status_code,
-            )
+        for attempt in range(self._max_retries + 1):
+            start_time = time.time()
+            try:
+                async with self._rate_semaphore:
+                    response = await self._client.get(url, params=params)
 
-            return response.json()
-        except httpx.HTTPStatusError as e:
-            elapsed_time = time.time() - start_time
-            logger.error(
-                f"HTTP error occurred while accessing {url}: {e}; Time elapsed: {elapsed_time:.2f} seconds"
-            )
-            raise
-        except httpx.RequestError as e:
-            elapsed_time = time.time() - start_time
-            logger.error(
-                f"Request error occurred while accessing {url}: {e}; Time elapsed: {elapsed_time:.2f} seconds"
-            )
-            raise
-        except Exception as e:
-            elapsed_time = time.time() - start_time
-            logger.error(
-                f"Unexpected error occurred while accessing {url}: {e}; Time elapsed: {elapsed_time:.2f} seconds"
-            )
-            raise
+                if response.status_code == 429:
+                    retry_after = float(response.headers.get("Retry-After", 1))
+                    wait = min(retry_after, 10)
+                    logger.warning(
+                        "TMDb rate limited (429). Retry-After: %.1fs (attempt %d/%d)",
+                        wait, attempt + 1, self._max_retries,
+                    )
+                    if attempt < self._max_retries:
+                        await asyncio.sleep(wait)
+                        continue
+                    response.raise_for_status()
+
+                response.raise_for_status()
+
+                elapsed_time = time.time() - start_time
+                logger.debug(
+                    "Received response from %s in %.2f seconds. Status code: %s",
+                    url, elapsed_time, response.status_code,
+                )
+                return response.json()
+
+            except httpx.RequestError as e:
+                elapsed_time = time.time() - start_time
+                if attempt < self._max_retries:
+                    backoff = 2 ** attempt
+                    logger.warning(
+                        "TMDb request error (attempt %d/%d): %s. Retrying in %ds",
+                        attempt + 1, self._max_retries, e, backoff,
+                    )
+                    await asyncio.sleep(backoff)
+                    continue
+                logger.error(
+                    "TMDb request failed after %d attempts: %s; Time elapsed: %.2fs",
+                    self._max_retries + 1, e, elapsed_time,
+                )
+                raise
+            except httpx.HTTPStatusError as e:
+                elapsed_time = time.time() - start_time
+                logger.error(
+                    "HTTP error from %s: %s; Time elapsed: %.2fs", url, e, elapsed_time,
+                )
+                raise
+            except Exception as e:
+                elapsed_time = time.time() - start_time
+                logger.error(
+                    "Unexpected error from %s: %s; Time elapsed: %.2fs", url, e, elapsed_time,
+                )
+                raise
 
     async def get_watch_providers_by_tmdb_id(self, tmdb_id, region="US"):
         """Get watch providers for a movie from TMDB."""
@@ -280,7 +306,9 @@ class TMDbHelper:
 
     async def get_backdrop_for_movie(self, tmdb_id):
         all_backdrop_urls = await self.get_all_backdrop_images(tmdb_id)
-        return random.choice(all_backdrop_urls) if all_backdrop_urls else None
+        if not all_backdrop_urls:
+            return None
+        return random.choice(all_backdrop_urls)
     
     async def close(self):
         """Close the HTTP client"""

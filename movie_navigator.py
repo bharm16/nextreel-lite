@@ -14,6 +14,9 @@ from session_keys import (
 logger = get_logger(__name__)
 
 
+MAX_PREV_STACK_SIZE = 50  # Cap history to prevent unbounded session growth
+
+
 class MovieNavigator:
     """Manages prev/next navigation and session-based movie stacks."""
 
@@ -31,7 +34,11 @@ class MovieNavigator:
         seen = set(session.get(SEEN_TCONSTS_KEY, []))
         if tconst:
             seen.add(tconst)
-        session[SEEN_TCONSTS_KEY] = list(seen)
+        # Cap the seen set to prevent unbounded session growth
+        seen_list = list(seen)
+        if len(seen_list) > MAX_PREV_STACK_SIZE * 2:
+            seen_list = seen_list[-(MAX_PREV_STACK_SIZE * 2):]
+        session[SEEN_TCONSTS_KEY] = seen_list
 
     async def _load_movies_into_queue(self):
         from scripts.movie import Movie
@@ -97,6 +104,9 @@ class MovieNavigator:
         previous = session.get(CURRENT_MOVIE_KEY)
         if previous and current_movie != previous:
             prev_stack.append(previous)
+            # Trim oldest entries to cap session size
+            if len(prev_stack) > MAX_PREV_STACK_SIZE:
+                prev_stack = prev_stack[-MAX_PREV_STACK_SIZE:]
 
         session[CURRENT_MOVIE_KEY] = current_movie
         session[PREVIOUS_STACK_KEY] = prev_stack

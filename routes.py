@@ -6,10 +6,14 @@ The ``movie_manager`` and ``metrics_collector`` instances are injected by
 ``create_app()`` through ``init_routes()``.
 """
 
+import asyncio
 import time
 import uuid
 
 from quart import Blueprint, request, redirect, url_for, session, render_template, g
+
+# Maximum time (seconds) a route handler will wait for backend operations
+_REQUEST_TIMEOUT = 30
 
 from logging_config import get_logger
 from metrics_collector import (
@@ -111,9 +115,16 @@ async def movie_detail(tconst):
         user_id,
         g.correlation_id,
     )
-    return await _movie_manager.render_movie_by_tconst(
-        user_id, tconst, template_name="movie.html"
-    )
+    try:
+        return await asyncio.wait_for(
+            _movie_manager.render_movie_by_tconst(
+                user_id, tconst, template_name="movie.html"
+            ),
+            timeout=_REQUEST_TIMEOUT,
+        )
+    except asyncio.TimeoutError:
+        logger.error("Timeout rendering movie %s", tconst)
+        return "Request timed out. Please try again.", 504
 
 
 @bp.route("/")
@@ -132,7 +143,14 @@ async def next_movie():
     _metrics_collector.track_movie_recommendation("next_movie")
     user_actions_total.labels(action_type="next_movie").inc()
 
-    response = await _movie_manager.next_movie(user_id)
+    try:
+        response = await asyncio.wait_for(
+            _movie_manager.next_movie(user_id), timeout=_REQUEST_TIMEOUT,
+        )
+    except asyncio.TimeoutError:
+        logger.error("Timeout fetching next movie. Correlation ID: %s", g.correlation_id)
+        return "Request timed out. Please try again.", 504
+
     if response:
         return response
 
@@ -195,12 +213,17 @@ async def filtered_movie_endpoint():
     )
 
     try:
-        response = await _movie_manager.filtered_movie(user_id, form_data)
+        response = await asyncio.wait_for(
+            _movie_manager.filtered_movie(user_id, form_data), timeout=_REQUEST_TIMEOUT,
+        )
         elapsed_time = time.time() - start_time
         logger.info(
             f"Completed filtering movies for user_id: {user_id} in {elapsed_time:.2f} seconds. Correlation ID: {g.correlation_id}"
         )
         return response
+    except asyncio.TimeoutError:
+        logger.error(f"Timeout filtering movies for user_id: {user_id}")
+        return "Request timed out. Please try again.", 504
     except Exception as e:
         logger.error(f"Error filtering movies for user_id: {user_id}, Error: {e}")
         raise
