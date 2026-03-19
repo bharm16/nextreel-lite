@@ -7,10 +7,16 @@ import uuid
 
 from quart import request, session
 
-logger = logging.getLogger(__name__)
+from session_keys import (
+    SESSION_TOKEN_KEY,
+    SESSION_FINGERPRINT_KEY,
+    USER_ID_KEY,
+    CREATED_AT_KEY,
+    INITIALIZED_KEY,
+    CRITERIA_KEY,
+)
 
-SESSION_TOKEN_KEY = "session_token"
-SESSION_FINGERPRINT_KEY = "session_fp"
+logger = logging.getLogger(__name__)
 
 DEFAULT_CRITERIA = {
     "min_year": 1900,
@@ -55,32 +61,32 @@ async def init_session(movie_manager, metrics_collector=None):
     """
     from metrics_collector import user_sessions_total
 
-    if "session_token" not in session:
-        session["session_token"] = generate_session_token()
-        session["user_id"] = str(uuid.uuid4())
-        session["created_at"] = time.time()
-        logger.info("Created new session for user: %s", session["user_id"])
+    if SESSION_TOKEN_KEY not in session:
+        session[SESSION_TOKEN_KEY] = generate_session_token()
+        session[USER_ID_KEY] = str(uuid.uuid4())
+        session[CREATED_AT_KEY] = time.time()
+        logger.info("Created new session for user: %s", session[USER_ID_KEY])
 
-        await movie_manager.add_user(session["user_id"], DEFAULT_CRITERIA)
+        await movie_manager.add_user(session[USER_ID_KEY], DEFAULT_CRITERIA)
 
         user_sessions_total.inc()
         if metrics_collector:
-            metrics_collector.track_user_activity(session["user_id"])
+            metrics_collector.track_user_activity(session[USER_ID_KEY])
 
     # Check session age
-    if "created_at" in session:
-        session_age = time.time() - session["created_at"]
+    if CREATED_AT_KEY in session:
+        session_age = time.time() - session[CREATED_AT_KEY]
         if session_age > SESSION_MAX_AGE:
             session.clear()
-            session["session_token"] = generate_session_token()
-            session["user_id"] = str(uuid.uuid4())
-            session["created_at"] = time.time()
+            session[SESSION_TOKEN_KEY] = generate_session_token()
+            session[USER_ID_KEY] = str(uuid.uuid4())
+            session[CREATED_AT_KEY] = time.time()
             logger.info("Session expired, created new session")
 
     # Ensure user is initialised in movie manager
-    user_id = session.get("user_id")
-    if user_id and "initialized" not in session:
-        criteria = session.get("criteria", DEFAULT_CRITERIA)
+    user_id = session.get(USER_ID_KEY)
+    if user_id and INITIALIZED_KEY not in session:
+        criteria = session.get(CRITERIA_KEY, DEFAULT_CRITERIA)
         await movie_manager.add_user(user_id, criteria)
-        session["initialized"] = True
+        session[INITIALIZED_KEY] = True
         logger.info("Initialized user %s in movie manager", user_id)

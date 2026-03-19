@@ -22,6 +22,7 @@ from logging_config import setup_logging, get_logger
 from middleware import add_correlation_id
 from movie_service import MovieManager
 from session_auth import ensure_session, generate_session_token, init_session
+from session_keys import USER_ID_KEY
 from session_security_enhanced import (
     EnhancedSessionSecurity,
     add_security_headers,
@@ -142,7 +143,7 @@ def create_app():
             if elapsed > 1.0:
                 logger.warning(
                     f"Slow request: {request.endpoint} took {elapsed:.2f}s "
-                    f"(user: {session.get('user_id')}, correlation: {g.get('correlation_id')})"
+                    f"(user: {session.get(USER_ID_KEY)}, correlation: {g.get('correlation_id')})"
                 )
             response.headers['X-Response-Time'] = f"{elapsed:.3f}"
 
@@ -299,7 +300,7 @@ def create_app():
 
 
 def get_current_user_id():
-    user_id = session.get('user_id')
+    user_id = session.get(USER_ID_KEY)
     return user_id
 
 

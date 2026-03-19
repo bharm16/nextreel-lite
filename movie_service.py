@@ -14,6 +14,9 @@ from scripts.filter_backend import (
 from scripts.tmdb_client import TMDbHelper
 from movie_navigator import MovieNavigator
 from movie_renderer import MovieRenderer
+from session_keys import (
+    CRITERIA_KEY, reset_movie_stacks, init_movie_stacks,
+)
 
 logger = get_logger(__name__)
 
@@ -70,11 +73,7 @@ class MovieManager:
         criteria (dict): Criteria to filter movies for the user.
         """
         logger.info(f"Adding new user with ID: {user_id} and criteria: {criteria}")
-        session.setdefault("criteria", criteria)
-        session.setdefault("watch_queue", [])
-        session.setdefault("previous_movies_stack", [])
-        session.setdefault("future_movies_stack", [])
-        session.setdefault("seen_tconsts", [])
+        init_movie_stacks(criteria)
         await self._load_movies_into_queue()
 
     async def home(self, user_id):
@@ -120,6 +119,9 @@ class MovieManager:
     async def _ensure_queue(self):
         return await self._navigator._ensure_queue()
 
+    def get_current_movie_tconst(self):
+        return self._navigator.get_current_movie_tconst()
+
     async def get_movie_by_slug(self, user_id, slug):
         return await self._navigator.get_movie_by_slug(user_id, slug)
 
@@ -131,25 +133,15 @@ class MovieManager:
 
     async def set_filters(self, user_id):
         logger.info(f"Setting filters for user_id: {user_id}")
-
-        session["watch_queue"] = []
-        session["previous_movies_stack"] = []
-        session["future_movies_stack"] = []
-        session["seen_tconsts"] = []
-        session.pop("current_movie", None)
-
+        reset_movie_stacks()
         return await render_template("set_filters.html")
 
     async def filtered_movie(self, user_id, form_data):
         logger.info(f"Starting filtering process for user_id: {user_id}")
 
         new_criteria = extract_movie_filter_criteria(form_data)
-        session["criteria"] = new_criteria
-        session["watch_queue"] = []
-        session["previous_movies_stack"] = []
-        session["future_movies_stack"] = []
-        session["seen_tconsts"] = []
-        session.pop("current_movie", None)
+        session[CRITERIA_KEY] = new_criteria
+        reset_movie_stacks()
 
         await self._load_movies_into_queue()
 

@@ -6,6 +6,10 @@ import time
 from quart import redirect, url_for, session
 
 from logging_config import get_logger
+from session_keys import (
+    PREVIOUS_STACK_KEY, FUTURE_STACK_KEY, SEEN_TCONSTS_KEY,
+    WATCH_QUEUE_KEY, CRITERIA_KEY, QUEUE_SIZE_KEY, CURRENT_MOVIE_KEY,
+)
 
 logger = get_logger(__name__)
 
@@ -19,21 +23,21 @@ class MovieNavigator:
         self.queue_size = queue_size
 
     def _get_user_stacks(self):
-        prev_stack = session.setdefault("previous_movies_stack", [])
-        future_stack = session.setdefault("future_movies_stack", [])
+        prev_stack = session.setdefault(PREVIOUS_STACK_KEY, [])
+        future_stack = session.setdefault(FUTURE_STACK_KEY, [])
         return prev_stack, future_stack
 
     def _mark_movie_seen(self, tconst):
-        seen = set(session.get("seen_tconsts", []))
+        seen = set(session.get(SEEN_TCONSTS_KEY, []))
         if tconst:
             seen.add(tconst)
-        session["seen_tconsts"] = list(seen)
+        session[SEEN_TCONSTS_KEY] = list(seen)
 
     async def _load_movies_into_queue(self):
         from scripts.movie import Movie
 
-        queue = session.setdefault("watch_queue", [])
-        criteria = session.get("criteria", {})
+        queue = session.setdefault(WATCH_QUEUE_KEY, [])
+        criteria = session.get(CRITERIA_KEY, {})
         limit = self.queue_size - len(queue)
         if limit <= 0:
             return
@@ -64,19 +68,19 @@ class MovieNavigator:
                     elif original_lang == desired_lang or desired_lang in spoken_langs:
                         queue.append(movie_data)
 
-                if len(queue) >= session.get("queue_size", self.queue_size):
+                if len(queue) >= session.get(QUEUE_SIZE_KEY, self.queue_size):
                     break
 
-        session["watch_queue"] = queue
+        session[WATCH_QUEUE_KEY] = queue
 
     async def _ensure_queue(self):
-        queue = session.get("watch_queue", [])
+        queue = session.get(WATCH_QUEUE_KEY, [])
         if not queue:
             await self._load_movies_into_queue()
 
     async def next_movie(self, user_id):
         prev_stack, future_stack = self._get_user_stacks()
-        queue = session.setdefault("watch_queue", [])
+        queue = session.setdefault(WATCH_QUEUE_KEY, [])
 
         current_movie = None
 
@@ -86,18 +90,18 @@ class MovieNavigator:
             current_movie = queue.pop(0)
         else:
             await self._load_movies_into_queue()
-            queue = session.get("watch_queue", [])
+            queue = session.get(WATCH_QUEUE_KEY, [])
             if queue:
                 current_movie = queue.pop(0)
 
-        previous = session.get("current_movie")
+        previous = session.get(CURRENT_MOVIE_KEY)
         if previous and current_movie != previous:
             prev_stack.append(previous)
 
-        session["current_movie"] = current_movie
-        session["previous_movies_stack"] = prev_stack
-        session["future_movies_stack"] = future_stack
-        session["watch_queue"] = queue
+        session[CURRENT_MOVIE_KEY] = current_movie
+        session[PREVIOUS_STACK_KEY] = prev_stack
+        session[FUTURE_STACK_KEY] = future_stack
+        session[WATCH_QUEUE_KEY] = queue
 
         if current_movie:
             tconst = current_movie.get("imdb_id")
@@ -115,14 +119,14 @@ class MovieNavigator:
             logger.info(f"No previous movies available for user_id: {user_id}")
             return None
 
-        current_movie = session.get("current_movie")
+        current_movie = session.get(CURRENT_MOVIE_KEY)
         if current_movie:
             future_stack.append(current_movie)
 
         previous_movie = prev_stack.pop()
-        session["current_movie"] = previous_movie
-        session["previous_movies_stack"] = prev_stack
-        session["future_movies_stack"] = future_stack
+        session[CURRENT_MOVIE_KEY] = previous_movie
+        session[PREVIOUS_STACK_KEY] = prev_stack
+        session[FUTURE_STACK_KEY] = future_stack
 
         tconst = previous_movie.get("imdb_id")
         if tconst:
@@ -132,6 +136,13 @@ class MovieNavigator:
             logger.error(f"Previous movie missing imdb_id for user_id: {user_id}")
             return None
 
+    def get_current_movie_tconst(self):
+        """Return the tconst of the currently displayed movie, or None."""
+        current = session.get(CURRENT_MOVIE_KEY)
+        if current:
+            return current.get("imdb_id")
+        return None
+
     async def get_movie_by_slug(self, user_id, slug):
         prev_stack, future_stack = self._get_user_stacks()
 
@@ -139,7 +150,7 @@ class MovieNavigator:
             if movie.get("slug") == slug:
                 return movie
 
-        current_movie = session.get("current_movie")
+        current_movie = session.get(CURRENT_MOVIE_KEY)
         if current_movie and current_movie.get("slug") == slug:
             return current_movie
 
@@ -147,7 +158,7 @@ class MovieNavigator:
             if movie.get("slug") == slug:
                 return movie
 
-        for movie in session.get("watch_queue", []):
+        for movie in session.get(WATCH_QUEUE_KEY, []):
             if movie.get("slug") == slug:
                 return movie
 

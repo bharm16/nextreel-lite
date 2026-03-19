@@ -17,6 +17,7 @@ from metrics_collector import (
     user_sessions_total,
     user_actions_total,
 )
+from session_keys import USER_ID_KEY, CURRENT_FILTERS_KEY
 
 logger = get_logger(__name__)
 
@@ -103,7 +104,7 @@ async def readiness_check():
 
 @bp.route("/movie/<tconst>")
 async def movie_detail(tconst):
-    user_id = session.get("user_id")
+    user_id = session.get(USER_ID_KEY)
     logger.debug(
         "Fetching movie details for tconst: %s, user_id: %s. Correlation ID: %s",
         tconst,
@@ -117,13 +118,13 @@ async def movie_detail(tconst):
 
 @bp.route("/")
 async def home():
-    user_id = session.get("user_id")
+    user_id = session.get(USER_ID_KEY)
     return await _movie_manager.home(user_id)
 
 
 @bp.route("/next_movie", methods=["GET", "POST"])
 async def next_movie():
-    user_id = session.get("user_id")
+    user_id = session.get(USER_ID_KEY)
     logger.info(
         f"Requesting next movie for user_id: {user_id}. Correlation ID: {g.correlation_id}"
     )
@@ -141,18 +142,16 @@ async def next_movie():
 
 @bp.route("/previous_movie", methods=["GET", "POST"])
 async def previous_movie():
-    user_id = session.get("user_id")
+    user_id = session.get(USER_ID_KEY)
     logger.info(
         f"Requesting previous movie for user_id: {user_id}. Correlation ID: {g.correlation_id}"
     )
     response = await _movie_manager.previous_movie(user_id)
 
     if response is None:
-        current_movie = session.get("current_movie")
-        if current_movie and current_movie.get("imdb_id"):
-            return redirect(
-                url_for("main.movie_detail", tconst=current_movie.get("imdb_id"))
-            )
+        tconst = _movie_manager.get_current_movie_tconst()
+        if tconst:
+            return redirect(url_for("main.movie_detail", tconst=tconst))
         else:
             return redirect(url_for("main.home"))
 
@@ -161,8 +160,8 @@ async def previous_movie():
 
 @bp.route("/setFilters")
 async def set_filters():
-    user_id = session.get("user_id")
-    current_filters = session.get("current_filters", {})
+    user_id = session.get(USER_ID_KEY)
+    current_filters = session.get(CURRENT_FILTERS_KEY, {})
 
     start_time = time.time()
     logger.info(
@@ -185,10 +184,10 @@ async def set_filters():
 
 @bp.route("/filtered_movie", methods=["POST"])
 async def filtered_movie_endpoint():
-    user_id = session.get("user_id")
+    user_id = session.get(USER_ID_KEY)
     form_data = await request.form
 
-    session["current_filters"] = form_data.to_dict()
+    session[CURRENT_FILTERS_KEY] = form_data.to_dict()
 
     start_time = time.time()
     logger.info(
@@ -210,7 +209,7 @@ async def filtered_movie_endpoint():
 @bp.route("/handle_new_user")
 async def handle_new_user():
     user_id = session.get("user_id", str(uuid.uuid4()))
-    session["user_id"] = user_id
+    session[USER_ID_KEY] = user_id
     criteria = {
         "min_year": 1900,
         "max_year": 2023,

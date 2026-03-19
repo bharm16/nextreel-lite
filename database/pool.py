@@ -19,13 +19,15 @@ class DatabaseConnectionPool:
     """Wrapper for backward compatibility with secure pool"""
 
     def __init__(self, db_config):
-        from settings import Config, flask_env
+        from config.database import DatabaseConfig
+
+        flask_env = os.getenv("FLASK_ENV", "development")
 
         # Convert to secure pool config
         validate_ssl = os.getenv("VALIDATE_SSL", "false").lower() == "true"
         ssl_cert = (
-            Config.get_ssl_cert_path()
-            if validate_ssl and hasattr(Config, "get_ssl_cert_path")
+            DatabaseConfig.get_ssl_cert_path()
+            if validate_ssl
             else None
         )
         self.secure_config = SecurePoolConfig(
@@ -45,9 +47,7 @@ class DatabaseConnectionPool:
             max_queries_per_minute=int(os.getenv("MAX_QUERIES_PER_MIN", 5000)),
             max_queries_per_user_minute=int(os.getenv("MAX_USER_QUERIES_PER_MIN", 500)),
             ssl_cert_path=ssl_cert,
-            use_ssl=Config.use_ssl()
-            if hasattr(Config, "use_ssl")
-            else (flask_env == "production"),
+            use_ssl=DatabaseConfig.use_ssl(),
             validate_ssl=validate_ssl,
             slow_query_threshold=float(os.getenv("SLOW_QUERY_THRESHOLD", 1.0)),
         )
@@ -102,9 +102,9 @@ async def init_pool():
     """Initialize the global database connection pool."""
     global _pool
     if _pool is None:
-        from settings import Config
+        from config.database import DatabaseConfig
 
-        db_config = Config.get_db_config()
+        db_config = DatabaseConfig.get_db_config()
         _pool = DatabaseConnectionPool(db_config)
         await _pool.init_pool()
         logger.info("Global database pool initialized")

@@ -43,15 +43,18 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Session configuration constants
-SESSION_TOKEN_KEY = "session_token"
-SESSION_FINGERPRINT_KEY = "session_fp"
-SESSION_CREATED_KEY = "session_created"
-SESSION_LAST_ACTIVITY_KEY = "session_last_activity"
-SESSION_ROTATION_COUNT_KEY = "session_rotation_count"
-SESSION_NONCE_KEY = "session_nonce"
-SESSION_DEVICE_ID_KEY = "session_device_id"
-SESSION_SECURITY_LEVEL_KEY = "session_security_level"
+# Import session constants from the centralized module.
+from session_keys import (
+    SESSION_TOKEN_KEY,
+    SESSION_FINGERPRINT_KEY,
+    SESSION_CREATED_KEY,
+    SESSION_LAST_ACTIVITY_KEY,
+    SESSION_ROTATION_COUNT_KEY,
+    SESSION_NONCE_KEY,
+    SESSION_DEVICE_ID_KEY,
+    SESSION_SECURITY_LEVEL_KEY,
+    FINGERPRINT_COMPONENTS_KEY,
+)
 
 # Enhanced security settings
 SESSION_TIMEOUT_MINUTES = int(os.getenv('SESSION_TIMEOUT_MINUTES', 30))
@@ -297,7 +300,7 @@ class EnhancedSessionSecurity:
             
             if stored_fp != current_fp:
                 # Check similarity for minor changes (e.g., IP change on mobile)
-                stored_components = session.get('fingerprint_components', {})
+                stored_components = session.get(FINGERPRINT_COMPONENTS_KEY, {})
                 similarity = self.calculate_fingerprint_similarity(
                     stored_components, 
                     current_components
@@ -372,7 +375,7 @@ class EnhancedSessionSecurity:
         session[SESSION_ROTATION_COUNT_KEY] = 0
         session[SESSION_NONCE_KEY] = nonce
         session[SESSION_SECURITY_LEVEL_KEY] = security_level
-        session['fingerprint_components'] = fp_components  # Store for tolerance checking
+        session[FINGERPRINT_COMPONENTS_KEY] = fp_components  # Store for tolerance checking
         
         # Create session data object
         session_data = SessionData(

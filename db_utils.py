@@ -131,8 +131,8 @@ class DatabaseQueryExecutor:
 
 
 async def init_pool():
-    db_pool = DatabaseConnectionPool(Config.get_db_config())
-    await db_pool.init_pool()
+    from database.pool import init_pool as _init_global_pool
+    db_pool = await _init_global_pool()
     logger.info("Database connection pool initialized.")
     return db_pool
 

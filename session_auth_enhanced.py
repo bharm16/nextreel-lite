@@ -11,12 +11,15 @@ import base64
 from quart import request, session, current_app
 from werkzeug.exceptions import Unauthorized
 
-# Session configuration constants
-SESSION_TOKEN_KEY = "session_token"
-SESSION_FINGERPRINT_KEY = "session_fp"
-SESSION_CREATED_KEY = "session_created"
-SESSION_LAST_ACTIVITY_KEY = "session_last_activity"
-SESSION_ROTATION_COUNT_KEY = "session_rotation_count"
+# Import session constants from the centralized module.
+# Re-exported here for backward compatibility with tests.
+from session_keys import (
+    SESSION_TOKEN_KEY,
+    SESSION_FINGERPRINT_KEY,
+    SESSION_CREATED_KEY,
+    SESSION_LAST_ACTIVITY_KEY,
+    SESSION_ROTATION_COUNT_KEY,
+)
 
 # Security settings
 SESSION_TIMEOUT_MINUTES = 30  # Absolute timeout

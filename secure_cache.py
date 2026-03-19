@@ -610,8 +610,9 @@ def cache_response(ttl=60, namespace=CacheNamespace.API):
         @wraps(f)
         async def wrapper(*args, **kwargs):
             from quart import current_app, request, session as _session
+            from session_keys import USER_ID_KEY
 
-            user_id = _session.get("user_id", "anonymous")
+            user_id = _session.get(USER_ID_KEY, "anonymous")
             cache_key = f"{request.endpoint}:{request.args}:{user_id}"
             cache_key = _hashlib.md5(cache_key.encode()).hexdigest()
 
