@@ -2,15 +2,16 @@
 """Test the actual query that's timing out."""
 
 import asyncio
+import os
 import aiomysql
 import time
 
 async def test_problem_query():
     conn = await aiomysql.connect(
-        host='localhost',
-        user='root', 
-        password='caching_sha2_password',
-        db='imdb',
+        host=os.getenv('DB_HOST', 'localhost'),
+        user=os.getenv('DB_USER', 'root'),
+        password=os.getenv('DB_PASSWORD', ''),
+        db=os.getenv('DB_NAME', 'imdb'),
         autocommit=True
     )
     

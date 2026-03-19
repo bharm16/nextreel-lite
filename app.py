@@ -87,10 +87,17 @@ def create_app():
         await app.secure_cache.initialize()
         logger.info("Secure cache manager initialized")
         if os.getenv("FLASK_ENV") == "production":
+            redis_host = os.getenv("UPSTASH_REDIS_HOST")
+            redis_port = os.getenv("UPSTASH_REDIS_PORT")
+            redis_pw = os.getenv("UPSTASH_REDIS_PASSWORD")
+            if not redis_host or not redis_port:
+                raise RuntimeError(
+                    "UPSTASH_REDIS_HOST and UPSTASH_REDIS_PORT must be set in production"
+                )
             cache = await aioredis.Redis(
-                host=os.getenv("UPSTASH_REDIS_HOST"),
-                port=int(os.getenv("UPSTASH_REDIS_PORT")),
-                password=os.getenv("UPSTASH_REDIS_PASSWORD"),
+                host=redis_host,
+                port=int(redis_port),
+                password=redis_pw,
                 ssl=True
             )
         else:
@@ -172,59 +179,7 @@ def create_app():
 
         logger.info("Shutting down application lifecycle")
         try:
-            try:
-                await asyncio.wait_for(metrics_collector.stop_collection(), timeout=5.0)
-                logger.info("Metrics collection stopped")
-            except asyncio.TimeoutError:
-                logger.warning("Metrics collection stop timed out")
-            except Exception as e:
-                logger.warning(f"Error stopping metrics collection: {e}")
-
-            if hasattr(app, 'redis_client') and app.redis_client:
-                try:
-                    await asyncio.wait_for(app.redis_client.aclose(), timeout=3.0)
-                    logger.info("Redis client closed")
-                except asyncio.TimeoutError:
-                    logger.warning("Redis client close timed out")
-                except Exception as e:
-                    logger.warning(f"Error closing Redis client: {e}")
-
-            if hasattr(movie_manager, 'close'):
-                try:
-                    await asyncio.wait_for(movie_manager.close(), timeout=5.0)
-                    logger.info("MovieManager closed successfully")
-                except asyncio.TimeoutError:
-                    logger.warning("MovieManager close timed out")
-                except Exception as e:
-                    logger.warning(f"Error closing MovieManager: {e}")
-            elif hasattr(movie_manager, 'db_pool') and movie_manager.db_pool:
-                try:
-                    await asyncio.wait_for(movie_manager.db_pool.close_pool(), timeout=5.0)
-                    logger.info("Database pool closed successfully")
-                except asyncio.TimeoutError:
-                    logger.warning("Database pool close timed out")
-                except Exception as e:
-                    logger.warning(f"Error closing database pool: {e}")
-
-            if hasattr(app, 'secure_cache'):
-                try:
-                    await asyncio.wait_for(app.secure_cache.close(), timeout=3.0)
-                    logger.info("Secure cache closed")
-                except asyncio.TimeoutError:
-                    logger.warning("Secure cache close timed out")
-                except Exception as e:
-                    logger.warning(f"Error closing secure cache: {e}")
-
-            if 'SESSION_REDIS' in app.config and app.config['SESSION_REDIS']:
-                try:
-                    redis_conn = app.config['SESSION_REDIS']
-                    await asyncio.wait_for(redis_conn.aclose(), timeout=3.0)
-                    logger.info("Session Redis closed")
-                except asyncio.TimeoutError:
-                    logger.warning("Session Redis close timed out")
-                except Exception as e:
-                    logger.warning(f"Error closing session Redis: {e}")
-
+            await _shutdown_resources(app)
         except Exception as e:
             logger.error(f"Critical error during shutdown: {e}")
 
@@ -271,31 +226,51 @@ def create_app():
 
         logger.info("Application warm-up complete")
 
+    async def _shutdown_resources(app_instance):
+        """Shared shutdown logic — called from both lifespan and after_serving."""
+        try:
+            await asyncio.wait_for(metrics_collector.stop_collection(), timeout=5.0)
+            logger.info("Metrics collection stopped")
+        except asyncio.TimeoutError:
+            logger.warning("Metrics collection stop timed out")
+        except Exception as e:
+            logger.warning(f"Error stopping metrics collection: {e}")
+
+        if hasattr(app_instance, 'redis_client') and app_instance.redis_client:
+            try:
+                await asyncio.wait_for(app_instance.redis_client.aclose(), timeout=3.0)
+                logger.info("Redis client closed")
+            except (asyncio.TimeoutError, Exception) as e:
+                logger.warning(f"Error closing Redis client: {e}")
+
+        if hasattr(movie_manager, 'close'):
+            try:
+                await asyncio.wait_for(movie_manager.close(), timeout=5.0)
+                logger.info("MovieManager closed successfully")
+            except (asyncio.TimeoutError, Exception) as e:
+                logger.warning(f"Error closing MovieManager: {e}")
+
+        if hasattr(app_instance, 'secure_cache'):
+            try:
+                await asyncio.wait_for(app_instance.secure_cache.close(), timeout=3.0)
+                logger.info("Secure cache closed")
+            except (asyncio.TimeoutError, Exception) as e:
+                logger.warning(f"Error closing secure cache: {e}")
+
+        if 'SESSION_REDIS' in app_instance.config and app_instance.config['SESSION_REDIS']:
+            try:
+                await asyncio.wait_for(
+                    app_instance.config['SESSION_REDIS'].aclose(), timeout=3.0
+                )
+                logger.info("Session Redis closed")
+            except (asyncio.TimeoutError, Exception) as e:
+                logger.warning(f"Error closing session Redis: {e}")
+
     @app.after_serving
     async def cleanup():
         """Clean up resources after serving"""
         logger.info("Cleaning up resources after serving...")
-        try:
-            if movie_manager:
-                await movie_manager.close()
-
-            if hasattr(app, 'secure_cache'):
-                try:
-                    await app.secure_cache.close()
-                except Exception as e:
-                    logger.warning(f"Error closing secure cache: {e}")
-
-            if hasattr(app, 'redis_client') and app.redis_client:
-                try:
-                    await app.redis_client.aclose()
-                except Exception as e:
-                    logger.warning(f"Error closing Redis client: {e}")
-
-            from settings import close_pool
-            await close_pool()
-
-        except Exception as e:
-            logger.error(f"Error during cleanup: {e}")
+        await _shutdown_resources(app)
 
     # Register the Blueprint
     app.register_blueprint(routes_bp)
@@ -316,9 +291,7 @@ def signal_handler(signum, frame):
     try:
         loop = asyncio.get_event_loop()
         if loop and loop.is_running():
-            tasks = asyncio.all_tasks(loop)
-            for task in tasks:
-                task.cancel()
+            # Only stop the loop — Quart's shutdown hooks will handle cleanup
             loop.stop()
     except Exception as e:
         logger.error(f"Error during signal handling: {e}")
@@ -365,7 +338,8 @@ if __name__ == "__main__":
             use_reloader=False
         )
     except OSError as e:
-        if e.errno == 48:
+        import errno
+        if e.errno in (errno.EADDRINUSE, 48):  # 48 = macOS, EADDRINUSE = Linux
             logger.error(f"Port {port} is still in use. Please wait a moment and try again.")
         else:
             logger.error(f"Failed to start server: {e}")

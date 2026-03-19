@@ -2,19 +2,20 @@
 """Test query performance after indexing."""
 
 import asyncio
+import os
 import time
 import aiomysql
 from typing import Dict, Any
 
 async def test_query_performance():
     """Test the main application queries and measure performance."""
-    
-    # Database connection parameters
+
+    # Database connection parameters from environment
     db_config = {
-        'host': 'localhost',
-        'user': 'root',
-        'password': 'caching_sha2_password',
-        'db': 'imdb',
+        'host': os.getenv('DB_HOST', 'localhost'),
+        'user': os.getenv('DB_USER', 'root'),
+        'password': os.getenv('DB_PASSWORD', ''),
+        'db': os.getenv('DB_NAME', 'imdb'),
         'autocommit': True
     }
     

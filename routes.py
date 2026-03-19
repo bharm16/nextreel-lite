@@ -10,7 +10,7 @@ import asyncio
 import time
 import uuid
 
-from quart import Blueprint, request, redirect, url_for, session, render_template, g
+from quart import Blueprint, request, redirect, url_for, session, render_template, g, current_app
 
 # Maximum time (seconds) a route handler will wait for backend operations
 _REQUEST_TIMEOUT = 30

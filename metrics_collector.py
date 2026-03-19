@@ -330,7 +330,8 @@ class MetricsCollector:
         self.db_pool = db_pool
         self.movie_manager = movie_manager
         self._collection_task: Optional[asyncio.Task] = None
-        self._active_users: set = set()
+        self._active_users: dict = {}  # user_id -> last_seen_timestamp
+        self._active_user_timeout = 1800  # 30 minutes
         self.logger = logging.getLogger(__name__)
         
     async def start_collection(self):
@@ -360,7 +361,14 @@ class MetricsCollector:
                 # Collect movie queue metrics
                 await self._collect_movie_metrics()
                 
-                # Update active users count
+                # Evict stale users and update active users count
+                now = time.time()
+                stale = [
+                    uid for uid, ts in self._active_users.items()
+                    if now - ts > self._active_user_timeout
+                ]
+                for uid in stale:
+                    del self._active_users[uid]
                 active_users.set(len(self._active_users))
                 
                 # Sleep for 10 seconds before next collection
@@ -408,8 +416,8 @@ class MetricsCollector:
             self.logger.error(f"Failed to collect movie metrics: {e}")
     
     def track_user_activity(self, user_id: str):
-        """Track user activity"""
-        self._active_users.add(user_id)
+        """Track user activity with timestamp for expiry"""
+        self._active_users[user_id] = time.time()
     
     def track_user_action(self, action_type: str):
         """Track user actions"""
@@ -484,12 +492,18 @@ def setup_metrics_middleware(app, metrics_collector: MetricsCollector):
 # UTILITY FUNCTIONS
 # ============================================================================
 
+def _gauge_value(gauge):
+    """Safely read a Gauge's current value via the public collect() API."""
+    for metric in gauge.collect():
+        for sample in metric.samples:
+            return sample.value
+    return 0
+
+
 def get_metrics_summary() -> Dict[str, Any]:
     """Get a summary of current metrics"""
     return {
-        'http_requests_total': http_requests_total._value._value,
-        'db_connections_active': db_connections_active._value._value,
-        'db_connections_idle': db_connections_idle._value._value,
-        'active_users': active_users._value._value,
-        'movie_recommendations_total': movie_recommendations_total._value._value,
+        'db_connections_active': _gauge_value(db_connections_active),
+        'db_connections_idle': _gauge_value(db_connections_idle),
+        'active_users': _gauge_value(active_users),
     }

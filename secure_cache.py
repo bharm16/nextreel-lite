@@ -174,7 +174,16 @@ class SecureCacheManager:
     def _derive_encryption_key(self, secret: str) -> bytes:
         """Derive encryption key from secret"""
         import os as _os
-        salt = _os.getenv('CACHE_ENCRYPTION_SALT', '').encode() or b'nextreel-cache-v1'
+        salt_env = _os.getenv('CACHE_ENCRYPTION_SALT', '')
+        if not salt_env:
+            logger.warning(
+                "CACHE_ENCRYPTION_SALT not set — using secret-derived salt. "
+                "Set this env var for production deployments."
+            )
+            # Derive a stable salt from the secret itself so it survives restarts
+            salt = hashlib.sha256(f"nextreel-cache-salt:{secret}".encode()).digest()[:16]
+        else:
+            salt = salt_env.encode()
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
             length=32,

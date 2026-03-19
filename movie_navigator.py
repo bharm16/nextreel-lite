@@ -31,14 +31,13 @@ class MovieNavigator:
         return prev_stack, future_stack
 
     def _mark_movie_seen(self, tconst):
-        seen = set(session.get(SEEN_TCONSTS_KEY, []))
-        if tconst:
-            seen.add(tconst)
-        # Cap the seen set to prevent unbounded session growth
-        seen_list = list(seen)
-        if len(seen_list) > MAX_PREV_STACK_SIZE * 2:
-            seen_list = seen_list[-(MAX_PREV_STACK_SIZE * 2):]
-        session[SEEN_TCONSTS_KEY] = seen_list
+        seen_list = session.get(SEEN_TCONSTS_KEY, [])
+        if tconst and tconst not in seen_list:
+            seen_list.append(tconst)
+            # Cap to prevent unbounded session growth
+            if len(seen_list) > MAX_PREV_STACK_SIZE * 2:
+                seen_list = seen_list[-(MAX_PREV_STACK_SIZE * 2):]
+            session[SEEN_TCONSTS_KEY] = seen_list
 
     async def _load_movies_into_queue(self):
         from scripts.movie import Movie

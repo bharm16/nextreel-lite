@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 from logging_config import get_logger
 import os
@@ -35,8 +36,7 @@ class Movie:
         self.movie_data = {}
         self.query_executor = DatabaseQueryExecutor(db_pool)
         self.tmdb_helper = TMDbHelper()  # Initialize TMDbHelper using env key
-        self.slug = None  # Assuming slug is available at initialization
-        self.client = httpx.AsyncClient()  # Initialize once and reuse
+        self.slug = None
 
     async def fetch_movie_slug(self):
         """Fetch slug from cache tables first, then fallback to main table."""
@@ -128,7 +128,6 @@ class Movie:
             cache_key = f"movie:full:{self.tconst}"
             if hasattr(self, 'redis_client') and self.redis_client:
                 try:
-                    import json
                     cached = await self.redis_client.get(cache_key)
                     if cached:
                         logger.debug(f"Cache hit for movie {self.tconst}")
@@ -258,7 +257,6 @@ class Movie:
             # Cache the complete result
             if hasattr(self, 'redis_client') and self.redis_client and self.movie_data:
                 try:
-                    import json
                     await self.redis_client.setex(
                         cache_key,
                         3600,  # 1 hour TTL
@@ -279,7 +277,8 @@ class Movie:
             return None
 
     async def close(self):
-        await self.client.aclose()  # Close the client session when done
+        """Close underlying HTTP clients."""
+        await self.tmdb_helper.close()
 
 
 async def main():

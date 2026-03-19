@@ -40,14 +40,21 @@ class LokiHandler(logging.Handler):
         self.user = user or LOKI_USER
         self.key = key or LOKI_KEY
         self.session = requests.Session()
-        self.session.auth = (self.user, self.key)
-        self.session.headers.update({'Content-Type': 'application/json'})
+        # Use headers directly instead of session.auth to avoid credential leaks in tracebacks
+        import base64 as _b64
+        _creds = _b64.b64encode(f"{self.user}:{self.key}".encode()).decode()
+        self.session.headers.update({
+            'Content-Type': 'application/json',
+            'Authorization': f'Basic {_creds}',
+        })
         
         # Buffer for batching logs
         self.buffer = queue.Queue(maxsize=1000)
         self.batch_size = 10
         self.flush_interval = 5  # seconds
-        
+        self._dropped_logs = 0
+        self._flush_lock = threading.Lock()
+
         # Start background thread for sending logs
         self.sender_thread = threading.Thread(target=self._sender_loop, daemon=True)
         self.sender_thread.start()
@@ -63,10 +70,11 @@ class LokiHandler(logging.Handler):
                 self.buffer.put_nowait(log_entry)
             except queue.Full:
                 # If buffer is full, drop oldest and add new
+                self._dropped_logs += 1
                 try:
                     self.buffer.get_nowait()
                     self.buffer.put_nowait(log_entry)
-                except:
+                except (queue.Empty, queue.Full):
                     pass
                     
         except Exception as e:
@@ -104,13 +112,17 @@ class LokiHandler(logging.Handler):
             try:
                 self._flush_batch()
                 time.sleep(self.flush_interval)
-            except:
+            except Exception:
                 time.sleep(self.flush_interval * 2)  # Back off on error
     
     def _flush_batch(self):
         """Send a batch of logs to Loki"""
+        with self._flush_lock:
+            self._flush_batch_inner()
+
+    def _flush_batch_inner(self):
         batch = []
-        
+
         # Collect logs from buffer
         while not self.buffer.empty() and len(batch) < self.batch_size:
             try:

@@ -39,8 +39,6 @@ class MovieManager:
         self.default_backdrop_url = None
         self.tmdb_helper = TMDbHelper()
 
-        self.db_config = db_config
-
         # Delegates
         self._navigator = MovieNavigator(self.movie_fetcher, self.db_pool, self.queue_size)
         self._renderer = MovieRenderer(self.db_pool, self.tmdb_helper)

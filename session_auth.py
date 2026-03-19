@@ -34,7 +34,10 @@ def generate_session_token() -> str:
 
 def generate_fingerprint(user_agent: str, ip: str) -> str:
     """Generate a fingerprint tied to the user agent and IP."""
-    data = f"{user_agent}|{ip}|{os.getenv('FLASK_SECRET_KEY', '')}"
+    secret = os.getenv('FLASK_SECRET_KEY', '')
+    if not secret:
+        logger.warning("FLASK_SECRET_KEY not set — fingerprinting is weakened")
+    data = f"{user_agent}|{ip}|{secret}"
     return hashlib.sha256(data.encode()).hexdigest()
 
 

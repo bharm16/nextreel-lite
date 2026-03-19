@@ -1,9 +1,6 @@
 # queries.py
 import os
 
-# print(f"Current working directory: {os.getcwd()}")
-# print(f"Resolved SSL certificate path: {Config.SSL_CERT_PATH}")
-
 # Query to fetch IMDb details of a watched movie
 GET_WATCHED_MOVIE_DETAILS = """
 SELECT 
@@ -73,18 +70,17 @@ logger = get_logger(__name__)
 # Assume SQL query definitions remain the same
 
 class DatabaseQueryExecutor:
-    def __init__(self, db_pool):
+    def __init__(self, db_pool: DatabaseConnectionPool) -> None:
         if not isinstance(db_pool, DatabaseConnectionPool):
             raise ValueError("db_pool must be an instance of DatabaseConnectionPool")
         self.db_pool = db_pool
 
-    async def execute_async_query(self, query, params=None, fetch='one'):
+    async def execute_async_query(self, query: str, params: list | tuple | None = None, fetch: str = 'one'):
         """Execute query using optimized connection pool with context managers"""
         try:
-            # Use the new execute method which handles connections automatically
             return await self.db_pool.execute(query, params, fetch)
         except Exception as e:
-            logger.error(f"An error occurred while executing the query: {e}")
+            logger.error("Query execution error: %s", e, exc_info=True)
             return None
 
     async def execute_async_query_legacy(self, query, params=None, fetch='one'):
@@ -115,16 +111,22 @@ class DatabaseQueryExecutor:
                 end_time - start_time,
             )
 
-    async def execute_transaction(self, query_params_list):
+    async def execute_transaction(self, query_params_list: list[tuple[str, list | tuple]]):
         """Execute multiple queries in a transaction"""
         try:
-            async with self.db_pool.transaction() as conn:
-                results = []
-                async with conn.cursor() as cursor:
-                    for query, params in query_params_list:
-                        await cursor.execute(query, params)
-                        results.append(cursor.rowcount)
-                return results
+            async with self.db_pool.acquire() as conn:
+                await conn.begin()
+                try:
+                    results = []
+                    async with conn.cursor() as cursor:
+                        for query, params in query_params_list:
+                            await cursor.execute(query, params)
+                            results.append(cursor.rowcount)
+                    await conn.commit()
+                    return results
+                except Exception:
+                    await conn.rollback()
+                    raise
         except Exception as e:
             logger.error(f"Transaction failed: {e}")
             raise

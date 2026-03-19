@@ -29,7 +29,7 @@ import json
 import base64
 import platform
 import psutil
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any, Tuple
 from dataclasses import dataclass, asdict
 import redis.asyncio as aioredis
@@ -136,14 +136,19 @@ class EnhancedSessionSecurity:
             )
         secret = secret.encode() if isinstance(secret, str) else secret
 
-        # Use a configurable salt; fall back to a per-deployment env var
-        salt = os.getenv('SESSION_ENCRYPTION_SALT', '').encode() or os.urandom(16)
-        # Persist a generated salt so restarts stay consistent
-        if not os.getenv('SESSION_ENCRYPTION_SALT'):
+        # Use a configurable salt; fail hard in production if missing
+        salt_env = os.getenv('SESSION_ENCRYPTION_SALT', '')
+        if not salt_env:
+            if os.getenv('FLASK_ENV') == 'production':
+                raise RuntimeError(
+                    "SESSION_ENCRYPTION_SALT must be set in production — "
+                    "sessions will not survive restarts without it."
+                )
             logger.warning(
-                "SESSION_ENCRYPTION_SALT not set — sessions will not survive restarts. "
-                "Set this env var for production deployments."
+                "SESSION_ENCRYPTION_SALT not set — using random salt. "
+                "Sessions will not survive restarts."
             )
+        salt = salt_env.encode() or os.urandom(16)
 
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
@@ -200,10 +205,9 @@ class EnhancedSessionSecurity:
         
         # Add hardware entropy if available
         try:
-            # CPU usage adds hardware-based entropy
             cpu_percent = str(psutil.cpu_percent(interval=0.01)).encode()
             entropy_sources.append(cpu_percent)
-        except:
+        except Exception:
             pass
         
         # Combine all entropy
@@ -249,7 +253,10 @@ class EnhancedSessionSecurity:
         
         # Create stable fingerprint using HMAC
         fingerprint_data = json.dumps(components, sort_keys=True)
-        secret_key = self.app.config.get('SECRET_KEY', '').encode()
+        raw_key = self.app.config.get('SECRET_KEY', '')
+        if not raw_key:
+            logger.warning("SECRET_KEY empty — device fingerprinting is weakened")
+        secret_key = (raw_key or 'fallback-dev-fingerprint-key').encode()
         
         fingerprint = hmac.new(
             secret_key,
@@ -337,7 +344,7 @@ class EnhancedSessionSecurity:
             if created:
                 created_time = datetime.fromisoformat(created)
                 max_duration = timedelta(hours=MAX_SESSION_DURATION_HOURS)
-                if datetime.utcnow() - created_time > max_duration:
+                if datetime.now(timezone.utc) - created_time > max_duration:
                     logger.info("Session expired: exceeded maximum duration")
                     return False
             
@@ -346,7 +353,7 @@ class EnhancedSessionSecurity:
             if last_activity:
                 last_time = datetime.fromisoformat(last_activity)
                 idle_timeout = timedelta(minutes=SESSION_IDLE_TIMEOUT_MINUTES)
-                if datetime.utcnow() - last_time > idle_timeout:
+                if datetime.now(timezone.utc) - last_time > idle_timeout:
                     logger.info("Session expired: idle timeout")
                     return False
             
@@ -378,7 +385,7 @@ class EnhancedSessionSecurity:
         security_level = 'high' if flask_env == 'production' else 'standard'
         
         # Store in session
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         session[SESSION_TOKEN_KEY] = token
         session[SESSION_FINGERPRINT_KEY] = fingerprint
         session[SESSION_DEVICE_ID_KEY] = device_id
@@ -416,7 +423,7 @@ class EnhancedSessionSecurity:
             return
         
         # Update last activity
-        session[SESSION_LAST_ACTIVITY_KEY] = datetime.utcnow().isoformat()
+        session[SESSION_LAST_ACTIVITY_KEY] = datetime.now(timezone.utc).isoformat()
         
         # Update rotation counter
         rotation_count = session.get(SESSION_ROTATION_COUNT_KEY, 0)
@@ -496,8 +503,8 @@ class EnhancedSessionSecurity:
                     token=token,
                     fingerprint=session.get(SESSION_FINGERPRINT_KEY, ''),
                     device_id=session.get(SESSION_DEVICE_ID_KEY, ''),
-                    created=datetime.fromisoformat(session.get(SESSION_CREATED_KEY, datetime.utcnow().isoformat())),
-                    last_activity=datetime.fromisoformat(session.get(SESSION_LAST_ACTIVITY_KEY, datetime.utcnow().isoformat())),
+                    created=datetime.fromisoformat(session.get(SESSION_CREATED_KEY, datetime.now(timezone.utc).isoformat())),
+                    last_activity=datetime.fromisoformat(session.get(SESSION_LAST_ACTIVITY_KEY, datetime.now(timezone.utc).isoformat())),
                     rotation_count=session.get(SESSION_ROTATION_COUNT_KEY, 0),
                     nonce=session.get(SESSION_NONCE_KEY, ''),
                     security_level=session.get(SESSION_SECURITY_LEVEL_KEY, 'standard'),
@@ -539,7 +546,7 @@ class EnhancedSessionSecurity:
     async def _log_security_event(self, event_type: str, details: Dict):
         """Log security events for monitoring"""
         event = {
-            'timestamp': datetime.utcnow().isoformat(),
+            'timestamp': datetime.now(timezone.utc).isoformat(),
             'type': event_type,
             'details': details
         }
@@ -549,7 +556,7 @@ class EnhancedSessionSecurity:
         # Store in Redis for analysis if available
         if self.redis_client:
             try:
-                key = f"security:events:{datetime.utcnow().strftime('%Y%m%d')}"
+                key = f"security:events:{datetime.now(timezone.utc).strftime('%Y%m%d')}"
                 await self.redis_client.rpush(key, json.dumps(event))
                 await self.redis_client.expire(key, timedelta(days=30))
             except Exception as e:
@@ -640,7 +647,7 @@ class SessionMonitor:
         
         try:
             # Get today's security events
-            today_key = f"security:events:{datetime.utcnow().strftime('%Y%m%d')}"
+            today_key = f"security:events:{datetime.now(timezone.utc).strftime('%Y%m%d')}"
             events = await self.redis_client.lrange(today_key, 0, -1)
             
             metrics = {

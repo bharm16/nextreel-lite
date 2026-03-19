@@ -139,6 +139,7 @@ class SecureConnectionPool:
         # Rate limiting
         self.global_rate_limiter = RateLimiter(config.max_queries_per_minute)
         self.user_rate_limiters: Dict[str, RateLimiter] = {}
+        self._max_user_rate_limiters = 1000  # Evict oldest when exceeded
 
         # Metrics
         self.metrics = {
@@ -165,6 +166,7 @@ class SecureConnectionPool:
         self.circuit_breaker_failures = 0
         self.circuit_breaker_last_failure = None
         self.circuit_breaker_state = "closed"
+        self._cb_lock = asyncio.Lock()
 
         # Tasks
         self._health_check_task: Optional[asyncio.Task] = None
@@ -229,7 +231,7 @@ class SecureConnectionPool:
             context = ssl.create_default_context(cafile=self.config.ssl_cert_path)
         else:
             context = ssl.create_default_context()
-        context.check_hostname = False
+        context.check_hostname = self.config.validate_ssl
         context.verify_mode = (
             ssl.CERT_REQUIRED if self.config.validate_ssl else ssl.CERT_NONE
         )
@@ -268,6 +270,10 @@ class SecureConnectionPool:
         # User rate limit
         if user_id and user_id != "system":
             if user_id not in self.user_rate_limiters:
+                # Evict oldest entries if dict is too large
+                if len(self.user_rate_limiters) >= self._max_user_rate_limiters:
+                    oldest = next(iter(self.user_rate_limiters))
+                    del self.user_rate_limiters[oldest]
                 self.user_rate_limiters[user_id] = RateLimiter(
                     self.config.max_queries_per_user_minute
                 )
@@ -327,14 +333,20 @@ class SecureConnectionPool:
 
             self.metrics["active_connections"] += 1
 
-            # Ping if configured
+            # Ping if configured — discard bad connections
             if self.config.pool_pre_ping:
-                await connection.ping()
+                try:
+                    await connection.ping()
+                except Exception as ping_err:
+                    logger.warning("Pre-ping failed, discarding connection: %s", ping_err)
+                    connection.close()
+                    raise Exception("Connection failed pre-ping check") from ping_err
 
             # Reset circuit breaker on success
             if self.circuit_breaker_state == "half-open":
-                self.circuit_breaker_state = "closed"
-                self.circuit_breaker_failures = 0
+                async with self._cb_lock:
+                    self.circuit_breaker_state = "closed"
+                    self.circuit_breaker_failures = 0
 
             yield connection
 
