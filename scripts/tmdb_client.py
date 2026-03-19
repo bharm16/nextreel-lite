@@ -26,9 +26,6 @@ def get_tmdb_api_key() -> str:
 TMDB_API_BASE_URL = "https://api.themoviedb.org/3"
 TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/"
 
-parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-os.chdir(parent_dir)
-
 logger = get_logger(__name__)
 
 

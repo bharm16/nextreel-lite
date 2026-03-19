@@ -12,11 +12,20 @@ from scripts.filter_backend import (
     extract_movie_filter_criteria,
 )
 from scripts.tmdb_client import TMDbHelper
+from movie_navigator import MovieNavigator
+from movie_renderer import MovieRenderer
 
 logger = get_logger(__name__)
 
 
 class MovieManager:
+    """Facade that coordinates movie navigation, rendering, and queue management.
+
+    Delegates to ``MovieNavigator`` for session stack operations and to
+    ``MovieRenderer`` for template rendering.  All public methods are preserved
+    for backward compatibility.
+    """
+
     def __init__(self, db_config=None):
         logger.debug("Initializing MovieManager")
         self.db_config = db_config or Config.get_db_config()
@@ -25,17 +34,17 @@ class MovieManager:
         self.queue_size = 2  # Reduced from 5 for instant initial loading
         self.default_movie_tmdb_id = 62
         self.default_backdrop_url = None
-        self.tmdb_helper = TMDbHelper()  # Initialize TMDbHelper using env key
+        self.tmdb_helper = TMDbHelper()
 
-        self.db_config = db_config  # Now db_config is properly defined
+        self.db_config = db_config
+
+        # Delegates
+        self._navigator = MovieNavigator(self.movie_fetcher, self.db_pool, self.queue_size)
+        self._renderer = MovieRenderer(self.db_pool, self.tmdb_helper)
 
     async def start(self):
-        # Log the start of the MovieManager
         logger.info("Starting MovieManager")
-
         await self.db_pool.init_pool()
-
-        # After starting the population task, proceed to set the default backdrop
         await self.set_default_backdrop()
         logger.debug("Default backdrop set")
 
@@ -47,7 +56,7 @@ class MovieManager:
                 logger.info("MovieManager database pool closed")
         except Exception as e:
             logger.error(f"Error closing MovieManager: {e}")
-    
+
     async def stop(self):
         """Alias for close() method for consistency"""
         await self.close()
@@ -70,9 +79,7 @@ class MovieManager:
 
     async def home(self, user_id):
         logger.debug("Accessing home")
-
         asyncio.create_task(self._ensure_queue())
-
         return await render_template(
             "home.html", default_backdrop_url=self.default_backdrop_url
         )
@@ -92,238 +99,35 @@ class MovieManager:
     async def fetch_and_render_movie(
         self, current_displayed_movie, user_id, template_name="movie.html"
     ):
-        if not current_displayed_movie:
-            logger.debug("No current movie to display for user_id: %s", user_id)
-            return None
-
-        # Check if the current movie has a backdrop URL, and if so, render it
-        if (
-            "backdrop_url" in current_displayed_movie
-            and current_displayed_movie["backdrop_url"]
-        ):
-            prev_stack, _ = self._get_user_stacks()
-            return await render_template(
-                template_name,
-                movie=current_displayed_movie,
-                previous_count=len(prev_stack),
-            )
-
-        # If the movie does not have a backdrop URL, log this and return None
-        logger.debug(
-            "Movie skipped due to missing backdrop image for user_id: %s", user_id
+        prev_stack, _ = self._navigator._get_user_stacks()
+        return await self._renderer.fetch_and_render_movie(
+            current_displayed_movie, user_id, len(prev_stack), template_name
         )
-        return None
 
     async def render_movie_by_tconst(self, user_id, tconst, template_name="movie.html"):
-        """
-        Fetch movie details using a tconst and render the movie, potentially using user_id
-        for user-specific logic in the future.
+        return await self._renderer.render_movie_by_tconst(user_id, tconst, template_name)
 
-        Parameters:
-        - user_id (str): The ID of the user requesting the movie.
-        - tconst (str): The IMDb ID of the movie.
-        - template_name (str): The template name for rendering the movie details.
-        """
-        # Initialize a Movie object with the provided tconst
-        movie_instance = Movie(tconst, self.db_pool)
-
-        # Fetch movie data
-        movie_data = await movie_instance.get_movie_data()
-        if not movie_data:
-            logger.info(
-                f"No data found for movie with tconst: {tconst} and user_id: {user_id}"
-            )
-            # Optionally, render a 'not found' template or return a simple message
-            return "Movie not found", 404
-
-        # Render the template with the fetched movie details
-        # Future updates might include user-specific customization based on user_id
-        return await render_template(template_name, movie=movie_data)
-
+    # Expose navigator helpers on the manager for backward compat
     def _get_user_stacks(self):
-        start_time = time.time()  # Start timing
-
-        prev_stack = session.setdefault("previous_movies_stack", [])
-        future_stack = session.setdefault("future_movies_stack", [])
-
-        execution_time = time.time() - start_time
-        logger.debug(
-            f"_get_user_stacks execution time: {execution_time:.4f} seconds"
-        )
-
-        return prev_stack, future_stack
+        return self._navigator._get_user_stacks()
 
     def _mark_movie_seen(self, tconst):
-        seen = set(session.get("seen_tconsts", []))
-        if tconst:
-            seen.add(tconst)
-        session["seen_tconsts"] = list(seen)
+        return self._navigator._mark_movie_seen(tconst)
 
     async def _load_movies_into_queue(self):
-        queue = session.setdefault("watch_queue", [])
-        criteria = session.get("criteria", {})
-        limit = self.queue_size - len(queue)
-        if limit <= 0:
-            return
-        
-        # Get extra movies since some might be filtered out by language
-        fetch_limit = limit * 3 if criteria.get("min_year", 1900) >= 2024 else limit
-        rows = await self.movie_fetcher.fetch_random_movies(criteria, fetch_limit)
-        
-        # Load movies in parallel instead of sequentially
-        async def fetch_movie_data(row):
-            movie = Movie(row["tconst"], self.db_pool)
-            return await movie.get_movie_data()
-        
-        # Execute all movie data fetches in parallel
-        tasks = [fetch_movie_data(row) for row in rows]
-        movie_results = await asyncio.gather(*tasks, return_exceptions=True)
-        
-        # Filter by language if specified (using TMDB data)
-        desired_lang = criteria.get("language", "en")
-        
-        # Add successful results to queue
-        for movie_data in movie_results:
-            if movie_data and not isinstance(movie_data, Exception):
-                # Skip language filtering if "any" is selected
-                if desired_lang == "any":
-                    queue.append(movie_data)
-                else:
-                    # Check language from TMDB data
-                    original_lang = movie_data.get("original_language", "unknown")
-                    spoken_langs = movie_data.get("spoken_languages", [])
-                    
-                    # Include movie if:
-                    # - Language filter is English and movie is English OR unknown
-                    # - Language filter matches original language
-                    # - Language filter matches any spoken language
-                    if desired_lang == "en":
-                        # For English, be more permissive (include unknown)
-                        if original_lang in ["en", "unknown", None] or "en" in spoken_langs:
-                            queue.append(movie_data)
-                    elif original_lang == desired_lang or desired_lang in spoken_langs:
-                        queue.append(movie_data)
-                
-                # Stop if we have enough movies
-                if len(queue) >= session.get("queue_size", self.queue_size):
-                    break
-        
-        session["watch_queue"] = queue
+        return await self._navigator._load_movies_into_queue()
 
     async def _ensure_queue(self):
-        queue = session.get("watch_queue", [])
-        if not queue:
-            await self._load_movies_into_queue()
+        return await self._navigator._ensure_queue()
 
     async def get_movie_by_slug(self, user_id, slug):
-        """
-        Fetch movie details from the user's stacks or queue based on the slug.
-        """
-        # Retrieve stacks stored in session
-        prev_stack, future_stack = self._get_user_stacks()
-
-        # Check the future stack
-        for movie in future_stack:
-            if movie.get("slug") == slug:
-                return movie
-
-        # Check the current displayed movie
-        current_movie = session.get("current_movie")
-        if current_movie and current_movie.get("slug") == slug:
-            return current_movie
-
-        # Check the previous stack
-        for movie in prev_stack:
-            if movie.get("slug") == slug:
-                return movie
-
-        # If not found in stacks, check the session watch queue
-        for movie in session.get("watch_queue", []):
-            if movie.get("slug") == slug:
-                return movie
-
-        # If not found, return None
-        return None
+        return await self._navigator.get_movie_by_slug(user_id, slug)
 
     async def next_movie(self, user_id):
-        """
-        Navigate to the next movie in the queue or future stack.
-        """
-        prev_stack, future_stack = self._get_user_stacks()
-        queue = session.setdefault("watch_queue", [])
-
-        current_movie = None
-
-        # Check future stack first (for forward navigation after going back)
-        if future_stack:
-            current_movie = future_stack.pop()
-        # Otherwise get from queue
-        elif queue:
-            current_movie = queue.pop(0)
-        # If queue is empty, load more movies
-        else:
-            await self._load_movies_into_queue()
-            queue = session.get("watch_queue", [])
-            if queue:
-                current_movie = queue.pop(0)
-
-        # Save the current movie to previous stack before moving forward
-        previous = session.get("current_movie")
-        if previous and current_movie != previous:
-            prev_stack.append(previous)
-
-        # Update session with new current movie
-        session["current_movie"] = current_movie
-        
-        # CRITICAL: Save the modified stacks back to session
-        session["previous_movies_stack"] = prev_stack
-        session["future_movies_stack"] = future_stack
-        session["watch_queue"] = queue
-
-        if current_movie:
-            tconst = current_movie.get("imdb_id")
-            self._mark_movie_seen(tconst)
-            logger.info(f"Navigating to next movie {tconst} for user_id: {user_id}")
-            return redirect(url_for("movie_detail", tconst=tconst))
-        else:
-            logger.info(f"No next movie available for user_id: {user_id}")
-            return None
+        return await self._navigator.next_movie(user_id)
 
     async def previous_movie(self, user_id):
-        """
-        Navigate to the previous movie in the viewing history.
-        """
-        prev_stack, future_stack = self._get_user_stacks()
-
-        # Check if we have any previous movies
-        if not prev_stack:
-            logger.info(f"No previous movies available for user_id: {user_id}")
-            # Don't redirect anywhere, just return None
-            return None
-
-        # Save current movie to future stack for forward navigation
-        current_movie = session.get("current_movie")
-        if current_movie:
-            future_stack.append(current_movie)
-
-        # Get the previous movie
-        previous_movie = prev_stack.pop()
-        
-        # Update the current movie
-        session["current_movie"] = previous_movie
-        
-        # Save the modified stacks back to session
-        session["previous_movies_stack"] = prev_stack
-        session["future_movies_stack"] = future_stack
-
-        # Navigate to the previous movie
-        tconst = previous_movie.get("imdb_id")
-        if tconst:
-            logger.info(f"Navigating to previous movie {tconst} for user_id: {user_id}")
-            return redirect(url_for("movie_detail", tconst=tconst))
-        else:
-            logger.error(f"Previous movie missing imdb_id for user_id: {user_id}")
-            return None
+        return await self._navigator.previous_movie(user_id)
 
     async def set_filters(self, user_id):
         logger.info(f"Setting filters for user_id: {user_id}")

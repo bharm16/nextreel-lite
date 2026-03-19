@@ -594,3 +594,45 @@ class SecureCacheManager:
             await self.redis_client.close()
         
         logger.info("Secure cache manager closed")
+
+
+def cache_response(ttl=60, namespace=CacheNamespace.API):
+    """Decorator that caches endpoint responses using the app's SecureCacheManager.
+
+    The decorator expects ``current_app.secure_cache`` to be a
+    ``SecureCacheManager`` instance.  If unavailable or on error the
+    wrapped function executes normally without caching.
+    """
+    import hashlib as _hashlib
+    from functools import wraps
+
+    def decorator(f):
+        @wraps(f)
+        async def wrapper(*args, **kwargs):
+            from quart import current_app, request, session as _session
+
+            user_id = _session.get("user_id", "anonymous")
+            cache_key = f"{request.endpoint}:{request.args}:{user_id}"
+            cache_key = _hashlib.md5(cache_key.encode()).hexdigest()
+
+            secure_cache = getattr(current_app, "secure_cache", None)
+            if secure_cache:
+                try:
+                    cached = await secure_cache.get(namespace, cache_key)
+                    if cached:
+                        logger.debug(f"Cache hit for endpoint {request.endpoint}")
+                        return cached
+                except Exception as e:
+                    logger.warning(f"Cache read failed: {e}")
+
+            result = await f(*args, **kwargs)
+
+            if secure_cache and result:
+                try:
+                    await secure_cache.set(namespace, cache_key, result, ttl=ttl)
+                except Exception as e:
+                    logger.warning(f"Cache write failed: {e}")
+
+            return result
+        return wrapper
+    return decorator

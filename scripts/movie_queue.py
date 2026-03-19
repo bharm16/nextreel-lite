@@ -25,8 +25,6 @@ from settings import DatabaseConnectionPool
 from secure_cache import SecureCacheManager, CacheNamespace
 
 logger = get_logger(__name__)
-parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-os.chdir(parent_dir)
 
 @dataclass
 class MovieMetadata:

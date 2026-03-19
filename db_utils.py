@@ -1,8 +1,6 @@
 # queries.py
 import os
 
-os.chdir(os.path.dirname(os.path.abspath(__file__)))
-
 # print(f"Current working directory: {os.getcwd()}")
 # print(f"Resolved SSL certificate path: {Config.SSL_CERT_PATH}")
 

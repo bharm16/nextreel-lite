@@ -32,7 +32,7 @@ import psutil
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, Tuple
 from dataclasses import dataclass, asdict
-import redis
+import redis.asyncio as aioredis
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
@@ -119,7 +119,7 @@ class EnhancedSessionSecurity:
         """Initialize Redis connection for session storage"""
         try:
             redis_url = os.getenv('UPSTASH_REDIS_URL', 'redis://localhost:6379')
-            return redis.from_url(redis_url, decode_responses=True)
+            return aioredis.from_url(redis_url, decode_responses=True)
         except Exception as e:
             logger.warning(f"Redis unavailable, using in-memory fallback: {e}")
             return None
@@ -464,7 +464,7 @@ class EnhancedSessionSecurity:
             
             # Store with expiration
             key = f"session:{token}"
-            self.redis_client.setex(
+            await self.redis_client.setex(
                 key,
                 timedelta(hours=MAX_SESSION_DURATION_HOURS),
                 base64.b64encode(encrypted_data).decode()
@@ -493,7 +493,7 @@ class EnhancedSessionSecurity:
         
         try:
             key = f"session:{token}"
-            encrypted_data = self.redis_client.get(key)
+            encrypted_data = await self.redis_client.get(key)
             
             if not encrypted_data:
                 return None
@@ -517,7 +517,7 @@ class EnhancedSessionSecurity:
         
         try:
             key = f"session:{token}"
-            self.redis_client.delete(key)
+            await self.redis_client.delete(key)
         except Exception as e:
             logger.error(f"Failed to delete session data: {e}")
     
@@ -535,8 +535,8 @@ class EnhancedSessionSecurity:
         if self.redis_client:
             try:
                 key = f"security:events:{datetime.utcnow().strftime('%Y%m%d')}"
-                self.redis_client.rpush(key, json.dumps(event))
-                self.redis_client.expire(key, timedelta(days=30))
+                await self.redis_client.rpush(key, json.dumps(event))
+                await self.redis_client.expire(key, timedelta(days=30))
             except Exception as e:
                 logger.error(f"Failed to log security event: {e}")
 
@@ -606,7 +606,7 @@ class SessionMonitor:
         try:
             # Check recent security events for this session
             events_key = f"security:session:{token[:8]}"
-            event_count = self.redis_client.get(events_key)
+            event_count = await self.redis_client.get(events_key)
             
             if event_count and int(event_count) > self.alert_threshold:
                 logger.critical(f"Multiple security events for session: {token[:8]}...")
@@ -626,7 +626,7 @@ class SessionMonitor:
         try:
             # Get today's security events
             today_key = f"security:events:{datetime.utcnow().strftime('%Y%m%d')}"
-            events = self.redis_client.lrange(today_key, 0, -1)
+            events = await self.redis_client.lrange(today_key, 0, -1)
             
             metrics = {
                 'total_events': len(events),

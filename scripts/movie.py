@@ -9,15 +9,12 @@ import httpx
 from settings import Config, DatabaseConnectionPool
 from db_utils import DatabaseQueryExecutor
 from scripts.filter_backend import ImdbRandomMovieFetcher
-from scripts.tmdb_client import TMDbHelper, get_tmdb_api_key
+from scripts.tmdb_client import TMDbHelper
 
 # Configure logging for better debugging
 logger = get_logger(__name__)
 # Set httpx logging level to ERROR to reduce verbosity
 logging.getLogger("httpx").setLevel(logging.ERROR)
-
-parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-os.chdir(parent_dir)
 
 
 def build_ratings_query():
@@ -29,61 +26,6 @@ def build_ratings_query():
 
 
 TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/"
-TMDB_API_BASE_URL = "https://api.themoviedb.org/3"
-
-
-# Async HTTP client setup
-
-
-# Async TMDb operations
-async def get_tmdb_id_by_tconst(tconst, client):
-    api_key = get_tmdb_api_key()
-    response = await client.get(
-        f"{TMDB_API_BASE_URL}/find/{tconst}",
-        params={"api_key": api_key, "external_source": "imdb_id"},
-    )
-    response.raise_for_status()
-    data = response.json()
-    return data["movie_results"][0]["id"] if data["movie_results"] else None
-
-
-class TMDB:
-    BASE_URL = "https://api.themoviedb.org/3"
-
-    def __init__(self, api_key):
-        self.api_key = api_key
-        self.client = httpx.AsyncClient()  # Initialize the HTTP client
-
-    async def _GET(self, path, params=None):
-        """Send an asynchronous GET request to the TMDB API."""
-        if params is None:
-            params = {}
-        params["api_key"] = self.api_key
-        response = await self.client.get(f"{self.BASE_URL}/{path}", params=params)
-        response.raise_for_status()
-        return response.json()
-
-    async def get_movie_by_tmdb_id(self, tmdb_id):
-        """Get a movie by its TMDb ID."""
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                f"{self.BASE_URL}/movie/{tmdb_id}", params={"api_key": self.api_key}
-            )
-            response.raise_for_status()
-            return response.json()
-
-    async def fetch_movie_details(self, tmdb_id):
-        try:
-            movie_details = await self.get_movie_by_tmdb_id(tmdb_id)
-            return movie_details
-        except Exception as e:
-            print(f"An error occurred: {e}")
-            return None
-
-        # Make sure to close the client when it's no longer needed
-
-    async def close(self):
-        await self.client.aclose()
 
 
 class Movie:
