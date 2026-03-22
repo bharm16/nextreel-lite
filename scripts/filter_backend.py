@@ -1,14 +1,9 @@
-import asyncio
-import logging
 from logging_config import get_logger
-import os
 import time
 import traceback
 from typing import Any, Dict, List
 
-
-from settings import Config, DatabaseConnectionPool
-from db_utils import DatabaseQueryExecutor
+from database.errors import DatabaseError
 from .interfaces import MovieFetcher
 
 logger = get_logger(__name__)
@@ -25,8 +20,9 @@ class MovieQueryBuilder:
         max_year = criteria.get("max_year", 2025)
         min_votes = criteria.get("min_votes", 100000)
         
-        # Use cache for movies 1980-2023 with significant votes
-        if min_year >= 1980 and max_year <= 2023 and min_votes >= 10000:
+        # Use cache for movies 1980–present with significant votes
+        from datetime import datetime
+        if min_year >= 1980 and max_year <= datetime.now().year and min_votes >= 10000:
             return True
         return False
 
@@ -121,7 +117,7 @@ class MovieQueryBuilder:
         
         # If 15+ genres selected, it's essentially "any genre" - skip the filter entirely
         if len(genres) >= 15:
-            logger.info(f"{len(genres)} genres selected (15+), skipping genre filter for performance")
+            logger.info("%d genres selected (15+), skipping genre filter for performance", len(genres))
             return "", []
         
         # Use FULLTEXT search for better performance
@@ -143,7 +139,7 @@ class MovieQueryBuilder:
         if genres:
             # If 15+ genres selected, it's essentially "any genre" - skip the filter entirely
             if len(genres) >= 15:
-                logger.info(f"{len(genres)} genres selected (15+), skipping genre filter for performance")
+                logger.info("%d genres selected (15+), skipping genre filter for performance", len(genres))
                 return []
             
             if use_cache:
@@ -163,7 +159,7 @@ class MovieQueryBuilder:
 # Convert the ImdbRandomMovieFetcher class methods to async
 class ImdbRandomMovieFetcher(MovieFetcher):
     def __init__(self, database_pool):
-        self.db_query_executor = DatabaseQueryExecutor(database_pool)
+        self.db_pool = database_pool
         self.use_fulltext = True  # Flag to use FULLTEXT search
 
     async def fetch_movies_by_criteria(self, criteria):
@@ -193,25 +189,28 @@ class ImdbRandomMovieFetcher(MovieFetcher):
                 full_query = base_query + (f" AND ({genre_conditions[0]})" if genre_conditions else "")
                 all_parameters = parameters
 
-            logger.debug(f"Using {'recent cache' if use_recent else 'cache' if use_cache else 'main'} table")
+            logger.debug("Using %s table", 'recent cache' if use_recent else 'cache' if use_cache else 'main')
             logger.debug("Executing optimized query with parameters: %s", all_parameters)
 
-            result = await self.db_query_executor.execute_async_query(full_query, all_parameters, 'all')
+            result = await self.db_pool.execute(full_query, all_parameters, "all")
 
             logger.info(
                 "Fetched %d movies in %.2f seconds using %s",
-                len(result),
+                len(result) if result else 0,
                 time.time() - start_time,
                 'recent cache' if use_recent else 'cache' if use_cache else 'optimized indexes'
             )
-            return result
-        except Exception as e:
-            logger.error(f"Error fetching movies by criteria: {e}\n{traceback.format_exc()}")
+            return result or []
+        except DatabaseError as e:
             # If FULLTEXT fails, retry with LIKE
             if self.use_fulltext and "FULLTEXT" in str(e):
                 logger.warning("FULLTEXT search failed, falling back to LIKE queries")
                 self.use_fulltext = False
                 return await self.fetch_movies_by_criteria(criteria)
+            logger.error("Database error fetching movies by criteria: %s", e)
+            return []
+        except Exception as e:
+            logger.error("Error fetching movies by criteria: %s\n%s", e, traceback.format_exc())
             raise
 
     async def fetch_random_movies(self, criteria: Dict[str, Any], limit: int = 15):
@@ -230,31 +229,56 @@ class ImdbRandomMovieFetcher(MovieFetcher):
                 base_query = MovieQueryBuilder.build_base_query(use_cache=True)
                 order_by = " ORDER BY rand_order"
             elif use_recent:
+                # Use random-offset strategy instead of ORDER BY RAND()
                 base_query = MovieQueryBuilder.build_base_query(use_recent=True)
-                order_by = " ORDER BY RAND()"
+                order_by = ""  # handled via random-offset strategy below
             else:
+                # Avoid ORDER BY RAND() on the full table — use a random
+                # offset into the qualifying rows instead.  This turns an
+                # O(n·log n) filesort into two index scans.
                 base_query = MovieQueryBuilder.build_base_query()
-                order_by = " ORDER BY RAND()"
+                order_by = ""  # handled below via random-offset strategy
             
             parameters = MovieQueryBuilder.build_parameters(criteria, use_optimized)
             
-            # Use FULLTEXT for genres if available
+            # Build the WHERE portion (without ORDER BY / LIMIT yet)
             if self.use_fulltext:
                 genre_condition, genre_params = MovieQueryBuilder.build_genre_conditions_fulltext(
                     criteria, use_cache or use_recent
                 )
-                full_query = base_query + genre_condition + order_by + f" LIMIT {int(limit)}"
+                where_query = base_query + genre_condition
                 all_parameters = parameters + genre_params
             else:
                 genre_conditions = MovieQueryBuilder.build_genre_conditions(
                     criteria, parameters, use_cache or use_recent
                 )
-                full_query = base_query + (f" AND ({genre_conditions[0]})" if genre_conditions else "") + \
-                            order_by + f" LIMIT {int(limit)}"
+                where_query = base_query + (f" AND ({genre_conditions[0]})" if genre_conditions else "")
                 all_parameters = parameters
 
+            # Random-offset strategy: for the full table or recent cache,
+            # count qualifying rows then pick a random offset to avoid the
+            # expensive ORDER BY RAND() full-table sort.
+            if not order_by:
+                import random
+                import re
+                count_query = re.sub(r'SELECT\s+\S+', 'SELECT COUNT(*)', where_query, count=1)
+                try:
+                    count_result = await self.db_pool.execute(
+                        count_query, all_parameters, "one"
+                    )
+                except DatabaseError:
+                    count_result = None
+                total_rows = list(count_result.values())[0] if count_result else 0
+                if total_rows > int(limit):
+                    rand_offset = random.randint(0, max(0, total_rows - int(limit)))
+                    full_query = where_query + f" LIMIT {int(limit)} OFFSET {rand_offset}"
+                else:
+                    full_query = where_query + f" LIMIT {int(limit)}"
+            else:
+                full_query = where_query + order_by + f" LIMIT {int(limit)}"
+
             query_start_time = time.time()
-            result = await self.db_query_executor.execute_async_query(full_query, all_parameters, 'all')
+            result = await self.db_pool.execute(full_query, all_parameters, "all")
             query_end_time = time.time()
 
             logger.info(
@@ -270,15 +294,17 @@ class ImdbRandomMovieFetcher(MovieFetcher):
                 2.4 / (method_end_time - method_start_time) if (method_end_time - method_start_time) > 0 else 1
             )
 
-            return result
-            
-        except Exception as e:
-            logger.error(f"Error in optimized fetch: {e}\n{traceback.format_exc()}")
-            # Fallback to LIKE if FULLTEXT fails
+            return result or []
+
+        except DatabaseError as e:
             if self.use_fulltext and "FULLTEXT" in str(e):
                 logger.warning("FULLTEXT search failed, falling back to LIKE queries")
                 self.use_fulltext = False
                 return await self.fetch_random_movies(criteria, limit)
+            logger.error("Database error in fetch_random_movies: %s", e)
+            return []
+        except Exception as e:
+            logger.error("Error in optimized fetch: %s\n%s", e, traceback.format_exc())
             raise
 
 
@@ -317,38 +343,6 @@ def extract_movie_filter_criteria(form_data):
     # Handling language criteria - support user selection
     language = form_data.get('language', 'en')
     criteria['language'] = language
-    logger.debug(f"Language filter set to: {language}")
+    logger.debug("Language filter set to: %s", language)
 
     return criteria
-
-
-async def main():
-    """Example usage for manual testing."""
-    db_config = Config.get_db_config()
-    pool = DatabaseConnectionPool(db_config)
-    await pool.init_pool()
-
-    criteria = {
-        'min_year': 2000,
-        'max_year': 2020,
-        'min_rating': 7.0,
-        'max_rating': 10,
-        'min_votes': 10000,
-        'max_votes': 100000,
-        'title_type': 'movie',
-        'language': 'en',
-        'genres': ['Action', 'Drama']
-    }
-
-    fetcher = ImdbRandomMovieFetcher(pool)
-    movies = await fetcher.fetch_movies_by_criteria(criteria)
-
-    for counter, movie in enumerate(movies, start=1):
-        logger.debug("Movie %s: %s", counter, movie)
-
-    await pool.close_pool()
-
-if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
-

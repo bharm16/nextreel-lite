@@ -5,7 +5,6 @@
 
 
 import asyncio
-import logging
 from logging_config import get_logger
 import os
 import time
@@ -312,7 +311,10 @@ class OptimizedMovieQueue:
             
             # Trigger refill if needed
             if user_queue.qsize() <= self.prefetch_threshold:
-                asyncio.create_task(self.load_movies_into_queue(user_id))
+                task = asyncio.create_task(self.load_movies_into_queue(user_id))
+                task.add_done_callback(
+                    lambda t: t.exception() if not t.cancelled() else None
+                )
             
             return movie_data
             
@@ -447,7 +449,11 @@ class OptimizedMovieQueue:
         if user_info:
             task = user_info.get("populate_task")
             if not task or task.done():
-                user_info["populate_task"] = asyncio.create_task(self.populate(user_id))
+                t = asyncio.create_task(self.populate(user_id))
+                t.add_done_callback(
+                    lambda _t: _t.exception() if not _t.cancelled() else None
+                )
+                user_info["populate_task"] = t
                 logger.info(f"Started populate task for user {user_id}")
     
     async def stop_populate_task(self, user_id: str):

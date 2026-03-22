@@ -1,10 +1,12 @@
-import logging
 import re
 from uuid import uuid4
 from quart import request, g
+from logging_config import get_logger
 
 # Only allow safe characters in correlation IDs to prevent log injection
 _SAFE_CORRELATION_RE = re.compile(r'^[\w\-\.]{1,128}$')
+
+logger = get_logger(__name__)
 
 
 async def add_correlation_id():
@@ -17,4 +19,4 @@ async def add_correlation_id():
     else:
         correlation_id = str(uuid4())
     g.correlation_id = correlation_id
-    logging.info("New request received. Correlation ID: %s, Path: %s", correlation_id, request.path)
+    logger.info("New request received. Correlation ID: %s, Path: %s", correlation_id, request.path)

@@ -5,21 +5,21 @@ This is optional but will improve query performance.
 """
 
 import asyncio
+import os
 import aiomysql
 from scripts.tmdb_client import TMDbHelper
-import logging
+from logging_config import get_logger
 from tqdm import tqdm
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 async def update_languages():
-    # Database connection
+    # Database connection — credentials from environment variables
     conn = await aiomysql.connect(
-        host='localhost',
-        user='root',
-        password='caching_sha2_password',
-        db='imdb',
+        host=os.getenv('DB_HOST', 'localhost'),
+        user=os.getenv('DB_USER', 'root'),
+        password=os.getenv('DB_PASSWORD', ''),
+        db=os.getenv('DB_NAME', 'imdb'),
         autocommit=False
     )
     cursor = await conn.cursor(aiomysql.DictCursor)

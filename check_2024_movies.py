@@ -2,14 +2,16 @@
 """Check for 2024-2025 movies in the database."""
 
 import asyncio
+import os
 import aiomysql
+
 
 async def check_recent_movies():
     conn = await aiomysql.connect(
-        host='localhost',
-        user='root', 
-        password='caching_sha2_password',
-        db='imdb',
+        host=os.getenv('DB_HOST', 'localhost'),
+        user=os.getenv('DB_USER', 'root'),
+        password=os.getenv('DB_PASSWORD', ''),
+        db=os.getenv('DB_NAME', 'imdb'),
         autocommit=True
     )
     

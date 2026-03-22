@@ -1,87 +1,57 @@
-import hashlib
-import logging
-import os
-import secrets
+"""Session initialization — registers users with MovieManager.
+
+Token creation, fingerprinting, rotation, and cookie security are all handled
+by ``session_security_enhanced.EnhancedSessionSecurity``.  This module is
+responsible only for ensuring the user is registered in the movie manager
+and that the session contains the required navigation state.
+"""
+
 import time
 import uuid
+from datetime import datetime
 
-from quart import request, session
+from quart import session
 
 from session_keys import (
-    SESSION_TOKEN_KEY,
-    SESSION_FINGERPRINT_KEY,
     USER_ID_KEY,
     CREATED_AT_KEY,
     INITIALIZED_KEY,
     CRITERIA_KEY,
 )
+from logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 DEFAULT_CRITERIA = {
     "min_year": 1900,
-    "max_year": 2023,
+    "max_year": datetime.now().year,
     "min_rating": 7.0,
     "genres": ["Action", "Comedy"],
 }
 SESSION_MAX_AGE = 24 * 60 * 60  # 24 hours
 
 
-def generate_session_token() -> str:
-    """Generate a secure random session token."""
-    return secrets.token_urlsafe(32)
-
-
-def generate_fingerprint(user_agent: str, ip: str) -> str:
-    """Generate a fingerprint tied to the user agent and IP."""
-    secret = os.getenv('FLASK_SECRET_KEY', '')
-    if not secret:
-        logger.warning("FLASK_SECRET_KEY not set — fingerprinting is weakened")
-    data = f"{user_agent}|{ip}|{secret}"
-    return hashlib.sha256(data.encode()).hexdigest()
-
-
-def ensure_session() -> None:
-    """Ensure the session contains a token and fingerprint bound to the client."""
-    current_fp = generate_fingerprint(
-        request.headers.get("User-Agent", ""), request.remote_addr or ""
-    )
-    token = session.get(SESSION_TOKEN_KEY)
-    fp = session.get(SESSION_FINGERPRINT_KEY)
-
-    if not token or fp != current_fp:
-        session.clear()
-        session[SESSION_TOKEN_KEY] = generate_session_token()
-        session[SESSION_FINGERPRINT_KEY] = current_fp
-
-
 async def init_session(movie_manager, metrics_collector=None):
-    """Initialize or refresh the user session.
+    """Ensure the user is registered in the movie manager.
 
-    If ``EnhancedSessionSecurity`` already created the session token (via its
-    own ``before_request`` handler), this function only ensures the user is
-    registered with the movie manager — it does **not** re-create the session.
-
-    When no token exists yet (e.g. tests or when the enhanced handler is
-    disabled), this function falls back to creating one itself.
+    Token and fingerprint are created by ``EnhancedSessionSecurity`` in its
+    own ``before_request`` handler.  This function only handles user
+    registration and session-age expiry.
     """
     from metrics_collector import user_sessions_total
 
-    # If enhanced security already set the token, skip token creation
     is_new = False
-    if SESSION_TOKEN_KEY not in session:
-        session[SESSION_TOKEN_KEY] = generate_session_token()
-        session[CREATED_AT_KEY] = time.time()
-        is_new = True
 
     # Ensure a user_id is always present
     if USER_ID_KEY not in session:
         session[USER_ID_KEY] = str(uuid.uuid4())
+        session[CREATED_AT_KEY] = time.time()
         is_new = True
 
     if is_new:
         logger.info("Created new session for user: %s", session[USER_ID_KEY])
         await movie_manager.add_user(session[USER_ID_KEY], DEFAULT_CRITERIA)
+        session[INITIALIZED_KEY] = True
         user_sessions_total.inc()
         if metrics_collector:
             metrics_collector.track_user_activity(session[USER_ID_KEY])
@@ -91,7 +61,6 @@ async def init_session(movie_manager, metrics_collector=None):
         session_age = time.time() - session[CREATED_AT_KEY]
         if session_age > SESSION_MAX_AGE:
             session.clear()
-            session[SESSION_TOKEN_KEY] = generate_session_token()
             session[USER_ID_KEY] = str(uuid.uuid4())
             session[CREATED_AT_KEY] = time.time()
             logger.info("Session expired, created new session")

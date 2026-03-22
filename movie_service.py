@@ -1,12 +1,9 @@
 import asyncio
-import logging
 from logging_config import get_logger
-import time
 
-from quart import render_template, redirect, url_for, session
+from quart import copy_current_request_context, has_request_context, render_template, session
 
 from settings import Config, DatabaseConnectionPool
-from scripts.movie import Movie
 from scripts.filter_backend import (
     ImdbRandomMovieFetcher,
     extract_movie_filter_criteria,
@@ -15,7 +12,11 @@ from scripts.tmdb_client import TMDbHelper
 from movie_navigator import MovieNavigator
 from movie_renderer import MovieRenderer
 from session_keys import (
-    CRITERIA_KEY, reset_movie_stacks, init_movie_stacks,
+    CRITERIA_KEY,
+    SESSION_TOKEN_KEY,
+    USER_ID_KEY,
+    init_movie_stacks,
+    reset_movie_stacks,
 )
 
 logger = get_logger(__name__)
@@ -39,9 +40,14 @@ class MovieManager:
         self.default_backdrop_url = None
         self.tmdb_helper = TMDbHelper()
 
-        # Delegates
-        self._navigator = MovieNavigator(self.movie_fetcher, self.db_pool, self.queue_size)
+        # Delegates — share the single TMDbHelper (and its httpx pool)
+        self._navigator = MovieNavigator(
+            self.movie_fetcher, self.db_pool, self.queue_size,
+            tmdb_helper=self.tmdb_helper,
+        )
         self._renderer = MovieRenderer(self.db_pool, self.tmdb_helper)
+        self._queue_prefetch_tasks: dict[str, asyncio.Task] = {}
+        self._queue_prefetch_lock = asyncio.Lock()
 
     async def start(self):
         logger.info("Starting MovieManager")
@@ -50,13 +56,22 @@ class MovieManager:
         logger.debug("Default backdrop set")
 
     async def close(self):
-        """Close database connections properly"""
+        """Close database connections and HTTP clients properly"""
+        await self._cancel_prefetch_tasks()
+
+        try:
+            if self.tmdb_helper:
+                await self.tmdb_helper.close()
+                logger.info("MovieManager TMDbHelper closed")
+        except Exception as e:
+            logger.error("Error closing TMDbHelper: %s", e)
+
         try:
             if self.db_pool:
                 await self.db_pool.close_pool()
                 logger.info("MovieManager database pool closed")
         except Exception as e:
-            logger.error(f"Error closing MovieManager: {e}")
+            logger.error("Error closing MovieManager: %s", e)
 
     async def stop(self):
         """Alias for close() method for consistency"""
@@ -70,16 +85,75 @@ class MovieManager:
         user_id (str): Unique identifier for the user.
         criteria (dict): Criteria to filter movies for the user.
         """
-        logger.info(f"Adding new user with ID: {user_id} and criteria: {criteria}")
+        logger.info("Adding new user with ID: %s and criteria: %s", user_id, criteria)
         init_movie_stacks(criteria)
-        await self._load_movies_into_queue()
+        await self._navigator._load_movies_into_queue()
 
     async def home(self, user_id):
         logger.debug("Accessing home")
-        asyncio.create_task(self._ensure_queue())
+        await self._start_queue_prefetch(user_id)
         return await render_template(
             "home.html", default_backdrop_url=self.default_backdrop_url
         )
+
+    def _queue_task_key(self, user_id: str | None) -> str:
+        if has_request_context():
+            return (
+                session.get(USER_ID_KEY)
+                or session.get(SESSION_TOKEN_KEY)
+                or user_id
+                or "anonymous"
+            )
+        return user_id or "anonymous"
+
+    async def _start_queue_prefetch(self, user_id: str | None) -> asyncio.Task:
+        """Ensure only one background queue-population task runs per user."""
+        task_key = self._queue_task_key(user_id)
+
+        async with self._queue_prefetch_lock:
+            existing = self._queue_prefetch_tasks.get(task_key)
+            if existing and not existing.done():
+                return existing
+
+            if has_request_context():
+                @copy_current_request_context
+                async def populate_queue():
+                    await self._navigator._ensure_queue()
+            else:
+                async def populate_queue():
+                    await self._navigator._ensure_queue()
+
+            task = asyncio.create_task(populate_queue(), name=f"queue-prefetch:{task_key}")
+            task.add_done_callback(
+                lambda done_task, key=task_key: self._handle_prefetch_task_done(
+                    key, done_task
+                )
+            )
+            self._queue_prefetch_tasks[task_key] = task
+            return task
+
+    def _handle_prefetch_task_done(self, task_key: str, task: asyncio.Task) -> None:
+        """Log failures once and evict completed tasks from the registry."""
+        self._queue_prefetch_tasks.pop(task_key, None)
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc:
+            logger.error("Queue prefetch task failed for %s: %s", task_key, exc, exc_info=exc)
+
+    async def _cancel_prefetch_tasks(self) -> None:
+        """Cancel any outstanding queue-prefetch tasks during shutdown."""
+        async with self._queue_prefetch_lock:
+            tasks = list(self._queue_prefetch_tasks.values())
+            self._queue_prefetch_tasks.clear()
+
+        if not tasks:
+            return
+
+        for task in tasks:
+            task.cancel()
+
+        await asyncio.gather(*tasks, return_exceptions=True)
 
     async def set_default_backdrop(self):
         image_data = await self.tmdb_helper.get_images_by_tmdb_id(
@@ -104,18 +178,11 @@ class MovieManager:
     async def render_movie_by_tconst(self, user_id, tconst, template_name="movie.html"):
         return await self._renderer.render_movie_by_tconst(user_id, tconst, template_name)
 
-    # Expose navigator helpers on the manager for backward compat
-    def _get_user_stacks(self):
-        return self._navigator._get_user_stacks()
-
-    def _mark_movie_seen(self, tconst):
-        return self._navigator._mark_movie_seen(tconst)
-
-    async def _load_movies_into_queue(self):
-        return await self._navigator._load_movies_into_queue()
-
-    async def _ensure_queue(self):
-        return await self._navigator._ensure_queue()
+    # Public navigation helpers delegated to MovieNavigator.
+    # NOTE: The previous pass-through private methods (_get_user_stacks,
+    # _mark_movie_seen, _load_movies_into_queue, _ensure_queue) were removed
+    # because exposing private APIs through a facade defeats its purpose.
+    # Internal callers should use the navigator directly via self._navigator.
 
     def get_current_movie_tconst(self):
         return self._navigator.get_current_movie_tconst()
@@ -130,46 +197,21 @@ class MovieManager:
         return await self._navigator.previous_movie(user_id)
 
     async def set_filters(self, user_id):
-        logger.info(f"Setting filters for user_id: {user_id}")
+        logger.info("Setting filters for user_id: %s", user_id)
         reset_movie_stacks()
         return await render_template("set_filters.html")
 
     async def filtered_movie(self, user_id, form_data):
-        logger.info(f"Starting filtering process for user_id: {user_id}")
+        logger.info("Starting filtering process for user_id: %s", user_id)
 
         new_criteria = extract_movie_filter_criteria(form_data)
         session[CRITERIA_KEY] = new_criteria
         reset_movie_stacks()
 
-        await self._load_movies_into_queue()
+        await self._navigator._load_movies_into_queue()
 
         response = await self.next_movie(user_id)
         if response:
             return response
 
         return "No movie found", 404
-
-
-# Main function for testing...
-async def main():
-    dbconfig = Config.get_db_config()
-
-    movie_manager = MovieManager(dbconfig)
-    await movie_manager.start()
-    await asyncio.sleep(10)  # Wait for queue to populate
-
-    # Example tconst to test
-    test_tconst = "tt0111161"  # Example IMDb ID for "The Shawshank Redemption"
-
-    movie_instance = Movie(test_tconst, movie_manager.db_pool)
-    movie_data = await movie_instance.get_movie_data()
-    if movie_data:
-        print(
-            f"Successfully fetched movie data for tconst {test_tconst}: {movie_data['title']}"
-        )
-    else:
-        print(f"Failed to fetch movie data for tconst {test_tconst}")
-
-
-if __name__ == "__main__":
-    asyncio.run(main())

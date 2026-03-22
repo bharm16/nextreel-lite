@@ -1,5 +1,4 @@
 import asyncio
-import logging
 from logging_config import get_logger
 import os
 import random
@@ -29,9 +28,74 @@ TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/"
 logger = get_logger(__name__)
 
 
+class _CircuitBreaker:
+    """Lightweight circuit breaker for external API calls.
+
+    States:
+    - CLOSED: requests flow normally, failures are counted.
+    - OPEN: requests are rejected immediately for ``recovery_timeout`` seconds.
+    - HALF_OPEN: a single probe request is allowed through; success closes,
+      failure re-opens.
+    """
+
+    CLOSED = "closed"
+    OPEN = "open"
+    HALF_OPEN = "half_open"
+
+    def __init__(
+        self,
+        failure_threshold: int = 5,
+        recovery_timeout: float = 30.0,
+        half_open_max: int = 1,
+    ):
+        self.failure_threshold = failure_threshold
+        self.recovery_timeout = recovery_timeout
+        self.half_open_max = half_open_max
+
+        self._state = self.CLOSED
+        self._failure_count = 0
+        self._last_failure_time: float = 0
+        self._half_open_count = 0
+
+    @property
+    def state(self) -> str:
+        if self._state == self.OPEN:
+            if time.time() - self._last_failure_time >= self.recovery_timeout:
+                self._state = self.HALF_OPEN
+                self._half_open_count = 0
+        return self._state
+
+    def allow_request(self) -> bool:
+        s = self.state
+        if s == self.CLOSED:
+            return True
+        if s == self.HALF_OPEN:
+            if self._half_open_count < self.half_open_max:
+                self._half_open_count += 1
+                return True
+            return False
+        return False  # OPEN
+
+    def record_success(self) -> None:
+        self._failure_count = 0
+        self._state = self.CLOSED
+
+    def record_failure(self) -> None:
+        self._failure_count += 1
+        self._last_failure_time = time.time()
+        if self._failure_count >= self.failure_threshold:
+            self._state = self.OPEN
+            logger.warning(
+                "TMDb circuit breaker OPEN after %d consecutive failures",
+                self._failure_count,
+            )
+
+
 class TMDbHelper:
     # Semaphore shared across all instances to respect TMDb rate limits (~40 req/s)
     _rate_semaphore = asyncio.Semaphore(30)
+    # Circuit breaker shared across all instances
+    _circuit_breaker = _CircuitBreaker(failure_threshold=5, recovery_timeout=30.0)
 
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or get_tmdb_api_key()
@@ -56,6 +120,13 @@ class TMDbHelper:
         url = f"{self.base_url}/{endpoint}"
         params["api_key"] = self.api_key
 
+        # Circuit breaker check — fail fast when TMDb is known to be down
+        if not self._circuit_breaker.allow_request():
+            logger.warning("TMDb circuit breaker OPEN — rejecting request to %s", endpoint)
+            raise httpx.RequestError(
+                f"TMDb circuit breaker open — request to {endpoint} rejected"
+            )
+
         for attempt in range(self._max_retries + 1):
             start_time = time.time()
             try:
@@ -69,6 +140,7 @@ class TMDbHelper:
                         "TMDb rate limited (429). Retry-After: %.1fs (attempt %d/%d)",
                         wait, attempt + 1, self._max_retries,
                     )
+                    self._circuit_breaker.record_failure()
                     if attempt < self._max_retries:
                         await asyncio.sleep(wait)
                         continue
@@ -81,10 +153,12 @@ class TMDbHelper:
                     "Received response from %s in %.2f seconds. Status code: %s",
                     url, elapsed_time, response.status_code,
                 )
+                self._circuit_breaker.record_success()
                 return response.json()
 
             except httpx.RequestError as e:
                 elapsed_time = time.time() - start_time
+                self._circuit_breaker.record_failure()
                 if attempt < self._max_retries:
                     backoff = 2 ** attempt
                     logger.warning(
@@ -100,12 +174,16 @@ class TMDbHelper:
                 raise
             except httpx.HTTPStatusError as e:
                 elapsed_time = time.time() - start_time
+                # 4xx client errors (except 429) are not TMDb failures
+                if e.response.status_code >= 500:
+                    self._circuit_breaker.record_failure()
                 logger.error(
                     "HTTP error from %s: %s; Time elapsed: %.2fs", url, e, elapsed_time,
                 )
                 raise
             except Exception as e:
                 elapsed_time = time.time() - start_time
+                self._circuit_breaker.record_failure()
                 logger.error(
                     "Unexpected error from %s: %s; Time elapsed: %.2fs", url, e, elapsed_time,
                 )
@@ -158,7 +236,7 @@ class TMDbHelper:
             return providers if providers else None
             
         except Exception as e:
-            logger.warning(f"Error fetching watch providers for TMDB ID {tmdb_id}: {e}")
+            logger.warning("Error fetching watch providers for TMDB ID %s: %s", tmdb_id, e)
             return None
 
     async def get_age_rating_by_tmdb_id(self, tmdb_id):
@@ -186,7 +264,7 @@ class TMDbHelper:
             return "Not Rated"
             
         except Exception as e:
-            logger.warning(f"Error fetching age rating for TMDB ID {tmdb_id}: {e}")
+            logger.warning("Error fetching age rating for TMDB ID %s: %s", tmdb_id, e)
             return "Not Rated"
 
     async def get_cast_info_by_tmdb_id(self, tmdb_id):
@@ -223,7 +301,10 @@ class TMDbHelper:
         except Exception as e:
             elapsed_time = time.time() - start_time
             logger.error(
-                f"Error fetching cast information for TMDB ID: {tmdb_id}. Error: {e}. Time elapsed: {elapsed_time:.2f} seconds"
+                "Error fetching cast information for TMDB ID: %s. Error: %s. Time elapsed: %.2f seconds",
+                tmdb_id,
+                e,
+                elapsed_time,
             )
             raise
 
@@ -314,44 +395,3 @@ class TMDbHelper:
         """Close the HTTP client"""
         if hasattr(self, '_client'):
             await self._client.aclose()
-
-
-# Class for managing TMDb movie information
-class TmdbMovieInfo:
-    def __init__(self, api_key):
-        self.api_key = api_key
-        tmdb.API_KEY = self.api_key
-
-
-async def main(api_key: str, tconst: str):
-    tmdb_helper = TMDbHelper(api_key)
-
-    tmdb_id = await tmdb_helper.get_tmdb_id_by_tconst(tconst)
-    if tmdb_id:
-        movie_info = await tmdb_helper.get_movie_info_by_tmdb_id(tmdb_id)
-        print("Movie Information from TMDb:", movie_info)
-
-        cast_info = await tmdb_helper.get_cast_info_by_tmdb_id(tmdb_id)
-        print("Cast Information:")
-        for cast_member in cast_info:
-            print(f"{cast_member['name']} as {cast_member['character']}")
-            if cast_member.get("image_url"):
-                print(f"Image URL: {cast_member['image_url']}")
-            else:
-                print("Image not available")
-
-        all_backdrops = await tmdb_helper.get_all_backdrop_images(tmdb_id)
-        if all_backdrops:
-            print("All backdrop images:")
-            for backdrop in all_backdrops:
-                print(backdrop)
-        else:
-            print("No backdrop images found.")
-    else:
-        print("TMDb ID not found.")
-
-
-if __name__ == "__main__":
-    key = get_tmdb_api_key()
-    tconst = "tt0111161"  # Example IMDb ID
-    asyncio.run(main(key, tconst))

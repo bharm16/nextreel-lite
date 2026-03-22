@@ -14,9 +14,6 @@ class DatabaseConfig:
     POOL_MIN_SIZE = 10
     POOL_MAX_SIZE = 30
 
-    # Legacy config kept for backward compat — not used at runtime.
-    STACKHERO_DB_CONFIG = {}
-
     @staticmethod
     def get_db_config():
         """Get database configuration based on environment."""

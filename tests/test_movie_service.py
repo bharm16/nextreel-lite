@@ -1,68 +1,109 @@
 import asyncio
 from unittest.mock import AsyncMock, patch
 
-import os
-from quart import session
-from app import create_app
+import pytest
+from quart import Quart, session
+
 from movie_service import MovieManager
-
-# Provide a dummy TMDb API key for tests to avoid external dependencies
-os.environ.setdefault("TMDB_API_KEY", "test_key")
+from session_keys import USER_ID_KEY
 
 
-def test_start():
-    async def run_test():
-        set_default_backdrop_mock = AsyncMock()
-        with patch.object(MovieManager, 'set_default_backdrop', set_default_backdrop_mock):
-            movie_manager = MovieManager(db_config=None)
-            movie_manager.db_pool.init_pool = AsyncMock()
-            await movie_manager.start()
-            set_default_backdrop_mock.assert_called_once()
-
-    asyncio.run(run_test())
+@pytest.fixture
+def app():
+    app = Quart(__name__)
+    app.config["SECRET_KEY"] = "test-secret"
+    app.config["TESTING"] = True
+    return app
 
 
-def test_add_user():
-    async def run_test():
-        app = create_app()
-        app.config['TESTING'] = True
-        async with app.test_request_context('/'):
-            movie_manager = MovieManager(db_config=None)
-            with patch.object(MovieManager, '_load_movies_into_queue', AsyncMock()):
-                await movie_manager.add_user('test_user', {'genre': 'comedy'})
-                assert session['criteria'] == {'genre': 'comedy'}
-
-    asyncio.run(run_test())
-
-
-def test_home():
-    async def run_test():
-        render_template_mock = AsyncMock(return_value='rendered_template')
+@pytest.mark.asyncio
+async def test_start_initializes_pool_and_backdrop():
+    set_default_backdrop_mock = AsyncMock()
+    with patch.object(MovieManager, "set_default_backdrop", set_default_backdrop_mock):
         movie_manager = MovieManager(db_config=None)
-        movie_manager._ensure_queue = AsyncMock()
-        with patch('movie_service.render_template', render_template_mock):
-            result = await movie_manager.home('test_user')
-            movie_manager._ensure_queue.assert_awaited_once()
-            render_template_mock.assert_called_once_with(
-                'home.html', default_backdrop_url=movie_manager.default_backdrop_url
-            )
-            assert result == 'rendered_template'
-
-    asyncio.run(run_test())
+        movie_manager.db_pool.init_pool = AsyncMock()
+        await movie_manager.start()
+        movie_manager.db_pool.init_pool.assert_awaited_once()
+        set_default_backdrop_mock.assert_awaited_once()
 
 
-def test_set_default_backdrop():
-    async def run_test():
-        class Helper:
-            async def get_images_by_tmdb_id(self, tmdb_id):
-                return {'backdrops': ['backdrop_url']}
-
-            def get_full_image_url(self, path):
-                return f'full:{path}'
-
+@pytest.mark.asyncio
+async def test_add_user_sets_criteria_and_loads_queue(app):
+    async with app.test_request_context("/"):
         movie_manager = MovieManager(db_config=None)
-        movie_manager.tmdb_helper = Helper()
-        await movie_manager.set_default_backdrop()
-        assert movie_manager.default_backdrop_url == 'full:backdrop_url'
+        movie_manager._navigator._load_movies_into_queue = AsyncMock()
+        await movie_manager.add_user("test_user", {"genre": "comedy"})
+        assert session["criteria"] == {"genre": "comedy"}
+        movie_manager._navigator._load_movies_into_queue.assert_awaited_once()
 
-    asyncio.run(run_test())
+
+@pytest.mark.asyncio
+async def test_home_reuses_existing_prefetch_task(app):
+    render_template_mock = AsyncMock(return_value="rendered_template")
+    movie_manager = MovieManager(db_config=None)
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    async def fake_ensure_queue():
+        started.set()
+        await release.wait()
+
+    movie_manager._navigator._ensure_queue = fake_ensure_queue
+
+    async with app.test_request_context("/"):
+        session[USER_ID_KEY] = "test-user"
+        with patch("movie_service.render_template", render_template_mock):
+            first_result = await movie_manager.home("test-user")
+            await started.wait()
+            second_result = await movie_manager.home("test-user")
+
+            assert first_result == "rendered_template"
+            assert second_result == "rendered_template"
+            assert len(movie_manager._queue_prefetch_tasks) == 1
+
+            release.set()
+            task = next(iter(movie_manager._queue_prefetch_tasks.values()))
+            await task
+            await asyncio.sleep(0)
+            assert movie_manager._queue_prefetch_tasks == {}
+
+
+@pytest.mark.asyncio
+async def test_close_cancels_prefetch_tasks(app):
+    movie_manager = MovieManager(db_config=None)
+    movie_manager.tmdb_helper.close = AsyncMock()
+    movie_manager.db_pool.close_pool = AsyncMock()
+    release = asyncio.Event()
+
+    async def fake_ensure_queue():
+        await release.wait()
+
+    movie_manager._navigator._ensure_queue = fake_ensure_queue
+
+    async with app.test_request_context("/"):
+        session[USER_ID_KEY] = "test-user"
+        with patch("movie_service.render_template", AsyncMock(return_value="ok")):
+            await movie_manager.home("test-user")
+            task = next(iter(movie_manager._queue_prefetch_tasks.values()))
+            assert not task.done()
+
+            await movie_manager.close()
+
+            assert task.cancelled()
+            movie_manager.tmdb_helper.close.assert_awaited_once()
+            movie_manager.db_pool.close_pool.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_set_default_backdrop():
+    class Helper:
+        async def get_images_by_tmdb_id(self, tmdb_id):
+            return {"backdrops": ["backdrop_url"]}
+
+        def get_full_image_url(self, path):
+            return f"full:{path}"
+
+    movie_manager = MovieManager(db_config=None)
+    movie_manager.tmdb_helper = Helper()
+    await movie_manager.set_default_backdrop()
+    assert movie_manager.default_backdrop_url == "full:backdrop_url"
