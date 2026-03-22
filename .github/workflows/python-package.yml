@@ -1,50 +1,45 @@
-# This workflow will install Python dependencies, run lint, execute tests, and
-# upload coverage with a variety of Python versions.
+# Build, lint, and test NextReel-Lite across supported Python versions.
 
 name: build
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.6, 3.7, 3.8]
+        python-version: ['3.11', '3.12']
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install flake8
-        pip install pytest
-        pip install pytest-cov
-        pip install codecov
-        pip install requests
+        pip install -r requirements.txt
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics --exclude=venv,node_modules
+        # exit-zero treats all errors as warnings
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics --exclude=venv,node_modules
     - name: Test with pytest
       env:
         TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
-        TMDB_USERNAME: ${{ secrets.TMDB_USERNAME }}
-        TMDB_PASSWORD: ${{ secrets.TMDB_PASSWORD }}
-        TMDB_SESSION_ID: ${{ secrets.TMDB_SESSION_ID }}
+        FLASK_ENV: testing
       run: |
-        pytest --cov=tmdbsimple --cov-report term-missing --cov-report=xml
+        pytest tests/ --cov=. --cov-report=term-missing --cov-report=xml \
+          --ignore=venv --ignore=node_modules
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v1
+      uses: codecov/codecov-action@v4
       with:
         file: ./coverage.xml
-        name: codecov-tmdbsimple
+        name: codecov-nextreel-lite

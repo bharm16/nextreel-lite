@@ -9,7 +9,7 @@ import time
 import asyncio
 from typing import Callable, Optional, Dict, Any
 from quart import Response, request, g, session
-import logging
+from logging_config import get_logger
 import os
 
 # Application info metric
@@ -332,7 +332,7 @@ class MetricsCollector:
         self._collection_task: Optional[asyncio.Task] = None
         self._active_users: dict = {}  # user_id -> last_seen_timestamp
         self._active_user_timeout = 1800  # 30 minutes
-        self.logger = logging.getLogger(__name__)
+        self.logger = get_logger(__name__)
         
     async def start_collection(self):
         """Start background metrics collection"""
@@ -441,7 +441,7 @@ async def metrics_endpoint():
             mimetype='text/plain; version=0.0.4; charset=utf-8'
         )
     except Exception as e:
-        logger = logging.getLogger(__name__)
+        logger = get_logger(__name__)
         logger.error(f"Failed to generate metrics: {e}")
         return Response("Error generating metrics", status=500)
 
@@ -482,7 +482,7 @@ def setup_metrics_middleware(app, metrics_collector: MetricsCollector):
             http_requests_in_progress.dec()
             
         except Exception as e:
-            logger = logging.getLogger(__name__)
+            logger = get_logger(__name__)
             logger.error(f"Error in metrics middleware: {e}")
         
         return response

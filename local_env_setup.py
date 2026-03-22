@@ -21,19 +21,11 @@ def setup_local_environment():
         os.environ.setdefault("MYSQL_USER", "")
         os.environ.setdefault("MYSQL_PASSWORD", "")
         os.environ.setdefault("MYSQL_DB", "")
-        os.environ.setdefault("USER_DB_HOST", "")
-        os.environ.setdefault("USER_DB_USER", "")
-        os.environ.setdefault("USER_DB_PASSWORD", "")
-        os.environ.setdefault("USER_DB_NAME", "")
     else:  # Local or testing environment
         os.environ.setdefault("MYSQL_HOST", "127.0.0.1")
         os.environ.setdefault("MYSQL_USER", "root")
         os.environ.setdefault("MYSQL_PASSWORD", "")
         os.environ.setdefault("MYSQL_DB", "imdb")
-        os.environ.setdefault("USER_DB_HOST", "127.0.0.1")
-        os.environ.setdefault("USER_DB_USER", "root")
-        os.environ.setdefault("USER_DB_PASSWORD", "")
-        os.environ.setdefault("USER_DB_NAME", "UserAccounts")
 
 
 if __name__ == "__main__":

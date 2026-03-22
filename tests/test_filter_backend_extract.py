@@ -8,8 +8,8 @@ class DummyForm:
     def __init__(self, data):
         self._data = data
 
-    def get(self, key):
-        return self._data.get(key)
+    def get(self, key, default=None):
+        return self._data.get(key, default)
 
     def getlist(self, key):
         return self._data.get(key, [])

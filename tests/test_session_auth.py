@@ -1,46 +1,61 @@
-import asyncio
-from unittest.mock import AsyncMock, patch
+import time
+from unittest.mock import AsyncMock
 
-from quart import session
+import pytest
+from quart import Quart, session
 
-from app import create_app
-from session_auth import (
-    SESSION_FINGERPRINT_KEY,
-    SESSION_TOKEN_KEY,
-    ensure_session,
-    generate_fingerprint,
-)
+from session_auth import DEFAULT_CRITERIA, init_session
+from session_keys import CREATED_AT_KEY, CRITERIA_KEY, INITIALIZED_KEY, USER_ID_KEY
 
 
-def test_generate_fingerprint_is_deterministic():
-    fp1 = generate_fingerprint("agent", "127.0.0.1")
-    fp2 = generate_fingerprint("agent", "127.0.0.1")
-    assert fp1 == fp2
+@pytest.fixture
+def app():
+    app = Quart(__name__)
+    app.config["SECRET_KEY"] = "test-secret"
+    app.config["TESTING"] = True
+    return app
 
 
-def test_ensure_session_adds_keys():
-    async def run():
-        app = create_app()
-        async with app.test_request_context("/", headers={"User-Agent": "agent"}):
-            ensure_session()
-            assert SESSION_TOKEN_KEY in session
-            assert SESSION_FINGERPRINT_KEY in session
+@pytest.mark.asyncio
+async def test_init_session_creates_user_and_initializes_manager(app):
+    movie_manager = AsyncMock()
 
-    asyncio.run(run())
+    async with app.test_request_context("/"):
+        await init_session(movie_manager)
+
+        assert USER_ID_KEY in session
+        assert CREATED_AT_KEY in session
+        assert session[INITIALIZED_KEY] is True
+        movie_manager.add_user.assert_awaited_once()
 
 
-def test_session_auto_initialization():
-    async def run_test():
-        with patch("app.MovieManager") as MockManager:
-            manager = MockManager.return_value
-            manager.add_user = AsyncMock()
-            manager.home = AsyncMock(return_value="home")
-            app = create_app()
-            app.config["TESTING"] = False
-            async with app.app_context():
-                client = app.test_client()
-                response = await client.get("/")
-                assert response.status_code == 200
-                assert manager.add_user.called
+@pytest.mark.asyncio
+async def test_init_session_uses_existing_criteria(app):
+    movie_manager = AsyncMock()
 
-    asyncio.run(run_test())
+    async with app.test_request_context("/"):
+        session[USER_ID_KEY] = "existing-user"
+        session[CREATED_AT_KEY] = time.time()
+        session[CRITERIA_KEY] = {"language": "fr", "genres": ["Drama"]}
+
+        await init_session(movie_manager)
+
+        movie_manager.add_user.assert_awaited_once_with(
+            "existing-user", {"language": "fr", "genres": ["Drama"]}
+        )
+
+
+@pytest.mark.asyncio
+async def test_init_session_recreates_expired_session(app):
+    movie_manager = AsyncMock()
+
+    async with app.test_request_context("/"):
+        session[USER_ID_KEY] = "expired-user"
+        session[CREATED_AT_KEY] = time.time() - (25 * 60 * 60)
+        session[CRITERIA_KEY] = DEFAULT_CRITERIA
+
+        await init_session(movie_manager)
+
+        assert session[USER_ID_KEY] != "expired-user"
+        assert session[INITIALIZED_KEY] is True
+        assert movie_manager.add_user.await_count == 1

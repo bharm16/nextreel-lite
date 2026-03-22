@@ -1,10 +1,10 @@
 import os
-import logging
 from typing import Optional, Dict, Any
 from functools import lru_cache
 import json
+from logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class SecretsManager:

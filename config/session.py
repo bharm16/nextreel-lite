@@ -1,9 +1,9 @@
 """Session and cookie configuration."""
 
 import os
-import logging
+from logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 _flask_env = os.getenv("FLASK_ENV", "development")
 

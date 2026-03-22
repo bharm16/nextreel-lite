@@ -1,702 +1,283 @@
 #!/usr/bin/env python3
-"""
-NextReel Enhanced Session Security System
-==========================================
-Complete implementation addressing all session security vulnerabilities
+"""Simplified session security for NextReel-Lite.
 
-INSTRUCTIONS FOR CLAUDE CODE:
-1. Save this as 'session_security_enhanced.py' in your project
-2. Update your app.py to use this enhanced security
-3. Configure environment variables for production
-4. Run the security tests to validate
-5. Deploy with HTTPS enforced
-
-KEY IMPROVEMENTS:
-- Stronger fingerprinting with device detection
-- Hardware-based entropy sources
-- Automatic session rotation
-- Anti-replay attack protection
-- Session fixation prevention
-- HTTPS enforcement in production
+This module keeps the public integration points stable while removing the
+generated, over-engineered Redis shadow-state and crypto-heavy machinery that
+was disproportionate to the application's threat model.
 """
+
+from __future__ import annotations
 
 import hashlib
 import hmac
+import json
 import os
 import secrets
-import time
-import json
-import base64
-import platform
-import psutil
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Dict, Any, Tuple
-from dataclasses import dataclass, asdict
-import redis.asyncio as aioredis
-from cryptography.fernet import Fernet
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from functools import wraps
+from typing import Any, Dict, Tuple
 
-from quart import request, session, current_app, make_response
+from quart import current_app, request, session
 from werkzeug.exceptions import Unauthorized
-import logging
 
-logger = logging.getLogger(__name__)
-
-# Import session constants from the centralized module.
+from logging_config import get_logger
 from session_keys import (
-    SESSION_TOKEN_KEY,
-    SESSION_FINGERPRINT_KEY,
+    FINGERPRINT_COMPONENTS_KEY,
     SESSION_CREATED_KEY,
+    SESSION_FINGERPRINT_KEY,
     SESSION_LAST_ACTIVITY_KEY,
     SESSION_ROTATION_COUNT_KEY,
-    SESSION_NONCE_KEY,
-    SESSION_DEVICE_ID_KEY,
-    SESSION_SECURITY_LEVEL_KEY,
-    FINGERPRINT_COMPONENTS_KEY,
+    SESSION_TOKEN_KEY,
 )
 
-# Enhanced security settings
-SESSION_TIMEOUT_MINUTES = int(os.getenv('SESSION_TIMEOUT_MINUTES', 30))
-SESSION_IDLE_TIMEOUT_MINUTES = int(os.getenv('SESSION_IDLE_TIMEOUT_MINUTES', 15))
-SESSION_ROTATION_INTERVAL = int(os.getenv('SESSION_ROTATION_INTERVAL', 10))
-MAX_SESSION_DURATION_HOURS = int(os.getenv('MAX_SESSION_DURATION_HOURS', 24))
-FINGERPRINT_TOLERANCE = float(os.getenv('FINGERPRINT_TOLERANCE', 0.95))  # 95% match threshold
-
-
-@dataclass
-class SessionData:
-    """Enhanced session data structure"""
-    token: str
-    fingerprint: str
-    device_id: str
-    created: datetime
-    last_activity: datetime
-    rotation_count: int
-    nonce: str
-    security_level: str
-    ip_address: str
-    user_agent: str
-    
-    def to_dict(self) -> Dict:
-        data = asdict(self)
-        data['created'] = self.created.isoformat()
-        data['last_activity'] = self.last_activity.isoformat()
-        return data
-    
-    @classmethod
-    def from_dict(cls, data: Dict) -> 'SessionData':
-        data['created'] = datetime.fromisoformat(data['created'])
-        data['last_activity'] = datetime.fromisoformat(data['last_activity'])
-        return cls(**data)
+logger = get_logger(__name__)
 
 
 class EnhancedSessionSecurity:
-    """Production-grade session security manager with advanced protection"""
-    
+    """Session integrity checks with deterministic fingerprinting."""
+
     def __init__(self, app=None, redis_client=None):
+        self.app = None
+        self.redis_client = redis_client
+        if app is not None:
+            self.init_app(app, redis_client=redis_client)
+
+    def init_app(self, app, redis_client=None):
+        """Initialize the security hooks on a Quart app."""
         self.app = app
         self.redis_client = redis_client
-        self.encryption_key = None
-        
-        if app:
-            self.init_app(app, redis_client)
-    
-    def init_app(self, app, redis_client=None):
-        """Initialize with Quart app"""
-        self.app = app
-        self.redis_client = redis_client or self._init_redis()
-        
-        # Generate or load encryption key for session data
-        self._init_encryption()
-        
-        # Configure secure settings
         self._configure_secure_settings(app)
-        
-        # Register before_request handler
         app.before_request(self._before_request_handler)
-        
         logger.info("Enhanced session security initialized")
-    
-    def _init_redis(self):
-        """Initialize Redis connection for session storage"""
-        try:
-            redis_url = os.getenv('UPSTASH_REDIS_URL', 'redis://localhost:6379')
-            return aioredis.from_url(redis_url, decode_responses=True)
-        except Exception as e:
-            logger.warning(f"Redis unavailable, using in-memory fallback: {e}")
-            return None
-    
-    def _init_encryption(self):
-        """Initialize encryption for sensitive session data"""
-        secret = self.app.config.get('SECRET_KEY')
-        if not secret:
-            raise RuntimeError(
-                "SECRET_KEY must be set in app config — refusing to start with no key"
-            )
-        secret = secret.encode() if isinstance(secret, str) else secret
 
-        # Use a configurable salt; fail hard in production if missing
-        salt_env = os.getenv('SESSION_ENCRYPTION_SALT', '')
-        if not salt_env:
-            if os.getenv('FLASK_ENV') == 'production':
-                raise RuntimeError(
-                    "SESSION_ENCRYPTION_SALT must be set in production — "
-                    "sessions will not survive restarts without it."
-                )
-            logger.warning(
-                "SESSION_ENCRYPTION_SALT not set — using random salt. "
-                "Sessions will not survive restarts."
-            )
-        salt = salt_env.encode() or os.urandom(16)
+    def _setting(self, key: str, default: int | float) -> int | float:
+        if self.app and key in self.app.config:
+            return self.app.config[key]
+        value = os.getenv(key)
+        if value is None:
+            return default
+        return type(default)(value)
 
-        kdf = PBKDF2HMAC(
-            algorithm=hashes.SHA256(),
-            length=32,
-            salt=salt,
-            iterations=600_000,
-        )
-        key = base64.urlsafe_b64encode(kdf.derive(secret))
-        self.encryption_key = Fernet(key)
-    
+    def _session_idle_timeout(self) -> timedelta:
+        minutes = int(self._setting("SESSION_IDLE_TIMEOUT_MINUTES", 15))
+        return timedelta(minutes=minutes)
+
+    def _session_max_duration(self) -> timedelta:
+        hours = int(self._setting("MAX_SESSION_DURATION_HOURS", 8))
+        return timedelta(hours=hours)
+
+    def _rotation_interval(self) -> int:
+        return int(self._setting("SESSION_ROTATION_INTERVAL", 10))
+
     def _configure_secure_settings(self, app):
-        """Configure secure cookie and session settings"""
-        flask_env = os.getenv('FLASK_ENV', 'production')
-        
-        # Force secure settings in production
-        if flask_env == 'production':
-            app.config['SESSION_COOKIE_SECURE'] = True  # HTTPS only
-            app.config['SESSION_COOKIE_HTTPONLY'] = True  # No JS access
-            app.config['SESSION_COOKIE_SAMESITE'] = 'Strict'  # CSRF protection
-            app.config['SESSION_COOKIE_NAME'] = '__Host-session'  # Cookie prefixing
+        """Configure secure cookie and session settings."""
+        flask_env = os.getenv("FLASK_ENV", "production")
+
+        if flask_env == "production":
+            app.config["SESSION_COOKIE_SECURE"] = True
+            app.config["SESSION_COOKIE_HTTPONLY"] = True
+            app.config["SESSION_COOKIE_SAMESITE"] = "Strict"
+            app.config["SESSION_COOKIE_NAME"] = "__Host-session"
         else:
-            # Development settings
-            app.config['SESSION_COOKIE_SECURE'] = False
-            app.config['SESSION_COOKIE_HTTPONLY'] = True
-            app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-            app.config['SESSION_COOKIE_NAME'] = 'session'
-        
-        # Common settings
-        app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=MAX_SESSION_DURATION_HOURS)
-        app.config['SESSION_REFRESH_EACH_REQUEST'] = True
-    
+            app.config["SESSION_COOKIE_SECURE"] = False
+            app.config["SESSION_COOKIE_HTTPONLY"] = True
+            app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+            app.config["SESSION_COOKIE_NAME"] = "session"
+
+        app.config["PERMANENT_SESSION_LIFETIME"] = self._session_max_duration()
+        app.config["SESSION_REFRESH_EACH_REQUEST"] = True
+
     async def _before_request_handler(self):
-        """Validate session before each request"""
-        # Skip for static files and health checks
-        if request.path.startswith('/static') or request.path == '/health':
+        """Validate or create a session before each request."""
+        skip_paths = ("/static", "/health", "/ready", "/metrics")
+        if request.path.startswith(skip_paths):
             return
-        
-        # Validate and update session
+
         if not await self.validate_session():
             await self.create_session()
-        else:
-            await self.update_session_activity()
-    
-    def generate_secure_token(self) -> str:
-        """Generate cryptographically secure token with maximum entropy"""
-        # Combine multiple entropy sources
-        entropy_sources = [
-            secrets.token_bytes(32),  # 256 bits of randomness
-            str(time.time_ns()).encode(),  # Nanosecond precision timestamp
-            str(os.getpid()).encode(),  # Process ID
-            str(id(self)).encode(),  # Object memory address
-            platform.node().encode(),  # Machine hostname
-        ]
-        
-        # Add hardware entropy if available
-        try:
-            cpu_percent = str(psutil.cpu_percent(interval=0.01)).encode()
-            entropy_sources.append(cpu_percent)
-        except Exception:
-            pass
-        
-        # Combine all entropy
-        combined_entropy = b''.join(entropy_sources)
-        
-        # Hash with SHA3-256 for quantum resistance
-        token_hash = hashlib.sha3_256(combined_entropy).digest()
-        
-        # Return URL-safe base64 encoded token
-        return base64.urlsafe_b64encode(token_hash).decode('utf-8').rstrip('=')
-    
-    def generate_device_fingerprint(self) -> Tuple[str, Dict]:
-        """Generate comprehensive device fingerprint"""
-        components = {}
-        
-        # Basic headers
-        components['user_agent'] = request.headers.get('User-Agent', 'unknown')
-        components['accept'] = request.headers.get('Accept', '')
-        components['accept_language'] = request.headers.get('Accept-Language', '')
-        components['accept_encoding'] = request.headers.get('Accept-Encoding', '')
-        
-        # Advanced fingerprinting
-        components['dnt'] = request.headers.get('DNT', '')
-        components['upgrade_insecure'] = request.headers.get('Upgrade-Insecure-Requests', '')
-        components['sec_fetch_site'] = request.headers.get('Sec-Fetch-Site', '')
-        components['sec_fetch_mode'] = request.headers.get('Sec-Fetch-Mode', '')
-        components['sec_fetch_dest'] = request.headers.get('Sec-Fetch-Dest', '')
-        
-        # Canvas/WebGL fingerprinting headers if present
-        components['sec_ch_ua'] = request.headers.get('Sec-CH-UA', '')
-        components['sec_ch_ua_mobile'] = request.headers.get('Sec-CH-UA-Mobile', '')
-        components['sec_ch_ua_platform'] = request.headers.get('Sec-CH-UA-Platform', '')
-        
-        # IP address handling (consider proxies)
-        ip = request.headers.get('X-Real-IP') or \
-             request.headers.get('X-Forwarded-For', '').split(',')[0].strip() or \
-             request.remote_addr
-        components['ip'] = ip
-        
-        # TLS fingerprinting if available
-        components['tls_version'] = request.headers.get('X-TLS-Version', '')
-        components['tls_cipher'] = request.headers.get('X-TLS-Cipher', '')
-        
-        # Create stable fingerprint using HMAC
-        fingerprint_data = json.dumps(components, sort_keys=True)
-        raw_key = self.app.config.get('SECRET_KEY', '')
-        if not raw_key:
-            logger.warning("SECRET_KEY empty — device fingerprinting is weakened")
-        secret_key = (raw_key or 'fallback-dev-fingerprint-key').encode()
-        
-        fingerprint = hmac.new(
-            secret_key,
-            fingerprint_data.encode(),
-            hashlib.sha3_256  # Use SHA3 for better security
-        ).hexdigest()
-        
-        return fingerprint, components
-    
-    def calculate_fingerprint_similarity(self, fp1_components: Dict, fp2_components: Dict) -> float:
-        """Calculate similarity between two fingerprints for tolerance checking"""
-        if not fp1_components or not fp2_components:
-            return 0.0
-        
-        # Define weights for different components
-        weights = {
-            'user_agent': 0.3,  # Most important
-            'ip': 0.2,
-            'accept_language': 0.15,
-            'accept': 0.1,
-            'accept_encoding': 0.1,
-            'sec_ch_ua_platform': 0.05,
-            'sec_ch_ua': 0.05,
-            'other': 0.05
+            return
+
+        await self.update_session_activity()
+
+    def _trusted_proxies(self) -> set[str]:
+        return {
+            proxy.strip()
+            for proxy in os.getenv("TRUSTED_PROXIES", "").split(",")
+            if proxy.strip()
         }
-        
-        total_score = 0.0
-        total_weight = 0.0
-        
-        for key, weight in weights.items():
-            if key == 'other':
-                continue
-                
-            if key in fp1_components and key in fp2_components:
-                if fp1_components[key] == fp2_components[key]:
-                    total_score += weight
-                total_weight += weight
-        
-        return total_score / total_weight if total_weight > 0 else 0.0
-    
-    async def validate_session(self) -> bool:
-        """Comprehensive session validation"""
+
+    def _get_client_ip(self) -> str:
+        """Resolve client IP, trusting forwarded headers only for known proxies."""
+        remote_addr = request.remote_addr or ""
+        if not remote_addr:
+            client = request.scope.get("client")
+            if isinstance(client, (list, tuple)) and client:
+                remote_addr = client[0]
+        if remote_addr and remote_addr in self._trusted_proxies():
+            forwarded = request.headers.get("X-Real-IP") or request.headers.get(
+                "X-Forwarded-For", ""
+            ).split(",")[0].strip()
+            return forwarded or remote_addr
+        return remote_addr
+
+    def generate_secure_token(self) -> str:
+        """Generate a cryptographically secure session token."""
+        return secrets.token_urlsafe(32)
+
+    def _fingerprint_components(self) -> Dict[str, str]:
+        return {
+            "user_agent": request.headers.get("User-Agent", ""),
+            "accept": request.headers.get("Accept", ""),
+            "accept_language": request.headers.get("Accept-Language", ""),
+            "ip": self._get_client_ip(),
+        }
+
+    def generate_device_fingerprint(self) -> Tuple[str, Dict[str, str]]:
+        """Build a deterministic fingerprint from stable request attributes."""
+        components = self._fingerprint_components()
+        payload = json.dumps(components, sort_keys=True).encode()
+        secret = str(self.app.config.get("SECRET_KEY", "")).encode() if self.app else b""
+        if secret:
+            fingerprint = hmac.new(secret, payload, hashlib.sha256).hexdigest()
+        else:
+            fingerprint = hashlib.sha256(payload).hexdigest()
+        return fingerprint, components
+
+    @staticmethod
+    def _parse_timestamp(value: str | None) -> datetime | None:
+        if not value:
+            return None
         try:
-            # Check if session exists
-            if SESSION_TOKEN_KEY not in session:
-                logger.debug("No session token found")
-                return False
-            
-            token = session[SESSION_TOKEN_KEY]
-            
-            # Retrieve session data from Redis if available
-            session_data = await self._get_session_data(token)
-            if not session_data:
-                logger.warning(f"Session data not found for token: {token[:8]}...")
-                return False
-            
-            # Validate fingerprint with tolerance
-            current_fp, current_components = self.generate_device_fingerprint()
-            stored_fp = session.get(SESSION_FINGERPRINT_KEY)
-            
-            if stored_fp != current_fp:
-                # Check similarity for minor changes (e.g., IP change on mobile)
-                stored_components = session.get(FINGERPRINT_COMPONENTS_KEY, {})
-                similarity = self.calculate_fingerprint_similarity(
-                    stored_components, 
-                    current_components
-                )
-                
-                if similarity < FINGERPRINT_TOLERANCE:
-                    logger.warning(
-                        f"Session fingerprint mismatch (similarity: {similarity:.2%}). "
-                        f"Possible hijacking attempt for token: {token[:8]}..."
-                    )
-                    await self._log_security_event('fingerprint_mismatch', {
-                        'token': token[:8],
-                        'similarity': similarity,
-                        'ip': current_components.get('ip')
-                    })
-                    return False
-                else:
-                    logger.info(f"Fingerprint changed but within tolerance ({similarity:.2%})")
-            
-            # Check session age (absolute timeout)
-            created = session.get(SESSION_CREATED_KEY)
-            if created:
-                created_time = datetime.fromisoformat(created)
-                max_duration = timedelta(hours=MAX_SESSION_DURATION_HOURS)
-                if datetime.now(timezone.utc) - created_time > max_duration:
-                    logger.info("Session expired: exceeded maximum duration")
-                    return False
-            
-            # Check idle timeout
-            last_activity = session.get(SESSION_LAST_ACTIVITY_KEY)
-            if last_activity:
-                last_time = datetime.fromisoformat(last_activity)
-                idle_timeout = timedelta(minutes=SESSION_IDLE_TIMEOUT_MINUTES)
-                if datetime.now(timezone.utc) - last_time > idle_timeout:
-                    logger.info("Session expired: idle timeout")
-                    return False
-            
-            # Validate nonce for replay attack protection
-            stored_nonce = session.get(SESSION_NONCE_KEY)
-            if not stored_nonce or len(stored_nonce) < 32:
-                logger.warning("Invalid or missing session nonce")
-                return False
-            
-            return True
-            
-        except Exception as e:
-            logger.error(f"Session validation error: {e}")
+            return datetime.fromisoformat(value)
+        except (TypeError, ValueError):
+            return None
+
+    async def validate_session(self) -> bool:
+        """Validate the current session state."""
+        token = session.get(SESSION_TOKEN_KEY)
+        if not token:
             return False
-    
-    async def create_session(self) -> Dict[str, Any]:
-        """Create new secure session with all protections"""
-        # Clear any existing session
-        session.clear()
-        
-        # Generate secure components
-        token = self.generate_secure_token()
-        fingerprint, fp_components = self.generate_device_fingerprint()
-        device_id = self.generate_secure_token()[:16]  # Shorter device ID
-        nonce = secrets.token_hex(32)  # 256-bit nonce
-        
-        # Determine security level
-        flask_env = os.getenv('FLASK_ENV', 'production')
-        security_level = 'high' if flask_env == 'production' else 'standard'
-        
-        # Store in session
+
+        created = self._parse_timestamp(session.get(SESSION_CREATED_KEY))
+        last_activity = self._parse_timestamp(session.get(SESSION_LAST_ACTIVITY_KEY))
+        stored_fingerprint = session.get(SESSION_FINGERPRINT_KEY)
+
+        if not created or not last_activity or not stored_fingerprint:
+            logger.info("Session missing required security fields")
+            return False
+
         now = datetime.now(timezone.utc)
+        if now - created > self._session_max_duration():
+            logger.info("Session expired: exceeded maximum duration")
+            return False
+
+        if now - last_activity > self._session_idle_timeout():
+            logger.info("Session expired: idle timeout")
+            return False
+
+        current_fingerprint, components = self.generate_device_fingerprint()
+        if not hmac.compare_digest(stored_fingerprint, current_fingerprint):
+            logger.warning(
+                "Session fingerprint mismatch for token %s from IP %s",
+                token[:8],
+                components.get("ip", "unknown"),
+            )
+            return False
+
+        return True
+
+    async def create_session(self) -> Dict[str, Any]:
+        """Create a new session with the minimum security state required."""
+        session.clear()
+
+        token = self.generate_secure_token()
+        fingerprint, components = self.generate_device_fingerprint()
+        now = datetime.now(timezone.utc).isoformat()
+
         session[SESSION_TOKEN_KEY] = token
         session[SESSION_FINGERPRINT_KEY] = fingerprint
-        session[SESSION_DEVICE_ID_KEY] = device_id
-        session[SESSION_CREATED_KEY] = now.isoformat()
-        session[SESSION_LAST_ACTIVITY_KEY] = now.isoformat()
+        session[SESSION_CREATED_KEY] = now
+        session[SESSION_LAST_ACTIVITY_KEY] = now
         session[SESSION_ROTATION_COUNT_KEY] = 0
-        session[SESSION_NONCE_KEY] = nonce
-        session[SESSION_SECURITY_LEVEL_KEY] = security_level
-        session[FINGERPRINT_COMPONENTS_KEY] = fp_components  # Store for tolerance checking
-        
-        # Create session data object
-        session_data = SessionData(
-            token=token,
-            fingerprint=fingerprint,
-            device_id=device_id,
-            created=now,
-            last_activity=now,
-            rotation_count=0,
-            nonce=nonce,
-            security_level=security_level,
-            ip_address=fp_components.get('ip', 'unknown'),
-            user_agent=fp_components.get('user_agent', 'unknown')
-        )
-        
-        # Store in Redis if available
-        await self._store_session_data(token, session_data)
-        
-        logger.info(f"New secure session created: {token[:8]}... (security: {security_level})")
-        
-        return session_data.to_dict()
-    
+        session[FINGERPRINT_COMPONENTS_KEY] = components
+
+        logger.info("Created secure session %s", token[:8])
+
+        return {
+            "token": token,
+            "fingerprint": fingerprint,
+            "created": now,
+            "last_activity": now,
+            "rotation_count": 0,
+        }
+
     async def update_session_activity(self):
-        """Update session activity and rotate token if needed"""
+        """Update activity timestamps and rotate tokens on a request interval."""
         if SESSION_TOKEN_KEY not in session:
             return
-        
-        # Update last activity
+
+        rotation_count = int(session.get(SESSION_ROTATION_COUNT_KEY, 0)) + 1
         session[SESSION_LAST_ACTIVITY_KEY] = datetime.now(timezone.utc).isoformat()
-        
-        # Update rotation counter
-        rotation_count = session.get(SESSION_ROTATION_COUNT_KEY, 0)
-        rotation_count += 1
-        
-        # Rotate token if threshold reached
-        if rotation_count >= SESSION_ROTATION_INTERVAL:
+
+        if rotation_count >= self._rotation_interval():
             await self.rotate_session_token()
             rotation_count = 0
-        
+
         session[SESSION_ROTATION_COUNT_KEY] = rotation_count
-        
-        # Update nonce periodically for replay protection
-        if rotation_count % 5 == 0:
-            session[SESSION_NONCE_KEY] = secrets.token_hex(32)
-    
+
     async def rotate_session_token(self):
-        """Rotate session token while preserving session data"""
+        """Rotate the session token in-place while keeping the session state."""
         old_token = session.get(SESSION_TOKEN_KEY)
         new_token = self.generate_secure_token()
-        
-        # Update token
         session[SESSION_TOKEN_KEY] = new_token
-        
-        # Update in Redis if available
-        if self.redis_client and old_token:
-            session_data = await self._get_session_data(old_token)
-            if session_data:
-                session_data.token = new_token
-                await self._store_session_data(new_token, session_data)
-                await self._delete_session_data(old_token)
-        
-        logger.info(f"Session token rotated: {old_token[:8]}... -> {new_token[:8]}...")
-    
+        logger.info(
+            "Rotated session token %s -> %s",
+            old_token[:8] if old_token else "missing",
+            new_token[:8],
+        )
+
     async def destroy_session(self):
-        """Completely destroy session and clean up"""
+        """Clear the active session."""
         token = session.get(SESSION_TOKEN_KEY)
-        
-        if token:
-            # Remove from Redis
-            await self._delete_session_data(token)
-            
-            # Log session destruction
-            logger.info(f"Session destroyed: {token[:8]}...")
-        
-        # Clear session
         session.clear()
-    
-    # Redis operations
-    async def _store_session_data(self, token: str, data: SessionData):
-        """Store session data in Redis"""
-        if not self.redis_client:
-            return
-        
-        try:
-            # Encrypt sensitive data
-            encrypted_data = self.encryption_key.encrypt(
-                json.dumps(data.to_dict()).encode()
-            )
-            
-            # Store with expiration
-            key = f"session:{token}"
-            await self.redis_client.setex(
-                key,
-                timedelta(hours=MAX_SESSION_DURATION_HOURS),
-                base64.b64encode(encrypted_data).decode()
-            )
-        except Exception as e:
-            logger.error(f"Failed to store session data: {e}")
-    
-    async def _get_session_data(self, token: str) -> Optional[SessionData]:
-        """Retrieve session data from Redis"""
-        if not self.redis_client:
-            # Fallback to session data if Redis unavailable
-            if SESSION_TOKEN_KEY in session and session[SESSION_TOKEN_KEY] == token:
-                return SessionData(
-                    token=token,
-                    fingerprint=session.get(SESSION_FINGERPRINT_KEY, ''),
-                    device_id=session.get(SESSION_DEVICE_ID_KEY, ''),
-                    created=datetime.fromisoformat(session.get(SESSION_CREATED_KEY, datetime.now(timezone.utc).isoformat())),
-                    last_activity=datetime.fromisoformat(session.get(SESSION_LAST_ACTIVITY_KEY, datetime.now(timezone.utc).isoformat())),
-                    rotation_count=session.get(SESSION_ROTATION_COUNT_KEY, 0),
-                    nonce=session.get(SESSION_NONCE_KEY, ''),
-                    security_level=session.get(SESSION_SECURITY_LEVEL_KEY, 'standard'),
-                    ip_address='',
-                    user_agent=''
-                )
-            return None
-        
-        try:
-            key = f"session:{token}"
-            encrypted_data = await self.redis_client.get(key)
-            
-            if not encrypted_data:
-                return None
-            
-            # Decrypt data
-            decrypted_data = self.encryption_key.decrypt(
-                base64.b64decode(encrypted_data.encode())
-            )
-            
-            data_dict = json.loads(decrypted_data.decode())
-            return SessionData.from_dict(data_dict)
-            
-        except Exception as e:
-            logger.error(f"Failed to retrieve session data: {e}")
-            return None
-    
-    async def _delete_session_data(self, token: str):
-        """Delete session data from Redis"""
-        if not self.redis_client:
-            return
-        
-        try:
-            key = f"session:{token}"
-            await self.redis_client.delete(key)
-        except Exception as e:
-            logger.error(f"Failed to delete session data: {e}")
-    
-    async def _log_security_event(self, event_type: str, details: Dict):
-        """Log security events for monitoring"""
-        event = {
-            'timestamp': datetime.now(timezone.utc).isoformat(),
-            'type': event_type,
-            'details': details
-        }
-        
-        logger.warning(f"SECURITY EVENT: {json.dumps(event)}")
-        
-        # Store in Redis for analysis if available
-        if self.redis_client:
-            try:
-                key = f"security:events:{datetime.now(timezone.utc).strftime('%Y%m%d')}"
-                await self.redis_client.rpush(key, json.dumps(event))
-                await self.redis_client.expire(key, timedelta(days=30))
-            except Exception as e:
-                logger.error(f"Failed to log security event: {e}")
+        if token:
+            logger.info("Destroyed session %s", token[:8])
 
 
-# Middleware decorator
-def require_secure_session(f):
-    """Decorator to require valid secure session"""
-    from functools import wraps
-    
-    @wraps(f)
+def require_secure_session(func):
+    """Decorator that rejects requests without a valid session."""
+
+    @wraps(func)
     async def decorated_function(*args, **kwargs):
-        # The session validation happens in before_request
-        # This decorator adds an extra check for sensitive operations
+        manager = current_app.config.get("_session_security")
         if SESSION_TOKEN_KEY not in session:
             raise Unauthorized("No valid session")
-        
-        # Check security level for sensitive operations
-        security_level = session.get(SESSION_SECURITY_LEVEL_KEY, 'standard')
-        if security_level != 'high' and os.getenv('FLASK_ENV') == 'production':
-            raise Unauthorized("High security session required")
-        
-        return await f(*args, **kwargs)
-    
+        if manager and not await manager.validate_session():
+            raise Unauthorized("Invalid session")
+        return await func(*args, **kwargs)
+
     return decorated_function
 
 
-# HSTS and security headers middleware
 async def add_security_headers(response):
-    """Add security headers to all responses"""
-    flask_env = os.getenv('FLASK_ENV', 'production')
-    
-    if flask_env == 'production':
-        # HSTS - Force HTTPS for 1 year
-        response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains; preload'
-        
-        # Prevent clickjacking
-        response.headers['X-Frame-Options'] = 'DENY'
-        
-        # Prevent MIME sniffing
-        response.headers['X-Content-Type-Options'] = 'nosniff'
-        
-        # Enable XSS protection
-        response.headers['X-XSS-Protection'] = '1; mode=block'
-        
-        # CSP header - include TMDB images and Font Awesome
-        response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://kit.fontawesome.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' https://image.tmdb.org data:; font-src 'self' https://ka-f.fontawesome.com; connect-src 'self' https://ka-f.fontawesome.com;"
-        
-        # Referrer policy
-        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
-    
+    """Add the app's security headers to the response."""
+    flask_env = os.getenv("FLASK_ENV", "production")
+
+    if flask_env == "production":
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=31536000; includeSubDomains; preload"
+        )
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' https://cdn.jsdelivr.net https://kit.fontawesome.com; "
+            "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+            "img-src 'self' https://image.tmdb.org data:; "
+            "font-src 'self' https://ka-f.fontawesome.com; "
+            "connect-src 'self' https://ka-f.fontawesome.com;"
+        )
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+
     return response
-
-
-# Session monitoring and analytics
-class SessionMonitor:
-    """Monitor session security and detect anomalies"""
-    
-    def __init__(self, redis_client=None):
-        self.redis_client = redis_client
-        self.alert_threshold = 10  # Number of suspicious events before alert
-    
-    async def check_session_anomalies(self, token: str) -> bool:
-        """Check for session anomalies"""
-        if not self.redis_client:
-            return True
-        
-        try:
-            # Check recent security events for this session
-            events_key = f"security:session:{token[:8]}"
-            event_count = await self.redis_client.get(events_key)
-            
-            if event_count and int(event_count) > self.alert_threshold:
-                logger.critical(f"Multiple security events for session: {token[:8]}...")
-                return False
-            
-            return True
-            
-        except Exception as e:
-            logger.error(f"Failed to check session anomalies: {e}")
-            return True
-    
-    async def get_session_metrics(self) -> Dict:
-        """Get session security metrics"""
-        if not self.redis_client:
-            return {}
-        
-        try:
-            # Get today's security events
-            today_key = f"security:events:{datetime.now(timezone.utc).strftime('%Y%m%d')}"
-            events = await self.redis_client.lrange(today_key, 0, -1)
-            
-            metrics = {
-                'total_events': len(events),
-                'fingerprint_mismatches': 0,
-                'token_rotations': 0,
-                'sessions_created': 0,
-                'sessions_destroyed': 0
-            }
-            
-            for event_json in events:
-                event = json.loads(event_json)
-                event_type = event.get('type', '')
-                
-                if event_type == 'fingerprint_mismatch':
-                    metrics['fingerprint_mismatches'] += 1
-                elif event_type == 'token_rotation':
-                    metrics['token_rotations'] += 1
-                elif event_type == 'session_created':
-                    metrics['sessions_created'] += 1
-                elif event_type == 'session_destroyed':
-                    metrics['sessions_destroyed'] += 1
-            
-            return metrics
-            
-        except Exception as e:
-            logger.error(f"Failed to get session metrics: {e}")
-            return {}
-
-
-# Example integration with your app.py
-"""
-# In your app.py, add this initialization:
-
-from session_security_enhanced import EnhancedSessionSecurity, add_security_headers
-
-# Initialize the enhanced security
-session_security = EnhancedSessionSecurity(app)
-
-# Add security headers to all responses
-@app.after_request
-async def after_request(response):
-    return await add_security_headers(response)
-
-# Use the decorator for sensitive routes
-from session_security_enhanced import require_secure_session
-
-@app.route('/admin')
-@require_secure_session
-async def admin_panel():
-    return "Admin access granted"
-"""

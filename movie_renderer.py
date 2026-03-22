@@ -4,6 +4,7 @@ from quart import render_template, session
 
 from logging_config import get_logger
 from scripts.movie import Movie
+from session_keys import CURRENT_MOVIE_KEY
 
 logger = get_logger(__name__)
 
@@ -43,12 +44,26 @@ class MovieRenderer:
         return None
 
     async def render_movie_by_tconst(self, user_id, tconst, template_name="movie.html"):
-        movie_instance = Movie(tconst, self.db_pool)
+        # Check if we already have this movie's full data in session (avoids
+        # redundant TMDb API calls when navigating via next/previous).
+        current = session.get(CURRENT_MOVIE_KEY)
+        if current and current.get("imdb_id") == tconst and "plot" in current:
+            logger.debug(
+                "Using cached session data for movie %s (user_id: %s)", tconst, user_id
+            )
+            return await render_template(template_name, movie=current)
+
+        # Fallback: fetch fresh data (e.g. direct URL navigation, or
+        # lightweight ref that couldn't be resolved from cache).
+        movie_instance = Movie(tconst, self.db_pool, tmdb_helper=self.tmdb_helper)
         movie_data = await movie_instance.get_movie_data()
         if not movie_data:
             logger.info(
-                f"No data found for movie with tconst: {tconst} and user_id: {user_id}"
+                "No data found for movie with tconst: %s and user_id: %s", tconst, user_id
             )
             return "Movie not found", 404
+
+        # Backfill session so subsequent renders don't re-fetch
+        session[CURRENT_MOVIE_KEY] = movie_data
 
         return await render_template(template_name, movie=movie_data)

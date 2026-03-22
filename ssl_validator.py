@@ -7,14 +7,12 @@ import asyncio
 import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
-import logging
 from typing import Optional, Dict, Any
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
+from logging_config import get_logger
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 class SSLCertificateValidator:
     """Comprehensive SSL certificate validation for database connections"""

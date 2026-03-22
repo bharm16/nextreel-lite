@@ -8,11 +8,12 @@ Provides ``DatabaseConnectionPool`` as a backward-compatible wrapper around
 import asyncio
 import atexit
 import os
-import logging
 
+from database.errors import DatabaseError
 from secure_pool import SecureConnectionPool, SecurePoolConfig
+from logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class DatabaseConnectionPool:
@@ -24,7 +25,9 @@ class DatabaseConnectionPool:
         flask_env = os.getenv("FLASK_ENV", "development")
 
         # Convert to secure pool config
-        validate_ssl = os.getenv("VALIDATE_SSL", "false").lower() == "true"
+        # Default to True in production to enforce SSL certificate validation.
+        # Set VALIDATE_SSL=false explicitly in dev/test environments.
+        validate_ssl = os.getenv("VALIDATE_SSL", "true" if flask_env == "production" else "false").lower() == "true"
         ssl_cert = (
             DatabaseConfig.get_ssl_cert_path()
             if validate_ssl
@@ -64,9 +67,15 @@ class DatabaseConnectionPool:
 
     async def execute(self, query: str, params: list | tuple | None = None, fetch: str = "one", user_id: str | None = None):
         """Execute a query"""
-        return await self.pool.execute_secure(
-            query, params, user_id=user_id, fetch=fetch
-        )
+        try:
+            return await self.pool.execute_secure(
+                query, params, user_id=user_id, fetch=fetch
+            )
+        except DatabaseError:
+            raise
+        except Exception as exc:
+            logger.error("Database query failed: %s", exc, exc_info=True)
+            raise DatabaseError(f"Query failed: {exc}") from exc
 
     async def close_pool(self) -> None:
         """Close the pool"""
@@ -129,7 +138,7 @@ async def close_pool():
             _pool = None
             logger.info("Global database pool closed successfully")
         except Exception as e:
-            logger.error(f"Error closing global database pool: {e}")
+            logger.error("Error closing global database pool: %s", e)
             _pool = None
 
 
@@ -150,7 +159,7 @@ def _cleanup_pool_sync():
                 # No running loop — create a new one for cleanup
                 asyncio.run(close_pool())
         except Exception as e:
-            logger.warning(f"Could not cleanly close pool at exit: {e}")
+            logger.warning("Could not cleanly close pool at exit: %s", e)
 
 
 atexit.register(_cleanup_pool_sync)

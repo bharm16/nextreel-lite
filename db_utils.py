@@ -1,5 +1,12 @@
-# queries.py
-import os
+"""Legacy query constants and pool helpers.
+
+The query executor abstraction previously defined here was removed. Callers
+should use ``DatabaseConnectionPool.execute(...)`` directly and catch
+``database.errors.DatabaseError`` where fallback behavior is intentional.
+"""
+
+from database.errors import DatabaseError
+from logging_config import get_logger
 
 # Query to fetch IMDb details of a watched movie
 GET_WATCHED_MOVIE_DETAILS = """
@@ -57,79 +64,18 @@ LIMIT 1
 
 # Assume necessary imports and SQL queries defined above remain unchanged
 
-from settings import Config, DatabaseConnectionPool
-import asyncio
-import logging
-from logging_config import get_logger
-import time
-
-# Configure logging
 logger = get_logger(__name__)
 
-
-# Assume SQL query definitions remain the same
-
-class DatabaseQueryExecutor:
-    def __init__(self, db_pool: DatabaseConnectionPool) -> None:
-        if not isinstance(db_pool, DatabaseConnectionPool):
-            raise ValueError("db_pool must be an instance of DatabaseConnectionPool")
-        self.db_pool = db_pool
-
-    async def execute_async_query(self, query: str, params: list | tuple | None = None, fetch: str = 'one'):
-        """Execute query using optimized connection pool with context managers"""
-        try:
-            return await self.db_pool.execute(query, params, fetch)
-        except Exception as e:
-            logger.error("Query execution error: %s", e, exc_info=True)
-            return None
-
-    async def execute_async_query_legacy(self, query, params=None, fetch='one'):
-        """Legacy method using manual connection management"""
-        start_time = time.time()  # Start timing before acquiring connection
-        
-        try:
-            async with self.db_pool.acquire() as conn:
-                async with conn.cursor() as cursor:
-                    await cursor.execute(query, params)
-                    if fetch == 'one':
-                        result = await cursor.fetchone()
-                    elif fetch == 'all':
-                        result = await cursor.fetchall()
-                    elif fetch == 'none':
-                        await conn.commit()
-                        result = None
-                    else:
-                        raise ValueError(f"Invalid fetch parameter: {fetch}")
-                    return result
-        except Exception as e:
-            logger.error(f"An error occurred while executing the query: {e}")
-            return None
-        finally:
-            end_time = time.time()  # End timing after releasing connection
-            logger.debug(
-                "Query and connection handling executed in %.2f seconds",
-                end_time - start_time,
-            )
-
-    async def execute_transaction(self, query_params_list: list[tuple[str, list | tuple]]):
-        """Execute multiple queries in a transaction"""
-        try:
-            async with self.db_pool.acquire() as conn:
-                await conn.begin()
-                try:
-                    results = []
-                    async with conn.cursor() as cursor:
-                        for query, params in query_params_list:
-                            await cursor.execute(query, params)
-                            results.append(cursor.rowcount)
-                    await conn.commit()
-                    return results
-                except Exception:
-                    await conn.rollback()
-                    raise
-        except Exception as e:
-            logger.error(f"Transaction failed: {e}")
-            raise
+__all__ = [
+    "CHECK_TITLE_BASICS",
+    "DatabaseError",
+    "GET_ALL_MOVIES_BY_ACTOR_QUERY",
+    "GET_NCONST_FROM_ACTOR_NAME_QUERY",
+    "GET_WATCHED_MOVIE_DETAILS",
+    "SELECT_MISSING_TITLE_INFO",
+    "UPDATE_TITLE_BASICS",
+    "init_pool",
+]
 
 
 async def init_pool():
@@ -137,18 +83,3 @@ async def init_pool():
     db_pool = await _init_global_pool()
     logger.info("Database connection pool initialized.")
     return db_pool
-
-
-async def main():
-    # Initialize the connection pool
-    db_pool = await init_pool()
-
-    # Pass the initialized pool to DatabaseQueryExecutor
-    query_executor = DatabaseQueryExecutor(db_pool)
-
-    # Your query execution logic remains the same
-    # Ensure to close the pool at the end of your program
-    await db_pool.close_pool()
-
-if __name__ == "__main__":
-    asyncio.run(main())

@@ -1,21 +1,14 @@
 import asyncio
-import json
-import logging
-from logging_config import get_logger
-import os
+import logging as _logging
 import time
 
-import httpx
-
-from settings import Config, DatabaseConnectionPool
-from db_utils import DatabaseQueryExecutor
-from scripts.filter_backend import ImdbRandomMovieFetcher
+from database.errors import DatabaseError
 from scripts.tmdb_client import TMDbHelper
+from logging_config import get_logger
 
-# Configure logging for better debugging
 logger = get_logger(__name__)
 # Set httpx logging level to ERROR to reduce verbosity
-logging.getLogger("httpx").setLevel(logging.ERROR)
+_logging.getLogger("httpx").setLevel(_logging.ERROR)
 
 
 def build_ratings_query():
@@ -30,13 +23,22 @@ TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/"
 
 
 class Movie:
-    def __init__(self, tconst, db_pool):
+    def __init__(self, tconst, db_pool, tmdb_helper=None):
         self.tconst = tconst
         self.db_pool = db_pool
         self.movie_data = {}
-        self.query_executor = DatabaseQueryExecutor(db_pool)
-        self.tmdb_helper = TMDbHelper()  # Initialize TMDbHelper using env key
+        # Re-use a shared TMDbHelper (and its httpx connection pool) when
+        # provided; fall back to creating one for backward compatibility.
+        self.tmdb_helper = tmdb_helper or TMDbHelper()
+        self._owns_tmdb_helper = tmdb_helper is None
         self.slug = None
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.close()
+        return False
 
     async def fetch_movie_slug(self):
         """Fetch slug from cache tables first, then fallback to main table."""
@@ -50,45 +52,42 @@ class Movie:
         
         for query in cache_queries:
             try:
-                result = await self.query_executor.execute_async_query(
-                    query, [self.tconst], fetch="one"
-                )
+                result = await self.db_pool.execute(query, [self.tconst], fetch="one")
                 if result and result.get("slug"):
                     self.slug = result["slug"]
-                    logger.debug(f"Slug from cache for {self.tconst}: {self.slug}")
+                    logger.debug("Slug from cache for %s: %s", self.tconst, self.slug)
                     return
-            except Exception:
+            except (KeyError, TypeError, OSError, DatabaseError) as e:
+                logger.debug("Cache table query failed for %s: %s", self.tconst, e)
                 continue  # Try next cache table
         
         # Fallback to main table only if not found in cache
         try:
             query = "SELECT slug FROM `title.basics` WHERE tconst = %s"
-            result = await self.query_executor.execute_async_query(
-                query, [self.tconst], fetch="one"
-            )
+            result = await self.db_pool.execute(query, [self.tconst], fetch="one")
             if result and result.get("slug"):
                 self.slug = result["slug"]
-                logger.debug(f"Slug from main table for {self.tconst}: {self.slug}")
+                logger.debug("Slug from main table for %s: %s", self.tconst, self.slug)
             else:
                 # Most movies don't have slugs, so don't log this as a warning
                 self.slug = None
-                logger.debug(f"No slug found for tconst: {self.tconst}")
+                logger.debug("No slug found for tconst: %s", self.tconst)
         except Exception as e:
-            logger.error(f"Error fetching slug for {self.tconst}: {e}")
+            logger.error("Error fetching slug for %s: %s", self.tconst, e)
             self.slug = None
 
         method_time = time.time() - start_time
-        logger.debug(f"Completed fetch_movie_slug for {self.tconst} in {method_time:.2f} seconds.")
-
-    # Assume the necessary imports and setup for logging are done elsewhere in your code
+        logger.debug("Completed fetch_movie_slug for %s in %.2f seconds.", self.tconst, method_time)
 
     async def fetch_movie_ratings(self, tconst):
         start_time = time.time()  # Start timing
 
         query = build_ratings_query()
-        result = await self.query_executor.execute_async_query(
-            query, [tconst], fetch="one"
-        )
+        try:
+            result = await self.db_pool.execute(query, [tconst], fetch="one")
+        except DatabaseError as e:
+            logger.warning("Database error fetching ratings for %s: %s", tconst, e)
+            return None
 
         if result:
             try:
@@ -105,36 +104,25 @@ class Movie:
                     ),
                 }
 
-                logger.info(f"Ratings data: {ratings_data}")  # Log the ratings data
+                logger.info("Ratings data: %s", ratings_data)  # Log the ratings data
 
                 query_time = time.time() - start_time  # Measure query execution time
-                logger.info(f"Fetched movie ratings in {query_time:.2f} seconds")
+                logger.info("Fetched movie ratings in %.2f seconds", query_time)
 
                 return ratings_data
 
             except KeyError as e:
-                logger.error(f"Error in fetch_movie_ratings: {e}")
-                logger.error(f"Result missing expected key: {result}")
+                logger.error("Error in fetch_movie_ratings: %s", e)
+                logger.error("Result missing expected key: %s", result)
                 return None
         else:
-            logger.info(f"No ratings found for tconst: {tconst}")
+            logger.info("No ratings found for tconst: %s", tconst)
             return None
 
     async def get_movie_data(self):
         start_time = time.time()
 
         try:
-            # Check cache first (assuming redis_client exists)
-            cache_key = f"movie:full:{self.tconst}"
-            if hasattr(self, 'redis_client') and self.redis_client:
-                try:
-                    cached = await self.redis_client.get(cache_key)
-                    if cached:
-                        logger.debug(f"Cache hit for movie {self.tconst}")
-                        return json.loads(cached)
-                except Exception as e:
-                    logger.warning(f"Cache read failed: {e}")
-
             # Parallel fetch of basic data and TMDB ID
             basic_tasks = [
                 self.tmdb_helper.get_tmdb_id_by_tconst(self.tconst),
@@ -145,7 +133,7 @@ class Movie:
             tmdb_id = basic_results[0] if not isinstance(basic_results[0], Exception) else None
             
             if not tmdb_id:
-                logger.warning(f"No TMDB ID found for tconst: {self.tconst}")
+                logger.warning("No TMDB ID found for tconst: %s", self.tconst)
                 return None
 
             # Execute all data fetching coroutines concurrently with error handling
@@ -174,7 +162,7 @@ class Movie:
             # Log any errors that occurred
             for i, result in enumerate(results):
                 if isinstance(result, Exception):
-                    logger.warning(f"Task {i} failed for {self.tconst}: {result}")
+                    logger.warning("Task %s failed for %s: %s", i, self.tconst, result)
 
             tmdb_cast_info = (
                 tmdb_cast_info_result[:10] if tmdb_cast_info_result else []
@@ -254,47 +242,18 @@ class Movie:
                 "watch_providers": watch_providers,
             }
 
-            # Cache the complete result
-            if hasattr(self, 'redis_client') and self.redis_client and self.movie_data:
-                try:
-                    await self.redis_client.setex(
-                        cache_key,
-                        3600,  # 1 hour TTL
-                        json.dumps(self.movie_data)
-                    )
-                except Exception as e:
-                    logger.warning(f"Cache write failed: {e}")
-
             method_time = time.time() - start_time
             logger.info(
-                f"Completed get_movie_data for {self.tconst} in {method_time:.2f} seconds (parallel)"
+                "Completed get_movie_data for %s in %.2f seconds (parallel)", self.tconst, method_time
             )
 
             return self.movie_data
             
         except Exception as e:
-            logger.error(f"Error fetching movie data for {self.tconst}: {e}")
+            logger.error("Error fetching movie data for %s: %s", self.tconst, e)
             return None
 
     async def close(self):
-        """Close underlying HTTP clients."""
-        await self.tmdb_helper.close()
-
-
-async def main():
-
-    tconst = "tt0182727"  # Example IMDb ID
-    db_config = Config.get_db_config()  # Your database configuration
-    pool = DatabaseConnectionPool(db_config)
-    await pool.init_pool()
-    movie_instance = Movie(tconst, pool)
-    movie_data = await movie_instance.get_movie_data()
-    if movie_data:
-        print(f"Movie Data: {movie_data}")
-    else:
-        print("Failed to fetch movie data.")
-    await pool.close_pool()
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
+        """Close underlying HTTP clients (only if this instance owns them)."""
+        if self._owns_tmdb_helper:
+            await self.tmdb_helper.close()
