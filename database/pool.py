@@ -22,7 +22,7 @@ class DatabaseConnectionPool:
     def __init__(self, db_config: dict) -> None:
         from config.database import DatabaseConfig
 
-        flask_env = os.getenv("FLASK_ENV", "development")
+        flask_env = os.getenv("NEXTREEL_ENV", os.getenv("FLASK_ENV", "production"))
 
         # Convert to secure pool config
         # Default to True in production to enforce SSL certificate validation.

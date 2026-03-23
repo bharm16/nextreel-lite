@@ -306,12 +306,14 @@
   <section class="hero relative">
     <!-- Prev -->
     <form method="POST" action="/previous_movie" id="prev-form" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button type="submit" class="arrow-btn arrow-left" {% if previous_count == 0 %}disabled{% endif %} aria-label="Previous movie">
         <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15 19l-7-7 7-7"/></svg>
       </button>
     </form>
     <!-- Next -->
     <form method="POST" action="/next_movie" id="next-form" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button type="submit" class="arrow-btn arrow-right" aria-label="Next movie">
         <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
       </button>
@@ -370,11 +372,13 @@
           <div class="divider my-4"></div>
           <div class="flex gap-2">
             <form method="POST" action="/previous_movie" id="prev-form-bottom" class="inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button type="submit" class="nav-btn-prev" {% if previous_count == 0 %}disabled{% endif %}>
                 ← Previous
               </button>
             </form>
             <form method="POST" action="/next_movie" class="inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button type="submit" class="nav-btn-next">
                 Next →
               </button>

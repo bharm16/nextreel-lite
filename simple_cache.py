@@ -9,7 +9,7 @@ See ADR-001-ARCHITECTURE-AUDIT.md, Finding 3.1.
 
 import json
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 import redis.asyncio as aioredis
 
@@ -29,40 +29,80 @@ class CacheNamespace(Enum):
 
 
 class SimpleCacheManager:
-    """Lightweight Redis cache — JSON serialization, TTL, namespaced keys."""
+    """Lightweight Redis cache — JSON serialization, TTL, namespaced keys.
 
-    def __init__(self, redis_url: str, default_ttl: int = 3600, **kwargs):
+    Accepts either a ``redis_url`` (creates its own connection) or a shared
+    ``connection_pool`` / ``redis_client`` so the app can share one pool for
+    both sessions and caching.
+    """
+
+    def __init__(
+        self,
+        redis_url: Optional[str] = None,
+        connection_pool: Optional[aioredis.ConnectionPool] = None,
+        redis_client: Optional[aioredis.Redis] = None,
+        default_ttl: int = 3600,
+        **kwargs,
+    ):
         # kwargs accepts (and ignores) secret_key, enable_monitoring, etc.
         # for backward compatibility with SecureCacheManager constructor args.
         self._redis_url = redis_url
+        self._connection_pool = connection_pool
         self._default_ttl = default_ttl
-        self._redis: Optional[aioredis.Redis] = None
+        self._owns_connection = False  # True when we created our own connection
+        self._redis: Optional[aioredis.Redis] = redis_client
 
     async def initialize(self) -> None:
-        """Connect to Redis."""
-        try:
-            self._redis = aioredis.from_url(
-                self._redis_url,
-                decode_responses=True,
-                socket_connect_timeout=5,
-                socket_timeout=5,
-                retry_on_timeout=True,
-            )
-            # Verify connectivity
-            await self._redis.ping()
-            logger.info("SimpleCacheManager connected to Redis")
-        except Exception as e:
-            logger.warning("SimpleCacheManager Redis unavailable: %s", e)
-            self._redis = None
+        """Connect to Redis (or verify shared connection)."""
+        # If a Redis client was already provided, just verify it works
+        if self._redis is not None:
+            try:
+                await self._redis.ping()
+                logger.info("SimpleCacheManager using shared Redis connection")
+            except Exception as e:
+                logger.warning("SimpleCacheManager shared Redis unavailable: %s", e)
+                self._redis = None
+            return
+
+        # If a connection pool was provided, create a client from it
+        if self._connection_pool is not None:
+            try:
+                self._redis = aioredis.Redis(
+                    connection_pool=self._connection_pool,
+                    decode_responses=True,
+                )
+                await self._redis.ping()
+                logger.info("SimpleCacheManager using shared Redis pool")
+            except Exception as e:
+                logger.warning("SimpleCacheManager shared pool unavailable: %s", e)
+                self._redis = None
+            return
+
+        # Fallback: create our own connection from URL
+        if self._redis_url:
+            try:
+                self._redis = aioredis.from_url(
+                    self._redis_url,
+                    decode_responses=True,
+                    socket_connect_timeout=5,
+                    socket_timeout=5,
+                    retry_on_timeout=True,
+                )
+                await self._redis.ping()
+                self._owns_connection = True
+                logger.info("SimpleCacheManager connected to Redis (own connection)")
+            except Exception as e:
+                logger.warning("SimpleCacheManager Redis unavailable: %s", e)
+                self._redis = None
 
     async def close(self) -> None:
-        """Close the Redis connection."""
-        if self._redis:
+        """Close the Redis connection only if we created it ourselves."""
+        if self._redis and self._owns_connection:
             try:
                 await self._redis.aclose()
             except Exception as e:
                 logger.debug("Error closing SimpleCacheManager: %s", e)
-            self._redis = None
+        self._redis = None
 
     def _make_key(self, namespace: CacheNamespace, key: str) -> str:
         return f"cache:{namespace.value}:{key}"

@@ -71,7 +71,7 @@ class EnhancedSessionSecurity:
 
     def _configure_secure_settings(self, app):
         """Configure secure cookie and session settings."""
-        flask_env = os.getenv("FLASK_ENV", "production")
+        flask_env = os.getenv("NEXTREEL_ENV", os.getenv("FLASK_ENV", "production"))
 
         if flask_env == "production":
             app.config["SESSION_COOKIE_SECURE"] = True
@@ -261,7 +261,7 @@ def require_secure_session(func):
 
 async def add_security_headers(response):
     """Add the app's security headers to the response."""
-    flask_env = os.getenv("FLASK_ENV", "production")
+    flask_env = os.getenv("NEXTREEL_ENV", os.getenv("FLASK_ENV", "production"))
 
     if flask_env == "production":
         response.headers["Strict-Transport-Security"] = (

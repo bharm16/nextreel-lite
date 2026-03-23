@@ -1,3 +1,7 @@
+> **DEPRECATED** — Most issues identified here have been addressed in the
+> 2026-03-22 tech-debt sweep. See `TECH_DEBT_REPORT.md` for the current
+> state. This file is kept for historical reference only.
+
 # Architecture Audit — NextReel-Lite
 
 **Date:** 2026-03-20

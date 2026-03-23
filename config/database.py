@@ -4,7 +4,7 @@ import os
 
 
 # Determined once at import time.
-_flask_env = os.getenv("FLASK_ENV", "development")
+_flask_env = os.getenv("NEXTREEL_ENV", os.getenv("FLASK_ENV", "production"))
 
 
 class DatabaseConfig:

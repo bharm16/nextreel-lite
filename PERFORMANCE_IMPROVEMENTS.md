@@ -1,3 +1,6 @@
+> **HISTORICAL** — Documents a one-time indexing effort. Not actively
+> maintained. See `TECH_DEBT_REPORT.md` for current project status.
+
 # Database Performance Improvements Summary
 
 ## 🎯 Overall Impact

@@ -5,7 +5,7 @@ from logging_config import get_logger
 
 logger = get_logger(__name__)
 
-_flask_env = os.getenv("FLASK_ENV", "development")
+_flask_env = os.getenv("NEXTREEL_ENV", os.getenv("FLASK_ENV", "production"))
 
 
 class SessionConfig:
@@ -17,7 +17,7 @@ class SessionConfig:
 
     @property
     def SESSION_COOKIE_SECURE(self):
-        env = os.getenv("FLASK_ENV", "development")
+        env = os.getenv("NEXTREEL_ENV", os.getenv("FLASK_ENV", "production"))
         secure = env != "development"
         if env == "production" and not secure:
             logger.error("WARNING: Secure cookies disabled in production!")
@@ -25,7 +25,7 @@ class SessionConfig:
 
     SESSION_COOKIE_DOMAIN = (
         None
-        if os.getenv("FLASK_ENV") != "production"
+        if os.getenv("NEXTREEL_ENV", os.getenv("FLASK_ENV", "production")) != "production"
         else os.getenv("COOKIE_DOMAIN", None)
     )
 

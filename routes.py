@@ -59,24 +59,6 @@ def _get_csrf_token() -> str:
     return token
 
 
-def _validate_csrf() -> None:
-    """Validate the CSRF token on a POST/PUT/DELETE request.
-
-    The token can be submitted as a form field ``csrf_token`` or via the
-    ``X-CSRFToken`` header.  Raises 403 on mismatch.
-    """
-    expected = session.get(_CSRF_TOKEN_KEY)
-    if not expected:
-        abort(403, "CSRF token missing from session")
-    submitted = request.headers.get("X-CSRFToken") or None
-    if submitted is None:
-        # Will be populated after form parsing; for non-form POSTs use header
-        pass
-    if submitted and hmac.compare_digest(submitted, expected):
-        return
-    # Fall through — caller should await form data and re-check
-
-
 async def _validate_csrf_from_form() -> None:
     """Validate CSRF token from either header or form body."""
     expected = session.get(_CSRF_TOKEN_KEY)
@@ -131,7 +113,9 @@ async def logout():
 _RATE_LIMIT_WINDOW = 60  # seconds
 _RATE_LIMIT_MAX = 30  # requests per window
 
-# In-memory fallback (single-instance only)
+# In-memory fallback (single-instance only).
+# Cap at 1024 keys to prevent unbounded memory growth from unique IPs.
+_RATE_LIMIT_MAX_KEYS = 1024
 _rate_limit_store: dict[str, list[float]] = {}
 
 # Ops endpoint auth: set OPS_AUTH_TOKEN env var to require Bearer token on
@@ -167,6 +151,16 @@ def _check_rate_limit_memory(endpoint_key: str) -> bool:
     if len(timestamps) >= _RATE_LIMIT_MAX:
         return False
     timestamps.append(now)
+
+    # Evict stale keys to prevent unbounded memory growth
+    if len(_rate_limit_store) > _RATE_LIMIT_MAX_KEYS:
+        stale_keys = [
+            k for k, v in _rate_limit_store.items()
+            if not v or v[-1] < cutoff
+        ]
+        for k in stale_keys:
+            _rate_limit_store.pop(k, None)
+
     return True
 
 
@@ -335,8 +329,10 @@ async def set_filters():
     )
 
     try:
+        from datetime import datetime
         response = await render_template(
-            "set_filters.html", current_filters=current_filters
+            "set_filters.html", current_filters=current_filters,
+            current_year=datetime.now().year,
         )
         elapsed_time = time.time() - start_time
         logger.info(

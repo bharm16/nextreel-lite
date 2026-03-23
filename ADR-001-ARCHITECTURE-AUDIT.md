@@ -1,6 +1,9 @@
+> **DEPRECATED** — Superseded by the 2026-03-22 tech-debt implementation.
+> See `TECH_DEBT_REPORT.md` for current status. Kept for historical reference.
+
 # ADR-001: NextReel-Lite Full Architecture Audit
 
-**Status:** Proposed
+**Status:** Superseded
 **Date:** 2026-03-22
 **Deciders:** Engineering team
 **Auditor:** Architecture review (automated)

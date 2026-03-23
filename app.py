@@ -35,7 +35,7 @@ logger = get_logger(__name__)
 
 
 # Automatically set up local environment if not in production
-if os.getenv("FLASK_ENV") != "production":
+if os.getenv("NEXTREEL_ENV", os.getenv("FLASK_ENV", "production")) != "production":
     setup_local_environment()
 
 
@@ -52,19 +52,16 @@ def create_app():
     # Store on config so routes can access it for logout
     app.config["_session_security"] = session_security
 
-    # Session configuration — EnhancedSessionSecurity._configure_secure_settings
-    # applies the canonical values per environment.  These are safe defaults
-    # that get overridden for production.
+    # Session cookie and lifetime settings are applied by
+    # EnhancedSessionSecurity._configure_secure_settings (above).
+    # Only set the session backend type here — everything else is
+    # owned by the security module to avoid conflicting values.
     app.config['SESSION_TYPE'] = 'redis'
-    app.config['SESSION_COOKIE_HTTPONLY'] = True
-    app.config['SESSION_COOKIE_SAMESITE'] = 'Strict'
-    app.config['PERMANENT_SESSION_LIFETIME'] = 28800  # 8 hours
-    app.config['SESSION_REFRESH_EACH_REQUEST'] = False
 
     @app.before_serving
     async def setup_redis():
         # Build a single Redis URL used by all consumers.
-        if os.getenv("FLASK_ENV") == "production":
+        if os.getenv("NEXTREEL_ENV", os.getenv("FLASK_ENV", "production")) == "production":
             redis_host = os.getenv("UPSTASH_REDIS_HOST")
             redis_port = os.getenv("UPSTASH_REDIS_PORT")
             redis_pw = os.getenv("UPSTASH_REDIS_PASSWORD")
@@ -92,8 +89,8 @@ def create_app():
         app.config['SESSION_REDIS'] = session_redis
         Session(app)
 
-        # 2) Simple cache manager — plain JSON, no encryption (public data)
-        app.secure_cache = SimpleCacheManager(redis_url=redis_url)
+        # 2) Simple cache manager — reuses the shared pool (no extra connection)
+        app.secure_cache = SimpleCacheManager(connection_pool=shared_pool)
         await app.secure_cache.initialize()
         logger.info("Redis shared pool, session backend, and simple cache initialized")
 

@@ -1,5 +1,5 @@
-# NextReel Requirements File
-# ===========================
+# NextReel Requirements — Production
+# ===================================
 # Last updated: 2026-03-22
 #
 # Core Web Framework & Server
@@ -41,26 +41,7 @@ colorlog==6.9.0                  # Colored terminal output for logs
 
 # Task Scheduling & Background Jobs
 # ---------------------------------
-APScheduler==3.11.0              # Advanced Python Scheduler (consolidated — removed `schedule`)
-
-# Testing & Development
-# --------------------
-pytest==8.3.5                    # Testing framework
-pytest-asyncio==0.25.3           # Async test support for pytest
-pytest-cov==6.1.1                # Coverage reporting for pytest
-pytest-mock==3.14.0              # Mock object library for pytest
-
-# Code Quality & Linting
-# ---------------------
-flake8==7.1.2                    # Style guide enforcement
-black==25.1.0                    # Code formatter
-mypy==1.15.0                     # Static type checker
-pylint==3.3.6                    # Code analysis tool
-
-# Documentation
-# ------------
-sphinx==8.2.3                    # Documentation generator
-sphinx-rtd-theme==3.0.2          # ReadTheDocs theme for Sphinx
+APScheduler==3.11.0              # Advanced Python Scheduler
 
 # Utilities
 # --------

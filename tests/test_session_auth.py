@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 import pytest
 from quart import Quart, session
 
-from session_auth import DEFAULT_CRITERIA, init_session
+from session_auth import _default_criteria, init_session
 from session_keys import CREATED_AT_KEY, CRITERIA_KEY, INITIALIZED_KEY, USER_ID_KEY
 
 
@@ -52,7 +52,7 @@ async def test_init_session_recreates_expired_session(app):
     async with app.test_request_context("/"):
         session[USER_ID_KEY] = "expired-user"
         session[CREATED_AT_KEY] = time.time() - (25 * 60 * 60)
-        session[CRITERIA_KEY] = DEFAULT_CRITERIA
+        session[CRITERIA_KEY] = _default_criteria()
 
         await init_session(movie_manager)
 

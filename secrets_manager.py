@@ -104,13 +104,13 @@ class SecretsManager:
                     missing_secrets.append(f"{key}: {description}")
                 else:
                     # Mask the secret in logs
-                    masked = value[:4] + '*' * (len(value) - 8) + value[-4:] if len(value) > 8 else '***'
-                    logger.info(f"Secret '{key}' validated: {masked}")
+                    masked = value[:4] + '*' * max(len(value) - 8, 4) + value[-4:] if len(value) > 8 else '***'
+                    logger.info("Secret '%s' validated: %s", key, masked)
             except RuntimeError:
                 missing_secrets.append(f"{key}: {description}")
         
         if missing_secrets:
-            logger.error(f"Missing required secrets: {', '.join(missing_secrets)}")
+            logger.error("Missing required secrets: %s", ', '.join(missing_secrets))
             return False
             
         self._validated = True

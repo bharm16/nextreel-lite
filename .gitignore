@@ -13,6 +13,10 @@ venv1/
 env/
 ENV/
 
+# Node dependencies
+node_modules/
+npm-debug.log
+
 # Make files
 Makefile
 

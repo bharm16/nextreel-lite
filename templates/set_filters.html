@@ -84,6 +84,7 @@
     <section id="filters" class="py-12 sm:py-16 bg-surface-alt">
       <div class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
         <form action="/filtered_movie" method="post" class="card border-t-4" style="border-top-color: var(--color-accent)" aria-describedby="filters-status">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div id="filters-status" class="sr-only" role="status" aria-live="polite"></div>
           <div class="grid grid-cols-1 gap-8 md:grid-cols-2">
             <!-- Left column -->
@@ -135,7 +136,7 @@
                 </div>
                 <div>
                   <label for="year_max" class="block text-sm font-medium">Latest</label>
-                  <input type="number" id="year_max" name="year_max" value="{{ current_filters.get('year_max', 2023) }}" class="mt-1 w-full rounded-2xl border-2 border-slate-200 px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30">
+                  <input type="number" id="year_max" name="year_max" value="{{ current_filters.get('year_max', current_year) }}" class="mt-1 w-full rounded-2xl border-2 border-slate-200 px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30">
                 </div>
               </section>
 

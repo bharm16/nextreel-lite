@@ -1,3 +1,4 @@
+from datetime import datetime
 from logging_config import get_logger
 import time
 import traceback
@@ -17,24 +18,28 @@ class MovieQueryBuilder:
     def should_use_cache(criteria: Dict[str, Any]) -> bool:
         """Determine if we should use the cache table based on criteria."""
         min_year = criteria.get("min_year", 1900)
-        max_year = criteria.get("max_year", 2025)
+        max_year = criteria.get("max_year", datetime.now().year)
         min_votes = criteria.get("min_votes", 100000)
         
         # Use cache for movies 1980–present with significant votes
-        from datetime import datetime
         if min_year >= 1980 and max_year <= datetime.now().year and min_votes >= 10000:
             return True
         return False
 
     @staticmethod
     def should_use_recent_cache(criteria: Dict[str, Any]) -> bool:
-        """Determine if we should use the recent movies cache."""
+        """Determine if we should use the recent movies cache.
+
+        The threshold is rolling: movies from the last 2 full calendar years
+        are considered "recent" and routed to the lighter cache table to avoid
+        13+ second full-table queries.
+        """
+        recent_threshold = datetime.now().year - 2  # e.g. 2024 when year is 2026
+
         min_year = criteria.get("min_year", 1900)
-        max_year = criteria.get("max_year", 2025)
-        
-        # Use recent cache for any 2024+ movies (regardless of vote count)
-        # This is critical for performance since 2024+ movies cause 13+ second queries
-        return min_year >= 2024 or (min_year < 2024 and max_year >= 2024)
+        max_year = criteria.get("max_year", datetime.now().year)
+
+        return min_year >= recent_threshold or max_year >= recent_threshold
 
     @staticmethod
     def build_base_query(use_cache: bool = False, use_recent: bool = False) -> str:
@@ -86,7 +91,7 @@ class MovieQueryBuilder:
             return [
                 criteria.get("title_type", "movie"),
                 criteria.get("min_year", 1900),
-                criteria.get("max_year", 2025),
+                criteria.get("max_year", datetime.now().year),
                 criteria.get("min_votes", 100000),
                 criteria.get("max_votes", 1000000),
                 criteria.get("min_rating", 7.0),
@@ -98,7 +103,7 @@ class MovieQueryBuilder:
             # Original order for cache tables
             return [
                 criteria.get("min_year", 1900),
-                criteria.get("max_year", 2025),
+                criteria.get("max_year", datetime.now().year),
                 criteria.get("min_rating", 7.0),
                 criteria.get("max_rating", 10),
                 criteria.get("min_votes", 100000),
@@ -126,8 +131,12 @@ class MovieQueryBuilder:
         else:
             table_alias = "tb."
             
-        # Build FULLTEXT search query
-        genre_search = " ".join([f'+"{genre}"' for genre in genres])
+        # Build FULLTEXT search query — strip boolean-mode operators to
+        # prevent injection via crafted genre names.
+        _ft_unsafe = str.maketrans("", "", '+-<>()~*"@')
+        genre_search = " ".join(
+            [f'+"{genre.translate(_ft_unsafe)}"' for genre in genres]
+        )
         condition = f" AND MATCH({table_alias}genres) AGAINST(%s IN BOOLEAN MODE)"
         return condition, [genre_search]
 
@@ -308,40 +317,77 @@ class ImdbRandomMovieFetcher(MovieFetcher):
             raise
 
 
+def _safe_int(value: str | None, default: int | None = None, *, min_val: int | None = None, max_val: int | None = None) -> int | None:
+    """Parse an integer from form input, returning *default* on failure."""
+    if not value:
+        return default
+    try:
+        n = int(value)
+    except (ValueError, TypeError):
+        return default
+    if min_val is not None:
+        n = max(n, min_val)
+    if max_val is not None:
+        n = min(n, max_val)
+    return n
+
+
+def _safe_float(value: str | None, default: float | None = None, *, min_val: float | None = None, max_val: float | None = None) -> float | None:
+    """Parse a float from form input, returning *default* on failure."""
+    if not value:
+        return default
+    try:
+        f = float(value)
+    except (ValueError, TypeError):
+        return default
+    if min_val is not None:
+        f = max(f, min_val)
+    if max_val is not None:
+        f = min(f, max_val)
+    return f
+
+
 def extract_movie_filter_criteria(form_data):
-    """
-    Extract filter criteria from the form data.
-
-
+    """Extract and validate filter criteria from form data.
 
     Returns:
-        dict: Dictionary containing the filter criteria.
+        dict: Dictionary containing the validated filter criteria.
     """
-
-    # Initialize an empty criteria dictionary
     criteria = {}
 
-    # Handling various other criteria (year, IMDb score, number of votes)
-    if form_data.get('year_min'):
-        criteria['min_year'] = int(form_data.get('year_min'))
-    if form_data.get('year_max'):
-        criteria['max_year'] = int(form_data.get('year_max'))
-    if form_data.get('imdb_score_min'):
-        criteria['min_rating'] = float(form_data.get('imdb_score_min'))
-    if form_data.get('imdb_score_max'):
-        criteria['max_rating'] = float(form_data.get('imdb_score_max'))
-    if form_data.get('num_votes_min'):
-        criteria['min_votes'] = int(form_data.get('num_votes_min'))
-    if form_data.get('num_votes_max'):
-        criteria['max_votes'] = int(form_data.get('num_votes_max'))
+    # Year range — clamp to sensible bounds
+    min_year = _safe_int(form_data.get('year_min'), min_val=1888, max_val=2100)
+    max_year = _safe_int(form_data.get('year_max'), min_val=1888, max_val=2100)
+    if min_year is not None:
+        criteria['min_year'] = min_year
+    if max_year is not None:
+        criteria['max_year'] = max_year
 
-    # Handling genre criteria
-    genres = form_data.getlist('genres[]')
+    # IMDb score — 0.0 to 10.0
+    min_rating = _safe_float(form_data.get('imdb_score_min'), min_val=0.0, max_val=10.0)
+    max_rating = _safe_float(form_data.get('imdb_score_max'), min_val=0.0, max_val=10.0)
+    if min_rating is not None:
+        criteria['min_rating'] = min_rating
+    if max_rating is not None:
+        criteria['max_rating'] = max_rating
+
+    # Vote counts — non-negative
+    min_votes = _safe_int(form_data.get('num_votes_min'), min_val=0)
+    max_votes = _safe_int(form_data.get('num_votes_max'), min_val=0)
+    if min_votes is not None:
+        criteria['min_votes'] = min_votes
+    if max_votes is not None:
+        criteria['max_votes'] = max_votes
+
+    # Genres — filter to non-empty strings only
+    genres = [g for g in form_data.getlist('genres[]') if g and isinstance(g, str)]
     if genres:
         criteria['genres'] = genres
 
-    # Handling language criteria - support user selection
+    # Language — accept short ISO codes only (e.g. "en", "fr", "any")
     language = form_data.get('language', 'en')
+    if not isinstance(language, str) or len(language) > 10:
+        language = 'en'
     criteria['language'] = language
     logger.debug("Language filter set to: %s", language)
 

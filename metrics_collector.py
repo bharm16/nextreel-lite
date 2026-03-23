@@ -16,7 +16,7 @@ import os
 app_info = Info('nextreel_app_info', 'Application information')
 app_info.info({
     'version': os.getenv('APP_VERSION', '1.0.0'),
-    'environment': os.getenv('FLASK_ENV', 'development')
+    'environment': os.getenv('NEXTREEL_ENV', os.getenv('FLASK_ENV', 'production'))
 })
 
 # ============================================================================
@@ -89,8 +89,7 @@ db_connection_errors_total = Counter(
 
 movie_queue_size = Gauge(
     'nextreel_movie_queue_size',
-    'Current movie queue size',
-    ['user_id']
+    'Current aggregate movie queue size'
 )
 
 movie_recommendations_total = Counter(
@@ -332,6 +331,7 @@ class MetricsCollector:
         self._collection_task: Optional[asyncio.Task] = None
         self._active_users: dict = {}  # user_id -> last_seen_timestamp
         self._active_user_timeout = 1800  # 30 minutes
+        self._max_tracked_users = 10000  # Cap to prevent unbounded growth
         self.logger = get_logger(__name__)
         
     async def start_collection(self):
@@ -416,8 +416,14 @@ class MetricsCollector:
             self.logger.error(f"Failed to collect movie metrics: {e}")
     
     def track_user_activity(self, user_id: str):
-        """Track user activity with timestamp for expiry"""
+        """Track user activity with timestamp for expiry."""
         self._active_users[user_id] = time.time()
+        # Evict oldest entries if we exceed the cap
+        if len(self._active_users) > self._max_tracked_users:
+            cutoff = time.time() - self._active_user_timeout
+            stale = [uid for uid, ts in self._active_users.items() if ts < cutoff]
+            for uid in stale:
+                del self._active_users[uid]
     
     def track_user_action(self, action_type: str):
         """Track user actions"""

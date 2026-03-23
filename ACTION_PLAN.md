@@ -1,3 +1,6 @@
+> **DEPRECATED** — The action items here have been implemented in the
+> 2026-03-22 tech-debt sweep. See `TECH_DEBT_REPORT.md` for current status.
+
 # NextReel-Lite Architecture Action Plan
 
 **Date:** 2026-03-22

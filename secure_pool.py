@@ -134,7 +134,7 @@ class SecureConnectionPool:
                 cursorclass=DictCursor,
                 pool_recycle=self.config.pool_recycle,
                 echo=False,
-                autocommit=False,
+                autocommit=True,
             )
             await self._validate_pool()
             self._health_check_task = asyncio.create_task(self._health_monitor())
@@ -348,6 +348,7 @@ class SecureConnectionPool:
                         try:
                             conn = await asyncio.wait_for(self.pool.acquire(), timeout=1.0)
                             conn.close()
+                            self.pool.release(conn)
                             excess -= 1
                         except Exception:
                             break
