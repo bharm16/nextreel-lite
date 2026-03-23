@@ -4,10 +4,9 @@ Provides detailed metrics that integrate with Grafana Cloud.
 """
 
 from prometheus_client import Counter, Histogram, Gauge, generate_latest, REGISTRY, Info
-from functools import wraps
 import time
 import asyncio
-from typing import Callable, Optional, Dict, Any
+from typing import Optional, Dict, Any
 from quart import Response, request, g, session
 from logging_config import get_logger
 import os
@@ -86,11 +85,6 @@ db_connection_errors_total = Counter(
 # ============================================================================
 # MOVIE & RECOMMENDATION METRICS
 # ============================================================================
-
-movie_queue_size = Gauge(
-    'nextreel_movie_queue_size',
-    'Current aggregate movie queue size'
-)
 
 movie_recommendations_total = Counter(
     'nextreel_movie_recommendations_total',
@@ -189,136 +183,6 @@ application_errors_total = Counter(
 )
 
 # ============================================================================
-# DECORATOR FUNCTIONS
-# ============================================================================
-
-def track_request_metrics(func: Callable) -> Callable:
-    """Decorator to track HTTP request metrics"""
-    @wraps(func)
-    async def wrapper(*args, **kwargs):
-        start_time = time.time()
-        http_requests_in_progress.inc()
-        
-        method = request.method if hasattr(request, 'method') else 'GET'
-        endpoint = func.__name__
-        status_code = 200
-        
-        try:
-            response = await func(*args, **kwargs)
-            
-            # Extract status code from response
-            if isinstance(response, tuple):
-                status_code = response[1] if len(response) > 1 else 200
-            elif hasattr(response, 'status_code'):
-                status_code = response.status_code
-                
-        except Exception as e:
-            status_code = 500
-            application_errors_total.labels(
-                error_type=type(e).__name__,
-                endpoint=endpoint
-            ).inc()
-            raise
-        finally:
-            duration = time.time() - start_time
-            http_requests_in_progress.dec()
-            
-            # Record metrics
-            http_requests_total.labels(
-                method=method,
-                endpoint=endpoint,
-                status_code=str(status_code)
-            ).inc()
-            
-            http_request_duration_seconds.labels(
-                method=method,
-                endpoint=endpoint
-            ).observe(duration)
-            
-        return response
-    return wrapper
-
-
-def track_db_metrics(query_type: str, table: str = 'unknown'):
-    """Decorator to track database query metrics"""
-    def decorator(func: Callable) -> Callable:
-        @wraps(func)
-        async def wrapper(*args, **kwargs):
-            start_time = time.time()
-            status = 'success'
-            
-            try:
-                result = await func(*args, **kwargs)
-                return result
-            except Exception as e:
-                status = 'error'
-                raise
-            finally:
-                duration = time.time() - start_time
-                db_queries_total.labels(
-                    query_type=query_type, 
-                    table=table,
-                    status=status
-                ).inc()
-                db_query_duration_seconds.labels(query_type=query_type).observe(duration)
-                
-        return wrapper
-    return decorator
-
-
-def track_tmdb_api_call(endpoint: str):
-    """Decorator to track TMDB API calls"""
-    def decorator(func: Callable) -> Callable:
-        @wraps(func)
-        async def wrapper(*args, **kwargs):
-            start_time = time.time()
-            status_code = '200'
-            
-            try:
-                result = await func(*args, **kwargs)
-                return result
-            except Exception as e:
-                status_code = '500'
-                raise
-            finally:
-                duration = time.time() - start_time
-                tmdb_api_calls_total.labels(
-                    endpoint=endpoint,
-                    status_code=status_code
-                ).inc()
-                tmdb_api_duration_seconds.labels(endpoint=endpoint).observe(duration)
-                
-        return wrapper
-    return decorator
-
-
-def track_cache_operation(operation: str, cache_type: str):
-    """Decorator to track cache operations"""
-    def decorator(func: Callable) -> Callable:
-        @wraps(func)
-        async def wrapper(*args, **kwargs):
-            start_time = time.time()
-            
-            try:
-                result = await func(*args, **kwargs)
-                # Assume cache hit if result is not None
-                if result is not None:
-                    cache_hits_total.labels(cache_type=cache_type).inc()
-                else:
-                    cache_misses_total.labels(cache_type=cache_type).inc()
-                return result
-            finally:
-                duration = time.time() - start_time
-                cache_operations_duration_seconds.labels(
-                    operation=operation,
-                    cache_type=cache_type
-                ).observe(duration)
-                
-        return wrapper
-    return decorator
-
-
-# ============================================================================
 # METRICS COLLECTION SERVICE
 # ============================================================================
 
@@ -377,7 +241,7 @@ class MetricsCollector:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                self.logger.error(f"Error collecting metrics: {e}")
+                self.logger.error("Error collecting metrics: %s", e)
                 await asyncio.sleep(10)
     
     async def _collect_db_metrics(self):
@@ -401,19 +265,15 @@ class MetricsCollector:
             db_circuit_breaker_state.set(state_map.get(state, 0))
             
         except Exception as e:
-            self.logger.error(f"Failed to collect database metrics: {e}")
+            self.logger.error("Failed to collect database metrics: %s", e)
     
     async def _collect_movie_metrics(self):
-        """Collect movie-related metrics"""
-        if not self.movie_manager:
-            return
-            
-        try:
-            # This would depend on your MovieManager implementation
-            # You might need to add methods to expose queue sizes, etc.
-            pass
-        except Exception as e:
-            self.logger.error(f"Failed to collect movie metrics: {e}")
+        """Collect movie-related metrics — currently a no-op.
+
+        Queue sizes are per-session (stored in Redis) and cannot be
+        aggregated cheaply from a background task.  Individual request
+        metrics are captured by the middleware instead.
+        """
     
     def track_user_activity(self, user_id: str):
         """Track user activity with timestamp for expiry."""
@@ -448,7 +308,7 @@ async def metrics_endpoint():
         )
     except Exception as e:
         logger = get_logger(__name__)
-        logger.error(f"Failed to generate metrics: {e}")
+        logger.error("Failed to generate metrics: %s", e)
         return Response("Error generating metrics", status=500)
 
 
@@ -489,7 +349,7 @@ def setup_metrics_middleware(app, metrics_collector: MetricsCollector):
             
         except Exception as e:
             logger = get_logger(__name__)
-            logger.error(f"Error in metrics middleware: {e}")
+            logger.error("Error in metrics middleware: %s", e)
         
         return response
 

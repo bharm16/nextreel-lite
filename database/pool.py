@@ -85,15 +85,17 @@ class DatabaseConnectionPool:
         """Get pool metrics"""
         return await self.pool.get_pool_status()
 
-    # Legacy methods for backward compatibility
     async def get_async_connection(self):
-        """Legacy method - prefer using acquire() context manager"""
-        async with self.pool.acquire() as conn:
-            return conn
+        """Removed — the returned connection was released before the caller used it.
+
+        Use ``async with pool.acquire() as conn:`` instead.
+        """
+        raise NotImplementedError(
+            "get_async_connection is removed. Use 'async with pool.acquire() as conn:' instead."
+        )
 
     async def release_async_connection(self, conn):
-        """Legacy method - connection is auto-released with context manager"""
-        pass
+        """No-op — connections are auto-released by the context manager."""
 
     def __repr__(self) -> str:
         return (

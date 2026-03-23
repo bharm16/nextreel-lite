@@ -95,9 +95,10 @@ class SSLCertificateValidator:
                 context = ssl.create_default_context()
                 logger.warning("Using system default certificates")
             
-            # Set strict SSL options for production
-            context.check_hostname = False  # MySQL doesn't use hostname verification
-            context.verify_mode = verify_mode
+            # MySQL servers use IP-based certs so hostname verification
+            # is disabled, but we always verify the certificate chain.
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_REQUIRED
             
             # Set minimum TLS version to 1.2
             context.minimum_version = ssl.TLSVersion.TLSv1_2

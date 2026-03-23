@@ -36,6 +36,9 @@ class _CircuitBreaker:
     - OPEN: requests are rejected immediately for ``recovery_timeout`` seconds.
     - HALF_OPEN: a single probe request is allowed through; success closes,
       failure re-opens.
+
+    All state mutations are protected by an asyncio.Lock to prevent
+    concurrent coroutines from creating race conditions.
     """
 
     CLOSED = "closed"
@@ -56,39 +59,48 @@ class _CircuitBreaker:
         self._failure_count = 0
         self._last_failure_time: float = 0
         self._half_open_count = 0
+        self._lock = asyncio.Lock()
 
     @property
     def state(self) -> str:
-        if self._state == self.OPEN:
-            if time.time() - self._last_failure_time >= self.recovery_timeout:
-                self._state = self.HALF_OPEN
-                self._half_open_count = 0
+        """Return current state (read-only, no side effects)."""
         return self._state
 
-    def allow_request(self) -> bool:
-        s = self.state
-        if s == self.CLOSED:
-            return True
-        if s == self.HALF_OPEN:
-            if self._half_open_count < self.half_open_max:
-                self._half_open_count += 1
+    async def attempt_recovery(self) -> None:
+        """Transition OPEN → HALF_OPEN if the recovery timeout has elapsed."""
+        async with self._lock:
+            if self._state == self.OPEN:
+                if time.time() - self._last_failure_time >= self.recovery_timeout:
+                    self._state = self.HALF_OPEN
+                    self._half_open_count = 0
+
+    async def allow_request(self) -> bool:
+        await self.attempt_recovery()
+        async with self._lock:
+            if self._state == self.CLOSED:
                 return True
-            return False
-        return False  # OPEN
+            if self._state == self.HALF_OPEN:
+                if self._half_open_count < self.half_open_max:
+                    self._half_open_count += 1
+                    return True
+                return False
+            return False  # OPEN
 
-    def record_success(self) -> None:
-        self._failure_count = 0
-        self._state = self.CLOSED
+    async def record_success(self) -> None:
+        async with self._lock:
+            self._failure_count = 0
+            self._state = self.CLOSED
 
-    def record_failure(self) -> None:
-        self._failure_count += 1
-        self._last_failure_time = time.time()
-        if self._failure_count >= self.failure_threshold:
-            self._state = self.OPEN
-            logger.warning(
-                "TMDb circuit breaker OPEN after %d consecutive failures",
-                self._failure_count,
-            )
+    async def record_failure(self) -> None:
+        async with self._lock:
+            self._failure_count += 1
+            self._last_failure_time = time.time()
+            if self._failure_count >= self.failure_threshold:
+                self._state = self.OPEN
+                logger.warning(
+                    "TMDb circuit breaker OPEN after %d consecutive failures",
+                    self._failure_count,
+                )
 
 
 class TMDbHelper:
@@ -118,10 +130,12 @@ class TMDbHelper:
             params = {}
 
         url = f"{self.base_url}/{endpoint}"
-        params["api_key"] = self.api_key
+        # Use Authorization header instead of query parameter to prevent
+        # the API key from appearing in logs, referrer headers, and caches.
+        headers = {"Authorization": f"Bearer {self.api_key}"}
 
         # Circuit breaker check — fail fast when TMDb is known to be down
-        if not self._circuit_breaker.allow_request():
+        if not await self._circuit_breaker.allow_request():
             logger.warning("TMDb circuit breaker OPEN — rejecting request to %s", endpoint)
             raise httpx.RequestError(
                 f"TMDb circuit breaker open — request to {endpoint} rejected"
@@ -131,7 +145,7 @@ class TMDbHelper:
             start_time = time.time()
             try:
                 async with self._rate_semaphore:
-                    response = await self._client.get(url, params=params)
+                    response = await self._client.get(url, params=params, headers=headers)
 
                 if response.status_code == 429:
                     retry_after = float(response.headers.get("Retry-After", 1))
@@ -140,7 +154,7 @@ class TMDbHelper:
                         "TMDb rate limited (429). Retry-After: %.1fs (attempt %d/%d)",
                         wait, attempt + 1, self._max_retries,
                     )
-                    self._circuit_breaker.record_failure()
+                    await self._circuit_breaker.record_failure()
                     if attempt < self._max_retries:
                         await asyncio.sleep(wait)
                         continue
@@ -153,12 +167,12 @@ class TMDbHelper:
                     "Received response from %s in %.2f seconds. Status code: %s",
                     url, elapsed_time, response.status_code,
                 )
-                self._circuit_breaker.record_success()
+                await self._circuit_breaker.record_success()
                 return response.json()
 
             except httpx.RequestError as e:
                 elapsed_time = time.time() - start_time
-                self._circuit_breaker.record_failure()
+                await self._circuit_breaker.record_failure()
                 if attempt < self._max_retries:
                     backoff = 2 ** attempt
                     logger.warning(
@@ -176,14 +190,14 @@ class TMDbHelper:
                 elapsed_time = time.time() - start_time
                 # 4xx client errors (except 429) are not TMDb failures
                 if e.response.status_code >= 500:
-                    self._circuit_breaker.record_failure()
+                    await self._circuit_breaker.record_failure()
                 logger.error(
                     "HTTP error from %s: %s; Time elapsed: %.2fs", url, e, elapsed_time,
                 )
                 raise
             except Exception as e:
                 elapsed_time = time.time() - start_time
-                self._circuit_breaker.record_failure()
+                await self._circuit_breaker.record_failure()
                 logger.error(
                     "Unexpected error from %s: %s; Time elapsed: %.2fs", url, e, elapsed_time,
                 )

@@ -24,18 +24,21 @@ from session_keys import USER_ID_KEY
 from session_security_enhanced import EnhancedSessionSecurity, add_security_headers
 
 
+from simple_cache import SimpleCacheManager
+
+
 class FixedQuart(Quart):
     """Quart subclass ensuring Flask compatibility keys."""
     default_config = dict(Quart.default_config)
     default_config.setdefault("PROVIDE_AUTOMATIC_OPTIONS", True)
-from simple_cache import SimpleCacheManager
 
 setup_logging(log_level=logging.INFO)
 logger = get_logger(__name__)
 
 
 # Automatically set up local environment if not in production
-if os.getenv("NEXTREEL_ENV", os.getenv("FLASK_ENV", "production")) != "production":
+from config.env import get_environment
+if get_environment() != "production":
     setup_local_environment()
 
 
@@ -61,7 +64,7 @@ def create_app():
     @app.before_serving
     async def setup_redis():
         # Build a single Redis URL used by all consumers.
-        if os.getenv("NEXTREEL_ENV", os.getenv("FLASK_ENV", "production")) == "production":
+        if get_environment() == "production":
             redis_host = os.getenv("UPSTASH_REDIS_HOST")
             redis_port = os.getenv("UPSTASH_REDIS_PORT")
             redis_pw = os.getenv("UPSTASH_REDIS_PASSWORD")
@@ -76,7 +79,7 @@ def create_app():
         # Shared connection pool — one pool, multiple consumers
         shared_pool = aioredis.ConnectionPool.from_url(
             redis_url,
-            max_connections=50,
+            max_connections=100,
             socket_connect_timeout=5,
             socket_timeout=5,
             retry_on_timeout=True,
@@ -109,7 +112,7 @@ def create_app():
     async def before_request():
         try:
             await add_correlation_id()
-            g.start_time = time.time()
+            # g.start_time is set by setup_metrics_middleware — don't duplicate
 
             skip_paths = ['/static', '/favicon.ico', '/health', '/ready', '/metrics']
             if any(request.path.startswith(path) for path in skip_paths):
@@ -119,18 +122,14 @@ def create_app():
                 return
 
             await init_session(movie_manager, metrics_collector)
-
-            req_size = sys.getsizeof(await request.get_data())
-            logger.debug(
-                "Request Size: %s bytes. Correlation ID: %s", req_size, g.correlation_id
-            )
+        except (asyncio.CancelledError, SystemExit, KeyboardInterrupt):
+            raise
         except Exception as e:
             logger.error("Error in session management: %s", e, exc_info=True)
-            # Let the request proceed without a session rather than crashing,
-            # but surface the error clearly so it can be investigated.
-            # Critical auth failures should still propagate.
-            if isinstance(e, RuntimeError):
-                raise
+            # Return 503 rather than letting the request proceed without
+            # a valid session, which would cause confusing downstream errors.
+            from quart import make_response
+            return await make_response(("Service temporarily unavailable", 503))
 
     @app.after_request
     async def set_security_headers(response):
@@ -146,7 +145,7 @@ def create_app():
         return await add_security_headers(response)
 
     # ── Scheduled cache refresh ──────────────────────────────────────
-    from apscheduler.schedulers.asyncio import AsyncIOScheduler
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler  # noqa: E402 — deferred to avoid import at module level
 
     cache_scheduler = AsyncIOScheduler()
 

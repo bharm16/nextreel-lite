@@ -36,6 +36,7 @@ htmlcov
 .env.development
 .env.production
 .env.*.local
+.env.*.backup
 
 # Keep example files
 !.env.example
@@ -81,3 +82,5 @@ scripts/filter_backend_optimized.py
 execute_db_optimization.py
 execute_prod_db_optimization.py
 test_performance_improvements.py
+
+firebase-debug.log

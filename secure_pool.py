@@ -53,7 +53,7 @@ class SecurePoolConfig:
     max_queries_per_minute: int = 1000
     max_queries_per_user_minute: int = 100
     health_check_interval: int = 10
-    pool_pre_ping: bool = True
+    pool_pre_ping: bool = False  # Rely on pool_recycle; avoids extra RTT per query
     circuit_breaker_threshold: int = 5
     circuit_breaker_timeout: int = 30
     circuit_breaker_half_open_requests: int = 3
@@ -111,7 +111,7 @@ class SecureConnectionPool:
 
     async def init_pool(self):
         """Initialize the underlying aiomysql pool."""
-        if self.circuit_breaker_state == "open" and not self._can_attempt_reconnect():
+        if self.circuit_breaker_state == "open" and not await self._can_attempt_reconnect():
             raise RuntimeError("Circuit breaker is open")
 
         try:
@@ -144,7 +144,7 @@ class SecureConnectionPool:
             self.state = PoolState.HEALTHY
             logger.info("Secure connection pool initialized successfully")
         except Exception as exc:
-            self._record_circuit_breaker_failure()
+            await self._record_circuit_breaker_failure()
             logger.error("Failed to initialize pool: %s", exc)
             raise
 
@@ -154,10 +154,11 @@ class SecureConnectionPool:
             context = ssl.create_default_context(cafile=self.config.ssl_cert_path)
         else:
             context = ssl.create_default_context()
-        context.check_hostname = self.config.validate_ssl
-        context.verify_mode = (
-            ssl.CERT_REQUIRED if self.config.validate_ssl else ssl.CERT_NONE
-        )
+        # MySQL servers typically use IP-based certificates so hostname
+        # verification is disabled, but we always require certificate
+        # validation to prevent MITM attacks.  CERT_NONE is never used.
+        context.check_hostname = False
+        context.verify_mode = ssl.CERT_REQUIRED
         context.minimum_version = ssl.TLSVersion.TLSv1_2
         context.set_ciphers(
             "ECDHE+AESGCM:ECDHE+CHACHA20:DHE+AESGCM:DHE+CHACHA20:!aNULL:!MD5:!DSS"
@@ -184,7 +185,7 @@ class SecureConnectionPool:
         """
         del user_id, ip_address
 
-        if self.circuit_breaker_state == "open" and not self._can_attempt_reconnect():
+        if self.circuit_breaker_state == "open" and not await self._can_attempt_reconnect():
             raise RuntimeError("Circuit breaker is open - pool unavailable")
 
         if not self.pool:
@@ -219,11 +220,11 @@ class SecureConnectionPool:
             yield connection
         except asyncio.TimeoutError as exc:
             self.metrics["connections_failed"] += 1
-            self._record_circuit_breaker_failure()
+            await self._record_circuit_breaker_failure()
             raise RuntimeError("Connection acquisition timeout") from exc
         except Exception:
             self.metrics["connections_failed"] += 1
-            self._record_circuit_breaker_failure()
+            await self._record_circuit_breaker_failure()
             raise
         finally:
             if connection and conn_id:
@@ -342,41 +343,36 @@ class SecureConnectionPool:
                             self.config.pool_recycle,
                         )
 
-                if self.pool:
-                    excess = self.pool.freesize - self.pool.minsize
-                    while excess > 0 and self.pool.freesize > self.pool.minsize:
-                        try:
-                            conn = await asyncio.wait_for(self.pool.acquire(), timeout=1.0)
-                            conn.close()
-                            self.pool.release(conn)
-                            excess -= 1
-                        except Exception:
-                            break
+                # Active connection shrinking removed — it competed with
+                # production traffic for connections.  aiomysql's built-in
+                # pool_recycle handles connection lifecycle instead.
             except asyncio.CancelledError:
                 break
             except Exception as exc:
                 logger.error("Cleanup error: %s", exc)
 
-    def _record_circuit_breaker_failure(self):
-        self.circuit_breaker_failures += 1
-        self.circuit_breaker_last_failure = datetime.now()
-        if self.circuit_breaker_failures >= self.config.circuit_breaker_threshold:
-            if self.circuit_breaker_state != "open":
-                self.circuit_breaker_state = "open"
-                self.metrics["circuit_breaker_trips"] += 1
-                logger.error("Circuit breaker opened due to repeated failures")
+    async def _record_circuit_breaker_failure(self):
+        async with self._cb_lock:
+            self.circuit_breaker_failures += 1
+            self.circuit_breaker_last_failure = datetime.now()
+            if self.circuit_breaker_failures >= self.config.circuit_breaker_threshold:
+                if self.circuit_breaker_state != "open":
+                    self.circuit_breaker_state = "open"
+                    self.metrics["circuit_breaker_trips"] += 1
+                    logger.error("Circuit breaker opened due to repeated failures")
 
-    def _can_attempt_reconnect(self) -> bool:
-        if self.circuit_breaker_state != "open":
-            return True
-        if self.circuit_breaker_last_failure is None:
+    async def _can_attempt_reconnect(self) -> bool:
+        async with self._cb_lock:
+            if self.circuit_breaker_state != "open":
+                return True
+            if self.circuit_breaker_last_failure is None:
+                return False
+            elapsed = (datetime.now() - self.circuit_breaker_last_failure).total_seconds()
+            if elapsed > self.config.circuit_breaker_timeout:
+                self.circuit_breaker_state = "half-open"
+                logger.info("Circuit breaker entering half-open state")
+                return True
             return False
-        elapsed = (datetime.now() - self.circuit_breaker_last_failure).total_seconds()
-        if elapsed > self.config.circuit_breaker_timeout:
-            self.circuit_breaker_state = "half-open"
-            logger.info("Circuit breaker entering half-open state")
-            return True
-        return False
 
     async def get_pool_status(self) -> Dict[str, Any]:
         """Return pool health and metrics."""
@@ -397,7 +393,11 @@ class SecureConnectionPool:
             "health_check_failures": self.metrics["health_check_failures"],
             "user_connection_counts": {},
             "ip_connection_counts": {},
-            "recent_slow_queries": list(self.slow_queries)[-10:],
+            # Strip raw query text to avoid leaking parameter values.
+            "recent_slow_queries": [
+                {"duration": q["duration"], "timestamp": q["timestamp"]}
+                for q in list(self.slow_queries)[-10:]
+            ],
         }
 
     async def close_pool(self):

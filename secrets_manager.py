@@ -1,7 +1,6 @@
 import os
+import time
 from typing import Optional, Dict, Any
-from functools import lru_cache
-import json
 from logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -25,28 +24,18 @@ class SecretsManager:
         'SSL_CERT_PATH': None,
     }
     
+    _CACHE_TTL = 300  # 5 minutes — allows runtime rotation without restart
+
     def __init__(self):
-        self._secrets_cache: Dict[str, Any] = {}
+        self._secrets_cache: Dict[str, Dict[str, Any]] = {}  # key -> {"value": ..., "ts": ...}
         self._validated = False
-        
-    @lru_cache(maxsize=32)
+
     def get_secret(self, key: str, default: Optional[str] = None) -> Optional[str]:
-        """
-        Retrieve a secret value with caching and validation.
-        
-        Args:
-            key: The secret key to retrieve
-            default: Default value if secret is not found (only for optional secrets)
-            
-        Returns:
-            The secret value or default
-            
-        Raises:
-            RuntimeError: If a required secret is missing
-        """
-        # Check cache first
-        if key in self._secrets_cache:
-            return self._secrets_cache[key]
+        """Retrieve a secret value with TTL-based caching."""
+        # Check cache (with TTL)
+        entry = self._secrets_cache.get(key)
+        if entry and (time.time() - entry["ts"]) < self._CACHE_TTL:
+            return entry["value"]
             
         # Try environment variables first
         value = os.environ.get(key)
@@ -69,10 +58,10 @@ class SecretsManager:
         if not value and key in self.OPTIONAL_SECRETS:
             value = default or self.OPTIONAL_SECRETS[key]
             
-        # Cache the value
+        # Cache the value with timestamp
         if value:
-            self._secrets_cache[key] = value
-            
+            self._secrets_cache[key] = {"value": value, "ts": time.time()}
+
         return value
     
     def _get_from_secret_manager(self, key: str) -> Optional[str]:
@@ -103,9 +92,7 @@ class SecretsManager:
                 if not value:
                     missing_secrets.append(f"{key}: {description}")
                 else:
-                    # Mask the secret in logs
-                    masked = value[:4] + '*' * max(len(value) - 8, 4) + value[-4:] if len(value) > 8 else '***'
-                    logger.info("Secret '%s' validated: %s", key, masked)
+                    logger.info("Secret '%s' validated successfully (present and non-empty)", key)
             except RuntimeError:
                 missing_secrets.append(f"{key}: {description}")
         
@@ -124,7 +111,6 @@ class SecretsManager:
     def clear_cache(self):
         """Clear the secrets cache (useful for key rotation)."""
         self._secrets_cache.clear()
-        self.get_secret.cache_clear()
         logger.info("Secrets cache cleared")
 
 

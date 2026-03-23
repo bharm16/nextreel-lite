@@ -13,6 +13,17 @@ from session_keys import (
 logger = get_logger(__name__)
 
 
+def _is_language_accepted(movie_data: dict, desired_lang: str) -> bool:
+    """Return True if *movie_data*'s language matches *desired_lang*."""
+    if desired_lang == "any":
+        return True
+    original_lang = movie_data.get("original_language", "unknown")
+    spoken_langs = movie_data.get("spoken_languages", [])
+    if desired_lang == "en":
+        return original_lang in ("en", "unknown", None) or "en" in spoken_langs
+    return original_lang == desired_lang or desired_lang in spoken_langs
+
+
 MAX_PREV_STACK_SIZE = 50  # Cap history to prevent unbounded session growth
 
 # Keys kept in the lightweight session references. Everything else lives
@@ -26,8 +37,8 @@ def _movie_ref(movie_data: dict) -> dict:
 
 
 def _is_full_movie(entry: dict) -> bool:
-    """Detect old-format full movie dicts for backward compatibility."""
-    return "cast" in entry or "credits" in entry or "plot" in entry
+    """Return True if *entry* is a full movie dict (vs a lightweight ref)."""
+    return entry.get("_full", False)
 
 
 async def _cache_movie_data(movie_data: dict) -> None:
@@ -40,7 +51,7 @@ async def _cache_movie_data(movie_data: dict) -> None:
         if secure_cache:
             from simple_cache import CacheNamespace
             await secure_cache.set(
-                CacheNamespace.MOVIE, f"full:{tconst}", movie_data, ttl=3600
+                CacheNamespace.MOVIE, f"full:{tconst}", movie_data, ttl=86400
             )
     except Exception as e:
         logger.debug("Failed to cache movie %s: %s", tconst, e)
@@ -137,20 +148,7 @@ class MovieNavigator:
 
         for movie_data in movie_results:
             if movie_data and not isinstance(movie_data, Exception):
-                accepted = False
-                if desired_lang == "any":
-                    accepted = True
-                else:
-                    original_lang = movie_data.get("original_language", "unknown")
-                    spoken_langs = movie_data.get("spoken_languages", [])
-
-                    if desired_lang == "en":
-                        if original_lang in ["en", "unknown", None] or "en" in spoken_langs:
-                            accepted = True
-                    elif original_lang == desired_lang or desired_lang in spoken_langs:
-                        accepted = True
-
-                if accepted:
+                if _is_language_accepted(movie_data, desired_lang):
                     # Cache full data, store lightweight ref in session queue
                     await _cache_movie_data(movie_data)
                     queue.append(_movie_ref(movie_data))
@@ -159,6 +157,10 @@ class MovieNavigator:
                     break
 
         session[WATCH_QUEUE_KEY] = queue
+
+    async def load_initial_queue(self):
+        """Public entry point for populating the queue from outside the navigator."""
+        await self._load_movies_into_queue()
 
     async def _ensure_queue(self):
         queue = session.get(WATCH_QUEUE_KEY, [])
@@ -193,7 +195,12 @@ class MovieNavigator:
             if len(prev_stack) > MAX_PREV_STACK_SIZE:
                 prev_stack = prev_stack[-MAX_PREV_STACK_SIZE:]
 
-        session[CURRENT_MOVIE_KEY] = current_movie
+        # Store only a lightweight ref in the session; full data lives in cache.
+        if current_movie:
+            await _cache_movie_data(current_movie)
+            session[CURRENT_MOVIE_KEY] = _movie_ref(current_movie)
+        else:
+            session[CURRENT_MOVIE_KEY] = None
         session[PREVIOUS_STACK_KEY] = prev_stack
         session[FUTURE_STACK_KEY] = future_stack
         session[WATCH_QUEUE_KEY] = queue
@@ -222,7 +229,12 @@ class MovieNavigator:
 
         ref = prev_stack.pop()
         previous_movie = await _resolve_ref(ref, db_pool=self.db_pool, tmdb_helper=self.tmdb_helper)
-        session[CURRENT_MOVIE_KEY] = previous_movie
+        # Store lightweight ref in session; full data is in cache.
+        if previous_movie:
+            await _cache_movie_data(previous_movie)
+            session[CURRENT_MOVIE_KEY] = _movie_ref(previous_movie)
+        else:
+            session[CURRENT_MOVIE_KEY] = None
         session[PREVIOUS_STACK_KEY] = prev_stack
         session[FUTURE_STACK_KEY] = future_stack
 

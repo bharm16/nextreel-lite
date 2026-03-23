@@ -19,9 +19,6 @@ def build_ratings_query():
     """
 
 
-TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/"
-
-
 class Movie:
     def __init__(self, tconst, db_pool, tmdb_helper=None):
         self.tconst = tconst
@@ -41,43 +38,23 @@ class Movie:
         return False
 
     async def fetch_movie_slug(self):
-        """Fetch slug from cache tables first, then fallback to main table."""
-        start_time = time.time()
-        
-        # Try cache tables first (they're faster and already loaded)
-        cache_queries = [
-            "SELECT slug FROM popular_movies_cache WHERE tconst = %s",
-            "SELECT slug FROM recent_movies_cache WHERE tconst = %s"
-        ]
-        
-        for query in cache_queries:
-            try:
-                result = await self.db_pool.execute(query, [self.tconst], fetch="one")
-                if result and result.get("slug"):
-                    self.slug = result["slug"]
-                    logger.debug("Slug from cache for %s: %s", self.tconst, self.slug)
-                    return
-            except (KeyError, TypeError, OSError, DatabaseError) as e:
-                logger.debug("Cache table query failed for %s: %s", self.tconst, e)
-                continue  # Try next cache table
-        
-        # Fallback to main table only if not found in cache
+        """Fetch slug using a single UNION ALL query across all tables."""
         try:
-            query = "SELECT slug FROM `title.basics` WHERE tconst = %s"
-            result = await self.db_pool.execute(query, [self.tconst], fetch="one")
-            if result and result.get("slug"):
-                self.slug = result["slug"]
-                logger.debug("Slug from main table for %s: %s", self.tconst, self.slug)
-            else:
-                # Most movies don't have slugs, so don't log this as a warning
-                self.slug = None
-                logger.debug("No slug found for tconst: %s", self.tconst)
+            query = (
+                "SELECT slug FROM popular_movies_cache WHERE tconst = %s "
+                "UNION ALL "
+                "SELECT slug FROM recent_movies_cache WHERE tconst = %s "
+                "UNION ALL "
+                "SELECT slug FROM `title.basics` WHERE tconst = %s "
+                "LIMIT 1"
+            )
+            result = await self.db_pool.execute(
+                query, [self.tconst, self.tconst, self.tconst], fetch="one"
+            )
+            self.slug = result["slug"] if result and result.get("slug") else None
         except Exception as e:
-            logger.error("Error fetching slug for %s: %s", self.tconst, e)
+            logger.debug("Error fetching slug for %s: %s", self.tconst, e)
             self.slug = None
-
-        method_time = time.time() - start_time
-        logger.debug("Completed fetch_movie_slug for %s in %.2f seconds.", self.tconst, method_time)
 
     async def fetch_movie_ratings(self, tconst):
         start_time = time.time()  # Start timing
@@ -136,12 +113,13 @@ class Movie:
                 logger.warning("No TMDB ID found for tconst: %s", self.tconst)
                 return None
 
-            # Execute all data fetching coroutines concurrently with error handling
+            # Execute all data fetching concurrently — credits are fetched
+            # once and cast info is derived from the same response (saves one
+            # TMDb API call per movie).
             tasks = [
                 self.tmdb_helper.get_movie_info_by_tmdb_id(tmdb_id),
                 self.tmdb_helper.get_credits_by_tmdb_id(tmdb_id),
                 self.tmdb_helper.get_video_url_by_tmdb_id(tmdb_id),
-                self.tmdb_helper.get_cast_info_by_tmdb_id(tmdb_id),
                 self.tmdb_helper.get_images_by_tmdb_id(tmdb_id),
                 self.tmdb_helper.get_age_rating_by_tmdb_id(tmdb_id),
                 self.fetch_movie_ratings(self.tconst),
@@ -153,20 +131,30 @@ class Movie:
             movie_info = results[0] if not isinstance(results[0], Exception) else {}
             tmdb_credits = results[1] if not isinstance(results[1], Exception) else {}
             tmdb_movie_trailer = results[2] if not isinstance(results[2], Exception) else None
-            tmdb_cast_info_result = results[3] if not isinstance(results[3], Exception) else []
-            tmdb_image_info = results[4] if not isinstance(results[4], Exception) else {}
-            age_rating = results[5] if not isinstance(results[5], Exception) else "Not Rated"
-            ratings_data = results[6] if not isinstance(results[6], Exception) else None
-            watch_providers = results[7] if not isinstance(results[7], Exception) else None
+            tmdb_image_info = results[3] if not isinstance(results[3], Exception) else {}
+            age_rating = results[4] if not isinstance(results[4], Exception) else "Not Rated"
+            ratings_data = results[5] if not isinstance(results[5], Exception) else None
+            watch_providers = results[6] if not isinstance(results[6], Exception) else None
+
+            # Derive cast info from the single credits response
+            tmdb_cast_info_result = [
+                {
+                    "name": m["name"],
+                    "image_url": (
+                        f"{self.tmdb_helper.image_base_url}w185{m['profile_path']}"
+                        if m.get("profile_path") else None
+                    ),
+                    "character": m.get("character", "N/A"),
+                }
+                for m in tmdb_credits.get("cast", [])[:10]
+            ]
             
             # Log any errors that occurred
             for i, result in enumerate(results):
                 if isinstance(result, Exception):
                     logger.warning("Task %s failed for %s: %s", i, self.tconst, result)
 
-            tmdb_cast_info = (
-                tmdb_cast_info_result[:10] if tmdb_cast_info_result else []
-            )  # Limit to 10 cast members
+            tmdb_cast_info = tmdb_cast_info_result
 
             backdrop_url = (
                 tmdb_image_info["backdrops"][0]
@@ -215,7 +203,7 @@ class Movie:
                 "votes": votes,
                 "plot": movie_info.get("overview", "N/A"),
                 "poster_url": (
-                    f"{TMDB_IMAGE_BASE_URL}w500{movie_info.get('poster_path')}"
+                    f"{self.tmdb_helper.image_base_url}w500{movie_info.get('poster_path')}"
                     if movie_info.get("poster_path")
                     else None
                 ),
@@ -240,6 +228,7 @@ class Movie:
                 "status": movie_info.get("status", "Unknown"),
                 "tagline": movie_info.get("tagline", ""),
                 "watch_providers": watch_providers,
+                "_full": True,  # sentinel for _is_full_movie()
             }
 
             method_time = time.time() - start_time

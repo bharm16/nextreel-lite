@@ -31,6 +31,18 @@ jobs:
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics --exclude=venv,node_modules
         # exit-zero treats all errors as warnings
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics --exclude=venv,node_modules
+    - name: Check for secrets in repository
+      uses: trufflesecurity/trufflehog@main
+      with:
+        extra_args: --only-verified
+    - name: Dependency vulnerability scan
+      run: |
+        pip install pip-audit
+        pip-audit -r requirements.txt || true
+    - name: SAST with bandit
+      run: |
+        pip install bandit
+        bandit -r . --exclude venv,tests,node_modules -ll -q || true
     - name: Test with pytest
       env:
         TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}

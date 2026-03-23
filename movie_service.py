@@ -1,7 +1,7 @@
 import asyncio
 from logging_config import get_logger
 
-from quart import copy_current_request_context, has_request_context, render_template, session
+from quart import copy_current_request_context, has_request_context, session
 
 from settings import Config, DatabaseConnectionPool
 from scripts.filter_backend import (
@@ -13,7 +13,6 @@ from movie_navigator import MovieNavigator
 from movie_renderer import MovieRenderer
 from session_keys import (
     CRITERIA_KEY,
-    SESSION_TOKEN_KEY,
     USER_ID_KEY,
     init_movie_stacks,
     reset_movie_stacks,
@@ -73,10 +72,6 @@ class MovieManager:
         except Exception as e:
             logger.error("Error closing MovieManager: %s", e)
 
-    async def stop(self):
-        """Alias for close() method for consistency"""
-        await self.close()
-
     async def add_user(self, user_id, criteria):
         """
         Add a new user with specific criteria.
@@ -87,23 +82,17 @@ class MovieManager:
         """
         logger.info("Adding new user with ID: %s and criteria: %s", user_id, criteria)
         init_movie_stacks(criteria)
-        await self._navigator._load_movies_into_queue()
+        await self._navigator.load_initial_queue()
 
     async def home(self, user_id):
+        """Return home page data. Kicks off background queue prefetch."""
         logger.debug("Accessing home")
         await self._start_queue_prefetch(user_id)
-        return await render_template(
-            "home.html", default_backdrop_url=self.default_backdrop_url
-        )
+        return {"default_backdrop_url": self.default_backdrop_url}
 
     def _queue_task_key(self, user_id: str | None) -> str:
         if has_request_context():
-            return (
-                session.get(USER_ID_KEY)
-                or session.get(SESSION_TOKEN_KEY)
-                or user_id
-                or "anonymous"
-            )
+            return session.get(USER_ID_KEY) or user_id or "anonymous"
         return user_id or "anonymous"
 
     async def _start_queue_prefetch(self, user_id: str | None) -> asyncio.Task:
@@ -187,19 +176,11 @@ class MovieManager:
     def get_current_movie_tconst(self):
         return self._navigator.get_current_movie_tconst()
 
-    async def get_movie_by_slug(self, user_id, slug):
-        return await self._navigator.get_movie_by_slug(user_id, slug)
-
     async def next_movie(self, user_id):
         return await self._navigator.next_movie(user_id)
 
     async def previous_movie(self, user_id):
         return await self._navigator.previous_movie(user_id)
-
-    async def set_filters(self, user_id):
-        logger.info("Setting filters for user_id: %s", user_id)
-        reset_movie_stacks()
-        return await render_template("set_filters.html")
 
     async def filtered_movie(self, user_id, form_data):
         logger.info("Starting filtering process for user_id: %s", user_id)
@@ -208,7 +189,7 @@ class MovieManager:
         session[CRITERIA_KEY] = new_criteria
         reset_movie_stacks()
 
-        await self._navigator._load_movies_into_queue()
+        await self._navigator.load_initial_queue()
 
         response = await self.next_movie(user_id)
         if response:

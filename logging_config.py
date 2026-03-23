@@ -50,10 +50,12 @@ class LokiHandler(logging.Handler):
         
         # Buffer for batching logs
         self.buffer = queue.Queue(maxsize=1000)
-        self.batch_size = 10
-        self.flush_interval = 5  # seconds
+        self.batch_size = 100
+        self.flush_interval = 2  # seconds
         self._dropped_logs = 0
         self._flush_lock = threading.Lock()
+
+        self._stop_event = threading.Event()
 
         # Start background thread for sending logs
         self.sender_thread = threading.Thread(target=self._sender_loop, daemon=True)
@@ -107,13 +109,20 @@ class LokiHandler(logging.Handler):
         }
     
     def _sender_loop(self):
-        """Background thread to batch and send logs"""
-        while True:
+        """Background thread to batch and send logs."""
+        while not self._stop_event.is_set():
             try:
                 self._flush_batch()
-                time.sleep(self.flush_interval)
+                self._stop_event.wait(timeout=self.flush_interval)
             except Exception:
-                time.sleep(self.flush_interval * 2)  # Back off on error
+                self._stop_event.wait(timeout=self.flush_interval * 2)
+        # Final drain on shutdown
+        self._flush_batch()
+
+    def close(self):
+        """Stop the sender thread and drain remaining logs."""
+        self._stop_event.set()
+        self.sender_thread.join(timeout=5)
     
     def _flush_batch(self):
         """Send a batch of logs to Loki"""
@@ -220,5 +229,6 @@ def get_logger(name):
     """Get a logger instance for a given name - maintains backward compatibility"""
     return logging.getLogger(name)
 
-# Auto-setup if imported
-setup_logging()
+# setup_logging() is called explicitly by app.py — not at import time.
+# This avoids duplicate handlers, unwanted file-system side-effects in
+# tests, and daemon threads started before the app is ready.

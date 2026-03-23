@@ -71,7 +71,8 @@ class EnhancedSessionSecurity:
 
     def _configure_secure_settings(self, app):
         """Configure secure cookie and session settings."""
-        flask_env = os.getenv("NEXTREEL_ENV", os.getenv("FLASK_ENV", "production"))
+        from config.env import get_environment
+        flask_env = get_environment()
 
         if flask_env == "production":
             app.config["SESSION_COOKIE_SECURE"] = True
@@ -138,7 +139,7 @@ class EnhancedSessionSecurity:
         payload = json.dumps(components, sort_keys=True).encode()
         secret = str(self.app.config.get("SECRET_KEY", "")).encode() if self.app else b""
         if secret:
-            fingerprint = hmac.new(secret, payload, hashlib.sha256).hexdigest()
+            fingerprint = hmac.HMAC(secret, payload, hashlib.sha256).hexdigest()
         else:
             fingerprint = hashlib.sha256(payload).hexdigest()
         return fingerprint, components
@@ -199,7 +200,9 @@ class EnhancedSessionSecurity:
         session[SESSION_CREATED_KEY] = now
         session[SESSION_LAST_ACTIVITY_KEY] = now
         session[SESSION_ROTATION_COUNT_KEY] = 0
-        session[FINGERPRINT_COMPONENTS_KEY] = components
+        # Fingerprint components are recomputed from live headers on each
+        # request — storing them in the session is unnecessary and leaks
+        # client metadata (IP, User-Agent) into the session store.
 
         logger.info("Created secure session %s", token[:8])
 
@@ -260,16 +263,29 @@ def require_secure_session(func):
 
 
 async def add_security_headers(response):
-    """Add the app's security headers to the response."""
-    flask_env = os.getenv("NEXTREEL_ENV", os.getenv("FLASK_ENV", "production"))
+    """Add security headers to every response.
 
-    if flask_env == "production":
+    Baseline headers (X-Frame-Options, X-Content-Type-Options, etc.) are
+    applied in all environments.  HSTS and CSP are production-only since
+    HSTS pins HTTPS on the domain and CSP may block dev tooling.
+    """
+    from config.env import get_environment
+
+    # ── Baseline headers — all environments ──────────────────────────
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = (
+        "geolocation=(), camera=(), microphone=(), payment=(), usb=()"
+    )
+    # X-XSS-Protection intentionally omitted — deprecated in modern
+    # browsers and can introduce vulnerabilities in older ones.
+
+    # ── Production-only headers ──────────────────────────────────────
+    if get_environment() == "production":
         response.headers["Strict-Transport-Security"] = (
             "max-age=31536000; includeSubDomains; preload"
         )
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
             "script-src 'self' https://cdn.jsdelivr.net https://kit.fontawesome.com; "
@@ -278,6 +294,5 @@ async def add_security_headers(response):
             "font-src 'self' https://ka-f.fontawesome.com; "
             "connect-src 'self' https://ka-f.fontawesome.com;"
         )
-        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
 
     return response

@@ -257,13 +257,10 @@
       if (heroSection) {
         const img = new Image();
         img.onload = function() {
-          // Image loaded successfully, it's already set via inline style
-          console.log('Hero image loaded');
+          // Image loaded successfully
         };
         img.onerror = function() {
-          // Image failed to load, remove the background-image style
           heroSection.style.backgroundImage = 'none';
-          console.log('Hero image failed to load, using gradient fallback');
         };
         // Trigger the load
         img.src = 'https://image.tmdb.org/t/p/w1280/dMrAwwB7PMC4SjgsTbgmEJblaYd.jpg';

@@ -114,6 +114,39 @@ class MovieQueryBuilder:
             ]
 
     @staticmethod
+    def build_count_query(use_cache: bool = False, use_recent: bool = False) -> str:
+        """Build a COUNT(*) query parallel to build_base_query."""
+        if use_recent:
+            return (
+                "SELECT COUNT(*) FROM recent_movies_cache "
+                "WHERE startYear BETWEEN %s AND %s "
+                "AND averageRating BETWEEN %s AND %s "
+                "AND numVotes >= %s AND numVotes <= %s "
+                "AND titleType = %s "
+                "AND (%s = 'any' OR language LIKE %s OR language IS NULL)"
+            )
+        elif use_cache:
+            return (
+                "SELECT COUNT(*) FROM popular_movies_cache "
+                "WHERE startYear BETWEEN %s AND %s "
+                "AND averageRating BETWEEN %s AND %s "
+                "AND numVotes >= %s AND numVotes <= %s "
+                "AND titleType = %s "
+                "AND (%s = 'any' OR language LIKE %s OR language IS NULL)"
+            )
+        else:
+            return (
+                "SELECT COUNT(*) "
+                "FROM `title.basics` tb FORCE INDEX (idx_basics_compound) "
+                "JOIN `title.ratings` tr FORCE INDEX (idx_ratings_compound) ON tb.tconst = tr.tconst "
+                "WHERE tb.titleType = %s "
+                "AND tb.startYear BETWEEN %s AND %s "
+                "AND tr.numVotes >= %s AND tr.numVotes <= %s "
+                "AND tr.averageRating BETWEEN %s AND %s "
+                "AND (%s = 'any' OR tb.language LIKE %s OR tb.language IS NULL)"
+            )
+
+    @staticmethod
     def build_genre_conditions_fulltext(criteria: Dict[str, Any], use_cache: bool = False) -> tuple:
         """Build genre conditions using FULLTEXT search for better performance."""
         genres = criteria.get("genres")
@@ -269,8 +302,18 @@ class ImdbRandomMovieFetcher(MovieFetcher):
             # expensive ORDER BY RAND() full-table sort.
             if not order_by:
                 import random
-                import re
-                count_query = re.sub(r'SELECT\s+\S+', 'SELECT COUNT(*)', where_query, count=1)
+                count_query = MovieQueryBuilder.build_count_query(
+                    use_cache=use_cache, use_recent=use_recent
+                )
+                # Reuse the same genre condition for the count query
+                if self.use_fulltext:
+                    count_query += genre_condition
+                else:
+                    genre_conditions_list = MovieQueryBuilder.build_genre_conditions(
+                        criteria, [], use_cache or use_recent
+                    )
+                    if genre_conditions_list:
+                        count_query += f" AND ({genre_conditions_list[0]})"
                 try:
                     count_result = await self.db_pool.execute(
                         count_query, all_parameters, "one"
@@ -280,11 +323,14 @@ class ImdbRandomMovieFetcher(MovieFetcher):
                 total_rows = list(count_result.values())[0] if count_result else 0
                 if total_rows > int(limit):
                     rand_offset = random.randint(0, max(0, total_rows - int(limit)))
-                    full_query = where_query + f" LIMIT {int(limit)} OFFSET {rand_offset}"
+                    full_query = where_query + " LIMIT %s OFFSET %s"
+                    all_parameters = all_parameters + [int(limit), rand_offset]
                 else:
-                    full_query = where_query + f" LIMIT {int(limit)}"
+                    full_query = where_query + " LIMIT %s"
+                    all_parameters = all_parameters + [int(limit)]
             else:
-                full_query = where_query + order_by + f" LIMIT {int(limit)}"
+                full_query = where_query + order_by + " LIMIT %s"
+                all_parameters = all_parameters + [int(limit)]
 
             query_start_time = time.time()
             result = await self.db_pool.execute(full_query, all_parameters, "all")

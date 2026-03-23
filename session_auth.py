@@ -35,15 +35,12 @@ def _default_criteria() -> dict:
         "genres": ["Action", "Comedy"],
     }
 
-SESSION_MAX_AGE = 24 * 60 * 60  # 24 hours
-
-
 async def init_session(movie_manager, metrics_collector=None):
     """Ensure the user is registered in the movie manager.
 
-    Token and fingerprint are created by ``EnhancedSessionSecurity`` in its
-    own ``before_request`` handler.  This function only handles user
-    registration and session-age expiry.
+    Session lifetime management (max duration, idle timeout) is handled
+    entirely by ``EnhancedSessionSecurity``.  This function only handles
+    user registration and movie-manager initialisation.
     """
     from metrics_collector import user_sessions_total
 
@@ -62,15 +59,6 @@ async def init_session(movie_manager, metrics_collector=None):
         user_sessions_total.inc()
         if metrics_collector:
             metrics_collector.track_user_activity(session[USER_ID_KEY])
-
-    # Check session age
-    if CREATED_AT_KEY in session:
-        session_age = time.time() - session[CREATED_AT_KEY]
-        if session_age > SESSION_MAX_AGE:
-            session.clear()
-            session[USER_ID_KEY] = str(uuid.uuid4())
-            session[CREATED_AT_KEY] = time.time()
-            logger.info("Session expired, created new session")
 
     # Ensure user is initialised in movie manager
     user_id = session.get(USER_ID_KEY)

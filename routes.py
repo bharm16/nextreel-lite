@@ -13,7 +13,7 @@ import os
 import re
 import secrets
 import time
-import uuid
+from datetime import datetime
 
 from quart import Blueprint, request, redirect, url_for, session, render_template, g, current_app, abort
 
@@ -88,7 +88,6 @@ async def logout():
     await _validate_csrf_from_form()
 
     from session_security_enhanced import EnhancedSessionSecurity
-    from quart import current_app
 
     session_security = current_app.config.get("_session_security")
     if session_security:
@@ -120,7 +119,9 @@ _rate_limit_store: dict[str, list[float]] = {}
 
 # Ops endpoint auth: set OPS_AUTH_TOKEN env var to require Bearer token on
 # /metrics, /ready, and similar internal endpoints.
-_OPS_AUTH_TOKEN = os.environ.get("OPS_AUTH_TOKEN")
+def _get_ops_auth_token() -> str | None:
+    """Read OPS_AUTH_TOKEN lazily so rotation doesn't require a restart."""
+    return os.environ.get("OPS_AUTH_TOKEN")
 
 
 async def _check_rate_limit_redis(endpoint_key: str) -> bool:
@@ -166,13 +167,13 @@ def _check_rate_limit_memory(endpoint_key: str) -> bool:
 
 def _check_ops_auth() -> bool:
     """Validate bearer token for ops endpoints. Returns True if allowed."""
-    if not _OPS_AUTH_TOKEN:
-        # No token configured — allow (dev mode)
-        return True
+    expected = _get_ops_auth_token()
+    if not expected:
+        return True  # No token configured — allow (dev mode)
     auth_header = request.headers.get("Authorization", "")
     if auth_header.startswith("Bearer "):
         token = auth_header[7:]
-        return hmac.compare_digest(token, _OPS_AUTH_TOKEN)
+        return hmac.compare_digest(token, expected)
     return False
 
 
@@ -257,13 +258,18 @@ async def movie_detail(tconst):
 @bp.route("/")
 async def home():
     user_id = session.get(USER_ID_KEY)
-    return await _movie_manager.home(user_id)
+    data = await _movie_manager.home(user_id)
+    return await render_template(
+        "home.html", default_backdrop_url=data["default_backdrop_url"]
+    )
 
 
-@bp.route("/next_movie", methods=["GET", "POST"])
+@bp.route("/next_movie", methods=["POST"])
 async def next_movie():
-    if request.method == "POST":
-        await _validate_csrf_from_form()
+    await _validate_csrf_from_form()
+
+    if not await _check_rate_limit_redis("next_movie"):
+        return {"error": "rate limited"}, 429
 
     user_id = session.get(USER_ID_KEY)
     logger.info(
@@ -289,10 +295,12 @@ async def next_movie():
     return "No more movies available. Please try again later.", 200
 
 
-@bp.route("/previous_movie", methods=["GET", "POST"])
+@bp.route("/previous_movie", methods=["POST"])
 async def previous_movie():
-    if request.method == "POST":
-        await _validate_csrf_from_form()
+    await _validate_csrf_from_form()
+
+    if not await _check_rate_limit_redis("previous_movie"):
+        return {"error": "rate limited"}, 429
 
     user_id = session.get(USER_ID_KEY)
     logger.info(
@@ -317,19 +325,18 @@ async def previous_movie():
     return response
 
 
-@bp.route("/setFilters")
+@bp.route("/filters")
 async def set_filters():
     user_id = session.get(USER_ID_KEY)
     current_filters = session.get(CURRENT_FILTERS_KEY, {})
 
     start_time = time.time()
     logger.info(
-        "Starting to set filters for user_id: %s with current filters: %s. Correlation ID: %s",
-        user_id, current_filters, g.correlation_id,
+        "Starting to set filters for user_id: %s. Correlation ID: %s",
+        user_id, g.correlation_id,
     )
 
     try:
-        from datetime import datetime
         response = await render_template(
             "set_filters.html", current_filters=current_filters,
             current_year=datetime.now().year,
@@ -345,14 +352,30 @@ async def set_filters():
         raise
 
 
+_ALLOWED_FILTER_KEYS = frozenset({
+    "year_min", "year_max", "imdb_score_min", "imdb_score_max",
+    "num_votes_min", "num_votes_max", "genres[]", "language",
+})
+_MAX_FILTER_VALUE_LEN = 64
+
+
 @bp.route("/filtered_movie", methods=["POST"])
 async def filtered_movie_endpoint():
     await _validate_csrf_from_form()
 
+    if not await _check_rate_limit_redis("filtered_movie"):
+        return {"error": "rate limited"}, 429
+
     user_id = session.get(USER_ID_KEY)
     form_data = await request.form
 
-    session[CURRENT_FILTERS_KEY] = form_data.to_dict()
+    # Validate and truncate filter data before storing in session
+    safe_filters = {
+        k: (v[:_MAX_FILTER_VALUE_LEN] if isinstance(v, str) else v)
+        for k, v in form_data.to_dict().items()
+        if k in _ALLOWED_FILTER_KEYS
+    }
+    session[CURRENT_FILTERS_KEY] = safe_filters
 
     start_time = time.time()
     logger.info(
@@ -378,23 +401,5 @@ async def filtered_movie_endpoint():
         raise
 
 
-@bp.route("/handle_new_user", methods=["POST"])
-async def handle_new_user():
-    await _validate_csrf_from_form()
-    user_id = session.get("user_id", str(uuid.uuid4()))
-    session[USER_ID_KEY] = user_id
-    from datetime import datetime
-    criteria = {
-        "min_year": 1900,
-        "max_year": datetime.now().year,
-        "min_rating": 7.0,
-        "genres": ["Action", "Comedy"],
-    }
-
-    await _movie_manager.add_user(user_id, criteria)
-    logger.info(
-        "New user handled with user_id: %s. Correlation ID: %s",
-        user_id, g.correlation_id,
-    )
-
-    return redirect(url_for("main.home"))
+    # /handle_new_user removed — user initialization is handled
+    # automatically by init_session() in the before_request hook.
