@@ -33,28 +33,35 @@ routes.py               # All HTTP endpoints (Blueprint "main")
 movie_service.py        # MovieManager facade — coordinates navigation + rendering
 movie_navigator.py      # Session-based prev/next stacks, queue management
 movie_renderer.py       # Template rendering for movie detail pages
-session_auth.py         # User registration in movie manager
-session_security_enhanced.py  # Session fingerprinting, token rotation, security headers
+movies/
+  movie.py              # Movie class — fetches and assembles movie data from TMDb + DB
+  tmdb_client.py        # TMDbHelper — async HTTP client with circuit breaker
+  query_builder.py      # SQL query builder for random movie fetching (MovieQueryBuilder)
+  interfaces.py         # MovieFetcher protocol
+session/
+  keys.py               # Session key constants
+  auth.py               # User registration in movie manager
+  security.py           # Session fingerprinting, token rotation, security headers
+infra/
+  pool.py               # SecureConnectionPool + DatabaseConnectionPool wrapper
+  cache.py              # Redis cache manager (namespaced, TTL-based)
+  errors.py             # DatabaseError exception
+  secrets.py            # Secret retrieval and validation
+  metrics.py            # Prometheus metrics collector
+  ssl.py                # SSL certificate validation
 config/
   env.py                # get_environment() — single source for env detection
   session.py            # Session cookie and timeout defaults
   database.py           # DB connection config per environment
-scripts/
-  movie.py              # Movie class — fetches and assembles movie data from TMDb + DB
-  tmdb_client.py        # TMDbHelper — async HTTP client with circuit breaker
-  filter_backend.py     # SQL query builder for random movie fetching
-database/
-  pool.py               # DatabaseConnectionPool wrapper
-secure_pool.py          # SecureConnectionPool — aiomysql pool with health monitoring
-simple_cache.py         # Redis cache manager (namespaced, TTL-based)
+  api.py                # API secrets config
 ```
 
 ## Key Patterns
 
 ### Session State
 - **Lightweight refs in session**: `CURRENT_MOVIE_KEY` stores only `{imdb_id, tmdb_id, title, slug}` (~500 bytes). Full movie data lives in Redis cache (`cache:movie:full:{tconst}`, 24h TTL).
-- `MovieNavigator` reads/writes session directly via Quart's `session` proxy. All session keys are defined in `session_keys.py`.
-- Session lifetime is managed by `EnhancedSessionSecurity` (8h max, 15min idle). `session_auth.py` handles only user registration.
+- `MovieNavigator` reads/writes session directly via Quart's `session` proxy. All session keys are defined in `session/keys.py`.
+- Session lifetime is managed by `EnhancedSessionSecurity` (8h max, 15min idle). `session/auth.py` handles only user registration.
 
 ### Navigation Routes
 - `/next_movie` and `/previous_movie` are **POST-only** with CSRF tokens. All "Pick a Movie" buttons in templates use `<form method="POST">` with hidden `csrf_token` field.
@@ -71,7 +78,7 @@ logger.info(f"Fetched {count} movies")                      # wrong
 ```
 
 ### SQL
-All queries must use parameterized placeholders (`%s`), including LIMIT and OFFSET. Never use f-string interpolation for SQL values. The `MovieQueryBuilder` class in `filter_backend.py` has static methods for building queries.
+All queries must use parameterized placeholders (`%s`), including LIMIT and OFFSET. Never use f-string interpolation for SQL values. The `MovieQueryBuilder` class in `movies/query_builder.py` has static methods for building queries.
 
 ### TMDb API
 - API key is sent via `Authorization: Bearer` header, not query params.
@@ -96,5 +103,4 @@ All queries must use parameterized placeholders (`%s`), including LIMIT and OFFS
 - **Security headers**: Baseline headers (X-Frame-Options, nosniff, Permissions-Policy) apply in ALL environments. HSTS and CSP are production-only.
 - **Rate limiting**: Applied to `/next_movie`, `/previous_movie`, `/filtered_movie`, and ops endpoints. Uses Redis with in-memory fallback.
 - **`get_async_connection()`**: Raises `NotImplementedError`. Use `async with pool.acquire() as conn:` instead.
-- **Dead `src/nextreel/` directory**: Was removed. If it reappears, delete it — it's an abandoned migration skeleton.
 - **`.env` files**: Contain live credentials in git history. Hooks block Claude from editing them. Secrets must be rotated and managed via environment variables or a secrets manager.
