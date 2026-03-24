@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch, MagicMock
 
 import pytest
 
-from scripts.movie import Movie
+from movies.movie import Movie
 from tests.test_tmdb_parsers import _sample_combined_response
 
 
@@ -18,7 +18,7 @@ def mock_tmdb():
     helper.get_movie_full = AsyncMock(return_value=_sample_combined_response())
 
     # Wire up real parse methods so we test integration
-    from scripts.tmdb_client import TMDbHelper
+    from movies.tmdb_client import TMDbHelper
 
     real = TMDbHelper("key")
     helper.parse_cast = real.parse_cast

@@ -89,7 +89,7 @@ async def _resolve_ref(ref: dict, db_pool=None, tmdb_helper=None) -> dict:
     # Redis is unavailable or the TTL has expired.
     if db_pool:
         try:
-            from scripts.movie import Movie
+            from movies.movie import Movie
             movie = Movie(tconst, db_pool, tmdb_helper=tmdb_helper)
             movie_data = await movie.get_movie_data()
             if movie_data:
@@ -126,7 +126,7 @@ class MovieNavigator:
             session[SEEN_TCONSTS_KEY] = seen_list
 
     async def _load_movies_into_queue(self):
-        from scripts.movie import Movie
+        from movies.movie import Movie
 
         queue = session.setdefault(WATCH_QUEUE_KEY, [])
         criteria = session.get(CRITERIA_KEY, {})

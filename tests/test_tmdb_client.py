@@ -1,7 +1,7 @@
 import asyncio
 from unittest.mock import AsyncMock, patch
 
-from scripts.tmdb_client import TMDbHelper
+from movies.tmdb_client import TMDbHelper
 
 
 def test_get_full_image_url():

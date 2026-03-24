@@ -4,11 +4,11 @@ from logging_config import get_logger
 from quart import copy_current_request_context, has_request_context, session
 
 from settings import Config, DatabaseConnectionPool
-from scripts.filter_backend import (
+from movies.query_builder import (
     ImdbRandomMovieFetcher,
     extract_movie_filter_criteria,
 )
-from scripts.tmdb_client import TMDbHelper
+from movies.tmdb_client import TMDbHelper
 from movie_navigator import MovieNavigator
 from movie_renderer import MovieRenderer
 from session_keys import (

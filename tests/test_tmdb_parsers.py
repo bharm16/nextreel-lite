@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from scripts.tmdb_client import TMDbHelper
+from movies.tmdb_client import TMDbHelper
 
 
 # ---------------------------------------------------------------------------

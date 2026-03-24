@@ -1,7 +1,7 @@
 import asyncio
 import unittest
 from settings import Config, DatabaseConnectionPool
-from scripts.filter_backend import ImdbRandomMovieFetcher
+from movies.query_builder import ImdbRandomMovieFetcher
 
 @unittest.skip("requires database access")
 class TestMovieFilteringWithRealDatabase(unittest.TestCase):

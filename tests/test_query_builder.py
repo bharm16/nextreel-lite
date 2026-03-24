@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from scripts.filter_backend import MovieQueryBuilder
+from movies.query_builder import MovieQueryBuilder
 
 
 class TestShouldUseCache:

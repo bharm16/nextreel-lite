@@ -3,7 +3,7 @@
 from quart import render_template, session
 
 from logging_config import get_logger
-from scripts.movie import Movie
+from movies.movie import Movie
 from session_keys import CURRENT_MOVIE_KEY
 
 logger = get_logger(__name__)

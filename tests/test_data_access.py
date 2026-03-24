@@ -4,8 +4,8 @@ import pytest
 
 from database.errors import DatabaseError
 from database.pool import DatabaseConnectionPool
-from scripts.filter_backend import ImdbRandomMovieFetcher
-from scripts.movie import Movie
+from movies.query_builder import ImdbRandomMovieFetcher
+from movies.movie import Movie
 
 
 @pytest.mark.asyncio
