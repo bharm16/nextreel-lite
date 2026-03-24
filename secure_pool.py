@@ -111,6 +111,9 @@ class SecureConnectionPool:
 
     async def init_pool(self):
         """Initialize the underlying aiomysql pool."""
+        # Lock-free fast-path: reading a simple str attribute is atomic under
+        # CPython's GIL.  _can_attempt_reconnect() acquires _cb_lock internally
+        # before mutating state, so the worst case is a harmless redundant call.
         if self.circuit_breaker_state == "open" and not await self._can_attempt_reconnect():
             raise RuntimeError("Circuit breaker is open")
 
@@ -139,8 +142,9 @@ class SecureConnectionPool:
             await self._validate_pool()
             self._health_check_task = asyncio.create_task(self._health_monitor())
             self._cleanup_task = asyncio.create_task(self._connection_cleanup())
-            self.circuit_breaker_state = "closed"
-            self.circuit_breaker_failures = 0
+            async with self._cb_lock:
+                self.circuit_breaker_state = "closed"
+                self.circuit_breaker_failures = 0
             self.state = PoolState.HEALTHY
             logger.info("Secure connection pool initialized successfully")
         except Exception as exc:
@@ -185,6 +189,7 @@ class SecureConnectionPool:
         """
         del user_id, ip_address
 
+        # Lock-free fast-path: see comment in init_pool().
         if self.circuit_breaker_state == "open" and not await self._can_attempt_reconnect():
             raise RuntimeError("Circuit breaker is open - pool unavailable")
 
@@ -212,8 +217,8 @@ class SecureConnectionPool:
                     connection.close()
                     raise RuntimeError("Connection failed pre-ping check") from ping_error
 
-            if self.circuit_breaker_state == "half-open":
-                async with self._cb_lock:
+            async with self._cb_lock:
+                if self.circuit_breaker_state == "half-open":
                     self.circuit_breaker_state = "closed"
                     self.circuit_breaker_failures = 0
 

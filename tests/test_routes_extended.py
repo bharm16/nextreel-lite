@@ -1,5 +1,6 @@
 """Extended route tests — rate limiting, CSRF, logout, health/ready/metrics."""
 
+import os
 import time
 from unittest.mock import AsyncMock, patch
 
@@ -115,8 +116,8 @@ class TestOpsAuth:
 
         async def run():
             with patch("app.MovieManager") as MockManager, \
-                 patch("routes._OPS_AUTH_TOKEN", "secret-token"):
-                MockManager.return_value.home = AsyncMock(return_value="ok")
+                 patch.dict(os.environ, {"OPS_AUTH_TOKEN": "secret-token"}):
+                MockManager.return_value.home = AsyncMock(return_value={"default_backdrop_url": None})
 
                 from app import create_app
                 app = create_app()
@@ -134,8 +135,8 @@ class TestOpsAuth:
 
         async def run():
             with patch("app.MovieManager") as MockManager, \
-                 patch("routes._OPS_AUTH_TOKEN", "secret-token"):
-                MockManager.return_value.home = AsyncMock(return_value="ok")
+                 patch.dict(os.environ, {"OPS_AUTH_TOKEN": "secret-token"}):
+                MockManager.return_value.home = AsyncMock(return_value={"default_backdrop_url": None})
 
                 from app import create_app
                 app = create_app()
@@ -182,8 +183,8 @@ class TestCSRFValidation:
 
         asyncio.run(run())
 
-    def test_get_next_movie_works_without_csrf(self):
-        """GET requests should bypass CSRF."""
+    def test_get_next_movie_rejected_as_post_only(self):
+        """GET to /next_movie returns 405 — route is POST-only."""
         import asyncio
 
         async def run():
@@ -198,6 +199,6 @@ class TestCSRFValidation:
                 async with app.app_context():
                     client = app.test_client()
                     response = await client.get("/next_movie")
-                    assert response.status_code == 200
+                    assert response.status_code == 405
 
         asyncio.run(run())

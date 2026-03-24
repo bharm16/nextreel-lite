@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Movie Card Preview — Fight Club (1999)</title>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: 'Poppins', system-ui, sans-serif; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+
+<!-- Inline the movie_card styles + markup with hardcoded data (no Jinja) -->
+<style>
+    :root{
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: #64748b;
+      --accent: #22c55e;
+      --accent-2: #16a34a;
+      --chip: #f1f5f9;
+      --chip-ring: #e2e8f040;
+      --border: #e2e8f0;
+    }
+
+    html,body{height:100%;}
+    body{
+      font-family:'Poppins',sans-serif;
+      background:var(--bg);
+      color:var(--text);
+    }
+
+    .hero{
+      position:relative;
+      min-height:46vh;
+      background:
+        radial-gradient(1000px 400px at 10% 0%, #f8fafc 0%, #f8fafcd6 60%, #f8fafc00 100%),
+        linear-gradient(0deg, #f8fafc 0%, #f8fafcd6 40%, #f8fafc00 70%),
+        url('https://image.tmdb.org/t/p/w1280/hZkgoQYus5dXo3H8T7Uef6DNknx.jpg') center/cover no-repeat;
+    }
+    .hero::after{
+      content:"";
+      position:absolute; inset:0;
+      background:linear-gradient(180deg, #f8fafc00 0%, #f8fafc 85%);
+    }
+
+    .arrow-btn{
+      position:absolute; top:50%; transform:translateY(-50%);
+      z-index:5; border:1px solid #e2e8f0; border-radius:999px; padding:.75rem;
+      background:#ffffffee; color:#0f172a;
+      backdrop-filter: blur(6px);
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      transition: all 0.2s ease;
+    }
+    .arrow-btn:hover:not(:disabled){background:#ffffff; box-shadow: 0 6px 12px rgba(0,0,0,0.15); cursor:pointer;}
+    .arrow-btn:disabled{opacity:.4; cursor:not-allowed; pointer-events:none; background:#ffffff99; border-color:#f1f5f9;}
+    .arrow-left{ left: 12px; }
+    .arrow-right{ right: 12px; }
+
+    .movie-card{
+      position:relative; z-index:6; margin-top:-120px;
+      background:var(--card); border:1px solid var(--border);
+      border-radius:20px; box-shadow:0 10px 40px rgba(0,0,0,0.1);
+    }
+
+    .poster{
+      width:100%; max-width:340px; border-radius:14px; border:1px solid var(--border);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+    }
+
+    .title{font-weight:700; font-size:clamp(1.6rem, 2.2vw, 2.6rem); line-height:1.15; letter-spacing:-.02em;}
+    .meta{color:var(--muted); font-weight:600; display:flex; gap:.75rem; flex-wrap:wrap;}
+    .dot{opacity:.5;}
+
+    .genre-chip{
+      border:1px solid var(--border);
+      background:var(--chip); color:var(--muted);
+      border-radius:999px; padding:.35rem .7rem; font-size:.85rem; font-weight:600;
+    }
+
+    .plot{ color:#475569; line-height:1.65; }
+
+    .rating-wrap{display:flex; flex-wrap:wrap; gap:1rem; align-items:center;}
+    .rating-chip{
+      display:flex; align-items:flex-start; gap:.6rem;
+      background:var(--chip); border:1px solid var(--chip-ring);
+      border-radius:14px; padding:.55rem .75rem; font-weight:700;
+    }
+    .rating-chip i{ font-size:1rem; color:#ffd166; line-height:1.2; margin-top:.1rem; }
+    .rating-stack{ display:flex; flex-direction:column; line-height:1.1; }
+    .rating-line{ display:flex; align-items:baseline; gap:.35rem; }
+    .rating-number{ font-size:1.1rem; }
+    .rating-outof{ color:var(--muted); font-weight:600; font-size:.95rem; }
+    .rating-votes-mini{ color:var(--muted); font-weight:600; font-size:.85rem; }
+
+    .trailer-btn{
+      display:inline-flex; align-items:center; gap:.6rem;
+      border-radius:12px; padding:.6rem .9rem; border:1px solid #cbd5e1;
+      background:white; color:#475569; font-weight:600; cursor:pointer; transition:all 0.2s;
+    }
+    .trailer-btn:hover{background:#f8fafc;}
+
+    .cast-strip{
+      display:flex; gap:.75rem; overflow-x:auto; padding-bottom:.25rem;
+      -webkit-overflow-scrolling:touch; scrollbar-width:thin;
+    }
+    .cast-strip::-webkit-scrollbar { height:6px; }
+    .cast-strip::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:999px; }
+
+    .actor-card{
+      background:#ffffff; border:1px solid var(--border);
+      width:135px; min-width:135px; border-radius:14px; overflow:hidden;
+    }
+    .actor-card img{ width:100%; height:180px; object-fit:cover; }
+    .actor-card .actor-name, .actor-card .character{
+      padding:.5rem .6rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:.85rem;
+    }
+    .actor-card .actor-name{ color:#0f172a; font-weight:600; }
+    .actor-card .character{ color:var(--muted); border-top:1px solid var(--border); }
+
+    .divider{ height:1px; background:var(--border); }
+
+    .nav-btn-prev, .nav-btn-next {
+      padding: 0.5rem 1rem; border: 1px solid #cbd5e1; border-radius: 0.5rem;
+      background: white; color: #475569; cursor: pointer; transition: all 0.2s;
+    }
+
+    /* ---- NEW SECTIONS ---- */
+
+    .tagline{
+      color:var(--muted); font-style:italic; font-size:1rem; font-weight:400; line-height:1.4;
+    }
+
+    .crew-grid{display:flex; flex-wrap:wrap; gap:1.25rem;}
+    .crew-item{font-size:.875rem; color:var(--muted);}
+    .crew-item .crew-role{
+      font-weight:600; color:var(--text); font-size:.8rem;
+      text-transform:uppercase; letter-spacing:.02em; margin-bottom:.15rem;
+    }
+
+    .external-links{display:flex; gap:.5rem; flex-wrap:wrap;}
+    .ext-link{
+      display:inline-flex; align-items:center; gap:.35rem;
+      padding:.35rem .7rem; border:1px solid var(--border);
+      border-radius:8px; background:var(--chip); color:var(--muted);
+      font-size:.8rem; font-weight:600; text-decoration:none; transition:all .2s;
+    }
+    .ext-link:hover{background:white; color:var(--text);}
+    .ext-link svg{ width:14px; height:14px; }
+
+    .collection-banner{
+      display:flex; align-items:center; gap:.75rem;
+      padding:.75rem 1rem; background:var(--chip);
+      border:1px solid var(--border); border-radius:12px;
+    }
+    .collection-banner img{width:42px; height:63px; border-radius:6px; object-fit:cover;}
+    .collection-banner .collection-label{font-size:.8rem; color:var(--muted); font-weight:600;}
+    .collection-banner .collection-name{font-size:.95rem; font-weight:700; color:var(--text);}
+
+    .keyword-chip{
+      display:inline-block; border:1px solid var(--border); background:var(--chip);
+      color:var(--muted); border-radius:999px; padding:.3rem .65rem; font-size:.8rem; font-weight:500;
+    }
+
+    .rec-strip{
+      display:flex; gap:.75rem; overflow-x:auto; padding-bottom:.25rem;
+      -webkit-overflow-scrolling:touch; scrollbar-width:thin;
+    }
+    .rec-strip::-webkit-scrollbar { height:6px; }
+    .rec-strip::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:999px; }
+
+    .rec-card{
+      background:#ffffff; border:1px solid var(--border);
+      width:160px; min-width:160px; border-radius:14px; overflow:hidden;
+      text-decoration:none; color:inherit; transition: box-shadow .2s, transform .2s;
+    }
+    .rec-card:hover{box-shadow:0 6px 16px rgba(0,0,0,.12); transform:translateY(-2px);}
+    .rec-card img{ width:100%; height:220px; object-fit:cover; }
+    .rec-card .rec-info{padding:.5rem .6rem;}
+    .rec-card .rec-title{font-size:.85rem; font-weight:600; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+    .rec-card .rec-meta{font-size:.75rem; color:var(--muted); display:flex; justify-content:space-between; align-items:center; margin-top:.15rem;}
+    .rec-card .rec-rating{display:flex; align-items:center; gap:.2rem;}
+    .rec-card .rec-rating svg{width:12px; height:12px; fill:#ffd166;}
+
+    .section-heading{font-size:1rem; font-weight:700; color:var(--text); margin-bottom:.75rem;}
+
+    .inline-details{ display:block; }
+    .provider-section { margin-bottom: 1rem; }
+    .provider-section:last-child { margin-bottom: 0; }
+    .provider-label { font-size: 0.75rem; font-weight: 600; color: var(--muted); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.25rem; }
+    .provider-logos { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .provider-logo { width: 40px; height: 40px; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); background: white; }
+    .provider-logo img { width: 100%; height: 100%; object-fit: cover; }
+    .justwatch-link { display: inline-flex; align-items: center; gap: 0.35rem; margin-top: 0.75rem; padding: 0.35rem 0.7rem; background: var(--card); border: 1px solid var(--border); border-radius: 8px; color: var(--muted); font-size: 0.75rem; font-weight: 600; text-decoration: none; }
+
+    @media (max-width: 992px){.movie-card{ margin-top:-80px; }}
+</style>
+
+<!-- HERO -->
+<section class="hero relative">
+  <button class="arrow-btn arrow-left" disabled aria-label="Previous movie">
+    <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M15 19l-7-7 7-7"/></svg>
+  </button>
+  <button class="arrow-btn arrow-right" aria-label="Next movie">
+    <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M9 5l7 7-7 7"/></svg>
+  </button>
+</section>
+
+<!-- CONTENT -->
+<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+  <div class="movie-card p-4 md:p-8">
+    <div class="grid grid-cols-1 md:grid-cols-12 gap-4 lg:gap-8 items-start">
+
+      <!-- Poster -->
+      <div class="col-span-1 md:col-span-4 flex justify-center md:justify-start">
+        <img class="poster aspect-poster" src="https://image.tmdb.org/t/p/w500/pB8BM7pdSp6B6Ih7QI4S2t0POoT.jpg" alt="Poster for Fight Club" fetchpriority="high">
+      </div>
+
+      <!-- Details -->
+      <div class="col-span-1 md:col-span-8">
+        <h1 class="title mb-2">Fight Club (1999)</h1>
+
+        <!-- NEW: Tagline -->
+        <p class="tagline mb-2">"Mischief. Mayhem. Soap."</p>
+
+        <div class="meta mb-3">
+          <span>Directed by David Fincher</span>
+          <span class="dot">•</span>
+          <span>R</span>
+        </div>
+
+        <!-- Genres -->
+        <div class="flex flex-wrap gap-2 mb-4">
+          <span class="genre-chip">Drama</span>
+          <span class="genre-chip">Thriller</span>
+        </div>
+
+        <!-- Plot -->
+        <p class="plot mb-4">A ticking-Loss disillusioned man forms an underground fight club that evolves into much more. An insomniac office worker and a devil-may-care soap maker form a club with a radical new philosophy.</p>
+
+        <!-- Rating + Trailer -->
+        <div class="rating-wrap mb-4">
+          <div class="rating-chip">
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="#ffd166"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+            <div class="rating-stack">
+              <div class="rating-line">
+                <span class="rating-number">8.4</span>
+                <span class="rating-outof">/10</span>
+              </div>
+              <div class="rating-votes-mini">25K ratings</div>
+            </div>
+          </div>
+          <button class="trailer-btn">
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            Play Trailer
+          </button>
+        </div>
+
+        <!-- NEW: Collection banner -->
+        <div class="collection-banner mb-4">
+          <img src="https://image.tmdb.org/t/p/w185/pB8BM7pdSp6B6Ih7QI4S2t0POoT.jpg" alt="Fight Club Collection">
+          <div>
+            <div class="collection-label">Part of</div>
+            <div class="collection-name">Fight Club Collection</div>
+          </div>
+        </div>
+
+        <!-- NEW: External Links -->
+        <div class="external-links mb-4">
+          <a href="#" class="ext-link">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M14.31 9.588v.005c-.077-.048-.227-.07-.42-.07v4.815c.27 0 .44-.06.5-.165.062-.104.095-.405.095-.904v-2.19c0-.39-.013-.65-.04-.78-.025-.13-.07-.22-.135-.27v-.005h.005-.005zm-3.065.005c-.105.21-.183.57-.245 1.075v3.15c.062.49.148.84.262 1.05.115.21.29.315.52.315.225 0 .39-.1.497-.295.107-.195.16-.545.16-1.05v-3.17c0-.507-.053-.862-.158-1.06-.105-.2-.27-.3-.5-.3-.23 0-.41.1-.536.285zM22 2v20H2V2h20zm-9.768 7.155c-.207 0-.397.04-.567.12-.165.08-.312.195-.435.35v-.395h-1.27v7.545h1.27v-4.79c.025-.3.08-.52.155-.66.075-.135.195-.2.36-.2.195 0 .315.065.36.2.045.134.07.4.07.795v4.655h1.268v-5.23c0-.62-.063-1.02-.192-1.2-.13-.18-.39-.27-.77-.27H12l.232-.12zm-4.56 0h-1.89v7.545h1.88V9.155h.01zm8.988.015c-.437 0-.742.165-.917.495-.176.33-.264.865-.264 1.6v2.71c0 .68.092 1.19.276 1.525.184.34.496.51.943.51.394 0 .684-.147.864-.435.18-.289.274-.727.286-1.317l1.188.07c.015.555-.103 1.04-.351 1.46-.248.42-.683.634-1.324.634-.72 0-1.2-.264-1.44-.79-.237-.527-.357-1.35-.357-2.48v-1.46c0-1.235.133-2.11.398-2.624.265-.515.738-.774 1.42-.774.575 0 .99.222 1.244.665.253.443.38 1.16.38 2.145l-1.17.07c0-.477-.045-.83-.134-1.06-.09-.23-.268-.346-.527-.346-.217 0-.37.094-.456.28-.087.19-.13.5-.13.935v.475h-.001v.015c.016.03.016.09 0 .18v2.105c0 .51.04.852.118 1.025.078.174.228.26.447.26.22 0 .365-.102.433-.305.068-.2.102-.575.102-1.12V11.87h-1.145v-.97h2.336v5.875h-.886l-.16-.74c-.158.26-.34.46-.538.595-.198.135-.408.2-.63.2-.33 0-.59-.125-.78-.375-.19-.25-.31-.57-.367-.965-.057-.395-.086-.9-.086-1.52V12.7h.001v-.135c0-.94-.116-1.623-.347-2.05-.23-.424-.618-.65-1.164-.655l.108.11.1.1zM6.49 9.14H3.555v7.58h1.1v-7.58h.74V16.72h1.097l-.002-7.58z"/></svg>
+            IMDb
+          </a>
+          <a href="#" class="ext-link">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+            Website
+          </a>
+          <a href="#" class="ext-link">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>
+            Instagram
+          </a>
+          <a href="#" class="ext-link">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+            X
+          </a>
+        </div>
+
+        <!-- Divider + Prev/Next -->
+        <div class="divider my-4"></div>
+        <div class="flex gap-2">
+          <button class="nav-btn-prev" disabled>← Previous</button>
+          <button class="nav-btn-next">Next →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cast -->
+    <div class="mt-8">
+      <h2 class="section-heading">Cast</h2>
+      <div class="cast-strip">
+        <div class="actor-card">
+          <img src="https://image.tmdb.org/t/p/w185/cckcYc2v0yh1tc9QjRelptcOBko.jpg" alt="Brad Pitt" loading="lazy">
+          <div class="actor-name">Brad Pitt</div>
+          <div class="character">Tyler Durden</div>
+        </div>
+        <div class="actor-card">
+          <img src="https://image.tmdb.org/t/p/w185/8nytsqL59SFJTVYVrN72k6qkGgJ.jpg" alt="Edward Norton" loading="lazy">
+          <div class="actor-name">Edward Norton</div>
+          <div class="character">The Narrator</div>
+        </div>
+        <div class="actor-card">
+          <img src="https://image.tmdb.org/t/p/w185/DDeITcCpnrcpZmeIGNiRnSAs2RG.jpg" alt="Helena Bonham Carter" loading="lazy">
+          <div class="actor-name">Helena Bonham Carter</div>
+          <div class="character">Marla Singer</div>
+        </div>
+        <div class="actor-card">
+          <img src="https://image.tmdb.org/t/p/w185/lrsAW5p4S1FTEZMBBaHqkqFm0GW.jpg" alt="Meat Loaf" loading="lazy">
+          <div class="actor-name">Meat Loaf</div>
+          <div class="character">Robert Paulson</div>
+        </div>
+        <div class="actor-card">
+          <img src="https://image.tmdb.org/t/p/w185/ehfLOLcl2BGIK1pVdCP7MbxsXKU.jpg" alt="Jared Leto" loading="lazy">
+          <div class="actor-name">Jared Leto</div>
+          <div class="character">Angel Face</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Inline Movie Details + Where to Watch -->
+    <div class="inline-details mt-6">
+      <div class="divider mb-6"></div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <h2 class="section-heading">Movie Details</h2>
+          <div style="display:flex;flex-direction:column;gap:.75rem;">
+            <div style="display:flex;align-items:center;gap:.5rem;font-size:.875rem;">
+              <svg style="width:16px;height:16px;color:var(--muted);" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1a11 11 0 1 0 0 22 11 11 0 0 0 0-22zm1 11H7v-2h4V5h2v7z"/></svg>
+              <span>2h 19m</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:.5rem;font-size:.875rem;">
+              <svg style="width:16px;height:16px;color:var(--muted);" viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h16v2H4zm6 4h10v2H10zm0 4h8v2h-8zm0 4h6v2h-6zM4 8h4v2H4zM4 12h4v2H4zM4 16h4v2H4z"/></svg>
+              <span>EN</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:.5rem;font-size:.875rem;">
+              <svg style="width:16px;height:16px;color:var(--muted);" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1a3 3 0 0 1 3 3v1h2v2h-2v8h2v2h-2v1a3 3 0 0 1-3 3h-1a3 3 0 0 1-3-3v-1H6v-2h2V7H6V5h2V4a3 3 0 0 1 3-3h1zm-1 6v8h1a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1h-1z"/></svg>
+              <span>Budget: $63,000,000</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:.5rem;font-size:.875rem;">
+              <svg style="width:16px;height:16px;color:var(--muted);" viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h2v16h16v2H3z" opacity="0.3"/><path d="M7 15l4-4 3 3 5-6 1.5 1.3-6.5 7.7-3-3-4 4z"/></svg>
+              <span>Revenue: $101,200,000</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:.5rem;font-size:.875rem;">
+              <svg style="width:16px;height:16px;color:var(--muted);" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+              <span>United States of America</span>
+            </div>
+          </div>
+        </div>
+        <div>
+          <h2 class="section-heading">Where to Watch</h2>
+          <div class="provider-section">
+            <div class="provider-label">Stream</div>
+            <div class="provider-logos">
+              <div class="provider-logo"><img src="https://image.tmdb.org/t/p/w92/pbpMk2JmcoNnQwx5JGpXBGjIAlO.jpg" alt="Netflix"></div>
+              <div class="provider-logo"><img src="https://image.tmdb.org/t/p/w92/emthp39XA2YScoYL1p0sdbAH2WA.jpg" alt="Amazon Prime"></div>
+            </div>
+          </div>
+          <div class="provider-section">
+            <div class="provider-label">Rent</div>
+            <div class="provider-logos">
+              <div class="provider-logo"><img src="https://image.tmdb.org/t/p/w92/peURlLlr8jggOwK53fJ5wdQl05y.jpg" alt="Apple TV"></div>
+              <div class="provider-logo"><img src="https://image.tmdb.org/t/p/w92/tbEdFQDwx5LEVr8WpSeXQSIirVq.jpg" alt="Google Play"></div>
+            </div>
+          </div>
+          <div class="provider-section">
+            <div class="provider-label">Free with Ads</div>
+            <div class="provider-logos">
+              <div class="provider-logo"><img src="https://image.tmdb.org/t/p/w92/4BbXNJgIMYYYjmDnth1KFkEUM2z.jpg" alt="Tubi"></div>
+            </div>
+          </div>
+          <a href="#" class="justwatch-link">View all on JustWatch</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- NEW: Key Crew -->
+    <div class="mt-6">
+      <h2 class="section-heading">Crew</h2>
+      <div class="crew-grid">
+        <div class="crew-item">
+          <div class="crew-role">Written by</div>
+          <div>Jim Uhls, Chuck Palahniuk</div>
+        </div>
+        <div class="crew-item">
+          <div class="crew-role">Music</div>
+          <div>The Dust Brothers</div>
+        </div>
+        <div class="crew-item">
+          <div class="crew-role">Cinematography</div>
+          <div>Jeff Cronenweth</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- NEW: Keywords -->
+    <div class="mt-6">
+      <h2 class="section-heading">Keywords</h2>
+      <div class="flex flex-wrap gap-2">
+        <span class="keyword-chip">based on novel or book</span>
+        <span class="keyword-chip">support group</span>
+        <span class="keyword-chip">dual identity</span>
+        <span class="keyword-chip">nihilism</span>
+        <span class="keyword-chip">fighting</span>
+        <span class="keyword-chip">underground</span>
+        <span class="keyword-chip">anti-materialism</span>
+        <span class="keyword-chip">soap</span>
+        <span class="keyword-chip">insomnia</span>
+      </div>
+    </div>
+
+    <!-- NEW: Recommendations -->
+    <div class="mt-6">
+      <h2 class="section-heading">Recommended</h2>
+      <div class="rec-strip">
+        <div class="rec-card">
+          <img src="https://image.tmdb.org/t/p/w342/d5iIlFn5s0ImszYzBPb8JPIfbXD.jpg" alt="Pulp Fiction" loading="lazy">
+          <div class="rec-info">
+            <div class="rec-title">Pulp Fiction</div>
+            <div class="rec-meta">
+              <span>1994</span>
+              <span class="rec-rating">
+                <svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                8.5
+              </span>
+            </div>
+          </div>
+        </div>
+        <div class="rec-card">
+          <img src="https://image.tmdb.org/t/p/w342/f89U3ADr1oiB1s9GkdPOEpXUk5H.jpg" alt="The Matrix" loading="lazy">
+          <div class="rec-info">
+            <div class="rec-title">The Matrix</div>
+            <div class="rec-meta">
+              <span>1999</span>
+              <span class="rec-rating">
+                <svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                8.2
+              </span>
+            </div>
+          </div>
+        </div>
+        <div class="rec-card">
+          <img src="https://image.tmdb.org/t/p/w342/sKCr78MXSLixwmZ8DyJLrpMsd15.jpg" alt="The Shawshank Redemption" loading="lazy">
+          <div class="rec-info">
+            <div class="rec-title">The Shawshank Redemption</div>
+            <div class="rec-meta">
+              <span>1994</span>
+              <span class="rec-rating">
+                <svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                8.7
+              </span>
+            </div>
+          </div>
+        </div>
+        <div class="rec-card">
+          <img src="https://image.tmdb.org/t/p/w342/velWPhVMQeQKcxggNEU8YmIo52R.jpg" alt="American History X" loading="lazy">
+          <div class="rec-info">
+            <div class="rec-title">American History X</div>
+            <div class="rec-meta">
+              <span>1998</span>
+              <span class="rec-rating">
+                <svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                8.4
+              </span>
+            </div>
+          </div>
+        </div>
+        <div class="rec-card">
+          <img src="https://image.tmdb.org/t/p/w342/9gk7adHYeDvHkCSEhnivolitsiyR.jpg" alt="Memento" loading="lazy">
+          <div class="rec-info">
+            <div class="rec-title">Memento</div>
+            <div class="rec-meta">
+              <span>2000</span>
+              <span class="rec-rating">
+                <svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                8.2
+              </span>
+            </div>
+          </div>
+        </div>
+        <div class="rec-card">
+          <img src="https://image.tmdb.org/t/p/w342/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg" alt="Goodfellas" loading="lazy">
+          <div class="rec-info">
+            <div class="rec-title">Goodfellas</div>
+            <div class="rec-meta">
+              <span>1990</span>
+              <span class="rec-rating">
+                <svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                8.5
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+</body>
+</html>

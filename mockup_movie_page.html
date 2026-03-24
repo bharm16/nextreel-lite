@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Shawshank Redemption (1994) - NextReel</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700&family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+    <!-- Design tokens -->
+    <style>
+      :root {
+        --color-bg: #ffffff;
+        --color-surface: #ffffff;
+        --color-surface-alt: #f8fafc;
+        --color-text: #0f172a;
+        --color-text-muted: #475569;
+        --color-border: #e2e8f0;
+        --color-primary: #02243f;
+        --color-accent: #2db830;
+        --color-chip: #f1f5f9;
+        --color-chip-ring: #cbd5e1;
+        --font-sans: 'Poppins', system-ui, -apple-system, sans-serif;
+        --font-serif: 'Merriweather', Georgia, serif;
+        color-scheme: light;
+      }
+
+      [data-theme="dark"] {
+        --color-bg: #0b1220;
+        --color-surface: #0f172a;
+        --color-surface-alt: #111827;
+        --color-text: #e5e7eb;
+        --color-text-muted: #9ca3af;
+        --color-border: #1f2937;
+        --color-primary: #0b3b63;
+        --color-accent: #36d13a;
+        --color-chip: #111827;
+        --color-chip-ring: #374151;
+        color-scheme: dark;
+      }
+    </style>
+
+    <style>
+      /* === BASE === */
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body { height: 100%; }
+      body {
+        font-family: var(--font-sans);
+        background: var(--color-bg);
+        color: var(--color-text);
+        overflow-x: hidden;
+        max-width: 100%;
+        -webkit-font-smoothing: antialiased;
+      }
+      .font-brand-serif { font-family: var(--font-serif); }
+
+      /* === NAVBAR === */
+      .navbar {
+        position: sticky; top: 0; z-index: 50;
+        background: rgba(2, 36, 63, 0.95);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        color: white;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      }
+      [data-theme="dark"] .navbar {
+        background: rgba(11, 59, 99, 0.95);
+      }
+      .navbar-inner {
+        max-width: 80rem; margin: 0 auto;
+        padding: 0 1rem; display: flex;
+        height: 4rem; align-items: center; justify-content: space-between;
+      }
+      @media (min-width: 640px) { .navbar-inner { padding: 0 1.5rem; } }
+      @media (min-width: 1024px) { .navbar-inner { padding: 0 2rem; } }
+
+      .brand { display: flex; align-items: center; gap: 0.5rem; text-decoration: none; color: white; }
+      .brand svg { height: 1.5rem; width: 1.5rem; transition: transform 0.2s; }
+      .brand:hover svg { transform: rotate(6deg); }
+      .brand span { font-family: var(--font-serif); font-size: 1.25rem; font-weight: 700; letter-spacing: -0.025em; }
+
+      .nav-actions { display: flex; gap: 0.5rem; align-items: center; }
+      .btn-pick {
+        display: inline-flex; align-items: center; gap: 0.5rem;
+        border-radius: 0.75rem; background: var(--color-accent);
+        padding: 0.5rem 1rem; font-size: 0.875rem; font-weight: 600;
+        color: white; border: none; cursor: pointer;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        transition: box-shadow 0.2s;
+      }
+      .btn-pick:hover { box-shadow: 0 4px 6px rgba(0,0,0,0.15); }
+
+      .btn-filters {
+        display: inline-flex; align-items: center; gap: 0.5rem;
+        border-radius: 0.75rem; border: 1px solid var(--color-accent);
+        padding: 0.5rem 1rem; font-size: 0.875rem; font-weight: 600;
+        color: var(--color-accent); background: transparent;
+        cursor: pointer; text-decoration: none;
+        transition: background 0.2s;
+      }
+      .btn-filters:hover { background: rgba(45, 184, 48, 0.1); }
+
+      .btn-theme {
+        margin-left: 0.5rem; display: inline-flex; align-items: center; justify-content: center;
+        border-radius: 0.5rem; padding: 0.5rem;
+        background: transparent; border: none; color: white; cursor: pointer;
+        transition: background 0.2s;
+      }
+      .btn-theme:hover { background: rgba(255,255,255,0.1); }
+      .btn-theme svg { height: 1.25rem; width: 1.25rem; }
+
+      /* === MAP TOKENS to local vars === */
+      :root {
+        --bg: var(--color-bg, #f8fafc);
+        --card: var(--color-surface, #ffffff);
+        --text: var(--color-text, #0f172a);
+        --muted: var(--color-text-muted, #64748b);
+        --accent: var(--color-accent, #22c55e);
+        --chip: var(--color-chip, #f1f5f9);
+        --chip-ring: var(--color-chip-ring, #e2e8f040);
+        --border: var(--color-border, #e2e8f0);
+      }
+
+      /* === HERO / BACKDROP === */
+      .hero {
+        position: relative;
+        min-height: 46vh;
+        background:
+          radial-gradient(1000px 400px at 10% 0%, var(--color-bg) 0%, color-mix(in srgb, var(--color-bg) 84%, transparent) 60%, transparent 100%),
+          linear-gradient(0deg, var(--color-bg) 0%, color-mix(in srgb, var(--color-bg) 84%, transparent) 40%, transparent 70%),
+          url('https://image.tmdb.org/t/p/w1280/iNh3BivHyg5smo6GDSDBROpa9Fx.jpg') center/cover no-repeat;
+      }
+      .hero::after {
+        content: "";
+        position: absolute; inset: 0;
+        background: linear-gradient(180deg, transparent 0%, var(--color-bg) 85%);
+      }
+
+      /* === ARROW BUTTONS === */
+      .arrow-btn {
+        position: absolute; top: 50%; transform: translateY(-50%);
+        z-index: 5; border: 1px solid var(--color-border); border-radius: 999px; padding: 0.75rem;
+        background: rgba(255,255,255,0.93); color: #0f172a;
+        backdrop-filter: blur(6px);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        transition: all 0.2s ease;
+        cursor: pointer;
+      }
+      [data-theme="dark"] .arrow-btn {
+        background: rgba(15, 23, 42, 0.93); color: #e5e7eb;
+      }
+      .arrow-btn:hover:not(:disabled) {
+        background: #ffffff;
+        box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+      }
+      [data-theme="dark"] .arrow-btn:hover:not(:disabled) {
+        background: rgba(15, 23, 42, 1);
+      }
+      .arrow-btn:disabled {
+        opacity: 0.4; cursor: not-allowed; pointer-events: none;
+        background: rgba(255,255,255,0.6); border-color: #f1f5f9;
+      }
+      .arrow-btn svg { height: 1.25rem; width: 1.25rem; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+      .arrow-left { left: 12px; }
+      .arrow-right { right: 12px; }
+
+      /* === MOVIE CARD === */
+      .movie-card {
+        position: relative; z-index: 6; margin-top: -120px;
+        background: var(--card); border: 1px solid var(--border);
+        border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        padding: 2rem;
+      }
+      @media (max-width: 992px) { .movie-card { margin-top: -80px; } }
+      @media (max-width: 768px) { .movie-card { padding: 1rem; } }
+
+      .content-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 1rem;
+        align-items: start;
+      }
+      @media (min-width: 768px) {
+        .content-grid {
+          grid-template-columns: repeat(12, 1fr);
+          gap: 2rem;
+        }
+      }
+
+      .poster-col { grid-column: span 1; display: flex; justify-content: center; }
+      @media (min-width: 768px) { .poster-col { grid-column: span 4; justify-content: flex-start; } }
+
+      .details-col { grid-column: span 1; }
+      @media (min-width: 768px) { .details-col { grid-column: span 8; } }
+
+      /* === POSTER === */
+      .poster {
+        width: 100%; max-width: 340px; border-radius: 14px;
+        border: 1px solid var(--border);
+        box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        aspect-ratio: 2/3;
+        object-fit: cover;
+      }
+
+      /* === TYPOGRAPHY === */
+      .title {
+        font-weight: 700;
+        font-size: clamp(1.6rem, 2.2vw, 2.6rem);
+        line-height: 1.15;
+        letter-spacing: -0.02em;
+        margin-bottom: 0.5rem;
+      }
+      .meta {
+        color: var(--muted); font-weight: 600;
+        display: flex; gap: 0.75rem; flex-wrap: wrap;
+        margin-bottom: 0.75rem;
+      }
+      .dot { opacity: 0.5; }
+
+      /* === GENRE CHIPS === */
+      .genre-wrap { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
+      .genre-chip {
+        border: 1px solid var(--border);
+        background: var(--chip); color: var(--muted);
+        border-radius: 999px; padding: 0.35rem 0.7rem;
+        font-size: 0.85rem; font-weight: 600;
+      }
+
+      /* === PLOT === */
+      .plot { color: var(--muted); line-height: 1.65; margin-bottom: 1rem; }
+
+      /* === RATING CHIP === */
+      .rating-wrap { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; margin-bottom: 1rem; }
+      .rating-chip {
+        display: flex; align-items: flex-start; gap: 0.6rem;
+        background: var(--chip); border: 1px solid var(--chip-ring);
+        border-radius: 14px; padding: 0.55rem 0.75rem; font-weight: 700;
+      }
+      .rating-chip .star-icon { color: #ffd166; flex-shrink: 0; margin-top: 0.1rem; }
+      .rating-chip .star-icon svg { height: 1rem; width: 1rem; }
+      .rating-stack { display: flex; flex-direction: column; line-height: 1.1; }
+      .rating-line { display: flex; align-items: baseline; gap: 0.35rem; }
+      .rating-number { font-size: 1.1rem; }
+      .rating-outof { color: var(--muted); font-weight: 600; font-size: 0.95rem; }
+      .rating-votes-mini { color: var(--muted); font-weight: 600; font-size: 0.85rem; }
+
+      /* === TRAILER BUTTON === */
+      .trailer-btn {
+        display: inline-flex; align-items: center; gap: 0.6rem;
+        border-radius: 12px; padding: 0.6rem 0.9rem;
+        border: 1px solid #cbd5e1; background: white; color: #475569;
+        font-weight: 600; cursor: pointer; transition: all 0.2s;
+        font-family: var(--font-sans); font-size: 0.9rem;
+      }
+      [data-theme="dark"] .trailer-btn {
+        background: var(--color-surface); border-color: var(--color-border); color: var(--color-text-muted);
+      }
+      .trailer-btn:hover { background: #f8fafc; }
+      [data-theme="dark"] .trailer-btn:hover { background: var(--color-surface-alt); }
+      .trailer-btn svg { height: 1rem; width: 1rem; }
+
+      /* === DIVIDER === */
+      .divider { height: 1px; background: var(--border); margin: 1rem 0; }
+
+      /* === NAV BUTTONS (bottom) === */
+      .nav-btns { display: flex; gap: 0.5rem; }
+      .nav-btn-prev, .nav-btn-next {
+        padding: 0.5rem 1rem; border: 1px solid #cbd5e1;
+        border-radius: 0.5rem; background: white; color: #475569;
+        cursor: pointer; transition: all 0.2s;
+        font-family: var(--font-sans); font-size: 0.875rem; font-weight: 500;
+      }
+      [data-theme="dark"] .nav-btn-prev,
+      [data-theme="dark"] .nav-btn-next {
+        background: var(--color-surface); border-color: var(--color-border); color: var(--color-text-muted);
+      }
+      .nav-btn-prev:hover:not(:disabled), .nav-btn-next:hover {
+        background: #f8fafc;
+      }
+      [data-theme="dark"] .nav-btn-prev:hover:not(:disabled),
+      [data-theme="dark"] .nav-btn-next:hover {
+        background: var(--color-surface-alt);
+      }
+      .nav-btn-prev:disabled { opacity: 0.25; cursor: not-allowed; }
+
+      /* === CAST === */
+      .cast-section { margin-top: 2rem; }
+      .cast-section h2 { font-size: 1.125rem; font-weight: 700; margin-bottom: 0.75rem; }
+      .cast-strip {
+        display: flex; gap: 0.75rem; overflow-x: auto; padding-bottom: 0.25rem;
+        -webkit-overflow-scrolling: touch; scrollbar-width: thin;
+      }
+      .cast-strip::-webkit-scrollbar { height: 6px; }
+      .cast-strip::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
+      [data-theme="dark"] .cast-strip::-webkit-scrollbar-thumb { background: var(--color-border); }
+
+      .actor-card {
+        background: var(--card); border: 1px solid var(--border);
+        width: 135px; min-width: 135px; border-radius: 14px; overflow: hidden;
+      }
+      .actor-card img { width: 100%; height: 180px; object-fit: cover; display: block; }
+      .actor-card .no-image {
+        height: 180px; display: flex; align-items: center; justify-content: center;
+        color: var(--muted); font-size: 0.8rem; background: var(--chip);
+      }
+      .actor-card .actor-name, .actor-card .character {
+        padding: 0.5rem 0.6rem; white-space: nowrap;
+        overflow: hidden; text-overflow: ellipsis; font-size: 0.85rem;
+      }
+      .actor-card .actor-name { color: var(--text); font-weight: 600; }
+      .actor-card .character { color: var(--muted); border-top: 1px solid var(--border); }
+
+      /* === FLOATING CONTAINERS === */
+      .floating-containers {
+        position: absolute; right: 2rem; top: 0;
+        width: 280px; z-index: 10;
+      }
+      @media (max-width: 1400px) { .floating-containers { display: none !important; } }
+
+      .stats-container {
+        background: var(--card); border: 1px solid var(--border);
+        border-radius: 16px; padding: 1.5rem;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        margin-bottom: 1rem;
+      }
+      .stats-container h3 {
+        font-size: 1rem; font-weight: 700; margin-bottom: 1rem; color: var(--text);
+      }
+      .stats-container .stat-row {
+        display: flex; align-items: center; gap: 0.5rem;
+        font-size: 0.875rem; color: var(--text);
+      }
+      .stats-container .stat-row + .stat-row { margin-top: 0.75rem; }
+      .stats-container .stat-row svg { color: var(--muted); width: 16px; height: 16px; flex-shrink: 0; }
+
+      /* === WATCH PROVIDERS === */
+      .watch-providers {
+        margin-top: 1rem; padding: 1rem;
+        background: var(--chip); border: 1px solid var(--border);
+        border-radius: 12px;
+      }
+      .watch-providers h3 {
+        font-size: 0.875rem; font-weight: 600; color: var(--muted);
+        margin-bottom: 0.75rem; text-transform: uppercase; letter-spacing: 0.025em;
+      }
+      .provider-section { margin-bottom: 1rem; }
+      .provider-section:last-child { margin-bottom: 0; }
+      .provider-label {
+        font-size: 0.75rem; font-weight: 600; color: var(--muted);
+        margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.25rem;
+      }
+      .provider-label svg { height: 0.875rem; width: 0.875rem; }
+      .provider-logos { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+      .provider-logo {
+        width: 40px; height: 40px; border-radius: 8px; overflow: hidden;
+        border: 1px solid var(--border); background: white;
+        display: flex; align-items: center; justify-content: center;
+        transition: box-shadow 0.2s, transform 0.2s;
+        cursor: pointer;
+      }
+      .provider-logo:hover { box-shadow: 0 4px 8px rgba(0,0,0,0.15); transform: scale(1.1); }
+      .provider-logo img { width: 100%; height: 100%; object-fit: cover; }
+      .provider-logo .fallback-text {
+        font-size: 0.5rem; text-align: center; padding: 0.15rem;
+        color: var(--muted); font-weight: 600; line-height: 1.2;
+      }
+
+      .justwatch-link {
+        display: inline-flex; align-items: center; gap: 0.35rem;
+        margin-top: 0.75rem; padding: 0.35rem 0.7rem;
+        background: var(--card); border: 1px solid var(--border);
+        border-radius: 8px; color: var(--muted);
+        font-size: 0.75rem; font-weight: 600;
+        text-decoration: none; transition: all 0.2s;
+      }
+      .justwatch-link:hover { background: white; color: var(--text); }
+      .justwatch-link svg { height: 0.875rem; width: 0.875rem; }
+
+      /* === CONTAINER === */
+      .max-w-7xl { max-width: 80rem; margin: 0 auto; padding: 0 1rem; }
+      @media (min-width: 640px) { .max-w-7xl { padding: 0 1.5rem; } }
+      @media (min-width: 1024px) { .max-w-7xl { padding: 0 2rem; } }
+
+      /* === MOBILE MENU === */
+      .mobile-menu-btn {
+        display: none; background: transparent; border: none; color: white;
+        padding: 0.5rem; border-radius: 0.5rem; cursor: pointer;
+      }
+      .mobile-menu-btn:hover { background: rgba(255,255,255,0.1); }
+      .mobile-menu-btn svg { height: 1.5rem; width: 1.5rem; }
+      @media (max-width: 767px) {
+        .nav-actions { display: none; }
+        .mobile-menu-btn { display: inline-flex; align-items: center; justify-content: center; }
+      }
+      .mobile-menu {
+        display: none; border-top: 1px solid rgba(255,255,255,0.1);
+        padding: 0.75rem 1rem;
+      }
+      .mobile-menu.open { display: block; }
+      @media (min-width: 768px) { .mobile-menu { display: none !important; } }
+      .mobile-menu-items { display: flex; flex-direction: column; gap: 0.5rem; max-width: 80rem; margin: 0 auto; }
+      .mobile-menu-items .btn-pick { width: 100%; justify-content: center; }
+      .mobile-menu-items .btn-filters { width: 100%; justify-content: center; display: flex; }
+      .mobile-menu-items .btn-theme-mobile {
+        width: 100%; padding: 0.5rem 1rem; border-radius: 0.5rem;
+        font-size: 0.875rem; font-weight: 600; color: white;
+        background: rgba(255,255,255,0.1); border: none; cursor: pointer;
+        font-family: var(--font-sans);
+      }
+
+      /* Hide sun/moon based on theme */
+      .icon-moon { display: none; }
+      [data-theme="dark"] .icon-sun { display: none; }
+      [data-theme="dark"] .icon-moon { display: block; }
+    </style>
+</head>
+
+<body>
+
+<!-- ===== NAVBAR ===== -->
+<header class="navbar">
+  <div class="navbar-inner">
+    <a href="#" class="brand">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M4 6a2 2 0 0 1 2-2h8l6 6v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6z" opacity=".3"/>
+        <path d="M14 4v4a2 2 0 0 0 2 2h4"/>
+      </svg>
+      <span class="font-brand-serif">Nextreel</span>
+    </a>
+
+    <nav class="nav-actions">
+      <button class="btn-pick">
+        <svg style="height:1rem;width:1rem" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+        Pick a Movie
+      </button>
+      <a href="#" class="btn-filters">
+        <svg style="height:1rem;width:1rem" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5h18v2H3zm4 6h10v2H7zm3 6h4v2h-4z"/></svg>
+        Set Filters
+      </a>
+      <button id="themeToggle" class="btn-theme" aria-label="Toggle dark mode">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.76 4.84l-1.8-1.79-1.41 1.41 1.79 1.8 1.42-1.42zM1 13h3v-2H1v2zm10 10h2v-3h-2v3zM4.96 19.78l1.41 1.41 1.8-1.79-1.42-1.42-1.79 1.8zM20 11v2h3v-2h-3zm-2.34-7.95l-1.41 1.41 1.79 1.8 1.41-1.42-1.79-1.79zM12 7a5 5 0 100 10 5 5 0 000-10zm7.04 12.78l-1.79-1.8-1.41 1.42 1.79 1.79 1.41-1.41zM13 1h-2v3h2V1z"/></svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.74 2.15A9 9 0 1021 12.26 7 7 0 0112.74 2.15z"/></svg>
+      </button>
+    </nav>
+
+    <button id="menuBtn" class="mobile-menu-btn" aria-label="Open menu">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg>
+    </button>
+  </div>
+
+  <div id="mobileMenu" class="mobile-menu">
+    <div class="mobile-menu-items">
+      <button class="btn-pick">Pick a Movie</button>
+      <a href="#" class="btn-filters">Set Filters</a>
+      <button class="btn-theme-mobile" id="themeToggleMobile">Toggle Theme</button>
+    </div>
+  </div>
+</header>
+
+<!-- ===== HERO / BACKDROP ===== -->
+<section class="hero" style="position: relative;">
+  <!-- Prev arrow -->
+  <button class="arrow-btn arrow-left" disabled aria-label="Previous movie">
+    <svg viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7"/></svg>
+  </button>
+  <!-- Next arrow -->
+  <button class="arrow-btn arrow-right" aria-label="Next movie">
+    <svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>
+  </button>
+</section>
+
+<!-- ===== MAIN CONTENT ===== -->
+<main class="max-w-7xl" style="position: relative;">
+  <div class="movie-card">
+    <div class="content-grid">
+      <!-- Poster -->
+      <div class="poster-col">
+        <img class="poster" src="https://image.tmdb.org/t/p/w500/9cjIGRiQI5KwzTMRbGikUPVBkbB.jpg" alt="Poster for The Shawshank Redemption">
+      </div>
+
+      <!-- Details -->
+      <div class="details-col">
+        <h1 class="title">The Shawshank Redemption (1994)</h1>
+
+        <div class="meta">
+          <span>Directed by Frank Darabont</span>
+          <span class="dot">&bull;</span>
+          <span>R</span>
+        </div>
+
+        <!-- Genre chips -->
+        <div class="genre-wrap">
+          <span class="genre-chip">Drama</span>
+          <span class="genre-chip">Crime</span>
+        </div>
+
+        <!-- Plot -->
+        <p class="plot">Imprisoned in the 1940s for the double murder of his wife and her lover, upstanding banker Andy Dufresne begins a new life at the Shawshank prison, where he puts his accounting skills to work for an pointedly corrupt warden. During his long stretch in prison, Dufresne comes to be admired by the other inmates — including an pointedly philosophical fellow combatant named Red — for his integrity and unquenchable sense of hope.</p>
+
+        <!-- Rating + Trailer -->
+        <div class="rating-wrap">
+          <div class="rating-chip">
+            <span class="star-icon">
+              <svg viewBox="0 0 24 24" fill="#ffd166"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+            </span>
+            <div class="rating-stack">
+              <div class="rating-line">
+                <span class="rating-number">9.3</span>
+                <span class="rating-outof">/10</span>
+              </div>
+              <div class="rating-votes-mini">2.9M ratings</div>
+            </div>
+          </div>
+
+          <button class="trailer-btn" id="play-button">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            Play Trailer
+          </button>
+        </div>
+
+        <!-- Divider + Nav -->
+        <div class="divider"></div>
+        <div class="nav-btns">
+          <button class="nav-btn-prev" disabled>&larr; Previous</button>
+          <button class="nav-btn-next">Next &rarr;</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cast -->
+    <div class="cast-section">
+      <h2>Cast</h2>
+      <div class="cast-strip">
+        <div class="actor-card">
+          <img src="https://image.tmdb.org/t/p/w185/jdjm37cMTzalxxPm0HVlHOWmZgz.jpg" alt="Tim Robbins">
+          <div class="actor-name">Tim Robbins</div>
+          <div class="character">Andy Dufresne</div>
+        </div>
+        <div class="actor-card">
+          <img src="https://image.tmdb.org/t/p/w185/oIciQWr8VwKoR8TmAw1owaiZFyb.jpg" alt="Morgan Freeman">
+          <div class="actor-name">Morgan Freeman</div>
+          <div class="character">Ellis Boyd 'Red' Redding</div>
+        </div>
+        <div class="actor-card">
+          <img src="https://image.tmdb.org/t/p/w185/bv6KWOSdfFJSbLcIPNRSlKC6mDR.jpg" alt="Bob Gunton">
+          <div class="actor-name">Bob Gunton</div>
+          <div class="character">Warden Norton</div>
+        </div>
+        <div class="actor-card">
+          <img src="https://image.tmdb.org/t/p/w185/kBMRKoLz0pVE4mOAE5bqz0vMlsm.jpg" alt="William Sadler">
+          <div class="actor-name">William Sadler</div>
+          <div class="character">Heywood</div>
+        </div>
+        <div class="actor-card">
+          <img src="https://image.tmdb.org/t/p/w185/gJOeg4jtRRMx1A2FYiUdAcQ9XyR.jpg" alt="Clancy Brown">
+          <div class="actor-name">Clancy Brown</div>
+          <div class="character">Captain Hadley</div>
+        </div>
+        <div class="actor-card">
+          <img src="https://image.tmdb.org/t/p/w185/5PnBF5neamS1bxFsoJM0oUv28Nw.jpg" alt="Gil Bellows">
+          <div class="actor-name">Gil Bellows</div>
+          <div class="character">Tommy Williams</div>
+        </div>
+        <div class="actor-card">
+          <div class="no-image">No image</div>
+          <div class="actor-name">Mark Rolston</div>
+          <div class="character">Bogs Diamond</div>
+        </div>
+        <div class="actor-card">
+          <img src="https://image.tmdb.org/t/p/w185/bBCuCjhRCjA8kViLkNccAp1xlqg.jpg" alt="James Whitmore">
+          <div class="actor-name">James Whitmore</div>
+          <div class="character">Brooks Hatlen</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- ===== FLOATING SIDEBAR ===== -->
+<div class="floating-containers" id="floating-containers">
+  <!-- Movie Details -->
+  <div class="stats-container">
+    <h3>Movie Details</h3>
+    <div class="stat-row">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 1a11 11 0 1 0 0 22 11 11 0 0 0 0-22zm1 11H7v-2h4V5h2v7z"/></svg>
+      <span>142 min</span>
+    </div>
+    <div class="stat-row">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h16v2H4zm6 4h10v2H10zm0 4h8v2h-8zm0 4h6v2h-6zM4 8h4v2H4zM4 12h4v2H4zM4 16h4v2H4z"/></svg>
+      <span>EN</span>
+    </div>
+    <div class="stat-row">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 1a3 3 0 0 1 3 3v1h2v2h-2v8h2v2h-2v1a3 3 0 0 1-3 3h-1a3 3 0 0 1-3-3v-1H6v-2h2V7H6V5h2V4a3 3 0 0 1 3-3h1zm-1 6v8h1a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1h-1z"/></svg>
+      <span>Budget: $25,000,000</span>
+    </div>
+    <div class="stat-row">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h2v16h16v2H3z" opacity="0.3"/><path d="M7 15l4-4 3 3 5-6 1.5 1.3-6.5 7.7-3-3-4 4z"/></svg>
+      <span>Revenue: $58,300,000</span>
+    </div>
+  </div>
+
+  <!-- Where to Watch -->
+  <div class="stats-container">
+    <h3>Where to Watch</h3>
+    <div class="watch-providers">
+      <!-- Stream -->
+      <div class="provider-section">
+        <div class="provider-label">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          Stream
+        </div>
+        <div class="provider-logos">
+          <div class="provider-logo" title="Max">
+            <div class="fallback-text" style="font-size: 0.6rem; font-weight: 700; color: #002be7;">MAX</div>
+          </div>
+          <div class="provider-logo" title="Hulu">
+            <div class="fallback-text" style="font-size: 0.55rem; font-weight: 700; color: #1ce783;">HULU</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Rent -->
+      <div class="provider-section">
+        <div class="provider-label">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 7a2 2 0 0 1 2-2h14v6h-2a2 2 0 1 0 0 4h2v6H5a2 2 0 0 1-2-2v-3a2 2 0 1 0 0-4V7z"/></svg>
+          Rent
+        </div>
+        <div class="provider-logos">
+          <div class="provider-logo" title="Apple TV">
+            <div class="fallback-text" style="font-size: 0.5rem; font-weight: 700; color: #555;">APPLE</div>
+          </div>
+          <div class="provider-logo" title="Amazon Video">
+            <div class="fallback-text" style="font-size: 0.45rem; font-weight: 700; color: #FF9900;">AMAZON</div>
+          </div>
+          <div class="provider-logo" title="Vudu">
+            <div class="fallback-text" style="font-size: 0.55rem; font-weight: 700; color: #3399ff;">VUDU</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Buy -->
+      <div class="provider-section">
+        <div class="provider-label">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4h-2l-1 2H1v2h2l3.6 7.59-1.35 2.45A2 2 0 0 0 7 20h12v-2H7l1.1-2h7.45a2 2 0 0 0 1.79-1.11L21 9H6.42l-1-2H7V4z"/></svg>
+          Buy
+        </div>
+        <div class="provider-logos">
+          <div class="provider-logo" title="Apple TV">
+            <div class="fallback-text" style="font-size: 0.5rem; font-weight: 700; color: #555;">APPLE</div>
+          </div>
+          <div class="provider-logo" title="Amazon Video">
+            <div class="fallback-text" style="font-size: 0.45rem; font-weight: 700; color: #FF9900;">AMAZON</div>
+          </div>
+        </div>
+      </div>
+
+      <a href="#" class="justwatch-link">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 3h7v7h-2V6.41l-9.29 9.3-1.42-1.42 9.3-9.29H14V3z"/><path d="M5 5h7v2H7v10h10v-5h2v7H5z"/></svg>
+        View all on JustWatch
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCRIPTS ===== -->
+<script>
+  // Theme toggle
+  function setTheme(next) {
+    try { localStorage.setItem('nr-theme', next); } catch(e) {}
+    document.documentElement.setAttribute('data-theme', next);
+  }
+
+  document.getElementById('themeToggle').addEventListener('click', () => {
+    const current = document.documentElement.getAttribute('data-theme');
+    setTheme(current === 'dark' ? 'light' : 'dark');
+  });
+
+  const tmBtn = document.getElementById('themeToggleMobile');
+  if (tmBtn) tmBtn.addEventListener('click', () => {
+    const current = document.documentElement.getAttribute('data-theme');
+    setTheme(current === 'dark' ? 'light' : 'dark');
+  });
+
+  // Mobile menu
+  const menuBtn = document.getElementById('menuBtn');
+  const mobileMenu = document.getElementById('mobileMenu');
+  if (menuBtn && mobileMenu) {
+    menuBtn.addEventListener('click', () => {
+      mobileMenu.classList.toggle('open');
+    });
+  }
+
+  // Floating containers sticky scroll
+  (function() {
+    const floating = document.getElementById('floating-containers');
+    if (!floating) return;
+    const movieCard = document.querySelector('.movie-card');
+    if (!movieCard) return;
+
+    let rect = movieCard.getBoundingClientRect();
+    let initialTop = rect.top + window.pageYOffset;
+    floating.style.top = initialTop + 'px';
+
+    function handleScroll() {
+      const scrollY = window.scrollY || window.pageYOffset;
+      const windowH = window.innerHeight;
+      const containerH = floating.offsetHeight;
+      const trigger = initialTop - 20;
+
+      if (scrollY >= trigger) {
+        if (containerH < windowH - 40) {
+          floating.style.position = 'fixed';
+          floating.style.top = '50%';
+          floating.style.transform = 'translateY(-50%)';
+        } else {
+          floating.style.position = 'fixed';
+          floating.style.top = '20px';
+          floating.style.transform = 'none';
+        }
+      } else {
+        floating.style.position = 'absolute';
+        floating.style.top = initialTop + 'px';
+        floating.style.transform = 'none';
+      }
+    }
+
+    function handleResize() {
+      rect = movieCard.getBoundingClientRect();
+      initialTop = rect.top + window.pageYOffset;
+      handleScroll();
+    }
+
+    window.addEventListener('scroll', handleScroll);
+    window.addEventListener('resize', handleResize);
+    handleScroll();
+  })();
+
+  // Trailer button
+  document.getElementById('play-button').addEventListener('click', () => {
+    alert('Trailer would open in a new tab');
+  });
+</script>
+
+</body>
+</html>

@@ -4,12 +4,11 @@
 __init__.py
 ~~~~~~~~~~~
 
-This test suite checks the methods of tmdbsimple.
+Test suite for NextReel-Lite — async movie discovery application.
 
-Use the following command to run all the tests:
-    python -W ignore:ResourceWarning -m unittest discover tests
+Use the following command to run all tests:
+    python -m pytest tests/ -v
 
-:copyright: (c) 2013-2022 by Celia Oakley.
 :license: GPLv3, see LICENSE for more details.
 """
 

@@ -14,7 +14,7 @@ def _make_test_app():
 async def _get_csrf_token(client):
     """Issue a GET to establish a session and extract the CSRF token."""
     from quart import session as quart_session
-    # Use setFilters as a harmless GET endpoint that renders a template.
+    # Use /filters as a harmless GET endpoint that renders a template.
     # After the GET the session will contain our CSRF token.
     # We can't easily read the session from outside, so we inject the
     # token via the cookie-backed session before POST.
@@ -30,7 +30,7 @@ def test_home():
     async def run_test():
         with patch('app.MovieManager') as MockManager:
             manager = MockManager.return_value
-            manager.home = AsyncMock(return_value='home')
+            manager.home = AsyncMock(return_value={"default_backdrop_url": None})
 
             app = _make_test_app()
             async with app.app_context():
@@ -48,7 +48,7 @@ def test_set_filters_route():
             app = _make_test_app()
             async with app.app_context():
                 client = app.test_client()
-                response = await client.get('/setFilters')
+                response = await client.get('/filters')
                 assert response.status_code == 200
 
     asyncio.run(run_test())
@@ -132,7 +132,8 @@ def test_movie_detail_rejects_bad_tconst():
     asyncio.run(run_test())
 
 
-def test_next_previous_movie_routes():
+def test_next_previous_movie_post_only():
+    """next_movie and previous_movie are POST-only; GET should return 405."""
     async def run_test():
         with patch('app.MovieManager') as MockManager:
             manager = MockManager.return_value
@@ -142,11 +143,10 @@ def test_next_previous_movie_routes():
             app = _make_test_app()
             async with app.app_context():
                 client = app.test_client()
-                # GET requests should still work without CSRF
                 response = await client.get('/next_movie')
-                assert response.status_code == 200
+                assert response.status_code == 405
                 response = await client.get('/previous_movie')
-                assert response.status_code == 200
+                assert response.status_code == 405
 
     asyncio.run(run_test())
 
@@ -167,7 +167,8 @@ def test_post_next_movie_rejects_without_csrf():
     asyncio.run(run_test())
 
 
-def test_handle_new_user_route():
+def test_handle_new_user_route_removed():
+    """handle_new_user was removed — any request should return 404."""
     async def run_test():
         with patch('app.MovieManager') as MockManager:
             manager = MockManager.return_value
@@ -176,8 +177,9 @@ def test_handle_new_user_route():
             app = _make_test_app()
             async with app.app_context():
                 client = app.test_client()
-                # GET should no longer be allowed (405)
                 response = await client.get('/handle_new_user')
-                assert response.status_code == 405
+                assert response.status_code == 404
+                response = await client.post('/handle_new_user')
+                assert response.status_code == 404
 
     asyncio.run(run_test())

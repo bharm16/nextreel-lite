@@ -31,10 +31,10 @@ async def test_start_initializes_pool_and_backdrop():
 async def test_add_user_sets_criteria_and_loads_queue(app):
     async with app.test_request_context("/"):
         movie_manager = MovieManager(db_config=None)
-        movie_manager._navigator._load_movies_into_queue = AsyncMock()
+        movie_manager._navigator.load_initial_queue = AsyncMock()
         await movie_manager.add_user("test_user", {"genre": "comedy"})
         assert session["criteria"] == {"genre": "comedy"}
-        movie_manager._navigator._load_movies_into_queue.assert_awaited_once()
+        movie_manager._navigator.load_initial_queue.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -52,20 +52,21 @@ async def test_home_reuses_existing_prefetch_task(app):
 
     async with app.test_request_context("/"):
         session[USER_ID_KEY] = "test-user"
-        with patch("movie_service.render_template", render_template_mock):
-            first_result = await movie_manager.home("test-user")
-            await started.wait()
-            second_result = await movie_manager.home("test-user")
+        first_result = await movie_manager.home("test-user")
+        await started.wait()
+        second_result = await movie_manager.home("test-user")
 
-            assert first_result == "rendered_template"
-            assert second_result == "rendered_template"
-            assert len(movie_manager._queue_prefetch_tasks) == 1
+        # home() now returns a data dict, not a rendered template
+        assert isinstance(first_result, dict)
+        assert "default_backdrop_url" in first_result
+        assert isinstance(second_result, dict)
+        assert len(movie_manager._queue_prefetch_tasks) == 1
 
-            release.set()
-            task = next(iter(movie_manager._queue_prefetch_tasks.values()))
-            await task
-            await asyncio.sleep(0)
-            assert movie_manager._queue_prefetch_tasks == {}
+        release.set()
+        task = next(iter(movie_manager._queue_prefetch_tasks.values()))
+        await task
+        await asyncio.sleep(0)
+        assert movie_manager._queue_prefetch_tasks == {}
 
 
 @pytest.mark.asyncio
@@ -82,16 +83,15 @@ async def test_close_cancels_prefetch_tasks(app):
 
     async with app.test_request_context("/"):
         session[USER_ID_KEY] = "test-user"
-        with patch("movie_service.render_template", AsyncMock(return_value="ok")):
-            await movie_manager.home("test-user")
-            task = next(iter(movie_manager._queue_prefetch_tasks.values()))
-            assert not task.done()
+        await movie_manager.home("test-user")
+        task = next(iter(movie_manager._queue_prefetch_tasks.values()))
+        assert not task.done()
 
-            await movie_manager.close()
+        await movie_manager.close()
 
-            assert task.cancelled()
-            movie_manager.tmdb_helper.close.assert_awaited_once()
-            movie_manager.db_pool.close_pool.assert_awaited_once()
+        assert task.cancelled()
+        movie_manager.tmdb_helper.close.assert_awaited_once()
+        movie_manager.db_pool.close_pool.assert_awaited_once()
 
 
 @pytest.mark.asyncio

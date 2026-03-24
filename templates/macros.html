@@ -1,0 +1,30 @@
+{#- Shared UI macros for Nextreel templates. -#}
+
+{%- macro pick_movie_button(class="", label="Pick a Movie", show_icon=true) -%}
+<form method="POST" action="{{ url_for('main.next_movie') }}" class="inline">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <button type="submit" class="{{ class }}">
+    {%- if show_icon %}
+    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+    {%- endif %}
+    {{ label }}
+  </button>
+</form>
+{%- endmacro -%}
+
+{%- macro pick_movie_button_lg(class="", label="Pick a Movie") -%}
+<form method="POST" action="{{ url_for('main.next_movie') }}" class="inline">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <button type="submit" class="{{ class }}">
+    <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+    {{ label }}
+  </button>
+</form>
+{%- endmacro -%}
+
+{%- macro pick_movie_button_block(class="", label="Pick a Movie") -%}
+<form method="POST" action="{{ url_for('main.next_movie') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <button type="submit" class="{{ class }}">{{ label }}</button>
+</form>
+{%- endmacro -%}

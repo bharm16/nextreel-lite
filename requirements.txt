@@ -18,8 +18,6 @@ PyMySQL==1.1.1                   # Pure Python MySQL client (fallback)
 # API Clients & HTTP
 # -----------------
 httpx==0.28.1                    # Modern async HTTP client
-tmdbsimple==2.9.1                # TMDB (The Movie Database) API wrapper
-requests==2.32.3                 # HTTP library (for tmdbsimple)
 
 # Security & Authentication
 # ------------------------

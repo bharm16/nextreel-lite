@@ -100,144 +100,130 @@ class Movie:
         start_time = time.time()
 
         try:
-            # Parallel fetch of basic data and TMDB ID
+            # Phase 1: resolve TMDb ID + fetch slug in parallel
             basic_tasks = [
                 self.tmdb_helper.get_tmdb_id_by_tconst(self.tconst),
-                self.fetch_movie_slug()
+                self.fetch_movie_slug(),
             ]
             basic_results = await asyncio.gather(*basic_tasks, return_exceptions=True)
-            
+
             tmdb_id = basic_results[0] if not isinstance(basic_results[0], Exception) else None
-            
+
             if not tmdb_id:
                 logger.warning("No TMDB ID found for tconst: %s", self.tconst)
                 return None
 
-            # Execute all data fetching concurrently — credits are fetched
-            # once and cast info is derived from the same response (saves one
-            # TMDb API call per movie).
-            tasks = [
-                self.tmdb_helper.get_movie_info_by_tmdb_id(tmdb_id),
-                self.tmdb_helper.get_credits_by_tmdb_id(tmdb_id),
-                self.tmdb_helper.get_video_url_by_tmdb_id(tmdb_id),
-                self.tmdb_helper.get_images_by_tmdb_id(tmdb_id),
-                self.tmdb_helper.get_age_rating_by_tmdb_id(tmdb_id),
-                self.fetch_movie_ratings(self.tconst),
-                self.tmdb_helper.get_watch_providers_by_tmdb_id(tmdb_id),
-            ]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
+            # Phase 2: single combined TMDb call + local DB ratings in parallel
+            tmdb_task = self.tmdb_helper.get_movie_full(tmdb_id)
+            ratings_task = self.fetch_movie_ratings(self.tconst)
+            results = await asyncio.gather(tmdb_task, ratings_task, return_exceptions=True)
 
-            # Process results with error handling
-            movie_info = results[0] if not isinstance(results[0], Exception) else {}
-            tmdb_credits = results[1] if not isinstance(results[1], Exception) else {}
-            tmdb_movie_trailer = results[2] if not isinstance(results[2], Exception) else None
-            tmdb_image_info = results[3] if not isinstance(results[3], Exception) else {}
-            age_rating = results[4] if not isinstance(results[4], Exception) else "Not Rated"
-            ratings_data = results[5] if not isinstance(results[5], Exception) else None
-            watch_providers = results[6] if not isinstance(results[6], Exception) else None
+            full_data = results[0] if not isinstance(results[0], Exception) else {}
+            ratings_data = results[1] if not isinstance(results[1], Exception) else None
 
-            # Derive cast info from the single credits response
-            tmdb_cast_info_result = [
-                {
-                    "name": m["name"],
-                    "image_url": (
-                        f"{self.tmdb_helper.image_base_url}w185{m['profile_path']}"
-                        if m.get("profile_path") else None
-                    ),
-                    "character": m.get("character", "N/A"),
-                }
-                for m in tmdb_credits.get("cast", [])[:10]
-            ]
-            
-            # Log any errors that occurred
-            for i, result in enumerate(results):
-                if isinstance(result, Exception):
-                    logger.warning("Task %s failed for %s: %s", i, self.tconst, result)
+            if isinstance(results[0], Exception):
+                logger.warning("TMDb combined fetch failed for %s: %s", self.tconst, results[0])
+            if isinstance(results[1], Exception):
+                logger.warning("Ratings fetch failed for %s: %s", self.tconst, results[1])
 
-            tmdb_cast_info = tmdb_cast_info_result
+            # Phase 3: parse all fields from the combined response
+            h = self.tmdb_helper
+            tmdb_cast_info = h.parse_cast(full_data)
+            directors = h.parse_directors(full_data)
+            key_crew = h.parse_key_crew(full_data)
+            trailer = h.parse_trailer(full_data)
+            images = h.parse_images(full_data)
+            age_rating = h.parse_age_rating(full_data)
+            watch_providers = h.parse_watch_providers(full_data)
+            keywords = h.parse_keywords(full_data)
+            recommendations = h.parse_recommendations(full_data)
+            external_ids = h.parse_external_ids(full_data)
+            collection = h.parse_collection(full_data)
 
-            backdrop_url = (
-                tmdb_image_info["backdrops"][0]
-                if tmdb_image_info.get("backdrops")
-                else None
-            )
+            backdrop_url = images["backdrops"][0] if images.get("backdrops") else None
 
             # Use database rating if available; otherwise, fall back to TMDB rating
             rating = (
                 ratings_data["averageRating"]
                 if ratings_data and ratings_data["averageRating"] != "N/A"
-                else movie_info.get("vote_average", "N/A")
+                else full_data.get("vote_average", "N/A")
             )
             votes = (
                 ratings_data["numVotes"]
                 if ratings_data and ratings_data["numVotes"] != "N/A"
-                else movie_info.get("vote_count", "N/A")
+                else full_data.get("vote_count", "N/A")
             )
 
-            directors = [
-                crew["name"]
-                for crew in tmdb_credits.get("crew", [])
-                if crew["job"] == "Director"
-            ]
-
             # Format budget and revenue
-            budget = movie_info.get("budget", 0)
-            revenue = movie_info.get("revenue", 0)
+            budget = full_data.get("budget", 0)
+            revenue = full_data.get("revenue", 0)
             budget_formatted = f"${budget:,}" if budget > 0 else "Unknown"
             revenue_formatted = f"${revenue:,}" if revenue > 0 else "Unknown"
-            
+
             # Get production countries
-            countries = movie_info.get("production_countries", [])
-            country_names = [country.get("name", "") for country in countries[:3]]  # Limit to 3
-            
+            countries = full_data.get("production_countries", [])
+            country_names = [country.get("name", "") for country in countries[:3]]
+
             self.movie_data = {
-                "title": movie_info.get("title", "N/A"),
+                "title": full_data.get("title", "N/A"),
                 "imdb_id": self.tconst,
                 "tmdb_id": tmdb_id,
                 "slug": self.slug,
                 "genres": ", ".join(
-                    [genre["name"] for genre in movie_info.get("genres", [])]
+                    [genre["name"] for genre in full_data.get("genres", [])]
                 ),
                 "directors": ", ".join(directors),
                 "rating": rating,
                 "votes": votes,
-                "plot": movie_info.get("overview", "N/A"),
+                "plot": full_data.get("overview", "N/A"),
                 "poster_url": (
-                    f"{self.tmdb_helper.image_base_url}w500{movie_info.get('poster_path')}"
-                    if movie_info.get("poster_path")
+                    f"{h.image_base_url}w500{full_data.get('poster_path')}"
+                    if full_data.get("poster_path")
                     else None
                 ),
                 "year": (
-                    movie_info.get("release_date", "N/A")[:4]
-                    if movie_info.get("release_date")
+                    full_data.get("release_date", "N/A")[:4]
+                    if full_data.get("release_date")
                     else "N/A"
                 ),
                 "cast": tmdb_cast_info,
-                "images": tmdb_image_info,
-                "trailer": tmdb_movie_trailer,
-                "credits": tmdb_credits,
+                "images": images,
+                "trailer": trailer,
+                "credits": full_data.get("credits", {}),
                 "backdrop_url": backdrop_url,
-                "original_language": movie_info.get("original_language", "unknown"),
-                "spoken_languages": [lang.get("iso_639_1") for lang in movie_info.get("spoken_languages", [])],
-                # New TMDB data
+                "original_language": full_data.get("original_language", "unknown"),
+                "spoken_languages": [
+                    lang.get("iso_639_1") for lang in full_data.get("spoken_languages", [])
+                ],
                 "age_rating": age_rating,
                 "budget": budget_formatted,
                 "revenue": revenue_formatted,
-                "runtime": f"{movie_info.get('runtime', 0)} min" if movie_info.get('runtime') else "Unknown",
+                "runtime": (
+                    f"{full_data.get('runtime', 0)} min"
+                    if full_data.get("runtime")
+                    else "Unknown"
+                ),
                 "production_countries": ", ".join(country_names) if country_names else "Unknown",
-                "status": movie_info.get("status", "Unknown"),
-                "tagline": movie_info.get("tagline", ""),
+                "status": full_data.get("status", "Unknown"),
+                "tagline": full_data.get("tagline", ""),
                 "watch_providers": watch_providers,
+                # New enriched fields
+                "key_crew": key_crew,
+                "keywords": keywords,
+                "recommendations": recommendations,
+                "external_ids": external_ids,
+                "collection": collection,
+                "homepage": full_data.get("homepage", ""),
                 "_full": True,  # sentinel for _is_full_movie()
             }
 
             method_time = time.time() - start_time
             logger.info(
-                "Completed get_movie_data for %s in %.2f seconds (parallel)", self.tconst, method_time
+                "Completed get_movie_data for %s in %.2f seconds", self.tconst, method_time
             )
 
             return self.movie_data
-            
+
         except Exception as e:
             logger.error("Error fetching movie data for %s: %s", self.tconst, e)
             return None

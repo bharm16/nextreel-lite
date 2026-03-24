@@ -1,3 +1,4 @@
+{% from "macros.html" import pick_movie_button, pick_movie_button_lg, pick_movie_button_block with context %}
 <!DOCTYPE html>
 <html lang="en" class="scroll-smooth">
 <head>
@@ -53,11 +54,8 @@
 
         <!-- Desktop actions -->
         <nav class="hidden gap-2 md:flex items-center">
-          <a href="/next_movie" class="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent/70 focus:ring-offset-primary/20">
-            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
-            Pick a Movie
-          </a>
-          <a href="/setFilters" class="inline-flex items-center gap-2 rounded-xl border border-accent px-4 py-2 text-sm font-semibold text-accent hover:bg-accent/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent/70 focus:ring-offset-primary/20">
+          {{ pick_movie_button(class="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent/70 focus:ring-offset-primary/20") }}
+          <a href="{{ url_for('main.set_filters') }}" class="inline-flex items-center gap-2 rounded-xl border border-accent px-4 py-2 text-sm font-semibold text-accent hover:bg-accent/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent/70 focus:ring-offset-primary/20">
             <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5h18v2H3zm4 6h10v2H7zm3 6h4v2h-4z"/></svg>
             Set Filters
           </a>
@@ -77,8 +75,8 @@
     <!-- Mobile dropdown -->
     <div id="mobileMenu" class="hidden md:hidden border-t border-white/10">
       <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-3 space-y-2">
-        <a href="/next_movie" class="block w-full rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white text-center">Pick a Movie</a>
-        <a href="/setFilters" class="block w-full rounded-lg border border-accent px-4 py-2 text-sm font-semibold text-accent text-center">Set Filters</a>
+        {{ pick_movie_button_block(class="block w-full rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white text-center") }}
+        <a href="{{ url_for('main.set_filters') }}" class="block w-full rounded-lg border border-accent px-4 py-2 text-sm font-semibold text-accent text-center">Set Filters</a>
         <button id="themeToggleMobile" class="block w-full rounded-lg px-4 py-2 text-sm font-semibold text-white text-center bg-white/10">Toggle Theme</button>
       </div>
     </div>
@@ -100,11 +98,8 @@
           <h1 class="font-brand-serif text-4xl font-extrabold tracking-tight sm:text-5xl">Discover Your Next Favorite Film</h1>
           <p class="mt-4 text-base/7 sm:text-lg/8 opacity-95">Explore a world of cinema with personalized recommendations built from rich movie databases and your unique preferences.</p>
           <div class="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:items-center sm:justify-center">
-            <a href="/next_movie" class="inline-flex items-center justify-center gap-2 rounded-2xl bg-accent px-6 py-3 text-base font-semibold text-white shadow-lg shadow-black/10 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-white">
-              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
-              Pick a Movie
-            </a>
-            <a href="/setFilters" class="inline-flex items-center justify-center gap-2 rounded-2xl bg-white/10 px-6 py-3 text-base font-semibold text-white ring-1 ring-inset ring-white/40 backdrop-blur hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white">
+            {{ pick_movie_button_lg(class="inline-flex items-center justify-center gap-2 rounded-2xl bg-accent px-6 py-3 text-base font-semibold text-white shadow-lg shadow-black/10 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-white") }}
+            <a href="{{ url_for('main.set_filters') }}" class="inline-flex items-center justify-center gap-2 rounded-2xl bg-white/10 px-6 py-3 text-base font-semibold text-white ring-1 ring-inset ring-white/40 backdrop-blur hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white">
               <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5h18v2H3zm4 6h10v2H7zm3 6h4v2h-4z"/></svg>
               Set Filters
             </a>
@@ -170,11 +165,8 @@
 
         <!-- Secondary CTA -->
         <div class="mt-12 flex flex-col items-stretch justify-center gap-3 sm:flex-row">
-          <a href="/next_movie" class="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-6 py-3 text-base font-semibold text-white shadow hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-primary/40">
-            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
-            Start Picking
-          </a>
-          <a href="/setFilters" class="inline-flex items-center justify-center gap-2 rounded-2xl border border-primary/30 px-6 py-3 text-base font-semibold text-primary hover:bg-primary/5 focus:outline-none focus:ring-2 focus:ring-primary/40">
+          {{ pick_movie_button_lg(class="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-6 py-3 text-base font-semibold text-white shadow hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-primary/40", label="Start Picking") }}
+          <a href="{{ url_for('main.set_filters') }}" class="inline-flex items-center justify-center gap-2 rounded-2xl border border-primary/30 px-6 py-3 text-base font-semibold text-primary hover:bg-primary/5 focus:outline-none focus:ring-2 focus:ring-primary/40">
             <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5h18v2H3zm4 6h10v2H7zm3 6h4v2h-4z"/></svg>
             Tweak Filters
           </a>

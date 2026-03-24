@@ -27,8 +27,9 @@ SEEN_TCONSTS_KEY = "seen_tconsts"
 QUEUE_SIZE_KEY = "queue_size"
 CURRENT_FILTERS_KEY = "current_filters"
 
-# ── Fingerprint internals ──────────────────────────────────────────
-FINGERPRINT_COMPONENTS_KEY = "fingerprint_components"
+# ── Fingerprint (removed) ──────────────────────────────────────────
+# FINGERPRINT_COMPONENTS_KEY removed — fingerprint components are
+# recomputed from live headers, not stored in the session.
 
 
 def reset_movie_stacks():

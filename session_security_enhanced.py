@@ -22,7 +22,6 @@ from werkzeug.exceptions import Unauthorized
 
 from logging_config import get_logger
 from session_keys import (
-    FINGERPRINT_COMPONENTS_KEY,
     SESSION_CREATED_KEY,
     SESSION_FINGERPRINT_KEY,
     SESSION_LAST_ACTIVITY_KEY,

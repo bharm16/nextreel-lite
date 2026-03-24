@@ -253,25 +253,6 @@ class MovieNavigator:
             return current.get("imdb_id")
         return None
 
-    async def get_movie_by_slug(self, user_id, slug):
-        prev_stack, future_stack = self._get_user_stacks()
-
-        for movie in future_stack:
-            if movie.get("slug") == slug:
-                return await _resolve_ref(movie, db_pool=self.db_pool, tmdb_helper=self.tmdb_helper)
-
-        current_movie = session.get(CURRENT_MOVIE_KEY)
-        if current_movie and current_movie.get("slug") == slug:
-            return current_movie
-
-        for movie in prev_stack:
-            if movie.get("slug") == slug:
-                return await _resolve_ref(movie, db_pool=self.db_pool, tmdb_helper=self.tmdb_helper)
-
-        for movie in session.get(WATCH_QUEUE_KEY, []):
-            if movie.get("slug") == slug:
-                return await _resolve_ref(
-                    movie, db_pool=self.db_pool, tmdb_helper=self.tmdb_helper
-                )
-
-        return None
+    # get_movie_by_slug removed — no route or service method calls it.
+    # If slug-based navigation is needed in the future, re-implement with
+    # cache-first resolution rather than linear session-stack scanning.

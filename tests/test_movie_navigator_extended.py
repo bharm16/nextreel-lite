@@ -52,14 +52,14 @@ class TestMovieRef:
 
 
 class TestIsFullMovie:
-    def test_with_cast(self):
-        assert _is_full_movie({"cast": ["Actor"]}) is True
+    def test_with_full_sentinel(self):
+        assert _is_full_movie({"_full": True, "cast": ["Actor"]}) is True
 
-    def test_with_credits(self):
-        assert _is_full_movie({"credits": {}}) is True
-
-    def test_with_plot(self):
-        assert _is_full_movie({"plot": "desc"}) is True
+    def test_without_full_sentinel(self):
+        # Legacy dicts without _full are treated as lightweight refs
+        assert _is_full_movie({"cast": ["Actor"]}) is False
+        assert _is_full_movie({"credits": {}}) is False
+        assert _is_full_movie({"plot": "desc"}) is False
 
     def test_ref_only(self):
         assert _is_full_movie({"imdb_id": "tt123", "title": "T"}) is False
@@ -207,48 +207,6 @@ class TestGetCurrentMovieTconst:
                 assert nav.get_current_movie_tconst() is None
 
 
-class TestGetMovieBySlug:
-    @pytest.mark.asyncio
-    async def test_finds_in_queue(self, nav_app):
-        full_data = {
-            "imdb_id": "tt123",
-            "slug": "found-movie",
-            "title": "Found",
-            "plot": "Resolved",
-        }
-        nav_app.secure_cache = CacheStub(data=full_data)
-        nav = MovieNavigator(movie_fetcher=None, db_pool=None)
-        async with nav_app.app_context():
-            async with nav_app.test_request_context("/"):
-                session[WATCH_QUEUE_KEY] = [
-                    {"imdb_id": "tt123", "slug": "found-movie", "title": "Found", "tmdb_id": None}
-                ]
-                session[PREVIOUS_STACK_KEY] = []
-                session[FUTURE_STACK_KEY] = []
-                result = await nav.get_movie_by_slug("user-1", "found-movie")
-                assert result["imdb_id"] == "tt123"
 
-    @pytest.mark.asyncio
-    async def test_finds_current_movie(self, nav_app):
-        nav = MovieNavigator(movie_fetcher=None, db_pool=None)
-        async with nav_app.app_context():
-            async with nav_app.test_request_context("/"):
-                session[CURRENT_MOVIE_KEY] = {
-                    "imdb_id": "tt456", "slug": "current-slug", "title": "Current"
-                }
-                session[WATCH_QUEUE_KEY] = []
-                session[PREVIOUS_STACK_KEY] = []
-                session[FUTURE_STACK_KEY] = []
-                result = await nav.get_movie_by_slug("user-1", "current-slug")
-                assert result["imdb_id"] == "tt456"
-
-    @pytest.mark.asyncio
-    async def test_returns_none_for_unknown_slug(self, nav_app):
-        nav = MovieNavigator(movie_fetcher=None, db_pool=None)
-        async with nav_app.app_context():
-            async with nav_app.test_request_context("/"):
-                session[WATCH_QUEUE_KEY] = []
-                session[PREVIOUS_STACK_KEY] = []
-                session[FUTURE_STACK_KEY] = []
-                result = await nav.get_movie_by_slug("user-1", "nonexistent")
-                assert result is None
+# TestGetMovieBySlug removed — get_movie_by_slug was deleted from
+# MovieNavigator. See movie_navigator.py for rationale.

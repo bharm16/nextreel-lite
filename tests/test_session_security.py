@@ -2,7 +2,6 @@ import pytest
 from quart import Quart, session
 
 from session_keys import (
-    FINGERPRINT_COMPONENTS_KEY,
     SESSION_CREATED_KEY,
     SESSION_FINGERPRINT_KEY,
     SESSION_LAST_ACTIVITY_KEY,
@@ -38,7 +37,8 @@ async def test_create_session_sets_required_keys(app, security_manager):
         assert SESSION_CREATED_KEY in session
         assert SESSION_LAST_ACTIVITY_KEY in session
         assert SESSION_ROTATION_COUNT_KEY in session
-        assert FINGERPRINT_COMPONENTS_KEY in session
+        # Fingerprint components are no longer stored in the session
+        # (security fix: recomputed from live headers on each request).
         assert created["token"] == session[SESSION_TOKEN_KEY]
 
 

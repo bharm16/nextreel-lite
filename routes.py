@@ -21,17 +21,13 @@ from quart import Blueprint, request, redirect, url_for, session, render_templat
 _REQUEST_TIMEOUT = 30
 
 # tconst must match IMDb ID format: "tt" followed by digits
-_TCONST_RE = re.compile(r'^tt\d{1,10}$')
+_TCONST_RE = re.compile(r"^tt\d{1,10}$")
 
 # CSRF token session key
-_CSRF_TOKEN_KEY = '_csrf_token'
+_CSRF_TOKEN_KEY = "_csrf_token"
 
 from logging_config import get_logger
-from metrics_collector import (
-    movie_recommendations_total,
-    user_sessions_total,
-    user_actions_total,
-)
+from metrics_collector import user_actions_total
 from session_keys import USER_ID_KEY, CURRENT_FILTERS_KEY
 
 logger = get_logger(__name__)
@@ -87,8 +83,6 @@ async def logout():
     """Securely logout and destroy session."""
     await _validate_csrf_from_form()
 
-    from session_security_enhanced import EnhancedSessionSecurity
-
     session_security = current_app.config.get("_session_security")
     if session_security:
         await session_security.destroy_session()
@@ -127,7 +121,7 @@ def _get_ops_auth_token() -> str | None:
 async def _check_rate_limit_redis(endpoint_key: str) -> bool:
     """Rate limit using Redis INCR + EXPIRE (distributed)."""
     try:
-        redis_client = current_app.config.get('SESSION_REDIS')
+        redis_client = current_app.config.get("SESSION_REDIS")
         if not redis_client:
             return _check_rate_limit_memory(endpoint_key)
         ip = request.remote_addr or "unknown"
@@ -399,7 +393,3 @@ async def filtered_movie_endpoint():
     except Exception as e:
         logger.error("Error filtering movies for user_id: %s, Error: %s", user_id, e)
         raise
-
-
-    # /handle_new_user removed — user initialization is handled
-    # automatically by init_session() in the before_request hook.
