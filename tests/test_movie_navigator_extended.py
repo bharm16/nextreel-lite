@@ -9,7 +9,7 @@ from movie_navigator import (
     _is_full_movie,
     MAX_PREV_STACK_SIZE,
 )
-from session_keys import (
+from session.keys import (
     PREVIOUS_STACK_KEY,
     FUTURE_STACK_KEY,
     SEEN_TCONSTS_KEY,

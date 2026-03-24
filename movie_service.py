@@ -11,7 +11,7 @@ from movies.query_builder import (
 from movies.tmdb_client import TMDbHelper
 from movie_navigator import MovieNavigator
 from movie_renderer import MovieRenderer
-from session_keys import (
+from session.keys import (
     CRITERIA_KEY,
     USER_ID_KEY,
     init_movie_stacks,

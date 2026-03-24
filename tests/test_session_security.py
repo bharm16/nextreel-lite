@@ -1,14 +1,14 @@
 import pytest
 from quart import Quart, session
 
-from session_keys import (
+from session.keys import (
     SESSION_CREATED_KEY,
     SESSION_FINGERPRINT_KEY,
     SESSION_LAST_ACTIVITY_KEY,
     SESSION_ROTATION_COUNT_KEY,
     SESSION_TOKEN_KEY,
 )
-from session_security_enhanced import EnhancedSessionSecurity
+from session.security import EnhancedSessionSecurity
 
 
 @pytest.fixture

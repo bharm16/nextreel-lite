@@ -19,9 +19,9 @@ from middleware import add_correlation_id
 from movie_service import MovieManager
 from routes import bp as routes_bp, init_routes
 from infra.secrets import secrets_manager
-from session_auth import init_session
-from session_keys import USER_ID_KEY
-from session_security_enhanced import EnhancedSessionSecurity, add_security_headers
+from session.auth import init_session
+from session.keys import USER_ID_KEY
+from session.security import EnhancedSessionSecurity, add_security_headers
 
 
 from infra.cache import SimpleCacheManager

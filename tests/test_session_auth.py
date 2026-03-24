@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock
 import pytest
 from quart import Quart, session
 
-from session_auth import _default_criteria, init_session
-from session_keys import CREATED_AT_KEY, CRITERIA_KEY, INITIALIZED_KEY, USER_ID_KEY
+from session.auth import _default_criteria, init_session
+from session.keys import CREATED_AT_KEY, CRITERIA_KEY, INITIALIZED_KEY, USER_ID_KEY
 
 
 @pytest.fixture

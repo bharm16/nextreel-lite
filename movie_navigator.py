@@ -5,7 +5,7 @@ import asyncio
 from quart import redirect, url_for, session, current_app
 
 from logging_config import get_logger
-from session_keys import (
+from session.keys import (
     PREVIOUS_STACK_KEY, FUTURE_STACK_KEY, SEEN_TCONSTS_KEY,
     WATCH_QUEUE_KEY, CRITERIA_KEY, QUEUE_SIZE_KEY, CURRENT_MOVIE_KEY,
 )

@@ -28,7 +28,7 @@ _CSRF_TOKEN_KEY = "_csrf_token"
 
 from logging_config import get_logger
 from infra.metrics import user_actions_total
-from session_keys import USER_ID_KEY, CURRENT_FILTERS_KEY
+from session.keys import USER_ID_KEY, CURRENT_FILTERS_KEY
 
 logger = get_logger(__name__)
 

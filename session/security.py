@@ -21,7 +21,7 @@ from quart import current_app, request, session
 from werkzeug.exceptions import Unauthorized
 
 from logging_config import get_logger
-from session_keys import (
+from session.keys import (
     SESSION_CREATED_KEY,
     SESSION_FINGERPRINT_KEY,
     SESSION_LAST_ACTIVITY_KEY,

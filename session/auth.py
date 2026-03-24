@@ -12,7 +12,7 @@ from datetime import datetime
 
 from quart import session
 
-from session_keys import (
+from session.keys import (
     USER_ID_KEY,
     CREATED_AT_KEY,
     INITIALIZED_KEY,

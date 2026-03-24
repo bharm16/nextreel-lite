@@ -2,7 +2,7 @@ from quart import Quart, session
 import pytest
 
 from movie_navigator import MovieNavigator
-from session_keys import WATCH_QUEUE_KEY
+from session.keys import WATCH_QUEUE_KEY
 
 
 class CacheStub:

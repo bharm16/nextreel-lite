@@ -5,7 +5,7 @@ import pytest
 from quart import Quart, session
 
 from movie_service import MovieManager
-from session_keys import USER_ID_KEY
+from session.keys import USER_ID_KEY
 
 
 @pytest.fixture
