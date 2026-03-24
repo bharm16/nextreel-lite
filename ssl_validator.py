@@ -71,7 +71,7 @@ class SSLCertificateValidator:
                     logger.info("✓ ISRG Root X1 certificate validated successfully")
                 elif "Root" in results['certificate_info']['subject'] or "CA" in results['certificate_info']['subject']:
                     results['certificate_valid'] = True
-                    logger.info(f"✓ Root CA certificate validated: {results['certificate_info']['subject']}")
+                    logger.info("Root CA certificate validated: %s", results['certificate_info']['subject'])
                 else:
                     results['errors'].append(f"Certificate may not be a root CA: {results['certificate_info']['subject']}")
                 
@@ -110,7 +110,7 @@ class SSLCertificateValidator:
             return context
             
         except Exception as e:
-            logger.error(f"Failed to create SSL context: {e}")
+            logger.error("Failed to create SSL context: %s", e)
             return None
     
     async def test_database_ssl_connection(self, config: dict) -> Dict[str, Any]:
@@ -133,7 +133,7 @@ class SSLCertificateValidator:
                 return results
             
             # Attempt connection with SSL
-            logger.info(f"Testing SSL connection to {config['host']}:{config['port']}")
+            logger.info("Testing SSL connection to %s:%s", config['host'], config['port'])
             
             connection = await aiomysql.connect(
                 host=config['host'],
@@ -173,17 +173,17 @@ class SSLCertificateValidator:
                     ssl_required = await cursor.fetchone()
                     results['server_info']['ssl_required'] = ssl_required[1] == 'ON' if ssl_required else False
                     
-                    logger.info(f"✓ SSL connection established using {results['ssl_cipher']} ({results['ssl_version']})")
+                    logger.info("SSL connection established using %s (%s)", results['ssl_cipher'], results['ssl_version'])
                 else:
                     results['errors'].append("Connection established but SSL not active")
                     logger.warning("⚠ Connection established but SSL not active")
                     
         except aiomysql.Error as e:
             results['errors'].append(f"Database connection error: {str(e)}")
-            logger.error(f"✗ Database connection failed: {e}")
+            logger.error("Database connection failed: %s", e)
         except Exception as e:
             results['errors'].append(f"Unexpected error: {str(e)}")
-            logger.error(f"✗ Unexpected error: {e}")
+            logger.error("Unexpected error: %s", e)
         finally:
             if connection:
                 connection.close()
@@ -226,7 +226,7 @@ class SSLCertificateValidator:
                 logger.info("✓ Non-SSL connection properly rejected - SSL enforced")
             else:
                 results['errors'].append(f"Connection failed for unexpected reason: {str(e)}")
-                logger.warning(f"Connection failed: {e}")
+                logger.warning("Connection failed: %s", e)
                 
         except Exception as e:
             results['errors'].append(f"Unexpected error: {str(e)}")

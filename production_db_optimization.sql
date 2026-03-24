@@ -165,7 +165,7 @@ SELECT
 FROM `title.basics` tb
 LEFT JOIN `title.ratings` tr ON tb.tconst = tr.tconst
 WHERE tb.titleType = 'movie'
-AND tb.startYear >= 2024;
+AND tb.startYear >= YEAR(CURDATE()) - 2;
 
 -- =====================================================
 -- PHASE 6: ADDITIONAL INDEXES
@@ -259,7 +259,7 @@ BEGIN
     FROM `title.basics` tb
     LEFT JOIN `title.ratings` tr ON tb.tconst = tr.tconst
     WHERE tb.titleType = 'movie'
-    AND tb.startYear >= 2024;
+    AND tb.startYear >= YEAR(CURDATE()) - 2;
     
     -- Update statistics
     ANALYZE TABLE popular_movies_cache;

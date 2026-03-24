@@ -70,11 +70,12 @@ class TestBuildBaseQuery:
     def test_popular_cache_table(self):
         sql = MovieQueryBuilder.build_base_query(use_cache=True)
         assert "popular_movies_cache" in sql
+        assert "FORCE INDEX" not in sql
 
-    def test_main_table_with_force_index(self):
+    def test_main_table_without_force_index(self):
         sql = MovieQueryBuilder.build_base_query()
         assert "title.basics" in sql
-        assert "FORCE INDEX" in sql
+        assert "FORCE INDEX" not in sql
         assert "title.ratings" in sql
 
     def test_recent_takes_precedence_over_cache(self):
@@ -82,11 +83,32 @@ class TestBuildBaseQuery:
         sql = MovieQueryBuilder.build_base_query(use_cache=True, use_recent=True)
         assert "recent_movies_cache" in sql
 
+    def test_explicit_column_list_not_star(self):
+        """All paths should use explicit columns, not SELECT *."""
+        for kwargs in [
+            {},
+            {"use_cache": True},
+            {"use_recent": True},
+        ]:
+            sql = MovieQueryBuilder.build_base_query(**kwargs)
+            assert "SELECT *" not in sql
+            assert "tconst" in sql
+
+    def test_all_paths_share_same_where_structure(self):
+        """All three query paths produce the same WHERE placeholder count."""
+        for kwargs in [
+            {},
+            {"use_cache": True},
+            {"use_recent": True},
+        ]:
+            sql = MovieQueryBuilder.build_base_query(**kwargs)
+            assert sql.count("%s") == 9
+
 
 class TestBuildParameters:
-    """Parameter list generation for prepared statements."""
+    """Parameter list generation for prepared statements — unified order."""
 
-    def test_optimized_param_order(self):
+    def test_unified_param_order(self):
         criteria = {
             "title_type": "movie",
             "min_year": 2000,
@@ -97,50 +119,55 @@ class TestBuildParameters:
             "max_rating": 9.0,
             "language": "en",
         }
-        params = MovieQueryBuilder.build_parameters(criteria, optimized=True)
-        # Optimized order: title_type, min_year, max_year, min_votes,
-        # max_votes, min_rating, max_rating, language_check, language_pattern
+        params = MovieQueryBuilder.build_parameters(criteria)
+        # Unified order: title_type, min_year, max_year, min_rating,
+        # max_rating, min_votes, max_votes, language_check, language_pattern
         assert params[0] == "movie"
         assert params[1] == 2000
         assert params[2] == 2025
+        assert params[3] == 6.0
+        assert params[4] == 9.0
+        assert params[5] == 10000
+        assert params[6] == 500000
         assert len(params) == 9
-
-    def test_cache_param_order(self):
-        criteria = {
-            "min_year": 2000,
-            "max_year": 2025,
-            "min_rating": 6.0,
-            "max_rating": 9.0,
-            "min_votes": 10000,
-            "max_votes": 500000,
-            "title_type": "movie",
-            "language": "en",
-        }
-        params = MovieQueryBuilder.build_parameters(criteria, optimized=False)
-        # Cache order: min_year, max_year, min_rating, max_rating,
-        # min_votes, max_votes, title_type, language_check, language_pattern
-        assert params[0] == 2000
-        assert params[1] == 2025
-        assert params[6] == "movie"
 
     def test_language_any_produces_wildcard(self):
         criteria = {"language": "any"}
-        params = MovieQueryBuilder.build_parameters(criteria, optimized=False)
+        params = MovieQueryBuilder.build_parameters(criteria)
         # language_check should be "any", pattern should be "%"
         assert params[-2] == "any"
         assert params[-1] == "%"
 
     def test_language_en_produces_like_pattern(self):
         criteria = {"language": "en"}
-        params = MovieQueryBuilder.build_parameters(criteria, optimized=False)
+        params = MovieQueryBuilder.build_parameters(criteria)
         assert params[-2] == "en"
         assert params[-1] == "%en%"
 
     def test_defaults_fill_in_for_empty_criteria(self):
-        params = MovieQueryBuilder.build_parameters({}, optimized=False)
+        params = MovieQueryBuilder.build_parameters({})
         assert len(params) == 9
-        assert params[0] == 1900  # default min_year
-        assert params[2] == 7.0   # default min_rating
+        assert params[0] == "movie"   # default title_type
+        assert params[1] == 1900      # default min_year
+        assert params[3] == 7.0       # default min_rating
+
+
+class TestBuildCountQuery:
+    """COUNT(*) queries should share the same structure as base queries."""
+
+    def test_count_query_same_placeholder_count(self):
+        for kwargs in [
+            {},
+            {"use_cache": True},
+            {"use_recent": True},
+        ]:
+            base = MovieQueryBuilder.build_base_query(**kwargs)
+            count = MovieQueryBuilder.build_count_query(**kwargs)
+            assert base.count("%s") == count.count("%s")
+
+    def test_count_query_no_force_index(self):
+        sql = MovieQueryBuilder.build_count_query()
+        assert "FORCE INDEX" not in sql
 
 
 class TestBuildGenreConditionsFulltext:

@@ -38,18 +38,15 @@ class Movie:
         return False
 
     async def fetch_movie_slug(self):
-        """Fetch slug using a single UNION ALL query across all tables."""
+        """Fetch slug from the source-of-truth table (title.basics).
+
+        Cache tables replicate slugs from title.basics, so querying the
+        canonical table directly is sufficient and avoids a 3-table UNION ALL.
+        """
         try:
-            query = (
-                "SELECT slug FROM popular_movies_cache WHERE tconst = %s "
-                "UNION ALL "
-                "SELECT slug FROM recent_movies_cache WHERE tconst = %s "
-                "UNION ALL "
-                "SELECT slug FROM `title.basics` WHERE tconst = %s "
-                "LIMIT 1"
-            )
+            query = "SELECT slug FROM `title.basics` WHERE tconst = %s"
             result = await self.db_pool.execute(
-                query, [self.tconst, self.tconst, self.tconst], fetch="one"
+                query, [self.tconst], fetch="one"
             )
             self.slug = result["slug"] if result and result.get("slug") else None
         except Exception as e:

@@ -10,9 +10,30 @@ from .interfaces import MovieFetcher
 logger = get_logger(__name__)
 
 
+# Columns needed by downstream consumers (MovieNavigator only reads ``tconst``
+# from the result rows, but the integration test in test_filter_backend.py
+# asserts on startYear / averageRating / numVotes / titleType / language).
+_CACHE_COLUMNS = "tconst, primaryTitle, startYear, genres, language, titleType, slug, averageRating, numVotes"
+
+# Unified WHERE clause template — used by all three table paths so that
+# parameter ordering is identical everywhere.
+_WHERE_TEMPLATE = (
+    "WHERE {p}titleType = %s "
+    "AND {p}startYear BETWEEN %s AND %s "
+    "AND {r}averageRating BETWEEN %s AND %s "
+    "AND {r}numVotes >= %s AND {r}numVotes <= %s "
+    "AND (%s = 'any' OR {p}language LIKE %s OR {p}language IS NULL)"
+)
+
+
 # Helpers for query construction
 class MovieQueryBuilder:
-    """Build optimized SQL queries using new indexes and cache tables."""
+    """Build optimized SQL queries using new indexes and cache tables.
+
+    All query variants share the same WHERE clause and parameter ordering:
+    (titleType, min_year, max_year, min_rating, max_rating, min_votes,
+    max_votes, language_check, language_pattern).
+    """
 
     @staticmethod
     def should_use_cache(criteria: Dict[str, Any]) -> bool:
@@ -20,7 +41,7 @@ class MovieQueryBuilder:
         min_year = criteria.get("min_year", 1900)
         max_year = criteria.get("max_year", datetime.now().year)
         min_votes = criteria.get("min_votes", 100000)
-        
+
         # Use cache for movies 1980–present with significant votes
         if min_year >= 1980 and max_year <= datetime.now().year and min_votes >= 10000:
             return True
@@ -42,42 +63,34 @@ class MovieQueryBuilder:
         return min_year >= recent_threshold or max_year >= recent_threshold
 
     @staticmethod
+    def _where_clause(use_cache: bool = False, use_recent: bool = False) -> str:
+        """Return the shared WHERE clause with correct table alias prefixes."""
+        if use_cache or use_recent:
+            # Cache tables have flat columns — no alias prefix needed.
+            return _WHERE_TEMPLATE.format(p="", r="")
+        # Main-table path: title.basics aliased as tb, title.ratings as tr.
+        return _WHERE_TEMPLATE.format(p="tb.", r="tr.")
+
+    @staticmethod
     def build_base_query(use_cache: bool = False, use_recent: bool = False) -> str:
-        """Build base query optimized for new indexes."""
+        """Build base SELECT query for the appropriate table."""
+        where = MovieQueryBuilder._where_clause(use_cache, use_recent)
         if use_recent:
-            return (
-                "SELECT * FROM recent_movies_cache "
-                "WHERE startYear BETWEEN %s AND %s "
-                "AND averageRating BETWEEN %s AND %s "
-                "AND numVotes >= %s AND numVotes <= %s "
-                "AND titleType = %s "
-                "AND (%s = 'any' OR language LIKE %s OR language IS NULL)"
-            )
+            return f"SELECT {_CACHE_COLUMNS} FROM recent_movies_cache {where}"
         elif use_cache:
-            return (
-                "SELECT * FROM popular_movies_cache "
-                "WHERE startYear BETWEEN %s AND %s "
-                "AND averageRating BETWEEN %s AND %s "
-                "AND numVotes >= %s AND numVotes <= %s "
-                "AND titleType = %s "
-                "AND (%s = 'any' OR language LIKE %s OR language IS NULL)"
-            )
+            return f"SELECT {_CACHE_COLUMNS} FROM popular_movies_cache {where}"
         else:
-            # Use force index hint for better performance
             return (
-                "SELECT tb.* "
-                "FROM `title.basics` tb FORCE INDEX (idx_basics_compound) "
-                "JOIN `title.ratings` tr FORCE INDEX (idx_ratings_compound) ON tb.tconst = tr.tconst "
-                "WHERE tb.titleType = %s "
-                "AND tb.startYear BETWEEN %s AND %s "
-                "AND tr.numVotes >= %s AND tr.numVotes <= %s "
-                "AND tr.averageRating BETWEEN %s AND %s "
-                "AND (%s = 'any' OR tb.language LIKE %s OR tb.language IS NULL)"
+                "SELECT tb.tconst, tb.primaryTitle, tb.startYear, tb.genres, "
+                "tb.language, tb.titleType, tb.slug, tr.averageRating, tr.numVotes "
+                "FROM `title.basics` tb "
+                "JOIN `title.ratings` tr ON tb.tconst = tr.tconst "
+                + where
             )
 
     @staticmethod
-    def build_parameters(criteria: Dict[str, Any], optimized: bool = False) -> List[Any]:
-        """Build parameters in the order expected by optimized queries."""
+    def build_parameters(criteria: Dict[str, Any]) -> List[Any]:
+        """Build parameters in the unified order used by all query paths."""
         lang = criteria.get("language", "en")
         if lang == "any":
             language_check = "any"
@@ -85,65 +98,33 @@ class MovieQueryBuilder:
         else:
             language_check = lang
             language_pattern = "%" + lang + "%"
-        
-        if optimized:
-            # Reordered for optimized query (titleType first)
-            return [
-                criteria.get("title_type", "movie"),
-                criteria.get("min_year", 1900),
-                criteria.get("max_year", datetime.now().year),
-                criteria.get("min_votes", 100000),
-                criteria.get("max_votes", 1000000),
-                criteria.get("min_rating", 7.0),
-                criteria.get("max_rating", 10),
-                language_check,
-                language_pattern,
-            ]
-        else:
-            # Original order for cache tables
-            return [
-                criteria.get("min_year", 1900),
-                criteria.get("max_year", datetime.now().year),
-                criteria.get("min_rating", 7.0),
-                criteria.get("max_rating", 10),
-                criteria.get("min_votes", 100000),
-                criteria.get("max_votes", 1000000),
-                criteria.get("title_type", "movie"),
-                language_check,
-                language_pattern,
-            ]
+
+        return [
+            criteria.get("title_type", "movie"),
+            criteria.get("min_year", 1900),
+            criteria.get("max_year", datetime.now().year),
+            criteria.get("min_rating", 7.0),
+            criteria.get("max_rating", 10),
+            criteria.get("min_votes", 100000),
+            criteria.get("max_votes", 1000000),
+            language_check,
+            language_pattern,
+        ]
 
     @staticmethod
     def build_count_query(use_cache: bool = False, use_recent: bool = False) -> str:
         """Build a COUNT(*) query parallel to build_base_query."""
+        where = MovieQueryBuilder._where_clause(use_cache, use_recent)
         if use_recent:
-            return (
-                "SELECT COUNT(*) FROM recent_movies_cache "
-                "WHERE startYear BETWEEN %s AND %s "
-                "AND averageRating BETWEEN %s AND %s "
-                "AND numVotes >= %s AND numVotes <= %s "
-                "AND titleType = %s "
-                "AND (%s = 'any' OR language LIKE %s OR language IS NULL)"
-            )
+            return f"SELECT COUNT(*) FROM recent_movies_cache {where}"
         elif use_cache:
-            return (
-                "SELECT COUNT(*) FROM popular_movies_cache "
-                "WHERE startYear BETWEEN %s AND %s "
-                "AND averageRating BETWEEN %s AND %s "
-                "AND numVotes >= %s AND numVotes <= %s "
-                "AND titleType = %s "
-                "AND (%s = 'any' OR language LIKE %s OR language IS NULL)"
-            )
+            return f"SELECT COUNT(*) FROM popular_movies_cache {where}"
         else:
             return (
                 "SELECT COUNT(*) "
-                "FROM `title.basics` tb FORCE INDEX (idx_basics_compound) "
-                "JOIN `title.ratings` tr FORCE INDEX (idx_ratings_compound) ON tb.tconst = tr.tconst "
-                "WHERE tb.titleType = %s "
-                "AND tb.startYear BETWEEN %s AND %s "
-                "AND tr.numVotes >= %s AND tr.numVotes <= %s "
-                "AND tr.averageRating BETWEEN %s AND %s "
-                "AND (%s = 'any' OR tb.language LIKE %s OR tb.language IS NULL)"
+                "FROM `title.basics` tb "
+                "JOIN `title.ratings` tr ON tb.tconst = tr.tconst "
+                + where
             )
 
     @staticmethod
@@ -152,18 +133,18 @@ class MovieQueryBuilder:
         genres = criteria.get("genres")
         if not genres:
             return "", []
-        
+
         # If 15+ genres selected, it's essentially "any genre" - skip the filter entirely
         if len(genres) >= 15:
             logger.info("%d genres selected (15+), skipping genre filter for performance", len(genres))
             return "", []
-        
+
         # Use FULLTEXT search for better performance
         if use_cache:
             table_alias = ""
         else:
             table_alias = "tb."
-            
+
         # Build FULLTEXT search query — strip boolean-mode operators to
         # prevent injection via crafted genre names.
         _ft_unsafe = str.maketrans("", "", '+-<>()~*"@')
@@ -183,7 +164,7 @@ class MovieQueryBuilder:
             if len(genres) >= 15:
                 logger.info("%d genres selected (15+), skipping genre filter for performance", len(genres))
                 return []
-            
+
             if use_cache:
                 genre_conditions = [" OR ".join(["genres LIKE %s" for _ in genres])]
             else:
@@ -204,35 +185,36 @@ class ImdbRandomMovieFetcher(MovieFetcher):
         self.db_pool = database_pool
         self.use_fulltext = True  # Flag to use FULLTEXT search
 
+    def _build_query_with_genres(self, base_query, criteria, parameters, use_cache_table):
+        """Append genre conditions to *base_query* and return (query, params)."""
+        if self.use_fulltext:
+            genre_condition, genre_params = MovieQueryBuilder.build_genre_conditions_fulltext(
+                criteria, use_cache_table
+            )
+            return base_query + genre_condition, parameters + genre_params
+
+        # Fallback to LIKE queries
+        genre_conditions = MovieQueryBuilder.build_genre_conditions(
+            criteria, parameters, use_cache_table
+        )
+        query = base_query + (f" AND ({genre_conditions[0]})" if genre_conditions else "")
+        return query, parameters
+
     async def fetch_movies_by_criteria(self, criteria):
         """Fetch movies using optimized queries and indexes."""
         start_time = time.time()
         try:
-            # Determine which table to use
             use_recent = MovieQueryBuilder.should_use_recent_cache(criteria)
             use_cache = MovieQueryBuilder.should_use_cache(criteria) and not use_recent
-            use_optimized = not use_cache and not use_recent
-            
+
             base_query = MovieQueryBuilder.build_base_query(use_cache, use_recent)
-            parameters = MovieQueryBuilder.build_parameters(criteria, use_optimized)
-            
-            # Try FULLTEXT search first
-            if self.use_fulltext:
-                genre_condition, genre_params = MovieQueryBuilder.build_genre_conditions_fulltext(
-                    criteria, use_cache or use_recent
-                )
-                full_query = base_query + genre_condition
-                all_parameters = parameters + genre_params
-            else:
-                # Fallback to LIKE queries
-                genre_conditions = MovieQueryBuilder.build_genre_conditions(
-                    criteria, parameters, use_cache or use_recent
-                )
-                full_query = base_query + (f" AND ({genre_conditions[0]})" if genre_conditions else "")
-                all_parameters = parameters
+            parameters = MovieQueryBuilder.build_parameters(criteria)
+
+            full_query, all_parameters = self._build_query_with_genres(
+                base_query, criteria, parameters, use_cache or use_recent
+            )
 
             logger.debug("Using %s table", 'recent cache' if use_recent else 'cache' if use_cache else 'main')
-            logger.debug("Executing optimized query with parameters: %s", all_parameters)
 
             result = await self.db_pool.execute(full_query, all_parameters, "all")
 
@@ -240,11 +222,10 @@ class ImdbRandomMovieFetcher(MovieFetcher):
                 "Fetched %d movies in %.2f seconds using %s",
                 len(result) if result else 0,
                 time.time() - start_time,
-                'recent cache' if use_recent else 'cache' if use_cache else 'optimized indexes'
+                'recent cache' if use_recent else 'cache' if use_cache else 'main tables'
             )
             return result or []
         except DatabaseError as e:
-            # If FULLTEXT fails, retry with LIKE
             if self.use_fulltext and "FULLTEXT" in str(e):
                 logger.warning("FULLTEXT search failed, falling back to LIKE queries")
                 self.use_fulltext = False
@@ -258,20 +239,16 @@ class ImdbRandomMovieFetcher(MovieFetcher):
     async def fetch_random_movies(self, criteria: Dict[str, Any], limit: int = 15):
         """Fetch random movies using optimized cache tables."""
         method_start_time = time.time()
-        logger.info("Starting optimized fetch_random_movies with criteria: %s and limit: %s", criteria, limit)
+        logger.info("Starting fetch_random_movies with criteria: %s and limit: %s", criteria, limit)
 
         try:
-            # Determine which table to use
             use_recent = MovieQueryBuilder.should_use_recent_cache(criteria)
             use_cache = MovieQueryBuilder.should_use_cache(criteria) and not use_recent
-            use_optimized = not use_cache and not use_recent
-            
+
             if use_cache:
-                # Use pre-randomized cache table for better performance
                 base_query = MovieQueryBuilder.build_base_query(use_cache=True)
                 order_by = " ORDER BY rand_order"
             elif use_recent:
-                # Use random-offset strategy instead of ORDER BY RAND()
                 base_query = MovieQueryBuilder.build_base_query(use_recent=True)
                 order_by = ""  # handled via random-offset strategy below
             else:
@@ -279,23 +256,13 @@ class ImdbRandomMovieFetcher(MovieFetcher):
                 # offset into the qualifying rows instead.  This turns an
                 # O(n·log n) filesort into two index scans.
                 base_query = MovieQueryBuilder.build_base_query()
-                order_by = ""  # handled below via random-offset strategy
-            
-            parameters = MovieQueryBuilder.build_parameters(criteria, use_optimized)
-            
-            # Build the WHERE portion (without ORDER BY / LIMIT yet)
-            if self.use_fulltext:
-                genre_condition, genre_params = MovieQueryBuilder.build_genre_conditions_fulltext(
-                    criteria, use_cache or use_recent
-                )
-                where_query = base_query + genre_condition
-                all_parameters = parameters + genre_params
-            else:
-                genre_conditions = MovieQueryBuilder.build_genre_conditions(
-                    criteria, parameters, use_cache or use_recent
-                )
-                where_query = base_query + (f" AND ({genre_conditions[0]})" if genre_conditions else "")
-                all_parameters = parameters
+                order_by = ""
+
+            parameters = MovieQueryBuilder.build_parameters(criteria)
+
+            where_query, all_parameters = self._build_query_with_genres(
+                base_query, criteria, parameters, use_cache or use_recent
+            )
 
             # Random-offset strategy: for the full table or recent cache,
             # count qualifying rows then pick a random offset to avoid the
@@ -306,17 +273,12 @@ class ImdbRandomMovieFetcher(MovieFetcher):
                     use_cache=use_cache, use_recent=use_recent
                 )
                 # Reuse the same genre condition for the count query
-                if self.use_fulltext:
-                    count_query += genre_condition
-                else:
-                    genre_conditions_list = MovieQueryBuilder.build_genre_conditions(
-                        criteria, [], use_cache or use_recent
-                    )
-                    if genre_conditions_list:
-                        count_query += f" AND ({genre_conditions_list[0]})"
+                count_query, count_params = self._build_query_with_genres(
+                    count_query, criteria, parameters, use_cache or use_recent
+                )
                 try:
                     count_result = await self.db_pool.execute(
-                        count_query, all_parameters, "one"
+                        count_query, count_params, "one"
                     )
                 except DatabaseError:
                     count_result = None
@@ -337,16 +299,14 @@ class ImdbRandomMovieFetcher(MovieFetcher):
             query_end_time = time.time()
 
             logger.info(
-                "Optimized query executed in %.2f seconds using %s",
+                "Query executed in %.2f seconds using %s",
                 query_end_time - query_start_time,
-                'recent cache' if use_recent else 'cache with pre-random' if use_cache else 'optimized indexes'
+                'recent cache' if use_recent else 'cache' if use_cache else 'main tables'
             )
 
-            method_end_time = time.time()
             logger.info(
-                "Completed optimized fetch_random_movies in %.2f seconds (%.1fx faster)",
-                method_end_time - method_start_time,
-                2.4 / (method_end_time - method_start_time) if (method_end_time - method_start_time) > 0 else 1
+                "Completed fetch_random_movies in %.2f seconds",
+                time.time() - method_start_time,
             )
 
             return result or []
@@ -359,7 +319,7 @@ class ImdbRandomMovieFetcher(MovieFetcher):
             logger.error("Database error in fetch_random_movies: %s", e)
             return []
         except Exception as e:
-            logger.error("Error in optimized fetch: %s\n%s", e, traceback.format_exc())
+            logger.error("Error in fetch_random_movies: %s\n%s", e, traceback.format_exc())
             raise
 
 
