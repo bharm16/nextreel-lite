@@ -4,7 +4,7 @@ import time
 import traceback
 from typing import Any, Dict, List
 
-from database.errors import DatabaseError
+from infra.errors import DatabaseError
 from .interfaces import MovieFetcher
 
 logger = get_logger(__name__)

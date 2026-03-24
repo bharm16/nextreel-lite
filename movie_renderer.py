@@ -44,7 +44,7 @@ class MovieRenderer:
             from quart import current_app
             secure_cache = getattr(current_app, "secure_cache", None)
             if secure_cache:
-                from simple_cache import CacheNamespace
+                from infra.cache import CacheNamespace
                 cached = await secure_cache.get(CacheNamespace.MOVIE, f"full:{tconst}")
                 if cached and cached.get("_full"):
                     logger.debug(

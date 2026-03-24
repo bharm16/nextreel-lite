@@ -1,6 +1,6 @@
 """External API configuration (TMDb, secrets)."""
 
-from secrets_manager import secrets_manager
+from infra.secrets import secrets_manager
 
 
 class ApiConfig:

@@ -14,17 +14,17 @@ from quart_session import Session
 import settings
 from local_env_setup import setup_local_environment
 from logging_config import setup_logging, get_logger
-from metrics_collector import MetricsCollector, setup_metrics_middleware
+from infra.metrics import MetricsCollector, setup_metrics_middleware
 from middleware import add_correlation_id
 from movie_service import MovieManager
 from routes import bp as routes_bp, init_routes
-from secrets_manager import secrets_manager
+from infra.secrets import secrets_manager
 from session_auth import init_session
 from session_keys import USER_ID_KEY
 from session_security_enhanced import EnhancedSessionSecurity, add_security_headers
 
 
-from simple_cache import SimpleCacheManager
+from infra.cache import SimpleCacheManager
 
 
 class FixedQuart(Quart):

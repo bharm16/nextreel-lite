@@ -14,7 +14,7 @@ def get_tmdb_api_key() -> str:
     Fetching the key on demand enables key rotation without changing code or
     redeploying the application.
     """
-    from secrets_manager import secrets_manager
+    from infra.secrets import secrets_manager
     api_key = secrets_manager.get_secret("TMDB_API_KEY")
     if not api_key:
         raise RuntimeError("TMDB_API_KEY not configured. Please set the environment variable.")

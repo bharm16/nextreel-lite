@@ -27,7 +27,7 @@ _TCONST_RE = re.compile(r"^tt\d{1,10}$")
 _CSRF_TOKEN_KEY = "_csrf_token"
 
 from logging_config import get_logger
-from metrics_collector import user_actions_total
+from infra.metrics import user_actions_total
 from session_keys import USER_ID_KEY, CURRENT_FILTERS_KEY
 
 logger = get_logger(__name__)
@@ -186,7 +186,7 @@ async def metrics():
         return {"error": "unauthorized"}, 401
     if not await _check_rate_limit_redis("metrics"):
         return {"error": "rate limited"}, 429
-    from metrics_collector import metrics_endpoint
+    from infra.metrics import metrics_endpoint
 
     return await metrics_endpoint()
 

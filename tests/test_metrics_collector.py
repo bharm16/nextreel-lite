@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from metrics_collector import MetricsCollector
+from infra.metrics import MetricsCollector
 
 
 @pytest.fixture

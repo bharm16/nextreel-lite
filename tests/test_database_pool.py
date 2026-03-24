@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from database.errors import DatabaseError
+from infra.errors import DatabaseError
 
 
 class TestDatabaseConnectionPool:
@@ -21,7 +21,7 @@ class TestDatabaseConnectionPool:
             env.update(env_overrides)
 
         with patch.dict(os.environ, env), \
-             patch("database.pool.SecureConnectionPool") as MockSecure:
+             patch("infra.pool.SecureConnectionPool") as MockSecure:
             mock_instance = AsyncMock()
             mock_instance.init_pool = AsyncMock()
             mock_instance.close_pool = AsyncMock()
@@ -34,7 +34,7 @@ class TestDatabaseConnectionPool:
             mock_instance.acquire = MagicMock()
             MockSecure.return_value = mock_instance
 
-            from database.pool import DatabaseConnectionPool
+            from infra.pool import DatabaseConnectionPool
             pool = DatabaseConnectionPool({
                 "host": "localhost",
                 "user": "test",

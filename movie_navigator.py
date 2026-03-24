@@ -49,7 +49,7 @@ async def _cache_movie_data(movie_data: dict) -> None:
     try:
         secure_cache = getattr(current_app, "secure_cache", None)
         if secure_cache:
-            from simple_cache import CacheNamespace
+            from infra.cache import CacheNamespace
             await secure_cache.set(
                 CacheNamespace.MOVIE, f"full:{tconst}", movie_data, ttl=86400
             )
@@ -78,7 +78,7 @@ async def _resolve_ref(ref: dict, db_pool=None, tmdb_helper=None) -> dict:
     try:
         secure_cache = getattr(current_app, "secure_cache", None)
         if secure_cache:
-            from simple_cache import CacheNamespace
+            from infra.cache import CacheNamespace
             cached = await secure_cache.get(CacheNamespace.MOVIE, f"full:{tconst}")
             if cached:
                 return cached

@@ -2,7 +2,7 @@ import asyncio
 import logging as _logging
 import time
 
-from database.errors import DatabaseError
+from infra.errors import DatabaseError
 from movies.tmdb_client import TMDbHelper
 from logging_config import get_logger
 

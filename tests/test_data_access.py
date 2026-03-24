@@ -2,8 +2,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from database.errors import DatabaseError
-from database.pool import DatabaseConnectionPool
+from infra.errors import DatabaseError
+from infra.pool import DatabaseConnectionPool
 from movies.query_builder import ImdbRandomMovieFetcher
 from movies.movie import Movie
 

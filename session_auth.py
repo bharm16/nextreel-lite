@@ -42,7 +42,7 @@ async def init_session(movie_manager, metrics_collector=None):
     entirely by ``EnhancedSessionSecurity``.  This function only handles
     user registration and movie-manager initialisation.
     """
-    from metrics_collector import user_sessions_total
+    from infra.metrics import user_sessions_total
 
     is_new = False
 

@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from secrets_manager import SecretsManager
+from infra.secrets import SecretsManager
 
 
 @pytest.fixture

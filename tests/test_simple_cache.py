@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from simple_cache import CacheNamespace, SimpleCacheManager
+from infra.cache import CacheNamespace, SimpleCacheManager
 
 
 # ---------------------------------------------------------------------------
@@ -26,7 +26,7 @@ class TestInitialization:
     @pytest.mark.asyncio
     async def test_init_with_connection_pool(self):
         mock_pool = MagicMock()
-        with patch("simple_cache.aioredis.Redis") as MockRedis:
+        with patch("infra.cache.aioredis.Redis") as MockRedis:
             mock_client = AsyncMock()
             mock_client.ping = AsyncMock()
             MockRedis.return_value = mock_client
@@ -38,7 +38,7 @@ class TestInitialization:
 
     @pytest.mark.asyncio
     async def test_init_with_redis_url(self):
-        with patch("simple_cache.aioredis.from_url") as mock_from_url:
+        with patch("infra.cache.aioredis.from_url") as mock_from_url:
             mock_client = AsyncMock()
             mock_client.ping = AsyncMock()
             mock_from_url.return_value = mock_client
@@ -65,7 +65,7 @@ class TestInitialization:
     @pytest.mark.asyncio
     async def test_init_pool_ping_failure_sets_none(self):
         mock_pool = MagicMock()
-        with patch("simple_cache.aioredis.Redis") as MockRedis:
+        with patch("infra.cache.aioredis.Redis") as MockRedis:
             mock_client = AsyncMock()
             mock_client.ping = AsyncMock(side_effect=ConnectionError("down"))
             MockRedis.return_value = mock_client
@@ -76,7 +76,7 @@ class TestInitialization:
 
     @pytest.mark.asyncio
     async def test_init_url_failure_sets_none(self):
-        with patch("simple_cache.aioredis.from_url") as mock_from_url:
+        with patch("infra.cache.aioredis.from_url") as mock_from_url:
             mock_client = AsyncMock()
             mock_client.ping = AsyncMock(side_effect=ConnectionError("down"))
             mock_from_url.return_value = mock_client
@@ -96,7 +96,7 @@ class TestClose:
 
     @pytest.mark.asyncio
     async def test_close_owned_connection(self):
-        with patch("simple_cache.aioredis.from_url") as mock_from_url:
+        with patch("infra.cache.aioredis.from_url") as mock_from_url:
             mock_client = AsyncMock()
             mock_client.ping = AsyncMock()
             mock_client.aclose = AsyncMock()

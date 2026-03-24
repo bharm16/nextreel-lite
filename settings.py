@@ -40,5 +40,4 @@ class Config(DatabaseConfig, SessionConfig, ApiConfig):
 
 
 # Re-export DatabaseConnectionPool and pool helpers for backward compatibility.
-# The canonical implementation now lives in database/pool.py.
-from database.pool import DatabaseConnectionPool, init_pool, get_pool, close_pool
+from infra.pool import DatabaseConnectionPool, init_pool, get_pool, close_pool
