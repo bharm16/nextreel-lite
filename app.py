@@ -12,7 +12,7 @@ from quart import Quart, request, session, g
 from quart_session import Session
 
 import settings
-from local_env_setup import setup_local_environment
+from scripts.local_env_setup import setup_local_environment
 from logging_config import setup_logging, get_logger
 from infra.metrics import MetricsCollector, setup_metrics_middleware
 from middleware import add_correlation_id
