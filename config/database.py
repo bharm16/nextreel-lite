@@ -2,9 +2,7 @@
 
 import os
 
-
-# Determined once at import time.
-_flask_env = os.getenv("NEXTREEL_ENV", os.getenv("FLASK_ENV", "production"))
+from config.env import get_environment
 
 
 class DatabaseConfig:
@@ -17,7 +15,7 @@ class DatabaseConfig:
     @staticmethod
     def get_db_config():
         """Get database configuration based on environment."""
-        if _flask_env == "development":
+        if get_environment() == "development":
             return {
                 "host": os.getenv("DB_HOST", "127.0.0.1"),
                 "user": os.getenv("DB_USER", "root"),
@@ -40,4 +38,4 @@ class DatabaseConfig:
 
     @staticmethod
     def use_ssl():
-        return _flask_env != "development"
+        return get_environment() != "development"

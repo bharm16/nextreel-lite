@@ -1,5 +1,7 @@
 """Extended tests for MovieNavigator — navigation stacks, queue management."""
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
 from quart import Quart, session
 
@@ -84,6 +86,26 @@ class CacheStub:
         self._store[f"{namespace}:{key}"] = value
 
 
+class FetcherStub:
+    def __init__(self, rows):
+        self.rows = rows
+        self.fetch_random_movies = AsyncMock(return_value=rows)
+
+
+def _full_movie(tconst: str, title: str | None = None) -> dict:
+    label = title or tconst
+    return {
+        "imdb_id": tconst,
+        "tmdb_id": int(tconst.replace("tt", "") or 0),
+        "title": label,
+        "slug": label.lower().replace(" ", "-"),
+        "backdrop_url": f"https://example.com/{tconst}.jpg",
+        "original_language": "en",
+        "spoken_languages": ["en"],
+        "_full": True,
+    }
+
+
 @pytest.fixture
 def nav_app():
     app = Quart(__name__)
@@ -132,7 +154,7 @@ class TestGetUserStacks:
         nav = MovieNavigator(movie_fetcher=None, db_pool=None)
         async with nav_app.app_context():
             async with nav_app.test_request_context("/"):
-                prev, future = nav._get_user_stacks()
+                prev, future = nav.get_user_stacks()
                 assert prev == []
                 assert future == []
                 assert PREVIOUS_STACK_KEY in session
@@ -145,7 +167,7 @@ class TestGetUserStacks:
             async with nav_app.test_request_context("/"):
                 session[PREVIOUS_STACK_KEY] = [{"imdb_id": "tt1"}]
                 session[FUTURE_STACK_KEY] = [{"imdb_id": "tt2"}]
-                prev, future = nav._get_user_stacks()
+                prev, future = nav.get_user_stacks()
                 assert len(prev) == 1
                 assert len(future) == 1
 
@@ -188,6 +210,67 @@ class TestPreviousMovie:
                 assert session[FUTURE_STACK_KEY][0]["imdb_id"] == "tt_current"
                 # Prev stack should be empty now
                 assert session[PREVIOUS_STACK_KEY] == []
+
+
+class TestQueueLoading:
+    @pytest.mark.asyncio
+    async def test_load_movies_into_queue_skips_current_and_seen_movies(self, nav_app):
+        fetcher = FetcherStub(
+            [{"tconst": "tt1"}, {"tconst": "tt2"}, {"tconst": "tt3"}]
+        )
+        nav = MovieNavigator(movie_fetcher=fetcher, db_pool=None)
+
+        async with nav_app.app_context():
+            async with nav_app.test_request_context("/"):
+                session[CRITERIA_KEY] = {"language": "en"}
+                session[WATCH_QUEUE_KEY] = []
+                session[CURRENT_MOVIE_KEY] = {"imdb_id": "tt1"}
+                session[SEEN_TCONSTS_KEY] = ["tt2"]
+
+                with patch(
+                    "movies.movie.Movie.get_movie_data",
+                    AsyncMock(
+                        side_effect=[
+                            _full_movie("tt1"),
+                            _full_movie("tt2"),
+                            _full_movie("tt3"),
+                        ]
+                    ),
+                ):
+                    await nav._load_movies_into_queue()
+
+                assert [ref["imdb_id"] for ref in session[WATCH_QUEUE_KEY]] == ["tt3"]
+
+
+class TestNextMovie:
+    @pytest.mark.asyncio
+    async def test_next_movie_consumes_existing_queue_before_refetching(self, nav_app):
+        fetcher = FetcherStub([])
+        nav = MovieNavigator(movie_fetcher=fetcher, db_pool=None)
+
+        async with nav_app.app_context():
+            async with nav_app.test_request_context("/"):
+                session[WATCH_QUEUE_KEY] = [
+                    _movie_ref(_full_movie("tt1")),
+                    _movie_ref(_full_movie("tt2")),
+                ]
+                session[PREVIOUS_STACK_KEY] = []
+                session[FUTURE_STACK_KEY] = []
+                session[SEEN_TCONSTS_KEY] = []
+                session[CURRENT_MOVIE_KEY] = None
+
+                with patch(
+                    "movie_navigator._resolve_ref",
+                    AsyncMock(side_effect=[_full_movie("tt1"), _full_movie("tt2")]),
+                ):
+                    first = await nav.next_movie("user-1")
+                    second = await nav.next_movie("user-1")
+
+                assert first.location.endswith("/movie/tt1")
+                assert second.location.endswith("/movie/tt2")
+                assert session[CURRENT_MOVIE_KEY]["imdb_id"] == "tt2"
+                assert session[WATCH_QUEUE_KEY] == []
+                fetcher.fetch_random_movies.assert_not_awaited()
 
 
 class TestGetCurrentMovieTconst:

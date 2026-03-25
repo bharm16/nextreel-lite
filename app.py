@@ -9,7 +9,6 @@ from contextlib import asynccontextmanager
 
 from redis import asyncio as aioredis
 from quart import Quart, request, session, g
-from quart_session import Session
 
 import settings
 from scripts.local_env_setup import setup_local_environment
@@ -21,7 +20,9 @@ from routes import bp as routes_bp, init_routes
 from infra.secrets import secrets_manager
 from session.auth import init_session
 from session.keys import USER_ID_KEY
-from session.security import EnhancedSessionSecurity, add_security_headers
+from session.quart_session_compat import install_session
+from session.security import EnhancedSessionSecurity
+from infra.security_headers import add_security_headers
 
 
 from infra.cache import SimpleCacheManager
@@ -82,7 +83,7 @@ def create_app():
         # Shared connection pool — one pool, multiple consumers
         shared_pool = aioredis.ConnectionPool.from_url(
             redis_url,
-            max_connections=100,
+            max_connections=int(os.getenv("REDIS_MAX_CONNECTIONS", 30)),
             socket_connect_timeout=5,
             socket_timeout=5,
             retry_on_timeout=True,
@@ -93,7 +94,7 @@ def create_app():
         # 1) Session backend — uses the shared pool
         session_redis = aioredis.Redis(connection_pool=shared_pool)
         app.config["SESSION_REDIS"] = session_redis
-        Session(app)
+        install_session(app)
 
         # 2) Simple cache manager — reuses the shared pool (no extra connection)
         app.secure_cache = SimpleCacheManager(connection_pool=shared_pool)
@@ -107,6 +108,22 @@ def create_app():
 
     # Inject dependencies into routes
     init_routes(movie_manager, metrics_collector)
+    movie_manager_started = False
+    movie_manager_start_lock = asyncio.Lock()
+
+    async def ensure_movie_manager_started():
+        nonlocal movie_manager_started
+
+        if movie_manager_started:
+            return
+
+        async with movie_manager_start_lock:
+            if movie_manager_started:
+                return
+
+            await movie_manager.start()
+            movie_manager_started = True
+            logger.info("MovieManager started successfully")
 
     @app.before_request
     async def before_request():
@@ -172,8 +189,7 @@ def create_app():
         logger.info("Starting application lifecycle")
 
         try:
-            await movie_manager.start()
-            logger.info("MovieManager started successfully")
+            await ensure_movie_manager_started()
 
             await metrics_collector.start_collection()
             logger.info("Metrics collection started")
@@ -202,11 +218,12 @@ def create_app():
     async def startup():
         """Warm up connections on startup.
 
-        NOTE: ``movie_manager.start()`` is called by the lifespan context
-        manager — do NOT call it again here to avoid double-initialisation
-        of the database pool.
+        Ensure the MovieManager is initialized before issuing warm-up queries.
+        Some local launch paths invoke ``before_serving`` without running the
+        custom lifespan handler first.
         """
         logger.info("Starting application warm-up...")
+        await ensure_movie_manager_started()
 
         # Warm up DB connections so the first user request doesn't pay the
         # connection establishment cost.

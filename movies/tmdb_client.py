@@ -123,14 +123,31 @@ class TMDbHelper:
             )
         )
 
-    async def _get(self, endpoint, params=None):
-        if params is None:
-            params = {}
+    def _uses_bearer_auth(self) -> bool:
+        """Treat JWT-like tokens as TMDb v4 read access tokens.
 
+        TMDb v3 API keys are opaque strings typically passed as the ``api_key``
+        query parameter. TMDb v4 read access tokens are JWT-like bearer tokens.
+        Supporting both formats preserves compatibility with existing
+        ``TMDB_API_KEY`` values in local and deployed environments.
+        """
+        token = self.api_key.strip()
+        return token.count(".") == 2
+
+    def _build_request_options(self, params=None):
+        request_params = dict(params or {})
+        headers = {}
+
+        if self._uses_bearer_auth():
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        else:
+            request_params["api_key"] = self.api_key
+
+        return headers, request_params
+
+    async def _get(self, endpoint, params=None):
         url = f"{self.base_url}/{endpoint}"
-        # Use Authorization header instead of query parameter to prevent
-        # the API key from appearing in logs, referrer headers, and caches.
-        headers = {"Authorization": f"Bearer {self.api_key}"}
+        headers, params = self._build_request_options(params)
 
         # Circuit breaker check — fail fast when TMDb is known to be down
         if not await self._circuit_breaker.allow_request():
@@ -395,145 +412,9 @@ class TMDbHelper:
         }
 
     # ------------------------------------------------------------------
-    # Legacy individual-endpoint methods (kept for backward compat)
+    # Individual-endpoint methods — still used by movie_service.py,
+    # movies/movie.py, and scripts/update_languages_from_tmdb.py.
     # ------------------------------------------------------------------
-
-    async def get_watch_providers_by_tmdb_id(self, tmdb_id, region="US"):
-        """Get watch providers for a movie from TMDB."""
-        try:
-            data = await self._get(f"movie/{tmdb_id}/watch/providers")
-
-            # Get providers for the specified region (default US)
-            region_data = data.get("results", {}).get(region, {})
-
-            providers = {}
-
-            # Get streaming providers
-            if "flatrate" in region_data:
-                providers["stream"] = [
-                    {
-                        "provider_name": p.get("provider_name"),
-                        "logo_path": f"{self.image_base_url}w92{p.get('logo_path')}" if p.get("logo_path") else None
-                    }
-                    for p in region_data["flatrate"][:4]  # Limit to 4 providers
-                ]
-
-            # Get rental providers
-            if "rent" in region_data:
-                providers["rent"] = [
-                    {
-                        "provider_name": p.get("provider_name"),
-                        "logo_path": f"{self.image_base_url}w92{p.get('logo_path')}" if p.get("logo_path") else None
-                    }
-                    for p in region_data["rent"][:4]  # Limit to 4 providers
-                ]
-
-            # Get purchase providers
-            if "buy" in region_data:
-                providers["buy"] = [
-                    {
-                        "provider_name": p.get("provider_name"),
-                        "logo_path": f"{self.image_base_url}w92{p.get('logo_path')}" if p.get("logo_path") else None
-                    }
-                    for p in region_data["buy"][:4]  # Limit to 4 providers
-                ]
-
-            # Add JustWatch link if available
-            if "link" in region_data:
-                providers["justwatch_link"] = region_data["link"]
-
-            return providers if providers else None
-
-        except Exception as e:
-            logger.warning("Error fetching watch providers for TMDB ID %s: %s", tmdb_id, e)
-            return None
-
-    async def get_age_rating_by_tmdb_id(self, tmdb_id):
-        """Get age rating (certification) for a movie from TMDB."""
-        try:
-            # Use release_dates endpoint instead of releases for better data
-            data = await self._get(f"movie/{tmdb_id}/release_dates")
-            
-            # Look for US rating first
-            us_releases = [r for r in data.get("results", []) if r.get("iso_3166_1") == "US"]
-            if us_releases and us_releases[0].get("release_dates"):
-                for release in us_releases[0]["release_dates"]:
-                    certification = release.get("certification", "").strip()
-                    if certification:
-                        return certification
-            
-            # Fallback to first available rating from any country
-            for country in data.get("results", []):
-                if country.get("release_dates"):
-                    for release in country["release_dates"]:
-                        certification = release.get("certification", "").strip()
-                        if certification:
-                            return certification
-            
-            return "Not Rated"
-            
-        except Exception as e:
-            logger.warning("Error fetching age rating for TMDB ID %s: %s", tmdb_id, e)
-            return "Not Rated"
-
-    async def get_cast_info_by_tmdb_id(self, tmdb_id):
-        # logger.info(f"Fetching cast information for TMDB ID: {tmdb_id}")
-
-        start_time = time.time()  # Start timing
-        try:
-            data = await self._get(f"movie/{tmdb_id}/credits")
-            cast_info = []
-            for cast_member in data.get("cast", [])[
-                :10
-            ]:  # Limit to top 10 cast members
-                profile_path = cast_member.get("profile_path")
-                image_url = (
-                    f"{self.image_base_url}w185{profile_path}" if profile_path else None
-                )
-                character_name = cast_member.get("character", "N/A")
-                cast_info.append(
-                    {
-                        "name": cast_member["name"],
-                        "image_url": image_url,
-                        "character": character_name,
-                    }
-                )
-
-            elapsed_time = time.time() - start_time
-            logger.debug(
-                "Successfully fetched and processed cast information for TMDB ID: %s in %.2f seconds",
-                tmdb_id,
-                elapsed_time,
-            )
-
-            return cast_info
-        except Exception as e:
-            elapsed_time = time.time() - start_time
-            logger.error(
-                "Error fetching cast information for TMDB ID: %s. Error: %s. Time elapsed: %.2f seconds",
-                tmdb_id,
-                e,
-                elapsed_time,
-            )
-            raise
-
-    async def get_video_url_by_tmdb_id(self, tmdb_id):
-        # logger.info(f"Fetching video URL for TMDB ID: {tmdb_id}")
-        start_time = time.time()
-
-        try:
-            data = await self._get(f"movie/{tmdb_id}/videos")
-            for video in data.get("results", []):
-                if video["site"] == "YouTube" and video["type"] == "Trailer":
-                    video_url = f"https://www.youtube.com/watch?v={video['key']}"
-                    # logger.info(f"Found YouTube trailer for TMDB ID: {tmdb_id} - {video_url}")
-                    return video_url
-
-            # logger.warning(f"No YouTube trailer found for TMDB ID: {tmdb_id}")
-            return None
-        finally:
-            elapsed_time = time.time() - start_time
-            # logger.info(f"Completed fetching video URL for TMDB ID: {tmdb_id} in {elapsed_time:.2f} seconds")
 
     async def get_images_by_tmdb_id(self, tmdb_id, limit=1):
         """Fetch limited number of images for a TMDB ID."""
@@ -565,12 +446,6 @@ class TMDbHelper:
                 tmdb_id,
                 elapsed_time,
             )
-
-    async def get_videos_by_tmdb_id(self, tmdb_id):
-        return await self._get(f"movie/{tmdb_id}/videos")
-
-    async def get_credits_by_tmdb_id(self, tmdb_id):
-        return await self._get(f"movie/{tmdb_id}/credits")
 
     async def get_tmdb_id_by_tconst(self, tconst):
         data = await self._get("find/" + tconst, {"external_source": "imdb_id"})

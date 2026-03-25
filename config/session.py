@@ -1,11 +1,11 @@
 """Session and cookie configuration."""
 
 import os
+
+from config.env import get_environment
 from logging_config import get_logger
 
 logger = get_logger(__name__)
-
-_flask_env = os.getenv("NEXTREEL_ENV", os.getenv("FLASK_ENV", "production"))
 
 
 class SessionConfig:
@@ -17,17 +17,17 @@ class SessionConfig:
 
     @property
     def SESSION_COOKIE_SECURE(self):
-        env = os.getenv("NEXTREEL_ENV", os.getenv("FLASK_ENV", "production"))
+        env = get_environment()
         secure = env != "development"
         if env == "production" and not secure:
             logger.error("WARNING: Secure cookies disabled in production!")
         return secure
 
-    SESSION_COOKIE_DOMAIN = (
-        None
-        if os.getenv("NEXTREEL_ENV", os.getenv("FLASK_ENV", "production")) != "production"
-        else os.getenv("COOKIE_DOMAIN", None)
-    )
+    @property
+    def SESSION_COOKIE_DOMAIN(self):
+        if get_environment() != "production":
+            return None
+        return os.getenv("COOKIE_DOMAIN", None)
 
     # Timeout configuration — these are read-through defaults.
     # EnhancedSessionSecurity owns the effective values at runtime.

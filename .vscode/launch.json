@@ -1,0 +1,23 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run Nextreel",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/app.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "FLASK_ENV": "development",
+        "NEXTREEL_ENV": "development",
+        "GRAFANA_LOKI_URL": "",
+        "GRAFANA_LOKI_USER": "",
+        "GRAFANA_LOKI_KEY": "",
+        "PYTHONUNBUFFERED": "1"
+      }
+    }
+  ]
+}

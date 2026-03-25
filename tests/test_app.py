@@ -183,3 +183,30 @@ def test_handle_new_user_route_removed():
                 assert response.status_code == 404
 
     asyncio.run(run_test())
+
+
+def test_startup_hook_initializes_movie_manager_before_warmup_queries():
+    """Warm-up should not execute DB queries before MovieManager.start()."""
+
+    async def run_test():
+        with patch('app.MovieManager') as MockManager:
+            manager = MockManager.return_value
+            manager.start = AsyncMock()
+
+            async def execute_side_effect(*args, **kwargs):
+                assert manager.start.await_count == 1
+                return {"1": 1}
+
+            manager.db_pool.execute = AsyncMock(side_effect=execute_side_effect)
+
+            app = _make_test_app()
+            startup_hook = next(
+                func for func in app.before_serving_funcs if func.__name__ == 'startup'
+            )
+
+            await startup_hook()
+
+            manager.start.assert_awaited_once()
+            assert manager.db_pool.execute.await_count == 5
+
+    asyncio.run(run_test())

@@ -1,6 +1,6 @@
-import asyncio
 from unittest.mock import AsyncMock, patch
 
+import httpx
 import pytest
 from quart import Quart, session
 
@@ -28,8 +28,32 @@ async def test_start_initializes_pool_and_backdrop():
 
 
 @pytest.mark.asyncio
+async def test_start_continues_when_tmdb_backdrop_warmup_fails():
+    request = httpx.Request("GET", "https://api.themoviedb.org/3/movie/62/images")
+    response = httpx.Response(401, request=request)
+    backdrop_error = httpx.HTTPStatusError(
+        "Client error '401 Unauthorized' for url 'https://api.themoviedb.org/3/movie/62/images'",
+        request=request,
+        response=response,
+    )
+
+    movie_manager = MovieManager(db_config=None)
+    movie_manager.db_pool.init_pool = AsyncMock()
+    movie_manager.tmdb_helper.get_images_by_tmdb_id = AsyncMock(side_effect=backdrop_error)
+
+    await movie_manager.start()
+
+    movie_manager.db_pool.init_pool.assert_awaited_once()
+    movie_manager.tmdb_helper.get_images_by_tmdb_id.assert_awaited_once_with(
+        movie_manager.default_movie_tmdb_id
+    )
+    assert movie_manager.default_backdrop_url is None
+
+
+@pytest.mark.asyncio
 async def test_add_user_sets_criteria_and_loads_queue(app):
     async with app.test_request_context("/"):
+        session[USER_ID_KEY] = "test_user"
         movie_manager = MovieManager(db_config=None)
         movie_manager._navigator.load_initial_queue = AsyncMock()
         await movie_manager.add_user("test_user", {"genre": "comedy"})
@@ -38,60 +62,30 @@ async def test_add_user_sets_criteria_and_loads_queue(app):
 
 
 @pytest.mark.asyncio
-async def test_home_reuses_existing_prefetch_task(app):
-    render_template_mock = AsyncMock(return_value="rendered_template")
+async def test_home_returns_default_backdrop_data(app):
     movie_manager = MovieManager(db_config=None)
-    started = asyncio.Event()
-    release = asyncio.Event()
-
-    async def fake_ensure_queue():
-        started.set()
-        await release.wait()
-
-    movie_manager._navigator._ensure_queue = fake_ensure_queue
 
     async with app.test_request_context("/"):
         session[USER_ID_KEY] = "test-user"
         first_result = await movie_manager.home("test-user")
-        await started.wait()
         second_result = await movie_manager.home("test-user")
 
-        # home() now returns a data dict, not a rendered template
         assert isinstance(first_result, dict)
         assert "default_backdrop_url" in first_result
         assert isinstance(second_result, dict)
-        assert len(movie_manager._queue_prefetch_tasks) == 1
-
-        release.set()
-        task = next(iter(movie_manager._queue_prefetch_tasks.values()))
-        await task
-        await asyncio.sleep(0)
-        assert movie_manager._queue_prefetch_tasks == {}
 
 
 @pytest.mark.asyncio
-async def test_close_cancels_prefetch_tasks(app):
+async def test_close_closes_tmdb_and_database_resources(app):
     movie_manager = MovieManager(db_config=None)
     movie_manager.tmdb_helper.close = AsyncMock()
     movie_manager.db_pool.close_pool = AsyncMock()
-    release = asyncio.Event()
-
-    async def fake_ensure_queue():
-        await release.wait()
-
-    movie_manager._navigator._ensure_queue = fake_ensure_queue
 
     async with app.test_request_context("/"):
-        session[USER_ID_KEY] = "test-user"
-        await movie_manager.home("test-user")
-        task = next(iter(movie_manager._queue_prefetch_tasks.values()))
-        assert not task.done()
-
         await movie_manager.close()
 
-        assert task.cancelled()
-        movie_manager.tmdb_helper.close.assert_awaited_once()
-        movie_manager.db_pool.close_pool.assert_awaited_once()
+    movie_manager.tmdb_helper.close.assert_awaited_once()
+    movie_manager.db_pool.close_pool.assert_awaited_once()
 
 
 @pytest.mark.asyncio

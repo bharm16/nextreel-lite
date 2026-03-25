@@ -1,19 +1,16 @@
-import asyncio
+import httpx
 from logging_config import get_logger
 
-from quart import copy_current_request_context, has_request_context, session
+from quart import session
 
 from settings import Config, DatabaseConnectionPool
-from movies.query_builder import (
-    ImdbRandomMovieFetcher,
-    extract_movie_filter_criteria,
-)
+from movies.query_builder import ImdbRandomMovieFetcher
+from movies.filter_parser import extract_movie_filter_criteria
 from movies.tmdb_client import TMDbHelper
 from movie_navigator import MovieNavigator
 from movie_renderer import MovieRenderer
 from session.keys import (
     CRITERIA_KEY,
-    USER_ID_KEY,
     init_movie_stacks,
     reset_movie_stacks,
 )
@@ -45,19 +42,22 @@ class MovieManager:
             tmdb_helper=self.tmdb_helper,
         )
         self._renderer = MovieRenderer(self.db_pool, self.tmdb_helper)
-        self._queue_prefetch_tasks: dict[str, asyncio.Task] = {}
-        self._queue_prefetch_lock = asyncio.Lock()
 
     async def start(self):
         logger.info("Starting MovieManager")
         await self.db_pool.init_pool()
-        await self.set_default_backdrop()
+        try:
+            await self.set_default_backdrop()
+        except httpx.HTTPError as exc:
+            self.default_backdrop_url = None
+            logger.warning(
+                "TMDb backdrop warm-up failed; continuing without default backdrop: %s",
+                exc,
+            )
         logger.debug("Default backdrop set")
 
     async def close(self):
         """Close database connections and HTTP clients properly"""
-        await self._cancel_prefetch_tasks()
-
         try:
             if self.tmdb_helper:
                 await self.tmdb_helper.close()
@@ -85,64 +85,8 @@ class MovieManager:
         await self._navigator.load_initial_queue()
 
     async def home(self, user_id):
-        """Return home page data. Kicks off background queue prefetch."""
-        logger.debug("Accessing home")
-        await self._start_queue_prefetch(user_id)
+        """Return home page data."""
         return {"default_backdrop_url": self.default_backdrop_url}
-
-    def _queue_task_key(self, user_id: str | None) -> str:
-        if has_request_context():
-            return session.get(USER_ID_KEY) or user_id or "anonymous"
-        return user_id or "anonymous"
-
-    async def _start_queue_prefetch(self, user_id: str | None) -> asyncio.Task:
-        """Ensure only one background queue-population task runs per user."""
-        task_key = self._queue_task_key(user_id)
-
-        async with self._queue_prefetch_lock:
-            existing = self._queue_prefetch_tasks.get(task_key)
-            if existing and not existing.done():
-                return existing
-
-            if has_request_context():
-                @copy_current_request_context
-                async def populate_queue():
-                    await self._navigator._ensure_queue()
-            else:
-                async def populate_queue():
-                    await self._navigator._ensure_queue()
-
-            task = asyncio.create_task(populate_queue(), name=f"queue-prefetch:{task_key}")
-            task.add_done_callback(
-                lambda done_task, key=task_key: self._handle_prefetch_task_done(
-                    key, done_task
-                )
-            )
-            self._queue_prefetch_tasks[task_key] = task
-            return task
-
-    def _handle_prefetch_task_done(self, task_key: str, task: asyncio.Task) -> None:
-        """Log failures once and evict completed tasks from the registry."""
-        self._queue_prefetch_tasks.pop(task_key, None)
-        if task.cancelled():
-            return
-        exc = task.exception()
-        if exc:
-            logger.error("Queue prefetch task failed for %s: %s", task_key, exc, exc_info=exc)
-
-    async def _cancel_prefetch_tasks(self) -> None:
-        """Cancel any outstanding queue-prefetch tasks during shutdown."""
-        async with self._queue_prefetch_lock:
-            tasks = list(self._queue_prefetch_tasks.values())
-            self._queue_prefetch_tasks.clear()
-
-        if not tasks:
-            return
-
-        for task in tasks:
-            task.cancel()
-
-        await asyncio.gather(*tasks, return_exceptions=True)
 
     async def set_default_backdrop(self):
         image_data = await self.tmdb_helper.get_images_by_tmdb_id(
@@ -159,9 +103,8 @@ class MovieManager:
     async def fetch_and_render_movie(
         self, current_displayed_movie, user_id, template_name="movie.html"
     ):
-        prev_stack, _ = self._navigator._get_user_stacks()
         return await self._renderer.fetch_and_render_movie(
-            current_displayed_movie, user_id, len(prev_stack), template_name
+            current_displayed_movie, user_id, self._navigator.prev_stack_length(), template_name
         )
 
     async def render_movie_by_tconst(self, user_id, tconst, template_name="movie.html"):

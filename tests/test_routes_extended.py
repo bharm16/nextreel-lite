@@ -6,12 +6,12 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from routes import (
-    _check_rate_limit_memory,
+from infra.rate_limit import (
+    check_rate_limit_memory,
     _rate_limit_store,
-    _RATE_LIMIT_MAX,
     _RATE_LIMIT_MAX_KEYS,
-    _RATE_LIMIT_WINDOW,
+    RATE_LIMIT_MAX,
+    RATE_LIMIT_WINDOW,
 )
 
 
@@ -21,7 +21,7 @@ from routes import (
 
 
 class TestRateLimitMemory:
-    """_check_rate_limit_memory — window, caps, and eviction."""
+    """check_rate_limit_memory — window, caps, and eviction."""
 
     @pytest.fixture(autouse=True)
     def clear_rate_limit_store(self):
@@ -32,40 +32,40 @@ class TestRateLimitMemory:
     @pytest.mark.asyncio
     async def test_allows_under_limit(self, app):
         async with app.test_request_context("/", headers={"X-Forwarded-For": "1.2.3.4"}):
-            for _ in range(_RATE_LIMIT_MAX):
-                assert _check_rate_limit_memory("test") is True
+            for _ in range(RATE_LIMIT_MAX):
+                assert await check_rate_limit_memory("test") is True
 
     @pytest.mark.asyncio
     async def test_blocks_over_limit(self, app):
         async with app.test_request_context("/", headers={"X-Forwarded-For": "1.2.3.4"}):
-            for _ in range(_RATE_LIMIT_MAX):
-                _check_rate_limit_memory("test")
-            assert _check_rate_limit_memory("test") is False
+            for _ in range(RATE_LIMIT_MAX):
+                await check_rate_limit_memory("test")
+            assert await check_rate_limit_memory("test") is False
 
     @pytest.mark.asyncio
     async def test_window_expiry_allows_again(self, app):
         async with app.test_request_context("/", headers={"X-Forwarded-For": "1.2.3.4"}):
             # Fill up the limit
-            for _ in range(_RATE_LIMIT_MAX):
-                _check_rate_limit_memory("test")
-            assert _check_rate_limit_memory("test") is False
+            for _ in range(RATE_LIMIT_MAX):
+                await check_rate_limit_memory("test")
+            assert await check_rate_limit_memory("test") is False
 
             # Manually expire all timestamps
             for key in _rate_limit_store:
-                _rate_limit_store[key] = [time.time() - _RATE_LIMIT_WINDOW - 1]
+                _rate_limit_store[key] = [time.time() - RATE_LIMIT_WINDOW - 1]
 
-            assert _check_rate_limit_memory("test") is True
+            assert await check_rate_limit_memory("test") is True
 
     @pytest.mark.asyncio
     async def test_eviction_caps_key_count(self, app):
         """When key count exceeds _RATE_LIMIT_MAX_KEYS, stale keys are evicted."""
         # Stuff the store with stale entries
-        stale_ts = time.time() - _RATE_LIMIT_WINDOW - 10
+        stale_ts = time.time() - RATE_LIMIT_WINDOW - 10
         for i in range(_RATE_LIMIT_MAX_KEYS + 50):
             _rate_limit_store[f"old:{i}"] = [stale_ts]
 
         async with app.test_request_context("/", headers={"X-Forwarded-For": "9.9.9.9"}):
-            _check_rate_limit_memory("new")
+            await check_rate_limit_memory("new")
 
         # Stale keys should have been evicted
         assert len(_rate_limit_store) < _RATE_LIMIT_MAX_KEYS + 50
@@ -73,12 +73,12 @@ class TestRateLimitMemory:
     @pytest.mark.asyncio
     async def test_different_endpoints_track_separately(self, app):
         async with app.test_request_context("/", headers={"X-Forwarded-For": "1.2.3.4"}):
-            for _ in range(_RATE_LIMIT_MAX):
-                _check_rate_limit_memory("endpoint_a")
+            for _ in range(RATE_LIMIT_MAX):
+                await check_rate_limit_memory("endpoint_a")
             # endpoint_a is exhausted
-            assert _check_rate_limit_memory("endpoint_a") is False
+            assert await check_rate_limit_memory("endpoint_a") is False
             # endpoint_b should still be available
-            assert _check_rate_limit_memory("endpoint_b") is True
+            assert await check_rate_limit_memory("endpoint_b") is True
 
 
 # ---------------------------------------------------------------------------

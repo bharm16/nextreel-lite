@@ -16,3 +16,9 @@ def get_environment() -> str:
     if _ENV is None:
         _ENV = os.getenv("NEXTREEL_ENV", os.getenv("FLASK_ENV", "production"))
     return _ENV
+
+
+def _reset_environment() -> None:
+    """Clear the cached environment value (for testing only)."""
+    global _ENV
+    _ENV = None

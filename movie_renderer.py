@@ -64,7 +64,7 @@ class MovieRenderer:
             return "Movie not found", 404
 
         # Populate cache for subsequent renders
-        from movie_navigator import _cache_movie_data
-        await _cache_movie_data(movie_data)
+        from movie_navigator import cache_movie_data
+        await cache_movie_data(movie_data)
 
         return await render_template(template_name, movie=movie_data)

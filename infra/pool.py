@@ -324,6 +324,9 @@ class SecureConnectionPool:
                     self.state = PoolState.CRITICAL
                 elif usage_percent > 75:
                     self.state = PoolState.DEGRADED
+                    # Skip the SELECT 1 probe when the pool is under heavy
+                    # load — avoid consuming a connection for diagnostics.
+                    continue
                 else:
                     self.state = PoolState.HEALTHY
 
@@ -447,7 +450,9 @@ class DatabaseConnectionPool:
     def __init__(self, db_config: dict) -> None:
         from config.database import DatabaseConfig
 
-        flask_env = os.getenv("NEXTREEL_ENV", os.getenv("FLASK_ENV", "production"))
+        from config.env import get_environment
+
+        flask_env = get_environment()
 
         # Convert to secure pool config
         # Default to True in production to enforce SSL certificate validation.
@@ -486,8 +491,8 @@ class DatabaseConnectionPool:
         """Initialize the pool"""
         await self.pool.init_pool()
 
-    async def acquire(self, user_id: str | None = None, ip_address: str | None = None):
-        """Acquire a connection"""
+    def acquire(self, user_id: str | None = None, ip_address: str | None = None):
+        """Acquire a connection — returns an async context manager."""
         return self.pool.acquire(user_id=user_id, ip_address=ip_address)
 
     async def execute(self, query: str, params: list | tuple | None = None, fetch: str = "one", user_id: str | None = None):

@@ -11,7 +11,9 @@ class TestDatabaseConfig:
     """config.database.DatabaseConfig environment handling."""
 
     def _reimport(self):
-        """Re-import config.database to re-evaluate module-level _flask_env."""
+        """Re-import config.database after resetting the env cache."""
+        from config.env import _reset_environment
+        _reset_environment()
         import config.database as mod
         importlib.reload(mod)
         return mod.DatabaseConfig
@@ -92,6 +94,8 @@ class TestSessionConfig:
     """config.session.SessionConfig environment handling."""
 
     def _reimport(self):
+        from config.env import _reset_environment
+        _reset_environment()
         import config.session as mod
         importlib.reload(mod)
         return mod.SessionConfig
@@ -122,7 +126,7 @@ class TestSessionConfig:
     def test_cookie_domain_none_in_development(self):
         with patch.dict(os.environ, {"NEXTREEL_ENV": "development"}):
             Config = self._reimport()
-            assert Config.SESSION_COOKIE_DOMAIN is None
+            assert Config().SESSION_COOKIE_DOMAIN is None
 
     def test_cookie_httponly_always_true(self):
         Config = self._reimport()

@@ -8,8 +8,6 @@ The ``movie_manager`` and ``metrics_collector`` instances are injected by
 
 import asyncio
 import hmac
-import hashlib
-import os
 import re
 import secrets
 import time
@@ -28,6 +26,8 @@ _CSRF_TOKEN_KEY = "_csrf_token"
 
 from logging_config import get_logger
 from infra.metrics import user_actions_total
+from infra.rate_limit import check_rate_limit
+from infra.ops_auth import check_ops_auth
 from session.keys import USER_ID_KEY, CURRENT_FILTERS_KEY
 
 logger = get_logger(__name__)
@@ -44,6 +44,13 @@ def init_routes(movie_manager, metrics_collector):
     global _movie_manager, _metrics_collector
     _movie_manager = movie_manager
     _metrics_collector = metrics_collector
+
+
+def _get_manager():
+    """Return the movie manager, aborting 503 if not yet initialized."""
+    if _movie_manager is None:
+        abort(503, description="Application not fully initialized")
+    return _movie_manager
 
 
 def _get_csrf_token() -> str:
@@ -101,80 +108,10 @@ async def logout():
     return response
 
 
-# Redis-backed rate limiter for ops endpoints.
-# Falls back to in-memory if Redis is unavailable.
-_RATE_LIMIT_WINDOW = 60  # seconds
-_RATE_LIMIT_MAX = 30  # requests per window
-
-# In-memory fallback (single-instance only).
-# Cap at 1024 keys to prevent unbounded memory growth from unique IPs.
-_RATE_LIMIT_MAX_KEYS = 1024
-_rate_limit_store: dict[str, list[float]] = {}
-
-# Ops endpoint auth: set OPS_AUTH_TOKEN env var to require Bearer token on
-# /metrics, /ready, and similar internal endpoints.
-def _get_ops_auth_token() -> str | None:
-    """Read OPS_AUTH_TOKEN lazily so rotation doesn't require a restart."""
-    return os.environ.get("OPS_AUTH_TOKEN")
-
-
-async def _check_rate_limit_redis(endpoint_key: str) -> bool:
-    """Rate limit using Redis INCR + EXPIRE (distributed)."""
-    try:
-        redis_client = current_app.config.get("SESSION_REDIS")
-        if not redis_client:
-            return _check_rate_limit_memory(endpoint_key)
-        ip = request.remote_addr or "unknown"
-        key = f"ratelimit:{endpoint_key}:{ip}"
-        count = await redis_client.incr(key)
-        if count == 1:
-            await redis_client.expire(key, _RATE_LIMIT_WINDOW)
-        return count <= _RATE_LIMIT_MAX
-    except Exception:
-        # Redis unavailable — fall back to in-memory
-        return _check_rate_limit_memory(endpoint_key)
-
-
-def _check_rate_limit_memory(endpoint_key: str) -> bool:
-    """In-memory fallback rate limiter (single-instance only)."""
-    ip = request.remote_addr or "unknown"
-    key = f"{endpoint_key}:{ip}"
-    now = time.time()
-    timestamps = _rate_limit_store.setdefault(key, [])
-    cutoff = now - _RATE_LIMIT_WINDOW
-    timestamps[:] = [t for t in timestamps if t > cutoff]
-    if len(timestamps) >= _RATE_LIMIT_MAX:
-        return False
-    timestamps.append(now)
-
-    # Evict stale keys to prevent unbounded memory growth
-    if len(_rate_limit_store) > _RATE_LIMIT_MAX_KEYS:
-        stale_keys = [
-            k for k, v in _rate_limit_store.items()
-            if not v or v[-1] < cutoff
-        ]
-        for k in stale_keys:
-            _rate_limit_store.pop(k, None)
-
-    return True
-
-
-def _check_ops_auth() -> bool:
-    """Validate bearer token for ops endpoints. Returns True if allowed."""
-    expected = _get_ops_auth_token()
-    if not expected:
-        return True  # No token configured — allow (dev mode)
-    auth_header = request.headers.get("Authorization", "")
-    if auth_header.startswith("Bearer "):
-        token = auth_header[7:]
-        return hmac.compare_digest(token, expected)
-    return False
-
-
 @bp.route("/health")
 async def health_check():
     """Health check endpoint for load balancers"""
-    if not await _check_rate_limit_redis("health"):
+    if not await check_rate_limit("health"):
         return {"error": "rate limited"}, 429
     return {"status": "healthy"}, 200
 
@@ -182,9 +119,9 @@ async def health_check():
 @bp.route("/metrics")
 async def metrics():
     """Prometheus metrics endpoint (requires OPS_AUTH_TOKEN in production)."""
-    if not _check_ops_auth():
+    if not check_ops_auth():
         return {"error": "unauthorized"}, 401
-    if not await _check_rate_limit_redis("metrics"):
+    if not await check_rate_limit("metrics"):
         return {"error": "rate limited"}, 429
     from infra.metrics import metrics_endpoint
 
@@ -194,9 +131,9 @@ async def metrics():
 @bp.route("/ready")
 async def readiness_check():
     """Readiness check with database connectivity (requires OPS_AUTH_TOKEN in production)."""
-    if not _check_ops_auth():
+    if not check_ops_auth():
         return {"error": "unauthorized"}, 401
-    if not await _check_rate_limit_redis("ready"):
+    if not await check_rate_limit("ready"):
         return {"error": "rate limited"}, 429
     try:
         pool_metrics = await _movie_manager.db_pool.get_metrics()
@@ -262,7 +199,7 @@ async def home():
 async def next_movie():
     await _validate_csrf_from_form()
 
-    if not await _check_rate_limit_redis("next_movie"):
+    if not await check_rate_limit("next_movie"):
         return {"error": "rate limited"}, 429
 
     user_id = session.get(USER_ID_KEY)
@@ -293,7 +230,7 @@ async def next_movie():
 async def previous_movie():
     await _validate_csrf_from_form()
 
-    if not await _check_rate_limit_redis("previous_movie"):
+    if not await check_rate_limit("previous_movie"):
         return {"error": "rate limited"}, 429
 
     user_id = session.get(USER_ID_KEY)
@@ -357,7 +294,7 @@ _MAX_FILTER_VALUE_LEN = 64
 async def filtered_movie_endpoint():
     await _validate_csrf_from_form()
 
-    if not await _check_rate_limit_redis("filtered_movie"):
+    if not await check_rate_limit("filtered_movie"):
         return {"error": "rate limited"}, 429
 
     user_id = session.get(USER_ID_KEY)

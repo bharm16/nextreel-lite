@@ -48,9 +48,14 @@ class TestShouldUseRecentCache:
         criteria = {"min_year": 1950, "max_year": 1980}
         assert MovieQueryBuilder.should_use_recent_cache(criteria) is False
 
-    def test_max_year_at_threshold_triggers_recent(self):
+    def test_broad_range_touching_recent_years_still_skips_recent_cache(self):
         threshold = datetime.now().year - 2
         criteria = {"min_year": 1900, "max_year": threshold}
+        assert MovieQueryBuilder.should_use_recent_cache(criteria) is False
+
+    def test_range_must_start_within_recent_window(self):
+        threshold = datetime.now().year - 2
+        criteria = {"min_year": threshold, "max_year": datetime.now().year}
         assert MovieQueryBuilder.should_use_recent_cache(criteria) is True
 
     def test_max_year_below_threshold(self):

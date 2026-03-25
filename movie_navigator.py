@@ -12,6 +12,11 @@ from session.keys import (
 
 logger = get_logger(__name__)
 
+# Lightweight in-memory set to avoid redundant Redis SETEX calls.
+# Bounded to prevent unbounded growth; evicted when full.
+_RECENTLY_CACHED_MAX = 200
+_recently_cached: set[str] = set()
+
 
 def _is_language_accepted(movie_data: dict, desired_lang: str) -> bool:
     """Return True if *movie_data*'s language matches *desired_lang*."""
@@ -41,11 +46,20 @@ def _is_full_movie(entry: dict) -> bool:
     return entry.get("_full", False)
 
 
-async def _cache_movie_data(movie_data: dict) -> None:
-    """Store full movie data in the app cache."""
+async def cache_movie_data(movie_data: dict, force: bool = False) -> None:
+    """Store full movie data in the app cache.
+
+    Skips the write if the tconst was recently cached (tracked in-memory)
+    to avoid redundant Redis SETEX calls on every navigation click.
+    Pass ``force=True`` to bypass the check (e.g. after a fresh TMDb fetch).
+    """
     tconst = movie_data.get("imdb_id")
     if not tconst:
         return
+
+    if not force and tconst in _recently_cached:
+        return
+
     try:
         secure_cache = getattr(current_app, "secure_cache", None)
         if secure_cache:
@@ -53,6 +67,10 @@ async def _cache_movie_data(movie_data: dict) -> None:
             await secure_cache.set(
                 CacheNamespace.MOVIE, f"full:{tconst}", movie_data, ttl=86400
             )
+            # Track this tconst to skip future redundant writes
+            if len(_recently_cached) >= _RECENTLY_CACHED_MAX:
+                _recently_cached.clear()
+            _recently_cached.add(tconst)
     except Exception as e:
         logger.debug("Failed to cache movie %s: %s", tconst, e)
 
@@ -93,7 +111,7 @@ async def _resolve_ref(ref: dict, db_pool=None, tmdb_helper=None) -> dict:
             movie = Movie(tconst, db_pool, tmdb_helper=tmdb_helper)
             movie_data = await movie.get_movie_data()
             if movie_data:
-                await _cache_movie_data(movie_data)
+                await cache_movie_data(movie_data, force=True)
                 return movie_data
         except Exception as e:
             logger.warning("Fallback fetch failed for %s: %s", tconst, e)
@@ -111,10 +129,14 @@ class MovieNavigator:
         self.queue_size = queue_size
         self.tmdb_helper = tmdb_helper
 
-    def _get_user_stacks(self):
+    def get_user_stacks(self):
         prev_stack = session.setdefault(PREVIOUS_STACK_KEY, [])
         future_stack = session.setdefault(FUTURE_STACK_KEY, [])
         return prev_stack, future_stack
+
+    def prev_stack_length(self) -> int:
+        """Return the length of the previous-movie stack."""
+        return len(session.get(PREVIOUS_STACK_KEY, []))
 
     def _mark_movie_seen(self, tconst):
         seen_list = session.get(SEEN_TCONSTS_KEY, [])
@@ -125,36 +147,77 @@ class MovieNavigator:
                 seen_list = seen_list[-(MAX_PREV_STACK_SIZE * 2):]
             session[SEEN_TCONSTS_KEY] = seen_list
 
+    def _excluded_tconsts(self, queue: list[dict]) -> set[str]:
+        """Return tconsts that should not be re-queued immediately."""
+        excluded = {
+            entry.get("imdb_id")
+            for entry in queue
+            if isinstance(entry, dict) and entry.get("imdb_id")
+        }
+
+        current_movie = session.get(CURRENT_MOVIE_KEY)
+        if isinstance(current_movie, dict) and current_movie.get("imdb_id"):
+            excluded.add(current_movie["imdb_id"])
+
+        excluded.update(
+            tconst for tconst in session.get(SEEN_TCONSTS_KEY, []) if tconst
+        )
+        return excluded
+
     async def _load_movies_into_queue(self):
         from movies.movie import Movie
 
         queue = session.setdefault(WATCH_QUEUE_KEY, [])
         criteria = session.get(CRITERIA_KEY, {})
-        limit = self.queue_size - len(queue)
+        target = session.get(QUEUE_SIZE_KEY, self.queue_size)
+        limit = target - len(queue)
         if limit <= 0:
             return
 
-        fetch_limit = limit * 3 if criteria.get("min_year", 1900) >= 2024 else limit
+        excluded_tconsts = self._excluded_tconsts(queue)
+        fetch_limit = max(limit * 5, self.queue_size * 3)
         rows = await self.movie_fetcher.fetch_random_movies(criteria, fetch_limit)
+
+        if not rows:
+            session[WATCH_QUEUE_KEY] = queue
+            return
 
         async def fetch_movie_data(row):
             movie = Movie(row["tconst"], self.db_pool, tmdb_helper=self.tmdb_helper)
             return await movie.get_movie_data()
 
-        tasks = [fetch_movie_data(row) for row in rows]
-        movie_results = await asyncio.gather(*tasks, return_exceptions=True)
-
         desired_lang = criteria.get("language", "en")
 
-        for movie_data in movie_results:
-            if movie_data and not isinstance(movie_data, Exception):
-                if _is_language_accepted(movie_data, desired_lang):
-                    # Cache full data, store lightweight ref in session queue
-                    await _cache_movie_data(movie_data)
-                    queue.append(_movie_ref(movie_data))
+        # Use as_completed to process results incrementally and cancel
+        # remaining TMDb fetches once the queue is full.
+        pending_tasks = [asyncio.ensure_future(fetch_movie_data(row)) for row in rows]
+        try:
+            for coro in asyncio.as_completed(pending_tasks):
+                try:
+                    movie_data = await coro
+                except Exception:
+                    continue
 
-                if len(queue) >= session.get(QUEUE_SIZE_KEY, self.queue_size):
+                tconst = movie_data.get("imdb_id") if movie_data else None
+                if (
+                    movie_data
+                    and tconst
+                    and tconst not in excluded_tconsts
+                    and _is_language_accepted(movie_data, desired_lang)
+                ):
+                    await cache_movie_data(movie_data, force=True)
+                    queue.append(_movie_ref(movie_data))
+                    excluded_tconsts.add(tconst)
+
+                if len(queue) >= target:
                     break
+        finally:
+            # Cancel any still-running tasks to save TMDb API quota
+            for task in pending_tasks:
+                if not task.done():
+                    task.cancel()
+            # Await cancellation to avoid "task destroyed" warnings
+            await asyncio.gather(*pending_tasks, return_exceptions=True)
 
         session[WATCH_QUEUE_KEY] = queue
 
@@ -162,13 +225,13 @@ class MovieNavigator:
         """Public entry point for populating the queue from outside the navigator."""
         await self._load_movies_into_queue()
 
-    async def _ensure_queue(self):
+    async def ensure_queue(self):
         queue = session.get(WATCH_QUEUE_KEY, [])
         if not queue:
             await self._load_movies_into_queue()
 
     async def next_movie(self, user_id):
-        prev_stack, future_stack = self._get_user_stacks()
+        prev_stack, future_stack = self.get_user_stacks()
         queue = session.setdefault(WATCH_QUEUE_KEY, [])
 
         current_movie = None
@@ -189,7 +252,7 @@ class MovieNavigator:
         previous = session.get(CURRENT_MOVIE_KEY)
         if previous and current_movie != previous:
             # Cache full data and store only a lightweight ref in the stack
-            await _cache_movie_data(previous)
+            await cache_movie_data(previous)
             prev_stack.append(_movie_ref(previous))
             # Trim oldest entries to cap session size
             if len(prev_stack) > MAX_PREV_STACK_SIZE:
@@ -197,7 +260,7 @@ class MovieNavigator:
 
         # Store only a lightweight ref in the session; full data lives in cache.
         if current_movie:
-            await _cache_movie_data(current_movie)
+            await cache_movie_data(current_movie)
             session[CURRENT_MOVIE_KEY] = _movie_ref(current_movie)
         else:
             session[CURRENT_MOVIE_KEY] = None
@@ -215,7 +278,7 @@ class MovieNavigator:
             return None
 
     async def previous_movie(self, user_id):
-        prev_stack, future_stack = self._get_user_stacks()
+        prev_stack, future_stack = self.get_user_stacks()
 
         if not prev_stack:
             logger.info("No previous movies available for user_id: %s", user_id)
@@ -224,14 +287,14 @@ class MovieNavigator:
         current_movie = session.get(CURRENT_MOVIE_KEY)
         if current_movie:
             # Cache and store lightweight ref
-            await _cache_movie_data(current_movie)
+            await cache_movie_data(current_movie)
             future_stack.append(_movie_ref(current_movie))
 
         ref = prev_stack.pop()
         previous_movie = await _resolve_ref(ref, db_pool=self.db_pool, tmdb_helper=self.tmdb_helper)
         # Store lightweight ref in session; full data is in cache.
         if previous_movie:
-            await _cache_movie_data(previous_movie)
+            await cache_movie_data(previous_movie)
             session[CURRENT_MOVIE_KEY] = _movie_ref(previous_movie)
         else:
             session[CURRENT_MOVIE_KEY] = None

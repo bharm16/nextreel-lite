@@ -1,5 +1,5 @@
 import pytest
-from movies.query_builder import extract_movie_filter_criteria
+from movies.filter_parser import extract_movie_filter_criteria
 
 
 class DummyForm:
