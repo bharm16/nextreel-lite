@@ -23,6 +23,9 @@ npm run build-css                       # Rebuild CSS from Tailwind
 
 # Cache refresh (manual)
 mysql -e "CALL refresh_movie_caches()"  # Rebuild denormalized cache tables
+
+# Background worker
+arq worker.WorkerSettings              # Start arq worker for enrichment/refresh jobs
 ```
 
 ## Architecture
@@ -31,17 +34,25 @@ mysql -e "CALL refresh_movie_caches()"  # Rebuild denormalized cache tables
 app.py                  # Entry point — creates Quart app, wires dependencies
 routes.py               # All HTTP endpoints (Blueprint "main")
 movie_service.py        # MovieManager facade — coordinates navigation + rendering
-movie_navigator.py      # Session-based prev/next stacks, queue management
+movie_navigator.py      # Prev/next stacks, queue management (backed by NavigationStateStore)
 movie_renderer.py       # Template rendering for movie detail pages
+logging_config.py       # setup_logging() — called by app.py, NOT at import time
+middleware.py            # Correlation ID tracking middleware
+settings.py             # Unified Config class
+worker.py               # arq background worker (Redis-backed enrichment/refresh jobs)
 movies/
   movie.py              # Movie class — fetches and assembles movie data from TMDb + DB
   tmdb_client.py        # TMDbHelper — async HTTP client with circuit breaker
   query_builder.py      # SQL query builder for random movie fetching (MovieQueryBuilder)
   interfaces.py         # MovieFetcher protocol
+  candidate_store.py    # Data access layer for movie candidates
+  projection_store.py   # Data access layer for movie projections
+  filter_parser.py      # Filter query parsing and validation
 session/
   keys.py               # Session key constants
   auth.py               # User registration in movie manager
   security.py           # Session fingerprinting, token rotation, security headers
+  quart_session_compat.py  # Compatibility shim for quart-session 3.0.0
 infra/
   pool.py               # SecureConnectionPool + DatabaseConnectionPool wrapper
   cache.py              # Redis cache manager (namespaced, TTL-based)
@@ -49,19 +60,43 @@ infra/
   secrets.py            # Secret retrieval and validation
   metrics.py            # Prometheus metrics collector
   ssl.py                # SSL certificate validation
+  security_headers.py   # Baseline + production-only HTTP security headers
+  rate_limit.py         # Redis-backed rate limiter with in-memory fallback
+  client_ip.py          # Client IP extraction utilities
+  navigation_state.py   # DB-backed navigation state (NavigationStateStore)
+  runtime_schema.py     # Runtime schema creation and validation
+  ops_auth.py           # Authentication for ops/admin endpoints
 config/
   env.py                # get_environment() — single source for env detection
   session.py            # Session cookie and timeout defaults
   database.py           # DB connection config per environment
   api.py                # API secrets config
+scripts/                # One-off and maintenance scripts
+ops/                    # Deployment and operational tooling
+docs/                   # Architecture and design documentation
 ```
+
+## Environment
+
+Required (app fails to start without these):
+- `TMDB_API_KEY` — TMDb API bearer token (validated by `infra/secrets.py` on startup)
+- `FLASK_SECRET_KEY` — Session signing key
+- `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` — MySQL connection (production uses `PROD_DB_*` with fallback)
+
+Optional:
+- `REDIS_URL` — Redis connection (required for worker, rate limiting, caching)
+- `OPS_AUTH_TOKEN` — Auth for `/ready` and `/metrics` endpoints (unauthenticated in dev)
+- `TRUSTED_PROXIES` — Comma-separated IPs for `X-Forwarded-For` trust (rate limiting)
+- `GRAFANA_LOKI_KEY` — Enables Grafana Loki log shipping
+- `NAV_STATE_DUAL_WRITE_ENABLED` — Navigation migration dual-write (default: `true`)
 
 ## Key Patterns
 
 ### Session State
-- **Lightweight refs in session**: `CURRENT_MOVIE_KEY` stores only `{imdb_id, tmdb_id, title, slug}` (~500 bytes). Full movie data lives in Redis cache (`cache:movie:full:{tconst}`, 24h TTL).
-- `MovieNavigator` reads/writes session directly via Quart's `session` proxy. All session keys are defined in `session/keys.py`.
-- Session lifetime is managed by `EnhancedSessionSecurity` (8h max, 15min idle). `session/auth.py` handles only user registration.
+- Navigation state is **MySQL-backed** (`user_navigation_state` table) via `NavigationStateStore` in `infra/navigation_state.py`. Uses optimistic locking (version column, 2 retries on conflict).
+- Full movie data lives in Redis cache (`cache:movie:full:{tconst}`, 24h TTL). Session stores lightweight refs only.
+- Session lifetime: 8h max, 15min idle (`EnhancedSessionSecurity`). `session/auth.py` handles only user registration.
+- **Migration period**: Dual-write from Redis session → MySQL is enabled by default for 7 days (`NAV_STATE_DUAL_WRITE_ENABLED`, `NAV_STATE_MIGRATION_MIN_DAYS`).
 
 ### Navigation Routes
 - `/next_movie` and `/previous_movie` are **POST-only** with CSRF tokens. All "Pick a Movie" buttons in templates use `<form method="POST">` with hidden `csrf_token` field.
@@ -91,9 +126,9 @@ All queries must use parameterized placeholders (`%s`), including LIMIT and OFFS
 
 ## Testing
 
-- 28 test files in `tests/`, pytest-asyncio with `asyncio_mode = "auto"`
+- pytest-asyncio with `asyncio_mode = "auto"` in `tests/`
 - `MovieManager.home()` returns a dict `{"default_backdrop_url": ...}` — not a rendered template
-- `MovieManager.add_user()` calls `navigator.load_initial_queue()` (public method)
+- `MovieManager.add_user()` is a backward-compatible no-op. Navigator queue is primed via `prewarm_queue()`.
 - Mock targets: `movie_service.MovieManager`, use `patch.dict(os.environ, {...})` for env vars (not module-level attribute patches)
 
 ## Gotchas
@@ -104,3 +139,7 @@ All queries must use parameterized placeholders (`%s`), including LIMIT and OFFS
 - **Rate limiting**: Applied to `/next_movie`, `/previous_movie`, `/filtered_movie`, and ops endpoints. Uses Redis with in-memory fallback.
 - **`get_async_connection()`**: Raises `NotImplementedError`. Use `async with pool.acquire() as conn:` instead.
 - **`.env` files**: Contain live credentials in git history. Hooks block Claude from editing them. Secrets must be rotated and managed via environment variables or a secrets manager.
+- **Runtime tables**: `ensure_runtime_schema()` creates `runtime_metadata`, `user_navigation_state`, `movie_projection`, and `movie_candidates` on startup (`IF NOT EXISTS`). Don't create these manually.
+- **Projection states**: `core` (minimal IMDb data) → `ready` (TMDb-enriched) → `stale` (>7 days) → `failed` (enrichment error). Enrichment is async-enqueued via `enrich_projection` worker job with 15-min cooldown.
+- **CI security gates**: TruffleHog blocks the build on verified secrets. Bandit and pip-audit run but are warnings only (`|| true`). Tests require 40% coverage on Python 3.11 and 3.12.
+- **`.claude.local.md`**: Not in `.gitignore` — add it if you use local Claude overrides to avoid committing personal preferences.

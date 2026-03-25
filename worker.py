@@ -1,0 +1,83 @@
+"""ARQ worker entrypoint for runtime maintenance jobs."""
+
+from __future__ import annotations
+
+import os
+
+from logging_config import get_logger
+from movies.candidate_store import CandidateStore
+from movies.projection_store import ProjectionStore
+from settings import Config, DatabaseConnectionPool
+
+logger = get_logger(__name__)
+
+try:
+    from arq.connections import RedisSettings
+except ImportError:  # pragma: no cover - exercised only when arq is missing
+    RedisSettings = None
+
+
+async def startup(ctx):
+    db_pool = DatabaseConnectionPool(Config.get_db_config())
+    await db_pool.init_pool()
+    ctx["db_pool"] = db_pool
+    ctx["candidate_store"] = CandidateStore(db_pool)
+    ctx["projection_store"] = ProjectionStore(db_pool)
+    logger.info("Worker context initialized")
+
+
+async def shutdown(ctx):
+    db_pool = ctx.get("db_pool")
+    if db_pool:
+        await db_pool.close_pool()
+
+
+async def refresh_movie_candidates(ctx):
+    await ctx["candidate_store"].refresh_movie_candidates()
+
+
+async def ensure_core_projection(ctx, tconst: str):
+    return await ctx["projection_store"].ensure_core_projection(tconst)
+
+
+async def enrich_projection(ctx, tconst: str):
+    return await ctx["projection_store"].enrich_projection(tconst)
+
+
+async def requeue_stale_projections(ctx):
+    return await ctx["projection_store"].requeue_stale_projections()
+
+
+async def validate_referential_integrity(ctx):
+    from scripts.validate_referential_integrity import INTEGRITY_CHECKS
+
+    issues_found = 0
+    for _description, query in INTEGRITY_CHECKS:
+        result = await ctx["db_pool"].execute(query, fetch="one")
+        if result and result.get("orphans", 0) > 0:
+            issues_found += 1
+    return issues_found
+
+
+async def purge_expired_navigation_state(ctx):
+    return await ctx["db_pool"].execute(
+        "DELETE FROM user_navigation_state WHERE expires_at < UTC_TIMESTAMP(6)",
+        fetch="none",
+    )
+
+
+if RedisSettings is not None:
+    class WorkerSettings:  # pragma: no cover - config container
+        functions = [
+            refresh_movie_candidates,
+            ensure_core_projection,
+            enrich_projection,
+            requeue_stale_projections,
+            validate_referential_integrity,
+            purge_expired_navigation_state,
+        ]
+        on_startup = startup
+        on_shutdown = shutdown
+        redis_settings = RedisSettings.from_dsn(
+            os.getenv("REDIS_URL", "redis://localhost:6379")
+        )

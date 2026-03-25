@@ -7,8 +7,10 @@ independently of route definitions.
 import asyncio
 import time
 
-from quart import current_app, request
+from quart import current_app
 
+from infra.client_ip import get_client_ip
+from infra.metrics import set_rate_limit_backend
 from logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -24,17 +26,7 @@ _rate_limit_store: dict[str, list[float]] = {}
 _rate_limit_lock = asyncio.Lock()
 
 
-# ── Helpers ───────────────────────────────────────────────────────
-
-def _get_remote_ip() -> str:
-    """Return the client IP, preferring X-Forwarded-For behind trusted proxies."""
-    # Quart sets remote_addr to the proxy IP when behind a reverse proxy.
-    # Use the same proxy-aware logic as session/security.py.
-    forwarded = request.headers.get("X-Forwarded-For", "")
-    if forwarded:
-        # First entry is the original client IP.
-        return forwarded.split(",")[0].strip()
-    return request.remote_addr or "unknown"
+_active_backend = "memory"
 
 
 # ── Public API ────────────────────────────────────────────────────
@@ -44,11 +36,14 @@ async def check_rate_limit(endpoint_key: str) -> bool:
 
     Falls back to in-memory if Redis is unavailable.
     """
+    global _active_backend
     try:
         redis_client = current_app.config.get("SESSION_REDIS")
         if not redis_client:
+            set_rate_limit_backend("memory")
+            _active_backend = "memory"
             return await check_rate_limit_memory(endpoint_key)
-        ip = _get_remote_ip()
+        ip = get_client_ip()
         key = f"ratelimit:{endpoint_key}:{ip}"
 
         # Atomic pipeline: INCR + EXPIRE NX avoids the TOCTOU race where
@@ -57,10 +52,14 @@ async def check_rate_limit(endpoint_key: str) -> bool:
         pipe.incr(key)
         pipe.expire(key, RATE_LIMIT_WINDOW)
         count, _ = await pipe.execute()
+        set_rate_limit_backend("redis")
+        _active_backend = "redis"
 
         return count <= RATE_LIMIT_MAX
     except Exception:
         # Redis unavailable — fall back to in-memory
+        set_rate_limit_backend("memory")
+        _active_backend = "memory"
         return await check_rate_limit_memory(endpoint_key)
 
 
@@ -69,7 +68,7 @@ async def check_rate_limit_memory(endpoint_key: str) -> bool:
 
     Protected by an asyncio.Lock to prevent interleaved coroutine writes.
     """
-    ip = _get_remote_ip()
+    ip = get_client_ip()
     key = f"{endpoint_key}:{ip}"
     now = time.time()
 
@@ -91,3 +90,7 @@ async def check_rate_limit_memory(endpoint_key: str) -> bool:
                 _rate_limit_store.pop(k, None)
 
     return True
+
+
+def get_rate_limit_backend() -> str:
+    return _active_backend

@@ -40,6 +40,7 @@ colorlog==6.9.0                  # Colored terminal output for logs
 # Task Scheduling & Background Jobs
 # ---------------------------------
 APScheduler==3.11.0              # Advanced Python Scheduler
+arq==0.26.3                      # Redis-backed worker for enrichment and refresh jobs
 
 # Utilities
 # --------

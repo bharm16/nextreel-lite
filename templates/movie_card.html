@@ -1,417 +1,15 @@
+{% set backdrop_url = movie.backdrop_url or '/static/img/backdrop-placeholder.svg' %}
+{% set hero_backdrop = backdrop_url if backdrop_url[:8] == '/static/' else 'https://image.tmdb.org/t/p/w1280' ~ backdrop_url %}
+{% set poster_url = movie.poster_url or '/static/img/poster-placeholder.svg' %}
+<!-- Hero background-image requires Jinja interpolation — kept inline -->
 <style>
-    :root{
-      /* Map local variables to global tokens if present, with fallbacks */
-      --bg: var(--color-bg, #f8fafc);
-      --card: var(--color-surface, #ffffff);
-      --text: var(--color-text, #0f172a);
-      --muted: var(--color-text-muted, #64748b);
-      --accent: var(--color-accent, #22c55e);
-      --accent-2: var(--color-accent, #16a34a);
-      --chip: var(--color-chip, #f1f5f9);
-      --chip-ring: var(--color-chip-ring, #e2e8f040);
-      --border: var(--color-border, #e2e8f0);
-    }
-
-    html,body{height:100%;}
-    body{
-      font-family:'Poppins',sans-serif;
-      background:var(--bg);
-      color:var(--text);
-    }
-
-    /* HERO / BACKDROP */
-    .hero{
-      position:relative;
-      min-height:46vh;
-      background:
-        radial-gradient(1000px 400px at 10% 0%, #f8fafc 0%, #f8fafcd6 60%, #f8fafc00 100%),
-        linear-gradient(0deg, #f8fafc 0%, #f8fafcd6 40%, #f8fafc00 70%),
-        url('https://image.tmdb.org/t/p/w1280{{ movie.backdrop_url }}') center/cover no-repeat;
-    }
-    .hero::after{
-      content:"";
-      position:absolute; inset:0;
-      background:linear-gradient(180deg, #f8fafc00 0%, #f8fafc 85%);
-    }
-
-    /* Edge arrows */
-    .arrow-btn{
-      position:absolute; top:50%; transform:translateY(-50%);
-      z-index:5; border:1px solid #e2e8f0; border-radius:999px; padding:.75rem;
-      background:#ffffffee; color:#0f172a;
-      backdrop-filter: blur(6px);
-      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-      transition: all 0.2s ease;
-    }
-    .arrow-btn:hover:not(:disabled){
-      background:#ffffff;
-      box-shadow: 0 6px 12px rgba(0,0,0,0.15);
-      cursor:pointer;
-    }
-    .arrow-btn:disabled{
-      opacity:.4; 
-      cursor:not-allowed;
-      pointer-events: none;
-      background:#ffffff99;
-      border-color: #f1f5f9;
-    }
-    .arrow-left{ left: 12px; }
-    .arrow-right{ right: 12px; }
-
-    /* CONTENT CARD */
-    .movie-card{
-      position:relative; z-index:6; margin-top:-120px;
-      background:var(--card); border:1px solid var(--border);
-      border-radius:20px; box-shadow:0 10px 40px rgba(0,0,0,0.1);
-    }
-
-    .poster{
-      width:100%; max-width:340px; border-radius:14px; border:1px solid var(--border);
-      box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-    }
-
-    .title{
-      font-weight:700; font-size:clamp(1.6rem, 2.2vw, 2.6rem); line-height:1.15; letter-spacing:-.02em;
-    }
-    .meta{
-      color:var(--muted); font-weight:600; display:flex; gap:.75rem; flex-wrap:wrap;
-    }
-    .dot{opacity:.5;}
-
-    /* Genre chips */
-    .genre-chip{
-      border:1px solid var(--border);
-      background:var(--chip); color:var(--muted);
-      border-radius:999px; padding:.35rem .7rem; font-size:.85rem; font-weight:600;
-    }
-
-    .plot{ color:#475569; line-height:1.65; }
-
-    /* RATING CHIP (votes inside) */
-    .rating-wrap{
-      display:flex; flex-wrap:wrap; gap:1rem; align-items:center;
-    }
-    .rating-chip{
-      display:flex; align-items:flex-start; gap:.6rem;
-      background:var(--chip); border:1px solid var(--chip-ring);
-      border-radius:14px; padding:.55rem .75rem; font-weight:700;
-    }
-    .rating-chip i{ font-size:1rem; color:#ffd166; line-height:1.2; margin-top:.1rem; }
-    .rating-stack{ display:flex; flex-direction:column; line-height:1.1; }
-    .rating-line{ display:flex; align-items:baseline; gap:.35rem; }
-    .rating-number{ font-size:1.1rem; }
-    .rating-outof{ color:var(--muted); font-weight:600; font-size:.95rem; }
-    .rating-votes-mini{ color:var(--muted); font-weight:600; font-size:.85rem; }
-
-    /* Trailer button */
-    .trailer-btn{
-      display:inline-flex; align-items:center; gap:.6rem;
-      border-radius:12px; padding:.6rem .9rem; border:1px solid #cbd5e1;
-      background:white; color:#475569; font-weight:600;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    .trailer-btn:hover {
-      background: #f8fafc;
-    }
-    .trailer-btn i{ font-size:.95rem; }
-
-    /* Cast scroller */
-    .cast-strip{
-      display:flex; gap:.75rem; overflow-x:auto; padding-bottom:.25rem;
-      -webkit-overflow-scrolling:touch; scrollbar-width:thin;
-    }
-    .cast-strip::-webkit-scrollbar { height:6px; }
-    .cast-strip::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:999px; }
-
-    .actor-card{
-      background:#ffffff; border:1px solid var(--border);
-      width:135px; min-width:135px; border-radius:14px; overflow:hidden;
-    }
-    .actor-card img{ width:100%; height:180px; object-fit:cover; }
-    .actor-card .actor-name, .actor-card .character{
-      padding:.5rem .6rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-      font-size:.85rem;
-    }
-    .actor-card .actor-name{ color:#0f172a; font-weight:600; }
-    .actor-card .character{ color:var(--muted); border-top:1px solid var(--border); }
-
-    .divider{ height:1px; background:var(--border); }
-    
-    /* Bottom navigation buttons */
-    .nav-btn-prev, .nav-btn-next {
-      padding: 0.5rem 1rem;
-      border: 1px solid #cbd5e1;
-      border-radius: 0.5rem;
-      background: white;
-      color: #475569;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    .nav-btn-prev:hover:not(:disabled), .nav-btn-next:hover {
-      background: #f8fafc;
-    }
-    .nav-btn-prev:disabled {
-      opacity: 0.25;
-      cursor: not-allowed;
-    }
-
-    /* Floating stats container */
-    .stats-container{
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 1.5rem;
-      box-shadow: 0 10px 40px rgba(0,0,0,0.1);
-    }
-
-    .stats-container h3{
-      font-size: 1rem;
-      font-weight: 700;
-      margin-bottom: 1rem;
-      color: var(--text);
-    }
-
-    .stats-container .space-y-3 > * + *{
-      margin-top: 0.75rem;
-    }
-
-    .stats-container .flex{
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      font-size: 0.875rem;
-    }
-
-    .stats-container i{
-      color: var(--muted);
-      width: 16px;
-      text-align: center;
-    }
-
-    /* Watch Providers */
-    .watch-providers {
-      margin-top: 1rem;
-      padding: 1rem;
-      background: var(--chip);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-    }
-
-    .watch-providers h3 {
-      font-size: 0.875rem;
-      font-weight: 600;
-      color: var(--muted);
-      margin-bottom: 0.75rem;
-      text-transform: uppercase;
-      letter-spacing: 0.025em;
-    }
-
-    .provider-section {
-      margin-bottom: 1rem;
-    }
-
-    .provider-section:last-child {
-      margin-bottom: 0;
-    }
-
-    .provider-label {
-      font-size: 0.75rem;
-      font-weight: 600;
-      color: var(--muted);
-      margin-bottom: 0.5rem;
-      display: flex;
-      align-items: center;
-      gap: 0.25rem;
-    }
-
-    .provider-label i {
-      font-size: 0.625rem;
-    }
-
-    .provider-logos {
-      display: flex;
-      gap: 0.5rem;
-      flex-wrap: wrap;
-    }
-
-    .provider-logo-link {
-      display: inline-block;
-      text-decoration: none;
-      transition: transform 0.2s ease, opacity 0.2s ease;
-    }
-
-    .provider-logo-link:hover {
-      transform: scale(1.1);
-      opacity: 0.9;
-    }
-
-    .provider-logo {
-      width: 40px;
-      height: 40px;
-      border-radius: 8px;
-      overflow: hidden;
-      border: 1px solid var(--border);
-      background: white;
-      cursor: pointer;
-      transition: box-shadow 0.2s ease;
-    }
-
-    .provider-logo-link:hover .provider-logo {
-      box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-    }
-
-    .provider-logo img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-
-    .justwatch-link {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35rem;
-      margin-top: 0.75rem;
-      padding: 0.35rem 0.7rem;
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--muted);
-      font-size: 0.75rem;
-      font-weight: 600;
-      text-decoration: none;
-      transition: all 0.2s;
-    }
-
-    .justwatch-link:hover {
-      background: white;
-      color: var(--text);
-    }
-
-    .justwatch-link i {
-      font-size: 0.625rem;
-    }
-
-    /* Tagline */
-    .tagline{
-      color:var(--muted); font-style:italic; font-size:1rem;
-      font-weight:400; line-height:1.4;
-    }
-
-    /* Key Crew */
-    .crew-grid{
-      display:flex; flex-wrap:wrap; gap:1.25rem;
-    }
-    .crew-item{
-      font-size:.875rem; color:var(--muted);
-    }
-    .crew-item .crew-role{
-      font-weight:600; color:var(--text); font-size:.8rem;
-      text-transform:uppercase; letter-spacing:.02em;
-      margin-bottom:.15rem;
-    }
-
-    /* External Links */
-    .external-links{
-      display:flex; gap:.5rem; flex-wrap:wrap;
-    }
-    .ext-link{
-      display:inline-flex; align-items:center; gap:.35rem;
-      padding:.35rem .7rem; border:1px solid var(--border);
-      border-radius:8px; background:var(--chip); color:var(--muted);
-      font-size:.8rem; font-weight:600; text-decoration:none;
-      transition:all .2s;
-    }
-    .ext-link:hover{
-      background:white; color:var(--text);
-    }
-    .ext-link svg{ width:14px; height:14px; }
-
-    /* Collection banner */
-    .collection-banner{
-      display:flex; align-items:center; gap:.75rem;
-      padding:.75rem 1rem; background:var(--chip);
-      border:1px solid var(--border); border-radius:12px;
-    }
-    .collection-banner img{
-      width:42px; height:63px; border-radius:6px; object-fit:cover;
-    }
-    .collection-banner .collection-label{
-      font-size:.8rem; color:var(--muted); font-weight:600;
-    }
-    .collection-banner .collection-name{
-      font-size:.95rem; font-weight:700; color:var(--text);
-    }
-
-    /* Keyword chips */
-    .keyword-chip{
-      display:inline-block;
-      border:1px solid var(--border); background:var(--chip);
-      color:var(--muted); border-radius:999px;
-      padding:.3rem .65rem; font-size:.8rem; font-weight:500;
-    }
-
-    /* Recommendations scroller */
-    .rec-strip{
-      display:flex; gap:.75rem; overflow-x:auto; padding-bottom:.25rem;
-      -webkit-overflow-scrolling:touch; scrollbar-width:thin;
-    }
-    .rec-strip::-webkit-scrollbar { height:6px; }
-    .rec-strip::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:999px; }
-
-    .rec-card{
-      background:#ffffff; border:1px solid var(--border);
-      width:160px; min-width:160px; border-radius:14px; overflow:hidden;
-      text-decoration:none; color:inherit;
-      transition: box-shadow .2s, transform .2s;
-    }
-    .rec-card:hover{
-      box-shadow:0 6px 16px rgba(0,0,0,.12);
-      transform:translateY(-2px);
-    }
-    .rec-card img{ width:100%; height:220px; object-fit:cover; }
-    .rec-card .rec-info{
-      padding:.5rem .6rem;
-    }
-    .rec-card .rec-title{
-      font-size:.85rem; font-weight:600; color:#0f172a;
-      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-    }
-    .rec-card .rec-meta{
-      font-size:.75rem; color:var(--muted); display:flex;
-      justify-content:space-between; align-items:center;
-      margin-top:.15rem;
-    }
-    .rec-card .rec-rating{
-      display:flex; align-items:center; gap:.2rem;
-    }
-    .rec-card .rec-rating svg{
-      width:12px; height:12px; fill:#ffd166;
-    }
-
-    /* Section headers */
-    .section-heading{
-      font-size:1rem; font-weight:700; color:var(--text);
-      margin-bottom:.75rem;
-    }
-
-    /* Inline details (visible below 1400px where floating sidebar hides) */
-    .inline-details{ display:block; }
-
-    @media (min-width: 1401px){
-      .inline-details{ display:none !important; }
-    }
-
-    @media (max-width: 1400px){
-      .floating-containers{
-        display: none !important;
-      }
-    }
-
-    @media (max-width: 992px){
-      .movie-card{ margin-top:-80px; }
-    }
-  </style>
+  .hero {
+    background:
+      radial-gradient(1000px 400px at 10% 0%, var(--color-bg) 0%, color-mix(in srgb, var(--color-bg) 84%, transparent) 60%, transparent 100%),
+      linear-gradient(0deg, var(--color-bg) 0%, color-mix(in srgb, var(--color-bg) 84%, transparent) 40%, transparent 70%),
+      url('{{ hero_backdrop }}') center/cover no-repeat;
+  }
+</style>
   <!-- HERO / BACKDROP -->
   <section class="hero relative">
     <!-- Prev -->
@@ -438,7 +36,7 @@
 
         <!-- Poster -->
         <div class="col-span-1 md:col-span-4 flex justify-center md:justify-start">
-          <img class="poster aspect-poster" src="{{ movie.poster_url }}" alt="Poster for {{ movie.title }}" fetchpriority="high" decoding="async">
+          <img class="poster aspect-poster" src="{{ poster_url }}" alt="Poster for {{ movie.title }}" fetchpriority="high" decoding="async" onerror="this.src='/static/img/poster-placeholder.svg'">
         </div>
 
         <!-- Details -->
@@ -466,7 +64,7 @@
           <!-- Rating chip (with votes beneath /10) -->
           <div class="rating-wrap mb-4">
             <div class="rating-chip">
-              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="#ffd166" aria-hidden="true"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" style="color:var(--color-star)" aria-hidden="true"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
               <div class="rating-stack">
                 <div class="rating-line">
                   <span class="rating-number">{{ '%.1f'|format(movie.rating) }}</span>
@@ -476,10 +74,12 @@
               </div>
             </div>
 
+            {% if movie.trailer %}
             <button class="trailer-btn" id="play-button" data-video-url="{{ movie.trailer }}">
               <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
               Play Trailer
             </button>
+            {% endif %}
           </div>
 
           <!-- Collection banner -->
@@ -540,7 +140,7 @@
                 ← Previous
               </button>
             </form>
-            <form method="POST" action="/next_movie" class="inline">
+            <form method="POST" action="/next_movie" id="next-form-bottom" class="inline">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button type="submit" class="nav-btn-next">
                 Next →
@@ -551,6 +151,7 @@
       </div>
 
       <!-- Cast -->
+      {% if movie.cast %}
       <div class="mt-8">
         <h2 class="section-heading">Cast</h2>
         <div class="cast-strip">
@@ -567,6 +168,7 @@
           {% endfor %}
         </div>
       </div>
+      {% endif %}
 
       <!-- Inline Movie Details + Watch Providers (visible below 1400px) -->
       <div class="inline-details mt-6">
@@ -1064,7 +666,7 @@
           }
         });
       }
-      ['#prev-form', '#prev-form-bottom', '#next-form'].forEach(sel => {
+      ['#prev-form', '#prev-form-bottom', '#next-form', '#next-form-bottom'].forEach(sel => {
         const f = document.querySelector(sel);
         if (f) guardDisabled(f);
       });

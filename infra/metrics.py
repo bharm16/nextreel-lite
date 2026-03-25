@@ -7,7 +7,7 @@ from prometheus_client import Counter, Histogram, Gauge, generate_latest, REGIST
 import time
 import asyncio
 from typing import Optional, Dict, Any
-from quart import Response, request, g, session
+from quart import Response, request, g
 from logging_config import get_logger
 import os
 
@@ -172,6 +172,12 @@ cache_operations_duration_seconds = Histogram(
     ['operation', 'cache_type']
 )
 
+rate_limit_backend_mode = Gauge(
+    'nextreel_rate_limit_backend_mode',
+    'Current rate limiter backend mode (1 active, 0 inactive)',
+    ['backend']
+)
+
 # ============================================================================
 # ERROR METRICS
 # ============================================================================
@@ -180,6 +186,26 @@ application_errors_total = Counter(
     'nextreel_application_errors_total',
     'Total application errors',
     ['error_type', 'endpoint']
+)
+
+navigation_state_redis_import_total = Counter(
+    'nextreel_navigation_state_redis_import_total',
+    'Total successful legacy Redis session imports into MySQL navigation state'
+)
+
+navigation_state_migration_miss_total = Counter(
+    'nextreel_navigation_state_migration_miss_total',
+    'Total migration misses when no legacy Redis session could be imported'
+)
+
+navigation_state_conflicts_total = Counter(
+    'nextreel_navigation_state_conflicts_total',
+    'Total optimistic concurrency conflicts while mutating navigation state'
+)
+
+home_prewarm_failed_total = Counter(
+    'nextreel_home_prewarm_failed_total',
+    'Total failed home page queue prewarm attempts'
 )
 
 # ============================================================================
@@ -325,8 +351,9 @@ def setup_metrics_middleware(app, metrics_collector: MetricsCollector):
         http_requests_in_progress.inc()
         
         # Track user activity
-        if 'user_id' in session:
-            metrics_collector.track_user_activity(session['user_id'])
+        nav_state = getattr(g, 'navigation_state', None)
+        if nav_state and getattr(nav_state, 'session_id', None):
+            metrics_collector.track_user_activity(nav_state.session_id)
     
     @app.after_request
     async def after_request(response):
@@ -373,3 +400,8 @@ def get_metrics_summary() -> Dict[str, Any]:
         'db_connections_idle': _gauge_value(db_connections_idle),
         'active_users': _gauge_value(active_users),
     }
+
+
+def set_rate_limit_backend(backend: str) -> None:
+    for candidate in ("redis", "memory"):
+        rate_limit_backend_mode.labels(backend=candidate).set(1 if candidate == backend else 0)

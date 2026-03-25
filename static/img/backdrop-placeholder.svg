@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">Backdrop placeholder</title>
+  <desc id="desc">Fallback backdrop image for movies without artwork.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="50%" stop-color="#1d4ed8"/>
+      <stop offset="100%" stop-color="#020617"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <circle cx="240" cy="180" r="110" fill="#ffffff10"/>
+  <circle cx="1310" cy="160" r="140" fill="#ffffff10"/>
+  <circle cx="1220" cy="700" r="220" fill="#ffffff08"/>
+  <rect x="190" y="230" width="1220" height="440" rx="32" fill="none" stroke="#cbd5e1" stroke-width="8" stroke-dasharray="20 24"/>
+  <path d="M540 560l150-190 130 150 180-210 220 250H540z" fill="#ffffff22"/>
+  <rect x="560" y="700" width="480" height="26" rx="13" fill="#e2e8f022"/>
+  <rect x="660" y="744" width="280" height="18" rx="9" fill="#e2e8f018"/>
+</svg>

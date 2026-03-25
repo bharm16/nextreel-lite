@@ -95,11 +95,11 @@
                 </h2>
                 <div>
                   <label for="imdb_score_min" class="block text-sm font-medium">Min Score</label>
-                  <input type="number" id="imdb_score_min" name="imdb_score_min" min="1" max="10" step="0.1" value="{{ current_filters.get('imdb_score_min', 7.0) }}" class="mt-1 w-full rounded-2xl border-2 border-slate-200 px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30">
+                  <input type="number" id="imdb_score_min" name="imdb_score_min" min="1" max="10" step="0.1" value="{{ current_filters.get('imdb_score_min', 7.0) }}" class="mt-1 w-full rounded-2xl border-2 border-token px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30">
                 </div>
                 <div>
                   <label for="imdb_score_max" class="block text-sm font-medium">Max Score</label>
-                  <input type="number" id="imdb_score_max" name="imdb_score_max" min="1" max="10" step="0.1" value="{{ current_filters.get('imdb_score_max', 10.0) }}" class="mt-1 w-full rounded-2xl border-2 border-slate-200 px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30">
+                  <input type="number" id="imdb_score_max" name="imdb_score_max" min="1" max="10" step="0.1" value="{{ current_filters.get('imdb_score_max', 10.0) }}" class="mt-1 w-full rounded-2xl border-2 border-token px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30">
                 </div>
               </section>
 
@@ -111,11 +111,11 @@
                 </h2>
                 <div>
                   <label for="num_votes_min" class="block text-sm font-medium">Min Votes</label>
-                  <input type="number" id="num_votes_min" name="num_votes_min" min="0" value="{{ current_filters.get('num_votes_min', 100000) }}" class="mt-1 w-full rounded-2xl border-2 border-slate-200 px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30">
+                  <input type="number" id="num_votes_min" name="num_votes_min" min="0" value="{{ current_filters.get('num_votes_min', 100000) }}" class="mt-1 w-full rounded-2xl border-2 border-token px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30">
                 </div>
                 <div>
                   <label for="num_votes_max" class="block text-sm font-medium">Max Votes</label>
-                  <input type="number" id="num_votes_max" name="num_votes_max" min="1" max="2000000" value="{{ current_filters.get('num_votes_max', 200000) }}" class="mt-1 w-full rounded-2xl border-2 border-slate-200 px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30">
+                  <input type="number" id="num_votes_max" name="num_votes_max" min="1" max="2000000" value="{{ current_filters.get('num_votes_max', 200000) }}" class="mt-1 w-full rounded-2xl border-2 border-token px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30">
                 </div>
               </section>
             </div>
@@ -130,11 +130,11 @@
                 </h2>
                 <div>
                   <label for="year_min" class="block text-sm font-medium">Earliest</label>
-                  <input type="number" id="year_min" name="year_min" min="1900" value="{{ current_filters.get('year_min', 1900) }}" class="mt-1 w-full rounded-2xl border-2 border-slate-200 px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30">
+                  <input type="number" id="year_min" name="year_min" min="1900" value="{{ current_filters.get('year_min', 1900) }}" class="mt-1 w-full rounded-2xl border-2 border-token px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30">
                 </div>
                 <div>
                   <label for="year_max" class="block text-sm font-medium">Latest</label>
-                  <input type="number" id="year_max" name="year_max" value="{{ current_filters.get('year_max', current_year) }}" class="mt-1 w-full rounded-2xl border-2 border-slate-200 px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30">
+                  <input type="number" id="year_max" name="year_max" value="{{ current_filters.get('year_max', current_year) }}" class="mt-1 w-full rounded-2xl border-2 border-token px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30">
                 </div>
               </section>
 
@@ -148,7 +148,7 @@
                 </h2>
                 <div>
                   <label for="language" class="block text-sm font-medium">Select Language</label>
-                  <select id="language" name="language" class="mt-1 w-full rounded-2xl border-2 border-slate-200 px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30">
+                  <select id="language" name="language" class="mt-1 w-full rounded-2xl border-2 border-token px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30">
                     <option value="any" {% if current_filters.get('language', 'en') == 'any' %}selected{% endif %}>Any Language</option>
                     <option value="en" {% if current_filters.get('language', 'en') == 'en' %}selected{% endif %}>English</option>
                     <option value="es" {% if current_filters.get('language') == 'es' %}selected{% endif %}>Spanish</option>
@@ -177,7 +177,7 @@
                   Select Genres
                 </h2>
                 <div class="flex items-center gap-2 text-sm font-medium">
-                  <input type="checkbox" id="selectAll" checked class="h-4 w-4 rounded border-slate-300 text-accent focus:ring-accent" />
+                  <input type="checkbox" id="selectAll" checked class="h-4 w-4 rounded border-token text-accent focus:ring-accent" />
                   <label for="selectAll">Select All</label>
                 </div>
                 <div class="genre-grid mt-2 flex flex-wrap gap-2">
@@ -185,7 +185,7 @@
                   {% for g in genres %}
                   <label class="relative">
                     <input type="checkbox" name="genres[]" value="{{ g }}" {% if current_filters.get('genres_selected', [])|length == 0 or g in current_filters.get('genres_selected', []) %}checked{% endif %} class="peer sr-only" />
-                    <span class="inline-block select-none rounded-full border-2 border-slate-300 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-700 transition peer-checked:border-accent peer-checked:bg-accent peer-checked:text-white">{{ g }}</span>
+                    <span class="inline-block select-none rounded-full border-2 border-token bg-surface-alt px-4 py-2 text-xs font-semibold text-body transition peer-checked:border-accent peer-checked:bg-accent peer-checked:text-white">{{ g }}</span>
                   </label>
                   {% endfor %}
                 </div>
@@ -195,7 +195,7 @@
 
           <!-- Buttons -->
           <div class="mt-10 flex items-center justify-center gap-3">
-            <button type="reset" class="inline-flex items-center justify-center rounded-full bg-slate-200 px-6 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-300 focus:outline-none focus:ring-2 focus:ring-primary/30">Reset</button>
+            <button type="reset" class="inline-flex items-center justify-center rounded-full chip px-6 py-2.5 text-sm font-semibold text-body hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-primary/30">Reset</button>
             <button id="applyBtn" type="submit" class="inline-flex items-center justify-center gap-2 rounded-full bg-accent px-7 py-3 text-sm font-bold uppercase tracking-wide text-white shadow shadow-black/10 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-accent/40" aria-busy="false">
               <svg class="h-4 w-4 hidden animate-spin motion-reduce:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10" opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
               <span>Apply Filters</span>
@@ -222,31 +222,7 @@
     </section>
   </main>
 
-  <!-- Footer (simple) -->
-  <footer class="border-t border-slate-200/60 bg-white">
-    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10">
-      <div class="grid gap-8 md:grid-cols-3 md:items-start">
-        <div>
-          <a href="/" class="inline-flex items-center gap-2 text-primary">
-            <svg class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 6a2 2 0 0 1 2-2h8l6 6v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6z" opacity=".3"/><path d="M14 4v4a2 2 0 0 0 2 2h4"/></svg>
-            <span class="font-brand-serif text-lg font-bold">Nextreel</span>
-          </a>
-          <p class="mt-3 text-sm text-slate-600">&copy; 2025 Nextreel. All rights reserved.</p>
-        </div>
-        <div class="text-sm">
-          <ul class="space-y-2">
-            <li><a class="text-slate-600 hover:text-primary" href="#">About Us</a></li>
-            <li><a class="text-slate-600 hover:text-primary" href="#">Privacy Policy</a></li>
-            <li><a class="text-slate-600 hover:text-primary" href="#">DMCA</a></li>
-          </ul>
-        </div>
-        <div class="text-sm">
-          <h3 class="font-semibold text-slate-900">Contact</h3>
-          <p class="mt-2 text-slate-600">Email: <a class="underline decoration-accent/50 underline-offset-4 hover:decoration-accent" href="mailto:bryce@nxtreel.com">bryce@nxtreel.com</a></p>
-        </div>
-      </div>
-    </div>
-  </footer>
+  {% include 'footer_modern.html' %}
 
   <!-- Tiny JS: navbar toggle + Select All -->
   <script>

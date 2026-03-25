@@ -1,51 +1,48 @@
+import asyncio
 import httpx
+
 from logging_config import get_logger
 
-from quart import session
-
-from settings import Config, DatabaseConnectionPool
-from movies.query_builder import ImdbRandomMovieFetcher
-from movies.filter_parser import extract_movie_filter_criteria
+from infra.metrics import home_prewarm_failed_total
+from infra.navigation_state import normalize_filters
+from infra.runtime_schema import ensure_runtime_schema
+from movies.candidate_store import CandidateStore
+from movies.projection_store import ProjectionStore
 from movies.tmdb_client import TMDbHelper
 from movie_navigator import MovieNavigator
 from movie_renderer import MovieRenderer
-from session.keys import (
-    CRITERIA_KEY,
-    init_movie_stacks,
-    reset_movie_stacks,
-)
+from settings import Config, DatabaseConnectionPool
 
 logger = get_logger(__name__)
 
 
 class MovieManager:
-    """Facade that coordinates movie navigation, rendering, and queue management.
-
-    Delegates to ``MovieNavigator`` for session stack operations and to
-    ``MovieRenderer`` for template rendering.  All public methods are preserved
-    for backward compatibility.
-    """
+    """Facade coordinating DB-backed navigation, rendering, and enrichment."""
 
     def __init__(self, db_config=None):
         logger.debug("Initializing MovieManager")
         self.db_config = db_config or Config.get_db_config()
         self.db_pool = DatabaseConnectionPool(self.db_config)
-        self.movie_fetcher = ImdbRandomMovieFetcher(self.db_pool)
-        self.queue_size = 2  # Reduced from 5 for instant initial loading
         self.default_movie_tmdb_id = 62
         self.default_backdrop_url = None
         self.tmdb_helper = TMDbHelper()
 
-        # Delegates — share the single TMDbHelper (and its httpx pool)
-        self._navigator = MovieNavigator(
-            self.movie_fetcher, self.db_pool, self.queue_size,
-            tmdb_helper=self.tmdb_helper,
-        )
-        self._renderer = MovieRenderer(self.db_pool, self.tmdb_helper)
+        self.candidate_store = CandidateStore(self.db_pool)
+        self.projection_store = ProjectionStore(self.db_pool, self.tmdb_helper)
+        self.navigation_state_store = None
+        self._navigator = None
+        self._renderer = MovieRenderer(self.projection_store)
 
     async def start(self):
         logger.info("Starting MovieManager")
         await self.db_pool.init_pool()
+        await ensure_runtime_schema(self.db_pool)
+
+        from infra.navigation_state import NavigationStateStore
+
+        self.navigation_state_store = NavigationStateStore(self.db_pool)
+        self._navigator = MovieNavigator(self.candidate_store, self.navigation_state_store)
+
         try:
             await self.set_default_backdrop()
         except httpx.HTTPError as exc:
@@ -54,10 +51,8 @@ class MovieManager:
                 "TMDb backdrop warm-up failed; continuing without default backdrop: %s",
                 exc,
             )
-        logger.debug("Default backdrop set")
 
     async def close(self):
-        """Close database connections and HTTP clients properly"""
         try:
             if self.tmdb_helper:
                 await self.tmdb_helper.close()
@@ -73,19 +68,23 @@ class MovieManager:
             logger.error("Error closing MovieManager: %s", e)
 
     async def add_user(self, user_id, criteria):
-        """
-        Add a new user with specific criteria.
+        """Backward-compatible no-op.
 
-        Parameters:
-        user_id (str): Unique identifier for the user.
-        criteria (dict): Criteria to filter movies for the user.
+        User bootstrap now happens through NavigationStateStore.
         """
-        logger.info("Adding new user with ID: %s and criteria: %s", user_id, criteria)
-        init_movie_stacks(criteria)
-        await self._navigator.load_initial_queue()
+        logger.info("Legacy add_user invoked for %s with criteria %s", user_id, criteria)
 
-    async def home(self, user_id):
-        """Return home page data."""
+    async def home(self, state, legacy_session=None):
+        if state and not state.queue and self._navigator:
+            try:
+                await asyncio.wait_for(
+                    self._navigator.prewarm_queue(state.session_id, legacy_session=legacy_session),
+                    timeout=0.1,
+                )
+            except Exception as exc:
+                home_prewarm_failed_total.inc()
+                logger.warning("Home prewarm failed for %s: %s", state.session_id, exc)
+
         return {"default_backdrop_url": self.default_backdrop_url}
 
     async def set_default_backdrop(self):
@@ -100,42 +99,43 @@ class MovieManager:
         else:
             self.default_backdrop_url = None
 
-    async def fetch_and_render_movie(
-        self, current_displayed_movie, user_id, template_name="movie.html"
-    ):
-        return await self._renderer.fetch_and_render_movie(
-            current_displayed_movie, user_id, self._navigator.prev_stack_length(), template_name
+    async def render_movie_by_tconst(self, state, tconst, template_name="movie.html"):
+        previous_count = self._navigator.prev_stack_length(state) if self._navigator and state else 0
+        return await self._renderer.render_movie_by_tconst(
+            tconst,
+            previous_count=previous_count,
+            template_name=template_name,
         )
 
-    async def render_movie_by_tconst(self, user_id, tconst, template_name="movie.html"):
-        return await self._renderer.render_movie_by_tconst(user_id, tconst, template_name)
+    def get_current_movie_tconst(self, state):
+        if not self._navigator or not state:
+            return None
+        return self._navigator.get_current_movie_tconst(state)
 
-    # Public navigation helpers delegated to MovieNavigator.
-    # NOTE: The previous pass-through private methods (_get_user_stacks,
-    # _mark_movie_seen, _load_movies_into_queue, _ensure_queue) were removed
-    # because exposing private APIs through a facade defeats its purpose.
-    # Internal callers should use the navigator directly via self._navigator.
+    async def next_movie(self, state, legacy_session=None):
+        if not self._navigator or not state:
+            return None
+        return await self._navigator.next_movie(state.session_id, legacy_session=legacy_session)
 
-    def get_current_movie_tconst(self):
-        return self._navigator.get_current_movie_tconst()
+    async def previous_movie(self, state, legacy_session=None):
+        if not self._navigator or not state:
+            return None
+        return await self._navigator.previous_movie(state.session_id, legacy_session=legacy_session)
 
-    async def next_movie(self, user_id):
-        return await self._navigator.next_movie(user_id)
+    async def filtered_movie(self, state, form_data, legacy_session=None):
+        if not self._navigator or not state:
+            return None
 
-    async def previous_movie(self, user_id):
-        return await self._navigator.previous_movie(user_id)
+        filters = normalize_filters(form_data)
+        return await self._navigator.apply_filters(
+            state.session_id,
+            filters,
+            legacy_session=legacy_session,
+        )
 
-    async def filtered_movie(self, user_id, form_data):
-        logger.info("Starting filtering process for user_id: %s", user_id)
-
-        new_criteria = extract_movie_filter_criteria(form_data)
-        session[CRITERIA_KEY] = new_criteria
-        reset_movie_stacks()
-
-        await self._navigator.load_initial_queue()
-
-        response = await self.next_movie(user_id)
-        if response:
-            return response
-
-        return "No movie found", 404
+    async def logout(self, state, legacy_session=None):
+        if state and self.navigation_state_store:
+            await self.navigation_state_store.delete_state(
+                state.session_id,
+                legacy_session=legacy_session,
+            )
