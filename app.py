@@ -316,8 +316,9 @@ def create_app():
         if getattr(app_instance, "config", {}).get("SESSION_REDIS"):
             try:
                 await asyncio.wait_for(app_instance.config["SESSION_REDIS"].aclose(), timeout=3.0)
-            except (asyncio.TimeoutError, Exception):
-                pass
+                logger.info("Session Redis pool closed")
+            except (asyncio.TimeoutError, Exception) as exc:
+                logger.warning("Error closing session Redis pool: %s", exc)
 
     app.register_blueprint(routes_bp)
     return app

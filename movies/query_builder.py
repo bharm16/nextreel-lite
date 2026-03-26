@@ -225,7 +225,7 @@ class ImdbRandomMovieFetcher(MovieFetcher):
                     logger.debug("Count cache hit for %s: %d", cache_key, cached)
                     return int(cached)
         except Exception:
-            pass
+            logger.debug("Cache read failed for %s", cache_key, exc_info=True)
         return None
 
     async def _set_cached_count(self, cache_key: str, count: int) -> None:
@@ -239,7 +239,7 @@ class ImdbRandomMovieFetcher(MovieFetcher):
                     CacheNamespace.TEMP, cache_key, count, ttl=self._COUNT_CACHE_TTL
                 )
         except Exception:
-            pass
+            logger.debug("Cache write failed for %s", cache_key, exc_info=True)
 
     def _build_query_with_genres(self, base_query, criteria, parameters, use_cache_table):
         """Append genre conditions to *base_query* and return (query, params)."""

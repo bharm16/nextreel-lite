@@ -253,12 +253,11 @@ class MetricsCollector:
                 
                 # Evict stale users and update active users count
                 now = time.time()
-                stale = [
-                    uid for uid, ts in self._active_users.items()
-                    if now - ts > self._active_user_timeout
-                ]
+                snapshot = dict(self._active_users)
+                stale = [uid for uid, ts in snapshot.items()
+                         if now - ts > self._active_user_timeout]
                 for uid in stale:
-                    del self._active_users[uid]
+                    self._active_users.pop(uid, None)
                 active_users.set(len(self._active_users))
                 
                 # Sleep for 10 seconds before next collection
@@ -307,9 +306,10 @@ class MetricsCollector:
         # Evict oldest entries if we exceed the cap
         if len(self._active_users) > self._max_tracked_users:
             cutoff = time.time() - self._active_user_timeout
-            stale = [uid for uid, ts in self._active_users.items() if ts < cutoff]
+            snapshot = dict(self._active_users)
+            stale = [uid for uid, ts in snapshot.items() if ts < cutoff]
             for uid in stale:
-                del self._active_users[uid]
+                self._active_users.pop(uid, None)
     
     def track_user_action(self, action_type: str):
         """Track user actions"""
