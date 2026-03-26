@@ -107,9 +107,25 @@ class SimpleCacheManager:
     def _make_key(self, namespace: CacheNamespace, key: str) -> str:
         return f"cache:{namespace.value}:{key}"
 
+    async def _try_reconnect(self) -> bool:
+        """Attempt lazy reconnect if the Redis connection was lost."""
+        if self._redis is not None:
+            return True
+        # Only attempt reconnect if we have connection info
+        if not self._redis_url and not self._connection_pool:
+            return False
+        try:
+            await self.initialize()
+            if self._redis is not None:
+                logger.info("SimpleCacheManager reconnected to Redis")
+                return True
+        except Exception as e:
+            logger.debug("SimpleCacheManager reconnect failed: %s", e)
+        return False
+
     async def get(self, namespace: CacheNamespace, key: str) -> Optional[Any]:
         """Retrieve a cached value, or None on miss/error."""
-        if not self._redis:
+        if not self._redis and not await self._try_reconnect():
             return None
         try:
             raw = await self._redis.get(self._make_key(namespace, key))
@@ -117,7 +133,8 @@ class SimpleCacheManager:
                 return None
             return json.loads(raw)
         except Exception as e:
-            logger.debug("Cache get failed for %s:%s — %s", namespace.value, key, e)
+            logger.warning("Cache get failed for %s:%s — %s", namespace.value, key, e)
+            self._redis = None
             return None
 
     async def set(
@@ -128,7 +145,7 @@ class SimpleCacheManager:
         ttl: Optional[int] = None,
     ) -> None:
         """Store a value with optional TTL (seconds)."""
-        if not self._redis:
+        if not self._redis and not await self._try_reconnect():
             return
         try:
             ttl = ttl or self._default_ttl
@@ -138,13 +155,15 @@ class SimpleCacheManager:
                 json.dumps(value, default=str),
             )
         except Exception as e:
-            logger.debug("Cache set failed for %s:%s — %s", namespace.value, key, e)
+            logger.warning("Cache set failed for %s:%s — %s", namespace.value, key, e)
+            self._redis = None
 
     async def delete(self, namespace: CacheNamespace, key: str) -> None:
         """Delete a cached key."""
-        if not self._redis:
+        if not self._redis and not await self._try_reconnect():
             return
         try:
             await self._redis.delete(self._make_key(namespace, key))
         except Exception as e:
-            logger.debug("Cache delete failed for %s:%s — %s", namespace.value, key, e)
+            logger.warning("Cache delete failed for %s:%s — %s", namespace.value, key, e)
+            self._redis = None

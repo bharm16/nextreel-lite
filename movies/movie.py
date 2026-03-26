@@ -259,7 +259,7 @@ class Movie:
             return self.movie_data
 
         except Exception as e:
-            logger.error("Error fetching movie data for %s: %s", self.tconst, e)
+            logger.error("Error fetching movie data for %s: %s", self.tconst, e, exc_info=True)
             return None
 
     async def close(self):

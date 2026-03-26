@@ -170,6 +170,9 @@ def create_app():
 
     async def enqueue_runtime_job(function_name: str, *args):
         if not app.arq_redis:
+            logger.warning(
+                "enqueue_runtime_job(%s) skipped: no worker available", function_name
+            )
             return None
         return await app.arq_redis.enqueue_job(function_name, *args)
 
@@ -280,7 +283,15 @@ def create_app():
         warm_up_tasks = []
         for _ in range(5):
             warm_up_tasks.append(movie_manager.db_pool.execute("SELECT 1", fetch="one"))
-        await asyncio.gather(*warm_up_tasks, return_exceptions=True)
+        warm_up_results = await asyncio.gather(*warm_up_tasks, return_exceptions=True)
+        warm_up_errors = [r for r in warm_up_results if isinstance(r, Exception)]
+        if warm_up_errors:
+            logger.warning(
+                "Application warm-up: %d/%d queries failed: %s",
+                len(warm_up_errors),
+                len(warm_up_results),
+                warm_up_errors[0],
+            )
         logger.info("Application warm-up complete")
 
     async def _shutdown_resources(app_instance):

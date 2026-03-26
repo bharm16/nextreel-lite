@@ -124,6 +124,18 @@ class LokiHandler(logging.Handler):
         self._stop_event.set()
         self.sender_thread.join(timeout=5)
     
+    def _requeue_batch(self, batch):
+        """Re-queue failed log entries for retry (best-effort, drops on full buffer)."""
+        requeued = 0
+        for entry in batch:
+            try:
+                self.buffer.put_nowait(entry)
+                requeued += 1
+            except queue.Full:
+                break
+        if requeued < len(batch):
+            self._dropped_logs += len(batch) - requeued
+
     def _flush_batch(self):
         """Send a batch of logs to Loki"""
         with self._flush_lock:
@@ -167,8 +179,10 @@ class LokiHandler(logging.Handler):
             )
             if response.status_code != 204:
                 print(f"Loki error: {response.status_code} - {response.text}")
+                self._requeue_batch(batch)
         except Exception as e:
             print(f"Failed to send logs to Loki: {e}")
+            self._requeue_batch(batch)
 
 def setup_logging(log_level=logging.INFO):
     """Set up logging with Loki integration"""

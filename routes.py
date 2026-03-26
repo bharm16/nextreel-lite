@@ -224,7 +224,7 @@ async def next_movie():
         return response
 
     logger.warning("No more movies available. Correlation ID: %s", g.correlation_id)
-    return "No more movies available. Please try again later.", 200
+    return "No more movies available. Please try again later.", 404
 
 
 @bp.route("/previous_movie", methods=["POST"])

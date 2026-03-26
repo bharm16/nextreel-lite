@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from logging_config import get_logger
@@ -49,7 +49,7 @@ class ProjectionStore:
 
     async def fetch_renderable_payload(self, tconst: str) -> dict[str, Any] | None:
         row = await self._select_row(tconst)
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
         if row:
             state = row["projection_state"]
             stale_after = row.get("stale_after")
@@ -72,6 +72,11 @@ class ProjectionStore:
 
         payload = await self.ensure_core_projection(tconst)
         if payload:
+            # Re-read the row after ensure_core_projection so
+            # _enqueue_enrichment_if_needed sees the freshly inserted
+            # last_attempt_at instead of the stale (None) row, which
+            # prevents an enrichment stampede on first visit.
+            row = await self._select_row(tconst)
             await self._enqueue_enrichment_if_needed(tconst, row)
         return payload
 
@@ -95,7 +100,7 @@ class ProjectionStore:
             return None
 
         payload = self.build_core_payload(row)
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
         await self.db_pool.execute(
             """
             INSERT INTO movie_projection (
@@ -178,7 +183,7 @@ class ProjectionStore:
         if not enqueue:
             return
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
         last_attempt_at = row.get("last_attempt_at") if row else None
         if last_attempt_at and now < last_attempt_at + ENQUEUE_COOLDOWN:
             return
@@ -195,7 +200,7 @@ class ProjectionStore:
                 fetch="none",
             )
         except Exception as exc:
-            logger.debug("Failed to enqueue enrich_projection(%s): %s", tconst, exc)
+            logger.warning("Failed to enqueue enrich_projection(%s): %s", tconst, exc)
 
     async def ready_check(self) -> bool:
         row = await self.db_pool.execute(
@@ -213,7 +218,7 @@ class ProjectionStore:
         return bool(payload)
 
     async def enrich_projection(self, tconst: str) -> dict[str, Any] | None:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
         row = await self._select_row(tconst)
         attempts = int(row.get("attempt_count", 0)) + 1 if row else 1
         try:
@@ -282,11 +287,17 @@ class ProjectionStore:
                 ],
                 fetch="none",
             )
-            logger.warning("Projection enrichment failed for %s: %s", tconst, exc)
+            logger.error(
+                "Projection enrichment failed for %s (attempt %d): %s",
+                tconst,
+                attempts,
+                exc,
+                exc_info=True,
+            )
             return core_payload
 
     async def requeue_stale_projections(self) -> int:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
         rows = await self.db_pool.execute(
             """
             SELECT tconst

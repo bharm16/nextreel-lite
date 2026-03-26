@@ -437,7 +437,7 @@ class NavigationStateStore:
             return state
 
         expires_at = self._fresh_expiry(state.created_at, now)
-        await self.db_pool.execute(
+        rows_updated = await self.db_pool.execute(
             """
             UPDATE user_navigation_state
             SET last_activity_at = %s, expires_at = %s
@@ -446,6 +446,11 @@ class NavigationStateStore:
             [now, expires_at, state.session_id],
             fetch="none",
         )
+        if rows_updated == 0:
+            logger.warning(
+                "Touch failed for session %s — row may have been deleted",
+                state.session_id,
+            )
         state.last_activity_at = now
         state.expires_at = expires_at
         return state

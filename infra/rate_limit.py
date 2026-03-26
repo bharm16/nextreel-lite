@@ -56,8 +56,11 @@ async def check_rate_limit(endpoint_key: str) -> bool:
         _active_backend = "redis"
 
         return count <= RATE_LIMIT_MAX
-    except Exception:
-        # Redis unavailable — fall back to in-memory
+    except Exception as exc:
+        # Redis unavailable — fall back to in-memory.
+        # Log the transition so operators notice the degradation.
+        if _active_backend != "memory":
+            logger.warning("Rate limiter falling back to in-memory: %s", exc)
         set_rate_limit_backend("memory")
         _active_backend = "memory"
         return await check_rate_limit_memory(endpoint_key)
