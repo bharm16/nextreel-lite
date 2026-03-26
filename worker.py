@@ -60,10 +60,19 @@ async def validate_referential_integrity(ctx):
 
 
 async def purge_expired_navigation_state(ctx):
-    return await ctx["db_pool"].execute(
-        "DELETE FROM user_navigation_state WHERE expires_at < UTC_TIMESTAMP(6)",
-        fetch="none",
-    )
+    total_deleted = 0
+    while True:
+        result = await ctx["db_pool"].execute(
+            "DELETE FROM user_navigation_state WHERE expires_at < UTC_TIMESTAMP(6) LIMIT 1000",
+            fetch="none",
+        )
+        batch_deleted = result if isinstance(result, int) else 0
+        total_deleted += batch_deleted
+        if batch_deleted < 1000:
+            break
+    if total_deleted:
+        logger.info("Purged %d expired navigation states", total_deleted)
+    return total_deleted
 
 
 if RedisSettings is not None:

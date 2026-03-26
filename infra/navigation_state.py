@@ -234,9 +234,10 @@ class NavigationStateStore:
             """
             INSERT INTO runtime_metadata (meta_key, meta_value, updated_at)
             VALUES (%s, %s, %s)
+            AS new_row
             ON DUPLICATE KEY UPDATE
-                meta_value = VALUES(meta_value),
-                updated_at = VALUES(updated_at)
+                meta_value = new_row.meta_value,
+                updated_at = new_row.updated_at
             """,
             [key, value, now],
             fetch="none",

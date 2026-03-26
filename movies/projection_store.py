@@ -103,14 +103,15 @@ class ProjectionStore:
                 enriched_at, stale_after, last_attempt_at, attempt_count, last_error
             )
             VALUES (%s, %s, %s, %s, NULL, NULL, NULL, 0, NULL)
+            AS new_row
             ON DUPLICATE KEY UPDATE
                 payload_json = CASE
                     WHEN projection_state IN ('ready', 'stale') THEN payload_json
-                    ELSE VALUES(payload_json)
+                    ELSE new_row.payload_json
                 END,
                 projection_state = CASE
                     WHEN projection_state IN ('ready', 'stale') THEN projection_state
-                    ELSE VALUES(projection_state)
+                    ELSE new_row.projection_state
                 END,
                 last_attempt_at = COALESCE(last_attempt_at, %s)
             """,
@@ -229,14 +230,15 @@ class ProjectionStore:
                     enriched_at, stale_after, last_attempt_at, attempt_count, last_error
                 )
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NULL)
+                AS new_row
                 ON DUPLICATE KEY UPDATE
-                    tmdb_id = VALUES(tmdb_id),
-                    payload_json = VALUES(payload_json),
-                    projection_state = VALUES(projection_state),
-                    enriched_at = VALUES(enriched_at),
-                    stale_after = VALUES(stale_after),
-                    last_attempt_at = VALUES(last_attempt_at),
-                    attempt_count = VALUES(attempt_count),
+                    tmdb_id = new_row.tmdb_id,
+                    payload_json = new_row.payload_json,
+                    projection_state = new_row.projection_state,
+                    enriched_at = new_row.enriched_at,
+                    stale_after = new_row.stale_after,
+                    last_attempt_at = new_row.last_attempt_at,
+                    attempt_count = new_row.attempt_count,
                     last_error = NULL
                 """,
                 [
@@ -261,12 +263,13 @@ class ProjectionStore:
                     enriched_at, stale_after, last_attempt_at, attempt_count, last_error
                 )
                 VALUES (%s, %s, %s, %s, NULL, NULL, %s, %s, %s)
+                AS new_row
                 ON DUPLICATE KEY UPDATE
-                    projection_state = VALUES(projection_state),
-                    last_attempt_at = VALUES(last_attempt_at),
-                    attempt_count = VALUES(attempt_count),
-                    last_error = VALUES(last_error),
-                    payload_json = COALESCE(payload_json, VALUES(payload_json))
+                    projection_state = new_row.projection_state,
+                    last_attempt_at = new_row.last_attempt_at,
+                    attempt_count = new_row.attempt_count,
+                    last_error = new_row.last_error,
+                    payload_json = COALESCE(payload_json, new_row.payload_json)
                 """,
                 [
                     tconst,

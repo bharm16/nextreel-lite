@@ -291,6 +291,7 @@ class SecureConnectionPool:
                         self.metrics["queries_slow"] += 1
                         self.slow_queries.append(query_summary)
                         logger.warning("Slow query (%.2fs): %s", query_time, query[:50])
+                        await self._log_explain(connection, query, params)
 
                     return result
         except asyncio.TimeoutError as exc:
@@ -302,6 +303,25 @@ class SecureConnectionPool:
             self.metrics["queries_failed"] += 1
             logger.error("Query execution failed: %s", exc)
             raise
+
+    async def _log_explain(
+        self, connection: Connection, query: str, params: tuple | list | None
+    ) -> None:
+        """Log EXPLAIN output for a slow query (best-effort, never raises)."""
+        trimmed = query.strip()
+        if not trimmed.upper().startswith("SELECT"):
+            return
+        try:
+            async with connection.cursor() as cur:
+                await asyncio.wait_for(
+                    cur.execute(f"EXPLAIN {trimmed}", params),
+                    timeout=5.0,
+                )
+                rows = await cur.fetchall()
+                for row in rows or []:
+                    logger.info("EXPLAIN: %s", dict(row))
+        except Exception:
+            pass  # EXPLAIN is advisory; never block on failure
 
     async def _health_monitor(self):
         """Monitor pool health and connectivity."""

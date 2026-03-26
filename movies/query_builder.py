@@ -32,7 +32,7 @@ _WHERE_TEMPLATE = (
     "AND {p}startYear BETWEEN %s AND %s "
     "AND {r}averageRating BETWEEN %s AND %s "
     "AND {r}numVotes >= %s AND {r}numVotes <= %s "
-    "AND (%s = 'any' OR {p}language LIKE %s OR {p}language IS NULL)"
+    "AND (%s = 'any' OR {p}language = %s OR {p}language LIKE %s OR {p}language IS NULL)"
 )
 
 
@@ -42,7 +42,7 @@ class MovieQueryBuilder:
 
     All query variants share the same WHERE clause and parameter ordering:
     (titleType, min_year, max_year, min_rating, max_rating, min_votes,
-    max_votes, language_check, language_pattern).
+    max_votes, language_check, language_exact, language_pattern).
     """
 
     @staticmethod
@@ -113,9 +113,11 @@ class MovieQueryBuilder:
         lang = criteria.get("language", "en")
         if lang == "any":
             language_check = "any"
+            language_exact = "any"
             language_pattern = "%"
         else:
             language_check = lang
+            language_exact = lang
             language_pattern = "%" + lang + "%"
 
         return [
@@ -127,6 +129,7 @@ class MovieQueryBuilder:
             criteria.get("min_votes", 100000),
             criteria.get("max_votes", 1000000),
             language_check,
+            language_exact,
             language_pattern,
         ]
 
@@ -270,6 +273,10 @@ class ImdbRandomMovieFetcher(MovieFetcher):
             full_query, all_parameters = self._build_query_with_genres(
                 base_query, criteria, parameters, use_cache or use_recent
             )
+
+            # Safety LIMIT to prevent unbounded result sets on broad filters
+            full_query += " LIMIT %s"
+            all_parameters = all_parameters + [500]
 
             logger.debug("Using %s table", 'recent cache' if use_recent else 'cache' if use_cache else 'main')
 

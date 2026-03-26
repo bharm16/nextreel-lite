@@ -209,11 +209,14 @@ DROP PROCEDURE IF EXISTS refresh_movie_caches;
 DELIMITER $$
 CREATE PROCEDURE refresh_movie_caches()
 BEGIN
-    -- Refresh popular movies cache
-    TRUNCATE TABLE popular_movies_cache;
-    
-    INSERT INTO popular_movies_cache
-    SELECT 
+    -- ---------- Popular movies cache (atomic swap) ----------
+
+    DROP TABLE IF EXISTS popular_movies_cache_next;
+
+    CREATE TABLE popular_movies_cache_next LIKE popular_movies_cache;
+
+    INSERT INTO popular_movies_cache_next
+    SELECT
         tb.tconst,
         tb.titleType,
         tb.primaryTitle,
@@ -238,12 +241,21 @@ BEGIN
     AND tr.numVotes >= 10000
     AND tr.averageRating >= 5.0
     LIMIT 50000;
-    
-    -- Refresh recent movies cache
-    TRUNCATE TABLE recent_movies_cache;
-    
-    INSERT INTO recent_movies_cache
-    SELECT 
+
+    DROP TABLE IF EXISTS popular_movies_cache_prev;
+    RENAME TABLE
+        popular_movies_cache TO popular_movies_cache_prev,
+        popular_movies_cache_next TO popular_movies_cache;
+    DROP TABLE IF EXISTS popular_movies_cache_prev;
+
+    -- ---------- Recent movies cache (atomic swap) ----------
+
+    DROP TABLE IF EXISTS recent_movies_cache_next;
+
+    CREATE TABLE recent_movies_cache_next LIKE recent_movies_cache;
+
+    INSERT INTO recent_movies_cache_next
+    SELECT
         tb.tconst,
         tb.primaryTitle,
         tb.startYear,
@@ -260,7 +272,13 @@ BEGIN
     LEFT JOIN `title.ratings` tr ON tb.tconst = tr.tconst
     WHERE tb.titleType = 'movie'
     AND tb.startYear >= YEAR(CURDATE()) - 2;
-    
+
+    DROP TABLE IF EXISTS recent_movies_cache_prev;
+    RENAME TABLE
+        recent_movies_cache TO recent_movies_cache_prev,
+        recent_movies_cache_next TO recent_movies_cache;
+    DROP TABLE IF EXISTS recent_movies_cache_prev;
+
     -- Update statistics
     ANALYZE TABLE popular_movies_cache;
     ANALYZE TABLE recent_movies_cache;
