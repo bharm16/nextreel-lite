@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import random
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from infra.navigation_state import criteria_from_filters
@@ -32,7 +32,9 @@ class CandidateStore:
         refreshed_at = await self.latest_refresh_at()
         if not refreshed_at:
             return False
-        age = datetime.utcnow() - refreshed_at
+        # refreshed_at from MySQL UTC_TIMESTAMP is naive; compare with naive UTC
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        age = now - refreshed_at
         return age.total_seconds() <= max_age_hours * 3600
 
     async def fetch_ref(self, tconst: str) -> dict[str, Any] | None:
@@ -188,6 +190,27 @@ class CandidateStore:
 
     async def refresh_movie_candidates(self) -> None:
         logger.info("Refreshing movie_candidates")
+
+        # Acquire advisory lock to prevent concurrent refreshes
+        lock_result = await self.db_pool.execute(
+            "SELECT GET_LOCK(%s, 0) AS acquired",
+            ["refresh_movie_candidates"],
+            fetch="one",
+        )
+        if not lock_result or lock_result["acquired"] != 1:
+            logger.warning("Another refresh_movie_candidates is already running, skipping")
+            return
+
+        try:
+            await self._do_refresh()
+        finally:
+            await self.db_pool.execute(
+                "SELECT RELEASE_LOCK(%s)",
+                ["refresh_movie_candidates"],
+                fetch="one",
+            )
+
+    async def _do_refresh(self) -> None:
         await self.db_pool.execute("DROP TABLE IF EXISTS movie_candidates_next", fetch="none")
         await self.db_pool.execute(
             """

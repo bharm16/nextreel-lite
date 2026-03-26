@@ -103,9 +103,12 @@ class _CircuitBreaker:
 
 
 class TMDbHelper:
-    # Semaphore shared across all instances to respect TMDb rate limits (~40 req/s)
+    # Class-level semaphore and circuit breaker are intentional: a single async
+    # worker shares one event loop, so all TMDbHelper instances must respect the
+    # same rate limit and circuit state.  Multi-worker deployments (e.g.
+    # gunicorn --workers N) get independent copies per process — coordinate
+    # externally if TMDb rate limits are hit across workers.
     _rate_semaphore = asyncio.Semaphore(30)
-    # Circuit breaker shared across all instances
     _circuit_breaker = _CircuitBreaker(failure_threshold=5, recovery_timeout=30.0)
 
     def __init__(self, api_key: Optional[str] = None):

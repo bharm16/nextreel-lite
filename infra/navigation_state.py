@@ -1,15 +1,23 @@
-"""MySQL-backed navigation/session state with legacy Redis-session migration."""
+"""MySQL-backed navigation/session state with legacy Redis-session migration.
+
+NavigationState is the **authoritative source** for session identity and CSRF
+tokens.  The legacy Redis-backed Quart session is maintained only for
+dual-write migration; it must never be used as the source-of-truth for CSRF
+validation or navigation data.
+"""
 
 from __future__ import annotations
 
+import asyncio
 import copy
 import inspect
 import json
 import os
+import re
 import secrets
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Awaitable, Callable, MutableMapping
 
 from logging_config import get_logger
@@ -38,8 +46,17 @@ MIGRATION_META_STARTED_AT = "nav_state_migration_started_at"
 MIGRATION_META_LAST_IMPORT_AT = "nav_state_last_redis_import_at"
 
 
+_SESSION_ID_RE = re.compile(r"^[0-9a-f]{32}$")
+
+
+def _is_valid_session_id(session_id: str) -> bool:
+    """Validate that *session_id* matches the expected hex UUID format."""
+    return bool(session_id and _SESSION_ID_RE.match(session_id))
+
+
 def utcnow() -> datetime:
-    return datetime.utcnow()
+    """Return the current UTC time as a naive datetime (non-deprecated API)."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 def _idle_timeout() -> timedelta:
@@ -122,6 +139,11 @@ def criteria_from_filters(filters: dict[str, Any]) -> dict[str, Any]:
 
 def normalize_filters(form_data) -> dict[str, Any]:
     filters = default_filter_state()
+    defaults = default_filter_state()
+
+    _INT_KEYS = {"year_min", "year_max", "num_votes_min", "num_votes_max"}
+    _FLOAT_KEYS = {"imdb_score_min", "imdb_score_max"}
+
     scalar_keys = (
         "year_min",
         "year_max",
@@ -133,10 +155,30 @@ def normalize_filters(form_data) -> dict[str, Any]:
     )
     for key in scalar_keys:
         value = form_data.get(key)
+        if value is None:
+            continue
         if isinstance(value, str):
-            filters[key] = value[:MAX_FILTER_VALUE_LEN]
-        elif value is not None:
+            value = value[:MAX_FILTER_VALUE_LEN]
+        if key in _INT_KEYS:
+            try:
+                filters[key] = int(value)
+            except (ValueError, TypeError):
+                filters[key] = defaults[key]
+        elif key in _FLOAT_KEYS:
+            try:
+                filters[key] = float(value)
+            except (ValueError, TypeError):
+                filters[key] = defaults[key]
+        else:
             filters[key] = value
+
+    # Clamp to reasonable ranges
+    filters["year_min"] = max(1800, min(filters["year_min"], 2200))
+    filters["year_max"] = max(filters["year_min"], min(filters["year_max"], 2200))
+    filters["imdb_score_min"] = max(0.0, min(filters["imdb_score_min"], 10.0))
+    filters["imdb_score_max"] = max(filters["imdb_score_min"], min(filters["imdb_score_max"], 10.0))
+    filters["num_votes_min"] = max(0, filters["num_votes_min"])
+    filters["num_votes_max"] = max(filters["num_votes_min"], filters["num_votes_max"])
 
     raw_genres = form_data.getlist("genres[]")
     filters["genres_selected"] = [
@@ -413,7 +455,7 @@ class NavigationStateStore:
         cookie_session_id: str | None,
         legacy_session: MutableMapping[str, Any] | None = None,
     ) -> tuple[NavigationState, bool]:
-        if cookie_session_id:
+        if cookie_session_id and _is_valid_session_id(cookie_session_id):
             state = await self._load_row(cookie_session_id)
             if state and state.expires_at > utcnow():
                 return await self._touch_if_needed(state), False
@@ -528,7 +570,8 @@ class NavigationStateStore:
     ) -> MutationResult:
         from infra.metrics import navigation_state_conflicts_total
 
-        for _ in range(2):
+        max_attempts = 3
+        for attempt in range(max_attempts):
             current = await self.get_state(session_id)
             if not current:
                 return MutationResult(state=None, conflicted=True)
@@ -544,6 +587,8 @@ class NavigationStateStore:
                 return MutationResult(state=working, result=result, conflicted=False)
 
             navigation_state_conflicts_total.inc()
+            if attempt < max_attempts - 1:
+                await asyncio.sleep(0.01 * (attempt + 1))
 
         return MutationResult(state=await self.get_state(session_id), conflicted=True)
 

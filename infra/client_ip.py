@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 import os
 
 from quart import request
@@ -13,6 +14,15 @@ def trusted_proxies() -> set[str]:
         for proxy in os.getenv("TRUSTED_PROXIES", "").split(",")
         if proxy.strip()
     }
+
+
+def _is_valid_ip(value: str) -> bool:
+    """Validate that *value* is a well-formed IPv4 or IPv6 address."""
+    try:
+        ipaddress.ip_address(value)
+        return True
+    except (ValueError, TypeError):
+        return False
 
 
 def get_client_ip() -> str:
@@ -28,6 +38,8 @@ def get_client_ip() -> str:
             request.headers.get("X-Real-IP")
             or request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
         )
-        return forwarded or remote_addr or "unknown"
+        if forwarded and _is_valid_ip(forwarded):
+            return forwarded
+        return remote_addr or "unknown"
 
     return remote_addr or "unknown"

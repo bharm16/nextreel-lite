@@ -209,13 +209,16 @@ async def next_movie():
     user_actions_total.labels(action_type="next_movie").inc()
 
     try:
-        response = await asyncio.wait_for(
+        response, updated_state = await asyncio.wait_for(
             _movie_manager.next_movie(state, legacy_session=_legacy_session()),
             timeout=_REQUEST_TIMEOUT,
         )
     except asyncio.TimeoutError:
         logger.error("Timeout fetching next movie. Correlation ID: %s", g.correlation_id)
         return "Request timed out. Please try again.", 504
+
+    if updated_state:
+        g.navigation_state = updated_state
 
     if response:
         return response
@@ -238,7 +241,7 @@ async def previous_movie():
         g.correlation_id,
     )
     try:
-        response = await asyncio.wait_for(
+        response, updated_state = await asyncio.wait_for(
             _movie_manager.previous_movie(state, legacy_session=_legacy_session()),
             timeout=_REQUEST_TIMEOUT,
         )
@@ -246,8 +249,13 @@ async def previous_movie():
         logger.error("Timeout fetching previous movie. Correlation ID: %s", g.correlation_id)
         return "Request timed out. Please try again.", 504
 
+    if updated_state:
+        g.navigation_state = updated_state
+
     if response is None:
-        tconst = _movie_manager.get_current_movie_tconst(state)
+        # Use updated state (not stale pre-mutation state) for fallback redirect
+        current_state = updated_state or state
+        tconst = _movie_manager.get_current_movie_tconst(current_state)
         if tconst:
             return redirect(url_for("main.movie_detail", tconst=tconst))
         return redirect(url_for("main.home"))
@@ -300,10 +308,12 @@ async def filtered_movie_endpoint():
     )
 
     try:
-        response = await asyncio.wait_for(
+        response, updated_state = await asyncio.wait_for(
             _movie_manager.filtered_movie(state, form_data, legacy_session=_legacy_session()),
             timeout=_REQUEST_TIMEOUT,
         )
+        if updated_state:
+            g.navigation_state = updated_state
         elapsed_time = time.time() - start_time
         logger.info(
             "Completed filtering movies for state_id: %s in %.2f seconds. Correlation ID: %s",

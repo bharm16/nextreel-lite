@@ -97,6 +97,8 @@ class MovieNavigator:
         return result.state
 
     async def next_movie(self, session_id: str, legacy_session=None):
+        """Return ``(response, updated_state)`` tuple."""
+
         async def mutate(state):
             next_ref = None
             if state.future:
@@ -134,13 +136,15 @@ class MovieNavigator:
             legacy_session=legacy_session,
         )
         if result.conflicted:
-            return self._conflict_redirect(result.state)
+            return self._conflict_redirect(result.state), result.state
         if result.result:
             logger.info("Navigating to next movie %s", result.result)
-            return redirect(url_for("main.movie_detail", tconst=result.result), code=303)
-        return None
+            return redirect(url_for("main.movie_detail", tconst=result.result), code=303), result.state
+        return None, result.state
 
     async def previous_movie(self, session_id: str, legacy_session=None):
+        """Return ``(response, updated_state)`` tuple."""
+
         async def mutate(state):
             if not state.prev:
                 return None
@@ -160,13 +164,15 @@ class MovieNavigator:
             legacy_session=legacy_session,
         )
         if result.conflicted:
-            return self._conflict_redirect(result.state)
+            return self._conflict_redirect(result.state), result.state
         if result.result:
             logger.info("Navigating to previous movie %s", result.result)
-            return redirect(url_for("main.movie_detail", tconst=result.result), code=303)
-        return None
+            return redirect(url_for("main.movie_detail", tconst=result.result), code=303), result.state
+        return None, result.state
 
     async def apply_filters(self, session_id: str, filters: dict, legacy_session=None):
+        """Return ``(response, updated_state)`` tuple."""
+
         async def mutate(state):
             state.filters = filters
             state.queue = []
@@ -192,7 +198,7 @@ class MovieNavigator:
             legacy_session=legacy_session,
         )
         if result.conflicted:
-            return self._conflict_redirect(result.state)
+            return self._conflict_redirect(result.state), result.state
         if result.result:
-            return redirect(url_for("main.movie_detail", tconst=result.result), code=303)
-        return None
+            return redirect(url_for("main.movie_detail", tconst=result.result), code=303), result.state
+        return None, result.state

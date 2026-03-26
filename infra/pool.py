@@ -311,6 +311,9 @@ class SecureConnectionPool:
         trimmed = query.strip()
         if not trimmed.upper().startswith("SELECT"):
             return
+        # Safety: reject multi-statement or oversized queries
+        if ";" in trimmed or len(trimmed) > 10_000:
+            return
         try:
             async with connection.cursor() as cur:
                 await asyncio.wait_for(
@@ -405,6 +408,7 @@ class SecureConnectionPool:
             elapsed = (datetime.now() - self.circuit_breaker_last_failure).total_seconds()
             if elapsed > self.config.circuit_breaker_timeout:
                 self.circuit_breaker_state = "half-open"
+                self.circuit_breaker_failures = 0
                 logger.info("Circuit breaker entering half-open state")
                 return True
             return False

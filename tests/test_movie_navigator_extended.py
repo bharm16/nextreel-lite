@@ -105,12 +105,13 @@ async def test_next_movie_consumes_queue_and_tracks_history(nav_app):
 
     async with nav_app.app_context():
         async with nav_app.test_request_context("/"):
-            response = await navigator.next_movie("state-1")
+            response, updated_state = await navigator.next_movie("state-1")
 
     assert response.location.endswith("/movie/tt1")
     assert store.state.current_tconst == "tt1"
     assert store.state.prev == [{"tconst": "tt0", "title": "Zero", "slug": "zero"}]
     assert "tt1" in store.state.seen
+    assert updated_state is not None
 
 
 @pytest.mark.asyncio
@@ -126,11 +127,12 @@ async def test_previous_movie_moves_current_into_future(nav_app):
 
     async with nav_app.app_context():
         async with nav_app.test_request_context("/"):
-            response = await navigator.previous_movie("state-1")
+            response, updated_state = await navigator.previous_movie("state-1")
 
     assert response.location.endswith("/movie/tt1")
     assert store.state.current_tconst == "tt1"
     assert store.state.future == [{"tconst": "tt2", "title": "Two", "slug": "two"}]
+    assert updated_state is not None
 
 
 @pytest.mark.asyncio
@@ -147,7 +149,7 @@ async def test_apply_filters_resets_state_and_redirects(nav_app):
 
     async with nav_app.app_context():
         async with nav_app.test_request_context("/"):
-            response = await navigator.apply_filters(
+            response, updated_state = await navigator.apply_filters(
                 "state-1",
                 {"language": "fr", "genres_selected": ["Drama"]},
             )
@@ -158,6 +160,7 @@ async def test_apply_filters_resets_state_and_redirects(nav_app):
     assert store.state.future == []
     assert store.state.seen == ["tt5"]
     assert store.state.filters["language"] == "fr"
+    assert updated_state is not None
 
 
 @pytest.mark.asyncio
@@ -170,7 +173,8 @@ async def test_conflict_redirects_to_current_movie(nav_app):
 
     async with nav_app.app_context():
         async with nav_app.test_request_context("/"):
-            response = await navigator.next_movie("state-1")
+            response, updated_state = await navigator.next_movie("state-1")
 
     assert response.status_code == 303
     assert response.location.endswith("/movie/tt2?state_conflict=1")
+    assert updated_state is not None

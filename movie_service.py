@@ -79,8 +79,14 @@ class MovieManager:
             try:
                 await asyncio.wait_for(
                     self._navigator.prewarm_queue(state.session_id, legacy_session=legacy_session),
-                    timeout=0.1,
+                    timeout=0.5,
                 )
+            except asyncio.TimeoutError:
+                home_prewarm_failed_total.inc()
+                logger.warning("Home prewarm timed out for %s", state.session_id)
+            except asyncio.CancelledError:
+                home_prewarm_failed_total.inc()
+                logger.warning("Home prewarm cancelled for %s", state.session_id)
             except Exception as exc:
                 home_prewarm_failed_total.inc()
                 logger.warning("Home prewarm failed for %s: %s", state.session_id, exc)
@@ -114,17 +120,17 @@ class MovieManager:
 
     async def next_movie(self, state, legacy_session=None):
         if not self._navigator or not state:
-            return None
+            return None, None
         return await self._navigator.next_movie(state.session_id, legacy_session=legacy_session)
 
     async def previous_movie(self, state, legacy_session=None):
         if not self._navigator or not state:
-            return None
+            return None, None
         return await self._navigator.previous_movie(state.session_id, legacy_session=legacy_session)
 
     async def filtered_movie(self, state, form_data, legacy_session=None):
         if not self._navigator or not state:
-            return None
+            return None, None
 
         filters = normalize_filters(form_data)
         return await self._navigator.apply_filters(
