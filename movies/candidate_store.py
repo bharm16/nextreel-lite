@@ -161,7 +161,7 @@ class CandidateStore:
 
     async def validate_bucket_distribution(self, table_name: str = "movie_candidates_next") -> None:
         if table_name not in _ALLOWED_CANDIDATE_TABLES:
-            raise ValueError("Invalid candidate table name: %s" % table_name)
+            raise ValueError(f"Invalid candidate table name: {table_name}")
         rows = await self.db_pool.execute(
             f"""
             SELECT sample_bucket, COUNT(*) AS bucket_count

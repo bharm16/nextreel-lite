@@ -86,10 +86,7 @@ class TestRateLimitMemory:
 # ---------------------------------------------------------------------------
 
 
-_TEST_ENV = {
-    "TMDB_API_KEY": "test-key",
-    "FLASK_SECRET_KEY": "test-secret",
-}
+from tests.helpers import TEST_ENV
 
 
 class TestHealthEndpoint:
@@ -97,7 +94,7 @@ class TestHealthEndpoint:
         import asyncio
 
         async def run():
-            with patch.dict(os.environ, _TEST_ENV), \
+            with patch.dict(os.environ, TEST_ENV), \
                  patch("app.MovieManager") as MockManager:
                 MockManager.return_value.home = AsyncMock(return_value="ok")
 
@@ -123,7 +120,7 @@ class TestOpsAuth:
 
         async def run():
             with patch("app.MovieManager") as MockManager, \
-                 patch.dict(os.environ, {**_TEST_ENV, "OPS_AUTH_TOKEN": "secret-token"}):
+                 patch.dict(os.environ, {**TEST_ENV, "OPS_AUTH_TOKEN": "secret-token"}):
                 MockManager.return_value.home = AsyncMock(return_value={"default_backdrop_url": None})
 
                 from app import create_app
@@ -142,7 +139,7 @@ class TestOpsAuth:
 
         async def run():
             with patch("app.MovieManager") as MockManager, \
-                 patch.dict(os.environ, {**_TEST_ENV, "OPS_AUTH_TOKEN": "secret-token"}):
+                 patch.dict(os.environ, {**TEST_ENV, "OPS_AUTH_TOKEN": "secret-token"}):
                 MockManager.return_value.home = AsyncMock(return_value={"default_backdrop_url": None})
 
                 from app import create_app
@@ -173,7 +170,7 @@ class TestCSRFValidation:
         import asyncio
 
         async def run():
-            with patch.dict(os.environ, _TEST_ENV), \
+            with patch.dict(os.environ, TEST_ENV), \
                  patch("app.MovieManager") as MockManager:
                 manager = MockManager.return_value
                 manager.filtered_movie = AsyncMock(return_value="ok")
@@ -196,7 +193,7 @@ class TestCSRFValidation:
         import asyncio
 
         async def run():
-            with patch.dict(os.environ, _TEST_ENV), \
+            with patch.dict(os.environ, TEST_ENV), \
                  patch("app.MovieManager") as MockManager:
                 manager = MockManager.return_value
                 manager.next_movie = AsyncMock(return_value="next")

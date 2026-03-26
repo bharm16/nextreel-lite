@@ -3,11 +3,7 @@ import os
 from unittest.mock import AsyncMock, patch
 
 from app import create_app
-
-_TEST_ENV = {
-    "TMDB_API_KEY": "test-key",
-    "FLASK_SECRET_KEY": "test-secret",
-}
+from tests.helpers import TEST_ENV
 
 
 def _make_test_app():
@@ -34,7 +30,7 @@ def test_home():
     """Ensure the home route returns HTTP 200."""
 
     async def run_test():
-        with patch.dict(os.environ, _TEST_ENV), \
+        with patch.dict(os.environ, TEST_ENV), \
              patch('app.MovieManager') as MockManager:
             manager = MockManager.return_value
             manager.home = AsyncMock(return_value={"default_backdrop_url": None})
@@ -50,7 +46,7 @@ def test_home():
 
 def test_set_filters_route():
     async def run_test():
-        with patch.dict(os.environ, _TEST_ENV), \
+        with patch.dict(os.environ, TEST_ENV), \
              patch('app.MovieManager') as MockManager:
             MockManager.return_value.start = AsyncMock()
             app = _make_test_app()
@@ -64,7 +60,7 @@ def test_set_filters_route():
 
 def test_filtered_movie_endpoint():
     async def run_test():
-        with patch.dict(os.environ, _TEST_ENV), \
+        with patch.dict(os.environ, TEST_ENV), \
              patch('app.MovieManager') as MockManager:
             manager = MockManager.return_value
             manager.filtered_movie = AsyncMock(return_value='filtered')
@@ -97,7 +93,7 @@ def test_filtered_movie_endpoint():
 def test_filtered_movie_rejects_without_csrf():
     """POST without CSRF token should be rejected."""
     async def run_test():
-        with patch.dict(os.environ, _TEST_ENV), \
+        with patch.dict(os.environ, TEST_ENV), \
              patch('app.MovieManager') as MockManager:
             manager = MockManager.return_value
             manager.filtered_movie = AsyncMock(return_value='filtered')
@@ -113,7 +109,7 @@ def test_filtered_movie_rejects_without_csrf():
 
 def test_movie_detail_route():
     async def run_test():
-        with patch.dict(os.environ, _TEST_ENV), \
+        with patch.dict(os.environ, TEST_ENV), \
              patch('app.MovieManager') as MockManager:
             manager = MockManager.return_value
             manager.render_movie_by_tconst = AsyncMock(return_value='detail')
@@ -130,7 +126,7 @@ def test_movie_detail_route():
 def test_movie_detail_rejects_bad_tconst():
     """Invalid tconst format should return 400."""
     async def run_test():
-        with patch.dict(os.environ, _TEST_ENV), \
+        with patch.dict(os.environ, TEST_ENV), \
              patch('app.MovieManager') as MockManager:
             manager = MockManager.return_value
             manager.render_movie_by_tconst = AsyncMock(return_value='detail')
@@ -147,7 +143,7 @@ def test_movie_detail_rejects_bad_tconst():
 def test_next_previous_movie_post_only():
     """next_movie and previous_movie are POST-only; GET should return 405."""
     async def run_test():
-        with patch.dict(os.environ, _TEST_ENV), \
+        with patch.dict(os.environ, TEST_ENV), \
              patch('app.MovieManager') as MockManager:
             manager = MockManager.return_value
             manager.next_movie = AsyncMock(return_value='next')
@@ -167,7 +163,7 @@ def test_next_previous_movie_post_only():
 def test_post_next_movie_rejects_without_csrf():
     """POST to next_movie without CSRF should be rejected."""
     async def run_test():
-        with patch.dict(os.environ, _TEST_ENV), \
+        with patch.dict(os.environ, TEST_ENV), \
              patch('app.MovieManager') as MockManager:
             manager = MockManager.return_value
             manager.next_movie = AsyncMock(return_value='next')
@@ -184,7 +180,7 @@ def test_post_next_movie_rejects_without_csrf():
 def test_handle_new_user_route_removed():
     """handle_new_user was removed — any request should return 404."""
     async def run_test():
-        with patch.dict(os.environ, _TEST_ENV), \
+        with patch.dict(os.environ, TEST_ENV), \
              patch('app.MovieManager') as MockManager:
             manager = MockManager.return_value
             manager.add_user = AsyncMock()
@@ -204,7 +200,7 @@ def test_startup_hook_initializes_movie_manager_before_warmup_queries():
     """Warm-up should not execute DB queries before MovieManager.start()."""
 
     async def run_test():
-        with patch.dict(os.environ, _TEST_ENV), \
+        with patch.dict(os.environ, TEST_ENV), \
              patch('app.MovieManager') as MockManager:
             manager = MockManager.return_value
             manager.start = AsyncMock()

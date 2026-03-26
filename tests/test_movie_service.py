@@ -5,9 +5,8 @@ import httpx
 import pytest
 
 from infra.navigation_state import NavigationState, default_filter_state, utcnow
+from tests.helpers import TEST_ENV
 from movie_service import MovieManager
-
-_TEST_ENV = {"TMDB_API_KEY": "test-key", "FLASK_SECRET_KEY": "test-secret"}
 
 
 def _state() -> NavigationState:
@@ -29,7 +28,7 @@ def _state() -> NavigationState:
 
 
 @pytest.mark.asyncio
-@patch.dict(os.environ, _TEST_ENV)
+@patch.dict(os.environ, TEST_ENV)
 async def test_start_initializes_pool_schema_and_backdrop():
     movie_manager = MovieManager(db_config=None)
     movie_manager.db_pool.init_pool = AsyncMock()
@@ -46,7 +45,7 @@ async def test_start_initializes_pool_schema_and_backdrop():
 
 
 @pytest.mark.asyncio
-@patch.dict(os.environ, _TEST_ENV)
+@patch.dict(os.environ, TEST_ENV)
 async def test_start_continues_when_tmdb_backdrop_warmup_fails():
     request = httpx.Request("GET", "https://api.themoviedb.org/3/movie/62/images")
     response = httpx.Response(401, request=request)
@@ -68,7 +67,7 @@ async def test_start_continues_when_tmdb_backdrop_warmup_fails():
 
 
 @pytest.mark.asyncio
-@patch.dict(os.environ, _TEST_ENV)
+@patch.dict(os.environ, TEST_ENV)
 async def test_home_prewarm_only_runs_for_empty_queue():
     movie_manager = MovieManager(db_config=None)
     movie_manager._navigator = AsyncMock()
@@ -84,7 +83,7 @@ async def test_home_prewarm_only_runs_for_empty_queue():
 
 
 @pytest.mark.asyncio
-@patch.dict(os.environ, _TEST_ENV)
+@patch.dict(os.environ, TEST_ENV)
 async def test_filtered_movie_normalizes_and_delegates():
     class FormStub:
         def get(self, key, default=None):
