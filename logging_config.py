@@ -15,7 +15,8 @@ import time
 from datetime import datetime
 from dotenv import load_dotenv
 
-# Load environment based on NEXTREEL_ENV (falls back to FLASK_ENV for compat)
+# Load environment — cannot use config.env.get_environment() here because
+# config/__init__.py triggers imports that depend on logging_config.
 flask_env = os.getenv('NEXTREEL_ENV', os.getenv('FLASK_ENV', 'production'))
 if flask_env == 'development':
     load_dotenv('.env.development')

@@ -11,9 +11,8 @@ werkzeug==3.1.6                  # WSGI utilities (used by Quart)
 
 # Database & Storage
 # -----------------
-aiomysql==0.3.2                  # Async MySQL/MariaDB client
+aiomysql==0.3.2                  # Async MySQL/MariaDB client (pulls PyMySQL transitively)
 redis==7.1.1                     # Redis client for caching and sessions
-PyMySQL==1.1.1                   # Pure Python MySQL client (fallback)
 
 # API Clients & HTTP
 # -----------------
@@ -41,7 +40,5 @@ arq==0.26.3                      # Redis-backed worker for enrichment and refres
 
 # Utilities
 # --------
-python-dateutil==2.9.0.post0     # Date/time utilities
-aiofiles==24.1.0                 # Async file operations
 jinja2==3.1.6                    # Template engine (used by Quart)
 markupsafe==3.0.2                # Safe string markup for Jinja2

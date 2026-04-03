@@ -38,11 +38,7 @@ class PoolState(Enum):
 
 @dataclass
 class SecurePoolConfig:
-    """Connection pool configuration.
-
-    Some legacy fields are intentionally retained to preserve the existing env
-    contract, even though per-user/IP limits are no longer enforced.
-    """
+    """Connection pool configuration."""
 
     host: str
     user: str
@@ -51,14 +47,10 @@ class SecurePoolConfig:
     port: int = 3306
     min_size: int = 5
     max_size: int = 20
-    max_connections_per_user: int = 5
-    max_connections_per_ip: int = 10
     connect_timeout: int = 5
     query_timeout: int = 30
     pool_recycle: int = 900
     idle_timeout: int = 300
-    max_queries_per_minute: int = 1000
-    max_queries_per_user_minute: int = 100
     health_check_interval: int = 10
     pool_pre_ping: bool = False  # Rely on pool_recycle; avoids extra RTT per query
     circuit_breaker_threshold: int = 5
@@ -90,6 +82,13 @@ class SecureConnectionPool:
     """Pooled async database access with health and timing metrics."""
 
     def __init__(self, config: SecurePoolConfig):
+        from infra.pool_monitors import (
+            ConnectionCleanup,
+            PoolCircuitBreaker,
+            PoolHealthMonitor,
+            SlowQueryLogger,
+        )
+
         self.config = config
         self.pool: Optional[Pool] = None
         self.state = PoolState.HEALTHY
@@ -108,20 +107,42 @@ class SecureConnectionPool:
         }
         self.recent_queries: deque = deque(maxlen=100)
         self.slow_queries: deque = deque(maxlen=50)
-        self.circuit_breaker_failures = 0
-        self.circuit_breaker_last_failure: Optional[datetime] = None
-        self.circuit_breaker_state = "closed"
-        self._cb_lock = asyncio.Lock()
-        self._health_check_task: Optional[asyncio.Task] = None
-        self._cleanup_task: Optional[asyncio.Task] = None
         self._shutdown = False
+
+        # Composed collaborators (extracted for SRP)
+        self._circuit_breaker = PoolCircuitBreaker(
+            threshold=config.circuit_breaker_threshold,
+            timeout=config.circuit_breaker_timeout,
+            half_open_requests=config.circuit_breaker_half_open_requests,
+        )
+        self._health_monitor = PoolHealthMonitor(self, interval=config.health_check_interval)
+        self._connection_cleanup = ConnectionCleanup(self)
+        self._slow_query_logger = SlowQueryLogger()
+
+    # Backward-compatible properties for code that reads circuit breaker state directly
+    @property
+    def circuit_breaker_state(self) -> str:
+        return self._circuit_breaker.state
+
+    @circuit_breaker_state.setter
+    def circuit_breaker_state(self, value: str) -> None:
+        self._circuit_breaker.state = value
+
+    @property
+    def circuit_breaker_failures(self) -> int:
+        return self._circuit_breaker.failures
+
+    @circuit_breaker_failures.setter
+    def circuit_breaker_failures(self, value: int) -> None:
+        self._circuit_breaker.failures = value
+
+    @property
+    def _cb_lock(self) -> asyncio.Lock:
+        return self._circuit_breaker._lock
 
     async def init_pool(self):
         """Initialize the underlying aiomysql pool."""
-        # Lock-free fast-path: reading a simple str attribute is atomic under
-        # CPython's GIL.  _can_attempt_reconnect() acquires _cb_lock internally
-        # before mutating state, so the worst case is a harmless redundant call.
-        if self.circuit_breaker_state == "open" and not await self._can_attempt_reconnect():
+        if not await self._circuit_breaker.can_attempt():
             raise RuntimeError("Circuit breaker is open")
 
         try:
@@ -147,15 +168,14 @@ class SecureConnectionPool:
                 autocommit=True,
             )
             await self._validate_pool()
-            self._health_check_task = asyncio.create_task(self._health_monitor())
-            self._cleanup_task = asyncio.create_task(self._connection_cleanup())
-            async with self._cb_lock:
-                self.circuit_breaker_state = "closed"
-                self.circuit_breaker_failures = 0
+            self._health_monitor.start()
+            self._connection_cleanup.start()
+            await self._circuit_breaker.reset()
             self.state = PoolState.HEALTHY
             logger.info("Secure connection pool initialized successfully")
         except Exception as exc:
-            await self._record_circuit_breaker_failure()
+            await self._circuit_breaker.record_failure()
+            self.metrics["circuit_breaker_trips"] = self._circuit_breaker.trips
             logger.error("Failed to initialize pool: %s", exc)
             raise
 
@@ -196,8 +216,7 @@ class SecureConnectionPool:
         """
         del user_id, ip_address
 
-        # Lock-free fast-path: see comment in init_pool().
-        if self.circuit_breaker_state == "open" and not await self._can_attempt_reconnect():
+        if not await self._circuit_breaker.can_attempt():
             raise RuntimeError("Circuit breaker is open - pool unavailable")
 
         if not self.pool:
@@ -211,9 +230,10 @@ class SecureConnectionPool:
                 self.pool.acquire(), timeout=self.config.connect_timeout
             )
             conn_id = id(connection)
+            now = datetime.now(timezone.utc)
             self.connections[conn_id] = ConnectionMetadata(
-                created_at=datetime.now(timezone.utc),
-                last_used_at=datetime.now(timezone.utc),
+                created_at=now,
+                last_used_at=now,
             )
             self.metrics["active_connections"] += 1
 
@@ -224,19 +244,18 @@ class SecureConnectionPool:
                     connection.close()
                     raise RuntimeError("Connection failed pre-ping check") from ping_error
 
-            async with self._cb_lock:
-                if self.circuit_breaker_state == "half-open":
-                    self.circuit_breaker_state = "closed"
-                    self.circuit_breaker_failures = 0
+            await self._circuit_breaker.record_success()
 
             yield connection
         except asyncio.TimeoutError as exc:
             self.metrics["connections_failed"] += 1
-            await self._record_circuit_breaker_failure()
+            await self._circuit_breaker.record_failure()
+            self.metrics["circuit_breaker_trips"] = self._circuit_breaker.trips
             raise RuntimeError("Connection acquisition timeout") from exc
         except Exception:
             self.metrics["connections_failed"] += 1
-            await self._record_circuit_breaker_failure()
+            await self._circuit_breaker.record_failure()
+            self.metrics["circuit_breaker_trips"] = self._circuit_breaker.trips
             raise
         finally:
             if connection and conn_id:
@@ -291,7 +310,7 @@ class SecureConnectionPool:
                         self.metrics["queries_slow"] += 1
                         self.slow_queries.append(query_summary)
                         logger.warning("Slow query (%.2fs): %s", query_time, query[:50])
-                        await self._log_explain(connection, query, params)
+                        await self._slow_query_logger.log_explain(connection, query, params)
 
                     return result
         except asyncio.TimeoutError as exc:
@@ -303,111 +322,6 @@ class SecureConnectionPool:
             self.metrics["queries_failed"] += 1
             logger.error("Query execution failed: %s", exc)
             raise
-
-    async def _log_explain(
-        self, connection: Connection, query: str, params: tuple | list | None
-    ) -> None:
-        """Log EXPLAIN output for a slow query (best-effort, never raises)."""
-        trimmed = query.strip()
-        if not trimmed.upper().startswith("SELECT"):
-            return
-        try:
-            async with connection.cursor() as cur:
-                await asyncio.wait_for(
-                    cur.execute(f"EXPLAIN {trimmed}", params),
-                    timeout=5.0,
-                )
-                rows = await cur.fetchall()
-                for row in rows or []:
-                    logger.info("EXPLAIN: %s", dict(row))
-        except Exception:
-            pass  # EXPLAIN is advisory; never block on failure
-
-    async def _health_monitor(self):
-        """Monitor pool health and connectivity."""
-        while not self._shutdown:
-            try:
-                await asyncio.sleep(self.config.health_check_interval)
-
-                if not self.pool:
-                    self.state = PoolState.FAILED
-                    continue
-
-                pool_size = self.pool.size
-                free_size = self.pool.freesize
-                self.metrics["idle_connections"] = free_size
-
-                usage_percent = (
-                    (pool_size - free_size) / pool_size * 100 if pool_size > 0 else 0
-                )
-                if usage_percent > 90:
-                    self.state = PoolState.CRITICAL
-                elif usage_percent > 75:
-                    self.state = PoolState.DEGRADED
-                    # Skip the SELECT 1 probe when the pool is under heavy
-                    # load — avoid consuming a connection for diagnostics.
-                    continue
-                else:
-                    self.state = PoolState.HEALTHY
-
-                try:
-                    async with self.acquire() as conn:
-                        async with conn.cursor() as cursor:
-                            await cursor.execute("SELECT 1")
-                            await cursor.fetchone()
-                except Exception as exc:
-                    self.metrics["health_check_failures"] += 1
-                    logger.error("Health check failed: %s", exc)
-            except asyncio.CancelledError:
-                break
-            except Exception as exc:
-                logger.error("Health monitor error: %s", exc)
-
-    async def _connection_cleanup(self):
-        """Recycle aged connections and shrink excess free connections."""
-        while not self._shutdown:
-            try:
-                await asyncio.sleep(30)
-
-                for metadata in list(self.connections.values()):
-                    if metadata.age_seconds() > self.config.pool_recycle:
-                        self.metrics["connections_recycled"] += 1
-                        logger.warning(
-                            "Checked-out connection age %.0fs exceeds pool_recycle %ds",
-                            metadata.age_seconds(),
-                            self.config.pool_recycle,
-                        )
-
-                # Active connection shrinking removed — it competed with
-                # production traffic for connections.  aiomysql's built-in
-                # pool_recycle handles connection lifecycle instead.
-            except asyncio.CancelledError:
-                break
-            except Exception as exc:
-                logger.error("Cleanup error: %s", exc)
-
-    async def _record_circuit_breaker_failure(self):
-        async with self._cb_lock:
-            self.circuit_breaker_failures += 1
-            self.circuit_breaker_last_failure = datetime.now(timezone.utc)
-            if self.circuit_breaker_failures >= self.config.circuit_breaker_threshold:
-                if self.circuit_breaker_state != "open":
-                    self.circuit_breaker_state = "open"
-                    self.metrics["circuit_breaker_trips"] += 1
-                    logger.error("Circuit breaker opened due to repeated failures")
-
-    async def _can_attempt_reconnect(self) -> bool:
-        async with self._cb_lock:
-            if self.circuit_breaker_state != "open":
-                return True
-            if self.circuit_breaker_last_failure is None:
-                return False
-            elapsed = (datetime.now(timezone.utc) - self.circuit_breaker_last_failure).total_seconds()
-            if elapsed > self.config.circuit_breaker_timeout:
-                self.circuit_breaker_state = "half-open"
-                logger.info("Circuit breaker entering half-open state")
-                return True
-            return False
 
     async def get_pool_status(self) -> Dict[str, Any]:
         """Return pool health and metrics."""
@@ -439,19 +353,8 @@ class SecureConnectionPool:
         """Gracefully close monitoring tasks and the underlying pool."""
         self._shutdown = True
 
-        if self._health_check_task:
-            self._health_check_task.cancel()
-            try:
-                await self._health_check_task
-            except asyncio.CancelledError:
-                pass
-
-        if self._cleanup_task:
-            self._cleanup_task.cancel()
-            try:
-                await self._cleanup_task
-            except asyncio.CancelledError:
-                pass
+        await self._health_monitor.stop()
+        await self._connection_cleanup.stop()
 
         if self.pool:
             self.pool.close()
@@ -491,14 +394,10 @@ class DatabaseConnectionPool:
             database=db_config["database"],
             min_size=int(os.getenv("POOL_MIN_SIZE", DatabaseConfig.POOL_MIN_SIZE)),
             max_size=int(os.getenv("POOL_MAX_SIZE", DatabaseConfig.POOL_MAX_SIZE)),
-            max_connections_per_user=int(os.getenv("MAX_CONN_PER_USER", 10)),
-            max_connections_per_ip=int(os.getenv("MAX_CONN_PER_IP", 20)),
             connect_timeout=int(os.getenv("DB_CONNECT_TIMEOUT", 5)),
             query_timeout=int(os.getenv("DB_QUERY_TIMEOUT", 30)),
             pool_recycle=int(os.getenv("DB_POOL_RECYCLE", 900)),
             idle_timeout=int(os.getenv("DB_IDLE_TIMEOUT", 300)),
-            max_queries_per_minute=int(os.getenv("MAX_QUERIES_PER_MIN", 5000)),
-            max_queries_per_user_minute=int(os.getenv("MAX_USER_QUERIES_PER_MIN", 500)),
             ssl_cert_path=ssl_cert,
             use_ssl=DatabaseConfig.use_ssl(),
             validate_ssl=validate_ssl,

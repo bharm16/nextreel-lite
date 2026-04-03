@@ -3,9 +3,6 @@
 import os
 
 from config.env import get_environment
-from logging_config import get_logger
-
-logger = get_logger(__name__)
 
 
 class SessionConfig:
@@ -17,11 +14,7 @@ class SessionConfig:
 
     @property
     def SESSION_COOKIE_SECURE(self):
-        env = get_environment()
-        secure = env != "development"
-        if env == "production" and not secure:
-            logger.error("WARNING: Secure cookies disabled in production!")
-        return secure
+        return get_environment() != "development"
 
     @property
     def SESSION_COOKIE_DOMAIN(self):

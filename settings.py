@@ -7,11 +7,13 @@ For focused access, import directly from ``config.database``,
 
 import os
 from dotenv import load_dotenv
+
+from config.env import get_environment
 from logging_config import get_logger
 
 logger = get_logger(__name__)
 
-flask_env = os.getenv("NEXTREEL_ENV", os.getenv("FLASK_ENV", "production"))
+flask_env = get_environment()
 logger.debug("NEXTREEL_ENV is set to: %s", flask_env)
 
 env_file = ".env.development" if flask_env == "development" else ".env"

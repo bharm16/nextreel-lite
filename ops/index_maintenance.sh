@@ -3,10 +3,10 @@
 # IMDB Database Index Maintenance Script
 # Run this periodically to maintain optimal query performance
 
-DB_HOST="localhost"
-DB_USER="root"
-DB_PASS="caching_sha2_password"
-DB_NAME="imdb"
+DB_HOST="${DB_HOST:-localhost}"
+DB_USER="${DB_USER:-root}"
+DB_PASS="${DB_PASSWORD:?DB_PASSWORD environment variable is required}"
+DB_NAME="${DB_NAME:-imdb}"
 
 echo "=========================================="
 echo "IMDB Database Index Maintenance"

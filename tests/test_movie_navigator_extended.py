@@ -5,7 +5,8 @@ import inspect
 import pytest
 from quart import Quart
 
-from infra.navigation_state import MutationResult, NavigationState, default_filter_state, utcnow
+from infra.navigation_state import MutationResult, NavigationState, default_filter_state
+from infra.time_utils import utcnow
 from movie_navigator import MovieNavigator, _movie_ref
 from routes import bp
 

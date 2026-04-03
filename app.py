@@ -22,6 +22,7 @@ from infra.navigation_state import (
     utcnow,
 )
 from infra.secrets import secrets_manager
+from infra.security_headers import add_security_headers
 from logging_config import get_logger, setup_logging
 from middleware import add_correlation_id
 from movie_service import MovieManager
@@ -45,6 +46,8 @@ class FixedQuart(Quart):
 
 setup_logging(log_level=logging.INFO)
 logger = get_logger(__name__)
+
+_SKIP_PATHS = ("/static", "/favicon.ico", "/health", "/ready", "/metrics")
 
 if get_environment() != "production":
     setup_local_environment()
@@ -81,11 +84,97 @@ def _build_test_navigation_state() -> NavigationState:
     )
 
 
-def create_app():
-    if not secrets_manager.validate_all_secrets():
-        raise RuntimeError("Failed to validate required secrets. Check logs for details.")
+async def _setup_redis(app):
+    """Initialize Redis runtime dependencies (session, cache, ARQ)."""
+    redis_url = _redis_url()
+    try:
+        shared_pool = aioredis.ConnectionPool.from_url(
+            redis_url,
+            max_connections=int(os.getenv("REDIS_MAX_CONNECTIONS", 30)),
+            socket_connect_timeout=5,
+            socket_timeout=5,
+            retry_on_timeout=True,
+            health_check_interval=30,
+        )
+        redis_client = aioredis.Redis(connection_pool=shared_pool)
+        await redis_client.ping()
+        app.shared_redis_pool = shared_pool
+        app.config["SESSION_REDIS"] = redis_client
+        app.redis_available = True
 
-    app = FixedQuart(__name__)
+        try:
+            from session.quart_session_compat import install_session
+
+            install_session(app)
+        except Exception as exc:
+            logger.warning("Legacy Redis session install failed: %s", exc)
+
+        try:
+            app.secure_cache = SimpleCacheManager(connection_pool=shared_pool)
+            await app.secure_cache.initialize()
+        except Exception as exc:
+            logger.warning("Redis cache initialization failed: %s", exc)
+            app.secure_cache = None
+
+        if create_arq_pool and RedisSettings:
+            try:
+                app.arq_redis = await create_arq_pool(RedisSettings.from_dsn(redis_url))
+                app.worker_available = True
+            except Exception as exc:
+                logger.warning("ARQ pool initialization failed: %s", exc)
+                app.arq_redis = None
+
+        logger.info("Redis runtime dependencies initialized")
+    except Exception as exc:
+        logger.warning("Redis unavailable; continuing in degraded mode: %s", exc)
+        app.shared_redis_pool = None
+        app.config["SESSION_REDIS"] = None
+        app.redis_available = False
+        app.worker_available = False
+        app.secure_cache = None
+
+
+async def _shutdown_resources(app):
+    """Gracefully shut down all runtime resources."""
+    try:
+        await asyncio.wait_for(app.metrics_collector.stop_collection(), timeout=5.0)
+        logger.info("Metrics collection stopped")
+    except asyncio.TimeoutError:
+        logger.warning("Metrics collection stop timed out")
+    except Exception as exc:
+        logger.warning("Error stopping metrics collection: %s", exc)
+
+    if hasattr(app.movie_manager, "close"):
+        try:
+            await asyncio.wait_for(app.movie_manager.close(), timeout=5.0)
+            logger.info("MovieManager closed successfully")
+        except Exception as exc:
+            logger.warning("Error closing MovieManager: %s", exc)
+
+    if getattr(app, "secure_cache", None):
+        try:
+            await asyncio.wait_for(app.secure_cache.close(), timeout=3.0)
+            logger.info("Secure cache closed")
+        except Exception as exc:
+            logger.warning("Error closing secure cache: %s", exc)
+
+    if getattr(app, "arq_redis", None):
+        try:
+            await asyncio.wait_for(app.arq_redis.aclose(), timeout=3.0)
+            logger.info("ARQ pool closed")
+        except Exception as exc:
+            logger.warning("Error closing ARQ pool: %s", exc)
+
+    if getattr(app, "config", {}).get("SESSION_REDIS"):
+        try:
+            await asyncio.wait_for(app.config["SESSION_REDIS"].aclose(), timeout=3.0)
+            logger.info("Session Redis pool closed")
+        except Exception as exc:
+            logger.warning("Error closing session Redis pool: %s", exc)
+
+
+def _init_core(app):
+    """Phase 1: Core app config and movie manager."""
     app.config.from_object(settings.Config())
     app.config["NR_SESSION_COOKIE_NAME"] = SESSION_COOKIE_NAME
     app.config["NR_SESSION_COOKIE_MAX_AGE"] = SESSION_COOKIE_MAX_AGE
@@ -99,74 +188,51 @@ def create_app():
     app.worker_available = False
     app.secure_cache = None
     app.config["SESSION_REDIS"] = None
+    return movie_manager
 
+
+def _init_metrics(app, movie_manager):
+    """Phase 2: Metrics collector and route wiring."""
     metrics_collector = MetricsCollector(db_pool=movie_manager.db_pool, movie_manager=movie_manager)
+    app.metrics_collector = metrics_collector
     init_routes(movie_manager, metrics_collector)
-    movie_manager_started = False
-    movie_manager_start_lock = asyncio.Lock()
+    return metrics_collector
+
+
+def _make_manager_starter(app, movie_manager):
+    """Phase 3: Lazy MovieManager startup guard."""
+    started = False
+    lock = asyncio.Lock()
 
     async def ensure_movie_manager_started():
-        nonlocal movie_manager_started
-        if movie_manager_started:
+        nonlocal started
+        if started:
             return
 
-        async with movie_manager_start_lock:
-            if movie_manager_started:
+        async with lock:
+            if started:
                 return
 
             await movie_manager.start()
             app.navigation_state_store = movie_manager.navigation_state_store
-            movie_manager_started = True
+            started = True
             logger.info("MovieManager started successfully")
+
+    return ensure_movie_manager_started
+
+
+def create_app():
+    if not secrets_manager.validate_all_secrets():
+        raise RuntimeError("Failed to validate required secrets. Check logs for details.")
+
+    app = FixedQuart(__name__)
+    movie_manager = _init_core(app)
+    metrics_collector = _init_metrics(app, movie_manager)
+    ensure_movie_manager_started = _make_manager_starter(app, movie_manager)
 
     @app.before_serving
     async def setup_redis():
-        redis_url = _redis_url()
-        try:
-            shared_pool = aioredis.ConnectionPool.from_url(
-                redis_url,
-                max_connections=int(os.getenv("REDIS_MAX_CONNECTIONS", 30)),
-                socket_connect_timeout=5,
-                socket_timeout=5,
-                retry_on_timeout=True,
-                health_check_interval=30,
-            )
-            redis_client = aioredis.Redis(connection_pool=shared_pool)
-            await redis_client.ping()
-            app.shared_redis_pool = shared_pool
-            app.config["SESSION_REDIS"] = redis_client
-            app.redis_available = True
-
-            try:
-                from session.quart_session_compat import install_session
-
-                install_session(app)
-            except Exception as exc:
-                logger.warning("Legacy Redis session install failed: %s", exc)
-
-            try:
-                app.secure_cache = SimpleCacheManager(connection_pool=shared_pool)
-                await app.secure_cache.initialize()
-            except Exception as exc:
-                logger.warning("Redis cache initialization failed: %s", exc)
-                app.secure_cache = None
-
-            if create_arq_pool and RedisSettings:
-                try:
-                    app.arq_redis = await create_arq_pool(RedisSettings.from_dsn(redis_url))
-                    app.worker_available = True
-                except Exception as exc:
-                    logger.warning("ARQ pool initialization failed: %s", exc)
-                    app.arq_redis = None
-
-            logger.info("Redis runtime dependencies initialized")
-        except Exception as exc:
-            logger.warning("Redis unavailable; continuing in degraded mode: %s", exc)
-            app.shared_redis_pool = None
-            app.config["SESSION_REDIS"] = None
-            app.redis_available = False
-            app.worker_available = False
-            app.secure_cache = None
+        await _setup_redis(app)
 
     async def enqueue_runtime_job(function_name: str, *args):
         if not app.arq_redis:
@@ -181,8 +247,7 @@ def create_app():
         try:
             await add_correlation_id()
 
-            skip_paths = ["/static", "/favicon.ico", "/health", "/ready", "/metrics"]
-            if any(request.path.startswith(path) for path in skip_paths):
+            if any(request.path.startswith(p) for p in _SKIP_PATHS):
                 return
 
             if app.config.get("TESTING") and app.navigation_state_store is None:
@@ -234,8 +299,6 @@ def create_app():
                 path="/",
             )
 
-        from infra.security_headers import add_security_headers
-
         return await add_security_headers(response)
 
     @asynccontextmanager
@@ -243,7 +306,7 @@ def create_app():
         logger.info("Starting application lifecycle")
         try:
             await ensure_movie_manager_started()
-            await metrics_collector.start_collection()
+            await app.metrics_collector.start_collection()
             logger.info("Metrics collection started")
         except Exception as exc:
             logger.error("Failed to start MovieManager: %s", exc)
@@ -283,43 +346,6 @@ def create_app():
             warm_up_tasks.append(movie_manager.db_pool.execute("SELECT 1", fetch="one"))
         await asyncio.gather(*warm_up_tasks, return_exceptions=True)
         logger.info("Application warm-up complete")
-
-    async def _shutdown_resources(app_instance):
-        try:
-            await asyncio.wait_for(metrics_collector.stop_collection(), timeout=5.0)
-            logger.info("Metrics collection stopped")
-        except asyncio.TimeoutError:
-            logger.warning("Metrics collection stop timed out")
-        except Exception as exc:
-            logger.warning("Error stopping metrics collection: %s", exc)
-
-        if hasattr(movie_manager, "close"):
-            try:
-                await asyncio.wait_for(movie_manager.close(), timeout=5.0)
-                logger.info("MovieManager closed successfully")
-            except Exception as exc:
-                logger.warning("Error closing MovieManager: %s", exc)
-
-        if getattr(app_instance, "secure_cache", None):
-            try:
-                await asyncio.wait_for(app_instance.secure_cache.close(), timeout=3.0)
-                logger.info("Secure cache closed")
-            except Exception as exc:
-                logger.warning("Error closing secure cache: %s", exc)
-
-        if getattr(app_instance, "arq_redis", None):
-            try:
-                await asyncio.wait_for(app_instance.arq_redis.aclose(), timeout=3.0)
-                logger.info("ARQ pool closed")
-            except Exception as exc:
-                logger.warning("Error closing ARQ pool: %s", exc)
-
-        if getattr(app_instance, "config", {}).get("SESSION_REDIS"):
-            try:
-                await asyncio.wait_for(app_instance.config["SESSION_REDIS"].aclose(), timeout=3.0)
-                logger.info("Session Redis pool closed")
-            except Exception as exc:
-                logger.warning("Error closing session Redis pool: %s", exc)
 
     app.register_blueprint(routes_bp)
     return app

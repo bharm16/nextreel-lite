@@ -4,7 +4,8 @@ from unittest.mock import AsyncMock, patch
 import httpx
 import pytest
 
-from infra.navigation_state import NavigationState, default_filter_state, utcnow
+from infra.navigation_state import NavigationState, default_filter_state
+from infra.time_utils import utcnow
 from tests.helpers import TEST_ENV
 from movie_service import MovieManager
 

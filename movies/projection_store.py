@@ -6,20 +6,25 @@ import json
 from datetime import datetime, timedelta
 from typing import Any
 
-from infra.navigation_state import utcnow
+from infra.time_utils import utcnow
 from logging_config import get_logger
 from movies.movie import Movie
+from movies.projection_state import (
+    ENQUEUE_COOLDOWN,
+    STALE_AFTER,
+    ProjectionState,
+)
 
 logger = get_logger(__name__)
 
 PLACEHOLDER_POSTER = "/static/img/poster-placeholder.svg"
 PLACEHOLDER_BACKDROP = "/static/img/backdrop-placeholder.svg"
-PROJECTION_READY = "ready"
-PROJECTION_STALE = "stale"
-PROJECTION_CORE = "core"
-PROJECTION_FAILED = "failed"
-ENQUEUE_COOLDOWN = timedelta(minutes=15)
-STALE_AFTER = timedelta(days=7)
+
+# Backward-compatible string constants (used by tests and callers).
+PROJECTION_READY = ProjectionState.READY.value
+PROJECTION_STALE = ProjectionState.STALE.value
+PROJECTION_CORE = ProjectionState.CORE.value
+PROJECTION_FAILED = ProjectionState.FAILED.value
 
 
 class ProjectionStore:

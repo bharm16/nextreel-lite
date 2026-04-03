@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from infra.navigation_state import utcnow
+from infra.time_utils import utcnow
 from movies.candidate_store import (
     SAMPLE_BUCKET_COUNT,
     SELECTION_BUCKET_STEPS,

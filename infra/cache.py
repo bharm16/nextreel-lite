@@ -31,9 +31,13 @@ class CacheNamespace(Enum):
 class SimpleCacheManager:
     """Lightweight Redis cache — JSON serialization, TTL, namespaced keys.
 
-    Accepts either a ``redis_url`` (creates its own connection) or a shared
-    ``connection_pool`` / ``redis_client`` so the app can share one pool for
-    both sessions and caching.
+    Preferred construction via factory classmethods::
+
+        cache = SimpleCacheManager.from_url("redis://localhost:6379")
+        cache = SimpleCacheManager.from_pool(shared_pool)
+        cache = SimpleCacheManager.from_client(existing_redis)
+
+    The original constructor is preserved for backward compatibility.
     """
 
     def __init__(
@@ -51,6 +55,21 @@ class SimpleCacheManager:
         self._default_ttl = default_ttl
         self._owns_connection = False  # True when we created our own connection
         self._redis: Optional[aioredis.Redis] = redis_client
+
+    @classmethod
+    def from_url(cls, redis_url: str, default_ttl: int = 3600) -> "SimpleCacheManager":
+        """Create a cache manager that owns its own Redis connection."""
+        return cls(redis_url=redis_url, default_ttl=default_ttl)
+
+    @classmethod
+    def from_pool(cls, connection_pool: aioredis.ConnectionPool, default_ttl: int = 3600) -> "SimpleCacheManager":
+        """Create a cache manager sharing an existing connection pool."""
+        return cls(connection_pool=connection_pool, default_ttl=default_ttl)
+
+    @classmethod
+    def from_client(cls, redis_client: aioredis.Redis, default_ttl: int = 3600) -> "SimpleCacheManager":
+        """Create a cache manager wrapping an existing Redis client."""
+        return cls(redis_client=redis_client, default_ttl=default_ttl)
 
     async def initialize(self) -> None:
         """Connect to Redis (or verify shared connection)."""

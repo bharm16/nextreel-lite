@@ -1,26 +1,32 @@
+from __future__ import annotations
+
 import asyncio
 import logging as _logging
 import time
+from typing import Any
 
 from infra.errors import DatabaseError
+from infra.pool import DatabaseConnectionPool
 from movies.tmdb_client import TMDbHelper
 from logging_config import get_logger
 
 logger = get_logger(__name__)
-# Set httpx logging level to ERROR to reduce verbosity
 _logging.getLogger("httpx").setLevel(_logging.ERROR)
 
 
 class Movie:
-    def __init__(self, tconst, db_pool, tmdb_helper=None):
+    def __init__(
+        self,
+        tconst: str,
+        db_pool: DatabaseConnectionPool,
+        tmdb_helper: TMDbHelper | None = None,
+    ) -> None:
         self.tconst = tconst
         self.db_pool = db_pool
-        self.movie_data = {}
-        # Re-use a shared TMDbHelper (and its httpx connection pool) when
-        # provided; fall back to creating one for backward compatibility.
+        self.movie_data: dict[str, Any] = {}
         self.tmdb_helper = tmdb_helper or TMDbHelper()
         self._owns_tmdb_helper = tmdb_helper is None
-        self.slug = None
+        self.slug: str | None = None
 
     async def __aenter__(self):
         return self
@@ -71,7 +77,7 @@ class Movie:
         logger.info("Fetched slug+ratings for %s in %.2f seconds", tconst, query_time)
         return ratings_data
 
-    async def get_movie_data(self):
+    async def get_movie_data(self) -> dict[str, Any] | None:
         start_time = time.time()
 
         try:
@@ -198,7 +204,7 @@ class Movie:
             return self.movie_data
 
         except Exception as e:
-            logger.error("Error fetching movie data for %s: %s", self.tconst, e)
+            logger.error("Error fetching movie data for %s: %s", self.tconst, e, exc_info=True)
             return None
 
     async def close(self):

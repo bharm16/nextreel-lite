@@ -1,212 +1,63 @@
 """
 Prometheus metrics collection for Nextreel application.
 Provides detailed metrics that integrate with Grafana Cloud.
+
+Metrics are organized into domain groups in ``infra.metrics_groups``.
+This module re-exports the individual metric objects for backward
+compatibility so that existing ``from infra.metrics import X`` imports
+continue to work.
 """
 
-from prometheus_client import Counter, Histogram, Gauge, generate_latest, REGISTRY, Info
 import time
 import asyncio
 from typing import Optional, Dict, Any
+from prometheus_client import generate_latest, REGISTRY
 from quart import Response, request, g
 from logging_config import get_logger
-import os
 
-# Application info metric
-app_info = Info('nextreel_app_info', 'Application information')
-app_info.info({
-    'version': os.getenv('APP_VERSION', '1.0.0'),
-    'environment': os.getenv('NEXTREEL_ENV', os.getenv('FLASK_ENV', 'production'))
-})
-
-# ============================================================================
-# HTTP METRICS
-# ============================================================================
-
-http_requests_total = Counter(
-    'nextreel_http_requests_total',
-    'Total HTTP requests',
-    ['method', 'endpoint', 'status_code']
+# Grouped metrics — the canonical source for all Prometheus objects.
+from infra.metrics_groups import (
+    app_info,
+    http, database, movie, tmdb, user, cache, error,
 )
 
-http_request_duration_seconds = Histogram(
-    'nextreel_http_request_duration_seconds',
-    'HTTP request duration in seconds',
-    ['method', 'endpoint'],
-    buckets=(0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1.0, 2.5, 5.0, 7.5, 10.0)
-)
+# ── Backward-compatible aliases ──────────────────────────────────────
+# Existing code imports these names directly; keep them working.
+http_requests_total = http.requests_total
+http_request_duration_seconds = http.request_duration_seconds
+http_requests_in_progress = http.requests_in_progress
 
-http_requests_in_progress = Gauge(
-    'nextreel_http_requests_in_progress',
-    'Number of HTTP requests currently being processed'
-)
+db_connections_active = database.connections_active
+db_connections_idle = database.connections_idle
+db_connections_total = database.connections_total
+db_queries_total = database.queries_total
+db_query_duration_seconds = database.query_duration_seconds
+db_circuit_breaker_state = database.circuit_breaker_state
+db_connection_errors_total = database.connection_errors_total
 
-# ============================================================================
-# DATABASE METRICS
-# ============================================================================
+movie_recommendations_total = movie.recommendations_total
+movie_fetches_total = movie.fetches_total
+movie_filters_applied_total = movie.filters_applied_total
 
-db_connections_active = Gauge(
-    'nextreel_db_connections_active',
-    'Active database connections'
-)
+tmdb_api_calls_total = tmdb.api_calls_total
+tmdb_api_duration_seconds = tmdb.api_duration_seconds
+tmdb_rate_limit_remaining = tmdb.rate_limit_remaining
 
-db_connections_idle = Gauge(
-    'nextreel_db_connections_idle',
-    'Idle database connections'
-)
+active_users = user.active_users
+user_sessions_total = user.sessions_total
+user_actions_total = user.actions_total
+session_duration_seconds = user.session_duration_seconds
 
-db_connections_total = Gauge(
-    'nextreel_db_connections_total',
-    'Total database connections in pool'
-)
+cache_hits_total = cache.hits_total
+cache_misses_total = cache.misses_total
+cache_operations_duration_seconds = cache.operations_duration_seconds
+rate_limit_backend_mode = cache.rate_limit_backend_mode
 
-db_queries_total = Counter(
-    'nextreel_db_queries_total',
-    'Total database queries',
-    ['query_type', 'table', 'status']
-)
-
-db_query_duration_seconds = Histogram(
-    'nextreel_db_query_duration_seconds',
-    'Database query duration in seconds',
-    ['query_type'],
-    buckets=(0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0)
-)
-
-db_circuit_breaker_state = Gauge(
-    'nextreel_db_circuit_breaker_state',
-    'Database circuit breaker state (0=closed, 1=open, 2=half-open)'
-)
-
-db_connection_errors_total = Counter(
-    'nextreel_db_connection_errors_total',
-    'Total database connection errors'
-)
-
-# ============================================================================
-# MOVIE & RECOMMENDATION METRICS
-# ============================================================================
-
-movie_recommendations_total = Counter(
-    'nextreel_movie_recommendations_total',
-    'Total movie recommendations served',
-    ['recommendation_type']
-)
-
-movie_fetches_total = Counter(
-    'nextreel_movie_fetches_total',
-    'Total movie data fetches',
-    ['source', 'status']
-)
-
-movie_filters_applied_total = Counter(
-    'nextreel_movie_filters_applied_total',
-    'Total movie filters applied',
-    ['filter_type']
-)
-
-# ============================================================================
-# TMDB API METRICS
-# ============================================================================
-
-tmdb_api_calls_total = Counter(
-    'nextreel_tmdb_api_calls_total',
-    'Total TMDB API calls',
-    ['endpoint', 'status_code']
-)
-
-tmdb_api_duration_seconds = Histogram(
-    'nextreel_tmdb_api_duration_seconds',
-    'TMDB API call duration in seconds',
-    ['endpoint']
-)
-
-tmdb_rate_limit_remaining = Gauge(
-    'nextreel_tmdb_rate_limit_remaining',
-    'Remaining TMDB API rate limit'
-)
-
-# ============================================================================
-# USER & SESSION METRICS
-# ============================================================================
-
-active_users = Gauge(
-    'nextreel_active_users',
-    'Currently active users'
-)
-
-user_sessions_total = Counter(
-    'nextreel_user_sessions_total',
-    'Total user sessions created'
-)
-
-user_actions_total = Counter(
-    'nextreel_user_actions_total',
-    'Total user actions',
-    ['action_type']
-)
-
-session_duration_seconds = Histogram(
-    'nextreel_session_duration_seconds',
-    'User session duration in seconds'
-)
-
-# ============================================================================
-# CACHE METRICS
-# ============================================================================
-
-cache_hits_total = Counter(
-    'nextreel_cache_hits_total',
-    'Total cache hits',
-    ['cache_type']
-)
-
-cache_misses_total = Counter(
-    'nextreel_cache_misses_total',
-    'Total cache misses',
-    ['cache_type']
-)
-
-cache_operations_duration_seconds = Histogram(
-    'nextreel_cache_operations_duration_seconds',
-    'Cache operation duration in seconds',
-    ['operation', 'cache_type']
-)
-
-rate_limit_backend_mode = Gauge(
-    'nextreel_rate_limit_backend_mode',
-    'Current rate limiter backend mode (1 active, 0 inactive)',
-    ['backend']
-)
-
-# ============================================================================
-# ERROR METRICS
-# ============================================================================
-
-application_errors_total = Counter(
-    'nextreel_application_errors_total',
-    'Total application errors',
-    ['error_type', 'endpoint']
-)
-
-navigation_state_redis_import_total = Counter(
-    'nextreel_navigation_state_redis_import_total',
-    'Total successful legacy Redis session imports into MySQL navigation state'
-)
-
-navigation_state_migration_miss_total = Counter(
-    'nextreel_navigation_state_migration_miss_total',
-    'Total migration misses when no legacy Redis session could be imported'
-)
-
-navigation_state_conflicts_total = Counter(
-    'nextreel_navigation_state_conflicts_total',
-    'Total optimistic concurrency conflicts while mutating navigation state'
-)
-
-home_prewarm_failed_total = Counter(
-    'nextreel_home_prewarm_failed_total',
-    'Total failed home page queue prewarm attempts'
-)
+application_errors_total = error.application_errors_total
+navigation_state_redis_import_total = error.navigation_state_redis_import_total
+navigation_state_migration_miss_total = error.navigation_state_migration_miss_total
+navigation_state_conflicts_total = error.navigation_state_conflicts_total
+home_prewarm_failed_total = error.home_prewarm_failed_total
 
 # ============================================================================
 # METRICS COLLECTION SERVICE
@@ -333,7 +184,6 @@ async def metrics_endpoint():
             mimetype='text/plain; version=0.0.4; charset=utf-8'
         )
     except Exception as e:
-        logger = get_logger(__name__)
         logger.error("Failed to generate metrics: %s", e)
         return Response("Error generating metrics", status=500)
 
@@ -375,7 +225,6 @@ def setup_metrics_middleware(app, metrics_collector: MetricsCollector):
             http_requests_in_progress.dec()
             
         except Exception as e:
-            logger = get_logger(__name__)
             logger.error("Error in metrics middleware: %s", e)
         
         return response

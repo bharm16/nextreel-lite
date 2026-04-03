@@ -240,7 +240,7 @@ class ImdbRandomMovieFetcher(MovieFetcher):
                 logger.debug("Count cache hit for %s: %d", cache_key, cached)
                 return int(cached)
         except Exception:
-            logger.debug("Cache read failed for %s", cache_key, exc_info=True)
+            logger.warning("Cache read failed for %s", cache_key, exc_info=True)
         return None
 
     async def _set_cached_count(self, cache_key: str, count: int) -> None:
@@ -252,7 +252,7 @@ class ImdbRandomMovieFetcher(MovieFetcher):
                 CacheNamespace.TEMP, cache_key, count, ttl=self._COUNT_CACHE_TTL
             )
         except Exception:
-            logger.debug("Cache write failed for %s", cache_key, exc_info=True)
+            logger.warning("Cache write failed for %s", cache_key, exc_info=True)
 
     @staticmethod
     def _table_label(use_recent: bool, use_cache: bool) -> str:

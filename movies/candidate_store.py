@@ -6,7 +6,8 @@ import random
 from datetime import datetime
 from typing import Any
 
-from infra.navigation_state import criteria_from_filters, utcnow
+from infra.navigation_state import criteria_from_filters
+from infra.time_utils import utcnow
 from logging_config import get_logger
 from movies.query_builder import MovieQueryBuilder
 
@@ -31,6 +32,7 @@ def _ref_from_row(row: dict[str, Any]) -> dict[str, Any]:
 class CandidateStore:
     def __init__(self, db_pool):
         self.db_pool = db_pool
+        self._table_maintainer: CandidateTableMaintainer | None = None
 
     async def latest_refresh_at(self) -> datetime | None:
         row = await self.db_pool.execute(
@@ -137,6 +139,29 @@ class CandidateStore:
                 return deduped
 
         return []
+
+    async def validate_bucket_distribution(self, table_name: str = "movie_candidates_next") -> None:
+        return await self._maintainer.validate_bucket_distribution(table_name)
+
+    async def refresh_movie_candidates(self) -> None:
+        return await self._maintainer.refresh_movie_candidates()
+
+    @property
+    def _maintainer(self):
+        if self._table_maintainer is None:
+            self._table_maintainer = CandidateTableMaintainer(self.db_pool)
+        return self._table_maintainer
+
+
+class CandidateTableMaintainer:
+    """DDL and validation operations for the movie_candidates table.
+
+    Extracted from CandidateStore to separate read-path (candidate selection)
+    from write-path (table refresh/validation).
+    """
+
+    def __init__(self, db_pool):
+        self.db_pool = db_pool
 
     async def validate_bucket_distribution(self, table_name: str = "movie_candidates_next") -> None:
         if table_name not in _ALLOWED_CANDIDATE_TABLES:

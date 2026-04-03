@@ -13,7 +13,6 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Awaitable, Callable, MutableMapping
 
 from logging_config import get_logger
-from movies.filter_parser import VALID_GENRES, extract_movie_filter_criteria
 from session.keys import (
     CRITERIA_KEY,
     CURRENT_FILTERS_KEY,
@@ -22,6 +21,16 @@ from session.keys import (
     PREVIOUS_STACK_KEY,
     SEEN_TCONSTS_KEY,
     WATCH_QUEUE_KEY,
+)
+
+# Filter logic extracted to infra.filter_normalizer — re-exported here
+# so all existing ``from infra.navigation_state import X`` continue to work.
+from infra.filter_normalizer import (  # noqa: F401
+    MAX_FILTER_VALUE_LEN,
+    criteria_from_filters,
+    default_filter_state,
+    filters_from_criteria,
+    normalize_filters,
 )
 
 logger = get_logger(__name__)
@@ -33,14 +42,10 @@ QUEUE_REFILL_THRESHOLD = 2
 PREV_STACK_MAX = 20
 FUTURE_STACK_MAX = 20
 SEEN_MAX = 50
-MAX_FILTER_VALUE_LEN = 64
-MIGRATION_META_STARTED_AT = "nav_state_migration_started_at"
-MIGRATION_META_LAST_IMPORT_AT = "nav_state_last_redis_import_at"
 
 
-def utcnow() -> datetime:
-    """Return current UTC time as a naive datetime (for MySQL compat)."""
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+# Re-export from shared utility for backward compatibility.
+from infra.time_utils import utcnow  # noqa: F811
 
 
 def _idle_timeout() -> timedelta:
@@ -49,103 +54,6 @@ def _idle_timeout() -> timedelta:
 
 def _max_duration() -> timedelta:
     return timedelta(hours=int(os.getenv("MAX_SESSION_DURATION_HOURS", 8)))
-
-
-def _migration_min_days() -> int:
-    return int(os.getenv("NAV_STATE_MIGRATION_MIN_DAYS", 7))
-
-
-def _migration_quiet_hours() -> int:
-    return int(os.getenv("NAV_STATE_ZERO_IMPORT_HOURS", 24))
-
-
-def default_filter_state(current_year: int | None = None) -> dict[str, Any]:
-    year = current_year or utcnow().year
-    return {
-        "year_min": 1900,
-        "year_max": year,
-        "imdb_score_min": 7.0,
-        "imdb_score_max": 10.0,
-        "num_votes_min": 100000,
-        "num_votes_max": 200000,
-        "language": "en",
-        "genres_selected": [],
-    }
-
-
-def filters_from_criteria(criteria: dict[str, Any]) -> dict[str, Any]:
-    filters = default_filter_state()
-    if "min_year" in criteria:
-        filters["year_min"] = criteria["min_year"]
-    if "max_year" in criteria:
-        filters["year_max"] = criteria["max_year"]
-    if "min_rating" in criteria:
-        filters["imdb_score_min"] = criteria["min_rating"]
-    if "max_rating" in criteria:
-        filters["imdb_score_max"] = criteria["max_rating"]
-    if "min_votes" in criteria:
-        filters["num_votes_min"] = criteria["min_votes"]
-    if "max_votes" in criteria:
-        filters["num_votes_max"] = criteria["max_votes"]
-    if "language" in criteria:
-        filters["language"] = criteria["language"]
-    if criteria.get("genres"):
-        filters["genres_selected"] = list(criteria["genres"])
-    return filters
-
-
-class _StoredFilterForm:
-    def __init__(self, filters: dict[str, Any]):
-        self._filters = filters
-
-    def get(self, key: str, default: Any = None) -> Any:
-        if key == "genres[]":
-            genres = self._filters.get("genres_selected")
-            return genres[0] if genres else default
-        return self._filters.get(key, default)
-
-    def getlist(self, key: str) -> list[Any]:
-        if key == "genres[]":
-            return list(self._filters.get("genres_selected", []))
-        value = self._filters.get(key)
-        if value is None:
-            return []
-        if isinstance(value, list):
-            return list(value)
-        return [value]
-
-
-def criteria_from_filters(filters: dict[str, Any]) -> dict[str, Any]:
-    merged = default_filter_state()
-    merged.update(filters or {})
-    return extract_movie_filter_criteria(_StoredFilterForm(merged))
-
-
-def normalize_filters(form_data) -> dict[str, Any]:
-    filters = default_filter_state()
-    scalar_keys = (
-        "year_min",
-        "year_max",
-        "imdb_score_min",
-        "imdb_score_max",
-        "num_votes_min",
-        "num_votes_max",
-        "language",
-    )
-    for key in scalar_keys:
-        value = form_data.get(key)
-        if isinstance(value, str):
-            filters[key] = value[:MAX_FILTER_VALUE_LEN]
-        elif value is not None:
-            filters[key] = value
-
-    raw_genres = form_data.getlist("genres[]")
-    filters["genres_selected"] = [
-        genre[:MAX_FILTER_VALUE_LEN]
-        for genre in raw_genres
-        if isinstance(genre, str) and genre in VALID_GENRES
-    ]
-    return filters
 
 
 def _normalize_ref(entry: Any) -> dict[str, Any] | None:
@@ -220,58 +128,15 @@ class MutationResult:
 class NavigationStateStore:
     def __init__(self, db_pool):
         self.db_pool = db_pool
-
-    async def _select_meta(self, key: str) -> str | None:
-        row = await self.db_pool.execute(
-            "SELECT meta_value FROM runtime_metadata WHERE meta_key = %s",
-            [key],
-            fetch="one",
-        )
-        return row["meta_value"] if row else None
-
-    async def _set_meta(self, key: str, value: str) -> None:
-        now = utcnow()
-        await self.db_pool.execute(
-            """
-            INSERT INTO runtime_metadata (meta_key, meta_value, updated_at)
-            VALUES (%s, %s, %s)
-            AS new_row
-            ON DUPLICATE KEY UPDATE
-                meta_value = new_row.meta_value,
-                updated_at = new_row.updated_at
-            """,
-            [key, value, now],
-            fetch="none",
-        )
-
-    async def _ensure_migration_started_at(self) -> datetime:
-        existing = await self._select_meta(MIGRATION_META_STARTED_AT)
-        if existing:
-            return datetime.fromisoformat(existing)
-        now = utcnow()
-        await self._set_meta(MIGRATION_META_STARTED_AT, now.isoformat())
-        return now
+        # Migration helper — can be removed once dual-write window closes.
+        from infra.legacy_migration import LegacyMigrationHelper
+        self.migration = LegacyMigrationHelper(db_pool)
 
     async def dual_write_enabled(self) -> bool:
-        if os.getenv("NAV_STATE_DUAL_WRITE_ENABLED", "true").lower() == "false":
-            return False
-
-        started_at = await self._ensure_migration_started_at()
-        if utcnow() < started_at + timedelta(days=_migration_min_days()):
-            return True
-
-        last_import = await self._select_meta(MIGRATION_META_LAST_IMPORT_AT)
-        if not last_import:
-            return False
-
-        last_import_at = datetime.fromisoformat(last_import)
-        return utcnow() < last_import_at + timedelta(hours=_migration_quiet_hours())
+        return await self.migration.dual_write_enabled()
 
     async def record_legacy_import(self) -> None:
-        from infra.metrics import navigation_state_redis_import_total
-
-        await self._set_meta(MIGRATION_META_LAST_IMPORT_AT, utcnow().isoformat())
-        navigation_state_redis_import_total.inc()
+        await self.migration.record_legacy_import()
 
     def _fresh_expiry(self, created_at: datetime, now: datetime | None = None) -> datetime:
         current = now or utcnow()
@@ -295,28 +160,17 @@ class NavigationStateStore:
         )
 
     def _state_from_legacy(self, session_id: str, legacy_session: MutableMapping[str, Any]) -> NavigationState:
-        raw_filters = legacy_session.get(CURRENT_FILTERS_KEY)
-        if not isinstance(raw_filters, dict):
-            raw_filters = filters_from_criteria(legacy_session.get(CRITERIA_KEY, {}))
-        elif "genres_selected" not in raw_filters and "genres[]" in raw_filters:
-            genres = raw_filters.get("genres[]")
-            if isinstance(genres, list):
-                raw_filters["genres_selected"] = genres
-            elif genres:
-                raw_filters["genres_selected"] = [genres]
-            raw_filters.pop("genres[]", None)
-
-        current_movie = legacy_session.get(CURRENT_MOVIE_KEY)
-        current_ref = _normalize_ref(current_movie)
-        state = self._fresh_state(session_id)
-        state.csrf_token = legacy_session.get("_csrf_token") or state.csrf_token
-        state.filters = raw_filters or default_filter_state()
-        state.current_tconst = current_ref["tconst"] if current_ref else None
-        state.queue = _normalize_ref_list(legacy_session.get(WATCH_QUEUE_KEY, []), max_items=QUEUE_TARGET)
-        state.prev = _normalize_ref_list(legacy_session.get(PREVIOUS_STACK_KEY, []), max_items=PREV_STACK_MAX)
-        state.future = _normalize_ref_list(legacy_session.get(FUTURE_STACK_KEY, []), max_items=FUTURE_STACK_MAX)
-        state.seen = _normalize_seen(legacy_session.get(SEEN_TCONSTS_KEY, []))
-        return state
+        return self.migration.state_from_legacy(
+            legacy_session,
+            fresh_state_fn=self._fresh_state,
+            filters_from_criteria_fn=filters_from_criteria,
+            normalize_ref_fn=_normalize_ref,
+            normalize_ref_list_fn=_normalize_ref_list,
+            normalize_seen_fn=_normalize_seen,
+            queue_target=QUEUE_TARGET,
+            prev_max=PREV_STACK_MAX,
+            future_max=FUTURE_STACK_MAX,
+        )
 
     async def _load_row(self, session_id: str) -> NavigationState | None:
         row = await self.db_pool.execute(
@@ -501,25 +355,7 @@ class NavigationStateStore:
         return True
 
     def _write_legacy_session(self, state: NavigationState, legacy_session: MutableMapping[str, Any]) -> None:
-        legacy_session["_csrf_token"] = state.csrf_token
-        legacy_session[CURRENT_FILTERS_KEY] = state.filters
-        legacy_session[CRITERIA_KEY] = criteria_from_filters(state.filters)
-        legacy_session[WATCH_QUEUE_KEY] = [
-            {"imdb_id": ref["tconst"], "title": ref.get("title"), "slug": ref.get("slug")}
-            for ref in state.queue
-        ]
-        legacy_session[PREVIOUS_STACK_KEY] = [
-            {"imdb_id": ref["tconst"], "title": ref.get("title"), "slug": ref.get("slug")}
-            for ref in state.prev
-        ]
-        legacy_session[FUTURE_STACK_KEY] = [
-            {"imdb_id": ref["tconst"], "title": ref.get("title"), "slug": ref.get("slug")}
-            for ref in state.future
-        ]
-        legacy_session[SEEN_TCONSTS_KEY] = list(state.seen)
-        legacy_session[CURRENT_MOVIE_KEY] = (
-            {"imdb_id": state.current_tconst} if state.current_tconst else None
-        )
+        self.migration.write_legacy_session(state, legacy_session, criteria_from_filters)
 
     async def mutate(
         self,

@@ -1,4 +1,3 @@
-import asyncio
 from unittest.mock import AsyncMock, patch
 
 from movies.tmdb_client import TMDbHelper
@@ -32,22 +31,16 @@ def test_build_request_options_uses_bearer_header_for_v4_token():
     assert params == {"language": "en-US"}
 
 
-def test_get_backdrop_image_for_home():
-    async def run_test():
-        helper = TMDbHelper('key')
-        with patch.object(helper, '_get', AsyncMock(return_value={'backdrops': [{'file_path': '/b.jpg'}]})):
-            url = await helper.get_backdrop_image_for_home(123)
-            assert url.endswith('/b.jpg')
-
-    asyncio.run(run_test())
+async def test_get_backdrop_image_for_home():
+    helper = TMDbHelper('key')
+    with patch.object(helper, '_get', AsyncMock(return_value={'backdrops': [{'file_path': '/b.jpg'}]})):
+        url = await helper.get_backdrop_image_for_home(123)
+        assert url.endswith('/b.jpg')
 
 
-def test_get_backdrop_for_movie():
-    async def run_test():
-        helper = TMDbHelper('key')
-        helper.get_all_backdrop_images = AsyncMock(return_value=['url1', 'url2'])
-        with patch('random.choice', lambda x: x[0]):
-            url = await helper.get_backdrop_for_movie(123)
-            assert url == 'url1'
-
-    asyncio.run(run_test())
+async def test_get_backdrop_for_movie():
+    helper = TMDbHelper('key')
+    helper.get_all_backdrop_images = AsyncMock(return_value=['url1', 'url2'])
+    with patch('random.choice', lambda x: x[0]):
+        url = await helper.get_backdrop_for_movie(123)
+        assert url == 'url1'

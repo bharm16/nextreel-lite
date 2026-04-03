@@ -1,10 +1,14 @@
+from __future__ import annotations
+
 import asyncio
+from typing import Any, MutableMapping
+
 import httpx
 
 from logging_config import get_logger
 
 from infra.metrics import home_prewarm_failed_total
-from infra.navigation_state import normalize_filters
+from infra.navigation_state import NavigationState, normalize_filters
 from infra.runtime_schema import ensure_runtime_schema
 from movies.candidate_store import CandidateStore
 from movies.projection_store import ProjectionStore
@@ -19,21 +23,21 @@ logger = get_logger(__name__)
 class MovieManager:
     """Facade coordinating DB-backed navigation, rendering, and enrichment."""
 
-    def __init__(self, db_config=None):
+    def __init__(self, db_config: dict[str, Any] | None = None) -> None:
         logger.debug("Initializing MovieManager")
         self.db_config = db_config or Config.get_db_config()
         self.db_pool = DatabaseConnectionPool(self.db_config)
-        self.default_movie_tmdb_id = 62
-        self.default_backdrop_url = None
+        self.default_movie_tmdb_id: int = 62
+        self.default_backdrop_url: str | None = None
         self.tmdb_helper = TMDbHelper()
 
         self.candidate_store = CandidateStore(self.db_pool)
         self.projection_store = ProjectionStore(self.db_pool, self.tmdb_helper)
         self.navigation_state_store = None
-        self._navigator = None
+        self._navigator: MovieNavigator | None = None
         self._renderer = MovieRenderer(self.projection_store)
 
-    async def start(self):
+    async def start(self) -> None:
         logger.info("Starting MovieManager")
         await self.db_pool.init_pool()
         await ensure_runtime_schema(self.db_pool)
@@ -52,7 +56,7 @@ class MovieManager:
                 exc,
             )
 
-    async def close(self):
+    async def close(self) -> None:
         try:
             if self.tmdb_helper:
                 await self.tmdb_helper.close()
@@ -67,14 +71,18 @@ class MovieManager:
         except Exception as e:
             logger.error("Error closing MovieManager: %s", e)
 
-    async def add_user(self, user_id, criteria):
+    async def add_user(self, user_id: str, criteria: dict[str, Any]) -> None:
         """Backward-compatible no-op.
 
         User bootstrap now happens through NavigationStateStore.
         """
         logger.info("Legacy add_user invoked for %s with criteria %s", user_id, criteria)
 
-    async def home(self, state, legacy_session=None):
+    async def home(
+        self,
+        state: NavigationState | None,
+        legacy_session: MutableMapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
         if state and not state.queue and self._navigator:
             try:
                 await asyncio.wait_for(
@@ -87,7 +95,7 @@ class MovieManager:
 
         return {"default_backdrop_url": self.default_backdrop_url}
 
-    async def set_default_backdrop(self):
+    async def set_default_backdrop(self) -> None:
         image_data = await self.tmdb_helper.get_images_by_tmdb_id(
             self.default_movie_tmdb_id
         )
@@ -99,7 +107,12 @@ class MovieManager:
         else:
             self.default_backdrop_url = None
 
-    async def render_movie_by_tconst(self, state, tconst, template_name="movie.html"):
+    async def render_movie_by_tconst(
+        self,
+        state: NavigationState | None,
+        tconst: str,
+        template_name: str = "movie.html",
+    ) -> str | tuple[str, int]:
         previous_count = self._navigator.prev_stack_length(state) if self._navigator and state else 0
         return await self._renderer.render_movie_by_tconst(
             tconst,
@@ -107,22 +120,35 @@ class MovieManager:
             template_name=template_name,
         )
 
-    def get_current_movie_tconst(self, state):
+    def get_current_movie_tconst(self, state: NavigationState | None) -> str | None:
         if not self._navigator or not state:
             return None
         return self._navigator.get_current_movie_tconst(state)
 
-    async def next_movie(self, state, legacy_session=None):
+    async def next_movie(
+        self,
+        state: NavigationState | None,
+        legacy_session: MutableMapping[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
         if not self._navigator or not state:
             return None
         return await self._navigator.next_movie(state.session_id, legacy_session=legacy_session)
 
-    async def previous_movie(self, state, legacy_session=None):
+    async def previous_movie(
+        self,
+        state: NavigationState | None,
+        legacy_session: MutableMapping[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
         if not self._navigator or not state:
             return None
         return await self._navigator.previous_movie(state.session_id, legacy_session=legacy_session)
 
-    async def filtered_movie(self, state, form_data, legacy_session=None):
+    async def filtered_movie(
+        self,
+        state: NavigationState | None,
+        form_data: Any,
+        legacy_session: MutableMapping[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
         if not self._navigator or not state:
             return None
 
@@ -133,7 +159,11 @@ class MovieManager:
             legacy_session=legacy_session,
         )
 
-    async def logout(self, state, legacy_session=None):
+    async def logout(
+        self,
+        state: NavigationState | None,
+        legacy_session: MutableMapping[str, Any] | None = None,
+    ) -> None:
         if state and self.navigation_state_store:
             await self.navigation_state_store.delete_state(
                 state.session_id,

@@ -7,6 +7,8 @@ from typing import Optional
 
 import httpx
 
+from movies.tmdb_parser import TMDbResponseParser
+
 
 def get_tmdb_api_key() -> str:
     """Retrieve the TMDb API key from secure secrets manager.
@@ -21,8 +23,9 @@ def get_tmdb_api_key() -> str:
     return api_key
 
 
+from movies.tmdb_parser import TMDB_IMAGE_BASE_URL
+
 TMDB_API_BASE_URL = "https://api.themoviedb.org/3"
-TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/"
 
 logger = get_logger(__name__)
 
@@ -113,7 +116,7 @@ class TMDbHelper:
         self.base_url = TMDB_API_BASE_URL
         self.image_base_url = TMDB_IMAGE_BASE_URL
         self._max_retries = 3
-        # Create reusable client with optimized timeouts
+        self._response_parser: TMDbResponseParser | None = None
         self._client = httpx.AsyncClient(
             timeout=httpx.Timeout(10.0, connect=3.0),
             limits=httpx.Limits(
@@ -237,179 +240,47 @@ class TMDbHelper:
         return data
 
     # ------------------------------------------------------------------
-    # Parsers: extract structured data from the combined response
+    # Parsers: delegated to TMDbResponseParser for SRP.
+    # These methods remain for backward compatibility.
     # ------------------------------------------------------------------
 
+    def _parser(self):
+        if self._response_parser is None:
+            self._response_parser = TMDbResponseParser(self.image_base_url)
+        return self._response_parser
+
     def parse_watch_providers(self, data, region="US"):
-        """Extract watch providers from a combined response."""
-        wp_data = data.get("watch/providers", {})
-        region_data = wp_data.get("results", {}).get(region, {})
-        if not region_data:
-            return None
-
-        providers = {}
-
-        for category, key in [("stream", "flatrate"), ("rent", "rent"), ("buy", "buy"), ("ads", "ads")]:
-            if key in region_data:
-                providers[category] = [
-                    {
-                        "provider_name": p.get("provider_name"),
-                        "logo_path": (
-                            f"{self.image_base_url}w92{p.get('logo_path')}"
-                            if p.get("logo_path") else None
-                        ),
-                    }
-                    for p in region_data[key][:4]
-                ]
-
-        if "link" in region_data:
-            providers["justwatch_link"] = region_data["link"]
-
-        return providers if providers else None
+        return self._parser().parse_watch_providers(data, region)
 
     def parse_age_rating(self, data):
-        """Extract US age rating from a combined response."""
-        rd_data = data.get("release_dates", {})
-        # Prefer US certification
-        for country in rd_data.get("results", []):
-            if country.get("iso_3166_1") == "US":
-                for release in country.get("release_dates", []):
-                    cert = release.get("certification", "").strip()
-                    if cert:
-                        return cert
-        # Fallback to first available
-        for country in rd_data.get("results", []):
-            for release in country.get("release_dates", []):
-                cert = release.get("certification", "").strip()
-                if cert:
-                    return cert
-        return "Not Rated"
+        return self._parser().parse_age_rating(data)
 
     def parse_cast(self, data, limit=10):
-        """Extract top cast members from a combined response."""
-        credits = data.get("credits", {})
-        return [
-            {
-                "name": m["name"],
-                "image_url": (
-                    f"{self.image_base_url}w185{m['profile_path']}"
-                    if m.get("profile_path") else None
-                ),
-                "character": m.get("character", "N/A"),
-            }
-            for m in credits.get("cast", [])[:limit]
-        ]
+        return self._parser().parse_cast(data, limit)
 
     def parse_directors(self, data):
-        """Extract director names from a combined response."""
-        credits = data.get("credits", {})
-        return [
-            crew["name"]
-            for crew in credits.get("crew", [])
-            if crew.get("job") == "Director"
-        ]
+        return self._parser().parse_directors(data)
 
     def parse_key_crew(self, data):
-        """Extract notable crew: writers, composer, cinematographer."""
-        credits = data.get("credits", {})
-        crew_list = credits.get("crew", [])
-
-        writers = []
-        composer = None
-        cinematographer = None
-        for member in crew_list:
-            job = member.get("job", "")
-            if job in ("Screenplay", "Writer") and len(writers) < 3:
-                writers.append(member["name"])
-            elif job == "Original Music Composer" and not composer:
-                composer = member["name"]
-            elif job == "Director of Photography" and not cinematographer:
-                cinematographer = member["name"]
-
-        result = {}
-        if writers:
-            result["writers"] = writers
-        if composer:
-            result["composer"] = composer
-        if cinematographer:
-            result["cinematographer"] = cinematographer
-        return result
+        return self._parser().parse_key_crew(data)
 
     def parse_trailer(self, data):
-        """Extract YouTube trailer URL from a combined response."""
-        for video in data.get("videos", {}).get("results", []):
-            if video.get("site") == "YouTube" and video.get("type") == "Trailer":
-                return f"https://www.youtube.com/watch?v={video['key']}"
-        return None
+        return self._parser().parse_trailer(data)
 
     def parse_images(self, data, limit=1):
-        """Extract poster and backdrop URLs from a combined response."""
-        images_data = data.get("images", {})
-        posters = images_data.get("posters", [])[:limit]
-        backdrops = images_data.get("backdrops", [])[:limit]
-        return {
-            "posters": [
-                f"{self.image_base_url}original{img['file_path']}"
-                for img in posters if "file_path" in img
-            ],
-            "backdrops": [
-                f"{self.image_base_url}original{img['file_path']}"
-                for img in backdrops if "file_path" in img
-            ],
-        }
+        return self._parser().parse_images(data, limit)
 
     def parse_keywords(self, data):
-        """Extract keyword names from a combined response."""
-        return [
-            kw["name"]
-            for kw in data.get("keywords", {}).get("keywords", [])
-        ]
+        return self._parser().parse_keywords(data)
 
     def parse_recommendations(self, data, limit=10):
-        """Extract recommended movies from a combined response."""
-        return [
-            {
-                "tmdb_id": m["id"],
-                "title": m.get("title", ""),
-                "year": m.get("release_date", "")[:4] if m.get("release_date") else "",
-                "poster_url": (
-                    f"{self.image_base_url}w342{m['poster_path']}"
-                    if m.get("poster_path") else None
-                ),
-                "vote_average": m.get("vote_average", 0),
-            }
-            for m in data.get("recommendations", {}).get("results", [])[:limit]
-        ]
+        return self._parser().parse_recommendations(data, limit)
 
     def parse_external_ids(self, data):
-        """Extract external IDs (IMDb, social) from a combined response."""
-        ext = data.get("external_ids", {})
-        result = {}
-        if ext.get("imdb_id"):
-            result["imdb_url"] = f"https://www.imdb.com/title/{ext['imdb_id']}/"
-        if ext.get("wikidata_id"):
-            result["wikidata_url"] = f"https://www.wikidata.org/wiki/{ext['wikidata_id']}"
-        if ext.get("facebook_id"):
-            result["facebook_url"] = f"https://www.facebook.com/{ext['facebook_id']}"
-        if ext.get("instagram_id"):
-            result["instagram_url"] = f"https://www.instagram.com/{ext['instagram_id']}"
-        if ext.get("twitter_id"):
-            result["twitter_url"] = f"https://x.com/{ext['twitter_id']}"
-        return result
+        return self._parser().parse_external_ids(data)
 
     def parse_collection(self, data):
-        """Extract collection/franchise info from the movie details."""
-        coll = data.get("belongs_to_collection")
-        if not coll:
-            return None
-        return {
-            "id": coll["id"],
-            "name": coll["name"],
-            "poster_url": (
-                f"{self.image_base_url}w185{coll['poster_path']}"
-                if coll.get("poster_path") else None
-            ),
-        }
+        return self._parser().parse_collection(data)
 
     # ------------------------------------------------------------------
     # Individual-endpoint methods — still used by movie_service.py,
@@ -421,16 +292,7 @@ class TMDbHelper:
         start_time = time.time()
         try:
             data = await self._get(f"movie/{tmdb_id}/images")
-            # Limit the number of posters and backdrops to fetch
-            posters = data.get("posters", [])[:limit]
-            backdrops = data.get("backdrops", [])[:limit]
-
-            images = {
-                "posters": [self.image_base_url + "original" + img["file_path"] for img in posters if
-                            "file_path" in img],
-                "backdrops": [self.image_base_url + "original" + img["file_path"] for img in backdrops if
-                              "file_path" in img],
-            }
+            images = self._parser().parse_images({"images": data}, limit=limit)
 
             logger.debug(
                 "Found %d poster(s) and %d backdrop(s) for TMDB ID: %s",

@@ -1,6 +1,5 @@
 """Tests for TMDbHelper parse methods and get_movie_full."""
 
-import asyncio
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -339,26 +338,22 @@ class TestParseCollection:
 
 
 class TestGetMovieFull:
-    def test_calls_with_append_to_response(self):
-        async def run():
-            h = TMDbHelper("key")
-            h._get = AsyncMock(return_value=_sample_combined_response())
-            result = await h.get_movie_full(550)
+    async def test_calls_with_append_to_response(self):
+        h = TMDbHelper("key")
+        h._get = AsyncMock(return_value=_sample_combined_response())
+        result = await h.get_movie_full(550)
 
-            h._get.assert_awaited_once()
-            call_args = h._get.call_args
-            assert call_args[0][0] == "movie/550"
-            params = call_args[0][1] if len(call_args[0]) > 1 else call_args[1].get("params", {})
-            # Check that append_to_response is passed
-            if isinstance(params, dict):
-                atr = params.get("append_to_response", "")
-            else:
-                atr = call_args[1].get("params", {}).get("append_to_response", "")
-            assert "credits" in atr
-            assert "videos" in atr
-            assert "keywords" in atr
-            assert "recommendations" in atr
-            assert "external_ids" in atr
-            assert result["title"] == "Fight Club"
-
-        asyncio.run(run())
+        h._get.assert_awaited_once()
+        call_args = h._get.call_args
+        assert call_args[0][0] == "movie/550"
+        params = call_args[0][1] if len(call_args[0]) > 1 else call_args[1].get("params", {})
+        if isinstance(params, dict):
+            atr = params.get("append_to_response", "")
+        else:
+            atr = call_args[1].get("params", {}).get("append_to_response", "")
+        assert "credits" in atr
+        assert "videos" in atr
+        assert "keywords" in atr
+        assert "recommendations" in atr
+        assert "external_ids" in atr
+        assert result["title"] == "Fight Club"

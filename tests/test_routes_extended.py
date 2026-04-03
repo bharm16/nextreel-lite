@@ -90,72 +90,56 @@ from tests.helpers import TEST_ENV
 
 
 class TestHealthEndpoint:
-    def test_health_returns_200(self):
-        import asyncio
+    async def test_health_returns_200(self):
+        with patch.dict(os.environ, TEST_ENV), \
+             patch("app.MovieManager") as MockManager:
+            MockManager.return_value.home = AsyncMock(return_value="ok")
 
-        async def run():
-            with patch.dict(os.environ, TEST_ENV), \
-                 patch("app.MovieManager") as MockManager:
-                MockManager.return_value.home = AsyncMock(return_value="ok")
+            from app import create_app
+            app = create_app()
+            app.config["TESTING"] = True
 
-                from app import create_app
-                app = create_app()
-                app.config["TESTING"] = True
-
-                async with app.app_context():
-                    client = app.test_client()
-                    response = await client.get("/health")
-                    assert response.status_code == 200
-                    data = await response.get_json()
-                    assert data["status"] == "healthy"
-
-        asyncio.run(run())
+            async with app.app_context():
+                client = app.test_client()
+                response = await client.get("/health")
+                assert response.status_code == 200
+                data = await response.get_json()
+                assert data["status"] == "healthy"
 
 
 class TestOpsAuth:
     """Ops endpoints should require Bearer token when OPS_AUTH_TOKEN is set."""
 
-    def test_metrics_unauthorized_without_token(self):
-        import asyncio
+    async def test_metrics_unauthorized_without_token(self):
+        with patch("app.MovieManager") as MockManager, \
+             patch.dict(os.environ, {**TEST_ENV, "OPS_AUTH_TOKEN": "secret-token"}):
+            MockManager.return_value.home = AsyncMock(return_value={"default_backdrop_url": None})
 
-        async def run():
-            with patch("app.MovieManager") as MockManager, \
-                 patch.dict(os.environ, {**TEST_ENV, "OPS_AUTH_TOKEN": "secret-token"}):
-                MockManager.return_value.home = AsyncMock(return_value={"default_backdrop_url": None})
+            from app import create_app
+            app = create_app()
+            app.config["TESTING"] = True
 
-                from app import create_app
-                app = create_app()
-                app.config["TESTING"] = True
+            async with app.app_context():
+                client = app.test_client()
+                response = await client.get("/metrics")
+                assert response.status_code == 401
 
-                async with app.app_context():
-                    client = app.test_client()
-                    response = await client.get("/metrics")
-                    assert response.status_code == 401
+    async def test_metrics_authorized_with_correct_token(self):
+        with patch("app.MovieManager") as MockManager, \
+             patch.dict(os.environ, {**TEST_ENV, "OPS_AUTH_TOKEN": "secret-token"}):
+            MockManager.return_value.home = AsyncMock(return_value={"default_backdrop_url": None})
 
-        asyncio.run(run())
+            from app import create_app
+            app = create_app()
+            app.config["TESTING"] = True
 
-    def test_metrics_authorized_with_correct_token(self):
-        import asyncio
-
-        async def run():
-            with patch("app.MovieManager") as MockManager, \
-                 patch.dict(os.environ, {**TEST_ENV, "OPS_AUTH_TOKEN": "secret-token"}):
-                MockManager.return_value.home = AsyncMock(return_value={"default_backdrop_url": None})
-
-                from app import create_app
-                app = create_app()
-                app.config["TESTING"] = True
-
-                async with app.app_context():
-                    client = app.test_client()
-                    response = await client.get(
-                        "/metrics",
-                        headers={"Authorization": "Bearer secret-token"},
-                    )
-                    # Should get past auth (200 from metrics endpoint)
-                    assert response.status_code == 200
-
-        asyncio.run(run())
+            async with app.app_context():
+                client = app.test_client()
+                response = await client.get(
+                    "/metrics",
+                    headers={"Authorization": "Bearer secret-token"},
+                )
+                assert response.status_code == 200
 
 
 # ---------------------------------------------------------------------------
@@ -166,45 +150,35 @@ class TestOpsAuth:
 class TestCSRFValidation:
     """CSRF token must match between session and form/header."""
 
-    def test_post_without_csrf_returns_403(self):
-        import asyncio
+    async def test_post_without_csrf_returns_403(self):
+        with patch.dict(os.environ, TEST_ENV), \
+             patch("app.MovieManager") as MockManager:
+            manager = MockManager.return_value
+            manager.filtered_movie = AsyncMock(return_value="ok")
 
-        async def run():
-            with patch.dict(os.environ, TEST_ENV), \
-                 patch("app.MovieManager") as MockManager:
-                manager = MockManager.return_value
-                manager.filtered_movie = AsyncMock(return_value="ok")
+            from app import create_app
+            app = create_app()
+            app.config["TESTING"] = True
 
-                from app import create_app
-                app = create_app()
-                app.config["TESTING"] = True
+            async with app.app_context():
+                client = app.test_client()
+                response = await client.post(
+                    "/filtered_movie", data={"year_min": "2000"}
+                )
+                assert response.status_code == 403
 
-                async with app.app_context():
-                    client = app.test_client()
-                    response = await client.post(
-                        "/filtered_movie", data={"year_min": "2000"}
-                    )
-                    assert response.status_code == 403
-
-        asyncio.run(run())
-
-    def test_get_next_movie_rejected_as_post_only(self):
+    async def test_get_next_movie_rejected_as_post_only(self):
         """GET to /next_movie returns 405 — route is POST-only."""
-        import asyncio
+        with patch.dict(os.environ, TEST_ENV), \
+             patch("app.MovieManager") as MockManager:
+            manager = MockManager.return_value
+            manager.next_movie = AsyncMock(return_value="next")
 
-        async def run():
-            with patch.dict(os.environ, TEST_ENV), \
-                 patch("app.MovieManager") as MockManager:
-                manager = MockManager.return_value
-                manager.next_movie = AsyncMock(return_value="next")
+            from app import create_app
+            app = create_app()
+            app.config["TESTING"] = True
 
-                from app import create_app
-                app = create_app()
-                app.config["TESTING"] = True
-
-                async with app.app_context():
-                    client = app.test_client()
-                    response = await client.get("/next_movie")
-                    assert response.status_code == 405
-
-        asyncio.run(run())
+            async with app.app_context():
+                client = app.test_client()
+                response = await client.get("/next_movie")
+                assert response.status_code == 405

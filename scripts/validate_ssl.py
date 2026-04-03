@@ -143,7 +143,8 @@ async def run_ssl_validation():
     from dotenv import load_dotenv
     from infra.ssl import SSLCertificateValidator
 
-    flask_env = os.getenv("FLASK_ENV", "development")
+    from config.env import get_environment
+    flask_env = get_environment()
     env_file = ".env" if flask_env == "production" else ".env.development"
     load_dotenv(env_file)
 

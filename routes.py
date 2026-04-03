@@ -1,7 +1,5 @@
 """Application route handlers."""
 
-import asyncio
-import hmac
 import re
 import time
 from datetime import datetime, timezone
@@ -11,6 +9,7 @@ from quart import Blueprint, abort, current_app, g, redirect, render_template, r
 from infra.metrics import user_actions_total
 from infra.ops_auth import check_ops_auth
 from infra.rate_limit import check_rate_limit, get_rate_limit_backend
+from infra.route_helpers import csrf_required, rate_limited, validate_csrf, with_timeout
 from logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -52,21 +51,9 @@ def _get_csrf_token() -> str:
     return _current_state().csrf_token
 
 
-async def _validate_csrf_from_form() -> None:
-    expected = _get_csrf_token()
-    if not expected:
-        abort(403, "CSRF token missing from navigation state")
-
-    header_token = request.headers.get("X-CSRFToken")
-    if header_token and hmac.compare_digest(header_token, expected):
-        return
-
-    form = await request.form
-    form_token = form.get("csrf_token", "")
-    if form_token and hmac.compare_digest(form_token, expected):
-        return
-
-    abort(403, "CSRF token validation failed")
+# CSRF validation is canonical in infra.route_helpers.validate_csrf.
+# Alias kept for any external callers.
+_validate_csrf_from_form = validate_csrf
 
 
 @bp.app_context_processor
@@ -75,9 +62,8 @@ def inject_csrf_token():
 
 
 @bp.route("/logout", methods=["POST"])
+@csrf_required
 async def logout():
-    await _validate_csrf_from_form()
-
     state = _current_state()
     await _movie_manager.logout(state, legacy_session=_legacy_session())
 
@@ -160,6 +146,7 @@ async def readiness_check():
 
 
 @bp.route("/movie/<tconst>")
+@with_timeout(_REQUEST_TIMEOUT)
 async def movie_detail(tconst):
     if not _TCONST_RE.match(tconst):
         abort(400, "Invalid movie identifier")
@@ -171,14 +158,7 @@ async def movie_detail(tconst):
         state.session_id,
         g.correlation_id,
     )
-    try:
-        return await asyncio.wait_for(
-            _movie_manager.render_movie_by_tconst(state, tconst, template_name="movie.html"),
-            timeout=_REQUEST_TIMEOUT,
-        )
-    except asyncio.TimeoutError:
-        logger.error("Timeout rendering movie %s", tconst)
-        return "Request timed out. Please try again.", 504
+    return await _movie_manager.render_movie_by_tconst(state, tconst, template_name="movie.html")
 
 
 @bp.route("/")
@@ -192,12 +172,10 @@ async def home():
 
 
 @bp.route("/next_movie", methods=["POST"])
+@csrf_required
+@rate_limited("next_movie")
+@with_timeout(_REQUEST_TIMEOUT)
 async def next_movie():
-    await _validate_csrf_from_form()
-
-    if not await check_rate_limit("next_movie"):
-        return {"error": "rate limited"}, 429
-
     state = _current_state()
     logger.info(
         "Requesting next movie for state_id: %s. Correlation ID: %s",
@@ -208,14 +186,7 @@ async def next_movie():
     _metrics_collector.track_movie_recommendation("next_movie")
     user_actions_total.labels(action_type="next_movie").inc()
 
-    try:
-        response = await asyncio.wait_for(
-            _movie_manager.next_movie(state, legacy_session=_legacy_session()),
-            timeout=_REQUEST_TIMEOUT,
-        )
-    except asyncio.TimeoutError:
-        logger.error("Timeout fetching next movie. Correlation ID: %s", g.correlation_id)
-        return "Request timed out. Please try again.", 504
+    response = await _movie_manager.next_movie(state, legacy_session=_legacy_session())
 
     if response:
         return response
@@ -225,26 +196,17 @@ async def next_movie():
 
 
 @bp.route("/previous_movie", methods=["POST"])
+@csrf_required
+@rate_limited("previous_movie")
+@with_timeout(_REQUEST_TIMEOUT)
 async def previous_movie():
-    await _validate_csrf_from_form()
-
-    if not await check_rate_limit("previous_movie"):
-        return {"error": "rate limited"}, 429
-
     state = _current_state()
     logger.info(
         "Requesting previous movie for state_id: %s. Correlation ID: %s",
         state.session_id,
         g.correlation_id,
     )
-    try:
-        response = await asyncio.wait_for(
-            _movie_manager.previous_movie(state, legacy_session=_legacy_session()),
-            timeout=_REQUEST_TIMEOUT,
-        )
-    except asyncio.TimeoutError:
-        logger.error("Timeout fetching previous movie. Correlation ID: %s", g.correlation_id)
-        return "Request timed out. Please try again.", 504
+    response = await _movie_manager.previous_movie(state, legacy_session=_legacy_session())
 
     if response is None:
         tconst = _movie_manager.get_current_movie_tconst(state)
@@ -283,12 +245,10 @@ async def set_filters():
 
 
 @bp.route("/filtered_movie", methods=["POST"])
+@csrf_required
+@rate_limited("filtered_movie")
+@with_timeout(_REQUEST_TIMEOUT)
 async def filtered_movie_endpoint():
-    await _validate_csrf_from_form()
-
-    if not await check_rate_limit("filtered_movie"):
-        return {"error": "rate limited"}, 429
-
     state = _current_state()
     form_data = await request.form
 
@@ -299,21 +259,14 @@ async def filtered_movie_endpoint():
         g.correlation_id,
     )
 
-    try:
-        response = await asyncio.wait_for(
-            _movie_manager.filtered_movie(state, form_data, legacy_session=_legacy_session()),
-            timeout=_REQUEST_TIMEOUT,
-        )
-        elapsed_time = time.time() - start_time
-        logger.info(
-            "Completed filtering movies for state_id: %s in %.2f seconds. Correlation ID: %s",
-            state.session_id,
-            elapsed_time,
-            g.correlation_id,
-        )
-        if response:
-            return response
-        return "No movie found", 404
-    except asyncio.TimeoutError:
-        logger.error("Timeout filtering movies for state_id: %s", state.session_id)
-        return "Request timed out. Please try again.", 504
+    response = await _movie_manager.filtered_movie(state, form_data, legacy_session=_legacy_session())
+    elapsed_time = time.time() - start_time
+    logger.info(
+        "Completed filtering movies for state_id: %s in %.2f seconds. Correlation ID: %s",
+        state.session_id,
+        elapsed_time,
+        g.correlation_id,
+    )
+    if response:
+        return response
+    return "No movie found", 404

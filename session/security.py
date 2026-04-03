@@ -105,26 +105,10 @@ class EnhancedSessionSecurity:
 
         await self.update_session_activity()
 
-    def _trusted_proxies(self) -> set[str]:
-        return {
-            proxy.strip()
-            for proxy in os.getenv("TRUSTED_PROXIES", "").split(",")
-            if proxy.strip()
-        }
-
     def _get_client_ip(self) -> str:
-        """Resolve client IP, trusting forwarded headers only for known proxies."""
-        remote_addr = request.remote_addr or ""
-        if not remote_addr:
-            client = request.scope.get("client")
-            if isinstance(client, (list, tuple)) and client:
-                remote_addr = client[0]
-        if remote_addr and remote_addr in self._trusted_proxies():
-            forwarded = request.headers.get("X-Real-IP") or request.headers.get(
-                "X-Forwarded-For", ""
-            ).split(",")[0].strip()
-            return forwarded or remote_addr
-        return remote_addr
+        """Resolve client IP using the shared utility."""
+        from infra.client_ip import get_client_ip
+        return get_client_ip()
 
     def generate_secure_token(self) -> str:
         """Generate a cryptographically secure session token."""

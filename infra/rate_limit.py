@@ -40,26 +40,31 @@ async def check_rate_limit(endpoint_key: str) -> bool:
     try:
         redis_client = current_app.config.get("SESSION_REDIS")
         if not redis_client:
-            set_rate_limit_backend("memory")
-            _active_backend = "memory"
+            if _active_backend != "memory":
+                set_rate_limit_backend("memory")
+                _active_backend = "memory"
             return await check_rate_limit_memory(endpoint_key)
         ip = get_client_ip()
         key = f"ratelimit:{endpoint_key}:{ip}"
 
         # Atomic pipeline: INCR + EXPIRE NX avoids the TOCTOU race where
         # a crash between INCR and EXPIRE could leave a key without a TTL.
+        # NX ensures the TTL is only set when the key is first created,
+        # preventing window resets on subsequent requests.
         pipe = redis_client.pipeline()
         pipe.incr(key)
-        pipe.expire(key, RATE_LIMIT_WINDOW)
+        pipe.expire(key, RATE_LIMIT_WINDOW, nx=True)
         count, _ = await pipe.execute()
-        set_rate_limit_backend("redis")
-        _active_backend = "redis"
+        if _active_backend != "redis":
+            set_rate_limit_backend("redis")
+            _active_backend = "redis"
 
         return count <= RATE_LIMIT_MAX
-    except Exception:
-        # Redis unavailable — fall back to in-memory
-        set_rate_limit_backend("memory")
-        _active_backend = "memory"
+    except Exception as exc:
+        logger.warning("Redis rate-limit unavailable, falling back to memory: %s", exc)
+        if _active_backend != "memory":
+            set_rate_limit_backend("memory")
+            _active_backend = "memory"
         return await check_rate_limit_memory(endpoint_key)
 
 
