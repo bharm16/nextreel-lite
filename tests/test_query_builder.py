@@ -1,6 +1,6 @@
 """Tests for MovieQueryBuilder — pure SQL generation logic."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import patch
 
 import pytest
@@ -40,7 +40,7 @@ class TestShouldUseRecentCache:
     """MovieQueryBuilder.should_use_recent_cache rolling threshold."""
 
     def test_recent_years_use_recent_cache(self):
-        current_year = datetime.now().year
+        current_year = datetime.now(timezone.utc).year
         criteria = {"min_year": current_year - 1, "max_year": current_year}
         assert MovieQueryBuilder.should_use_recent_cache(criteria) is True
 
@@ -49,17 +49,17 @@ class TestShouldUseRecentCache:
         assert MovieQueryBuilder.should_use_recent_cache(criteria) is False
 
     def test_broad_range_touching_recent_years_still_skips_recent_cache(self):
-        threshold = datetime.now().year - 2
+        threshold = datetime.now(timezone.utc).year - 2
         criteria = {"min_year": 1900, "max_year": threshold}
         assert MovieQueryBuilder.should_use_recent_cache(criteria) is False
 
     def test_range_must_start_within_recent_window(self):
-        threshold = datetime.now().year - 2
-        criteria = {"min_year": threshold, "max_year": datetime.now().year}
+        threshold = datetime.now(timezone.utc).year - 2
+        criteria = {"min_year": threshold, "max_year": datetime.now(timezone.utc).year}
         assert MovieQueryBuilder.should_use_recent_cache(criteria) is True
 
     def test_max_year_below_threshold(self):
-        threshold = datetime.now().year - 2
+        threshold = datetime.now(timezone.utc).year - 2
         criteria = {"min_year": 1900, "max_year": threshold - 1}
         assert MovieQueryBuilder.should_use_recent_cache(criteria) is False
 
@@ -101,19 +101,31 @@ class TestBuildBaseQuery:
 
     def test_all_paths_share_same_where_structure(self):
         """All three query paths produce the same WHERE placeholder count."""
+        # With a specific language: 9 placeholders (7 base + 2 language)
         for kwargs in [
-            {},
-            {"use_cache": True},
-            {"use_recent": True},
+            {"language": "en"},
+            {"use_cache": True, "language": "en"},
+            {"use_recent": True, "language": "en"},
         ]:
             sql = MovieQueryBuilder.build_base_query(**kwargs)
-            assert sql.count("%s") == 10
+            assert sql.count("%s") == 9, f"Expected 9 placeholders for {kwargs}, got {sql.count('%s')}"
+
+    def test_any_language_omits_language_clause(self):
+        """language='any' (the default) produces 7 placeholders (no language predicate)."""
+        for kwargs in [
+            {"language": "any"},
+            {"use_cache": True, "language": "any"},
+            {"use_recent": True, "language": "any"},
+        ]:
+            sql = MovieQueryBuilder.build_base_query(**kwargs)
+            assert sql.count("%s") == 7, f"Expected 7 placeholders for {kwargs}, got {sql.count('%s')}"
+            assert "language" not in sql.split("WHERE")[1]
 
 
 class TestBuildParameters:
-    """Parameter list generation for prepared statements — unified order."""
+    """Parameter list generation for prepared statements."""
 
-    def test_unified_param_order(self):
+    def test_specific_language_param_order(self):
         criteria = {
             "title_type": "movie",
             "min_year": 2000,
@@ -125,9 +137,8 @@ class TestBuildParameters:
             "language": "en",
         }
         params = MovieQueryBuilder.build_parameters(criteria)
-        # Unified order: title_type, min_year, max_year, min_rating,
-        # max_rating, min_votes, max_votes, language_check, language_exact,
-        # language_pattern
+        # Order: title_type, min_year, max_year, min_rating,
+        # max_rating, min_votes, max_votes, language_exact, language_pattern
         assert params[0] == "movie"
         assert params[1] == 2000
         assert params[2] == 2025
@@ -135,26 +146,24 @@ class TestBuildParameters:
         assert params[4] == 9.0
         assert params[5] == 10000
         assert params[6] == 500000
-        assert len(params) == 10
+        assert len(params) == 9
 
-    def test_language_any_produces_wildcard(self):
+    def test_language_any_omits_language_params(self):
         criteria = {"language": "any"}
         params = MovieQueryBuilder.build_parameters(criteria)
-        # language_check should be "any", exact "any", pattern "%"
-        assert params[-3] == "any"
-        assert params[-2] == "any"
-        assert params[-1] == "%"
+        # No language params when "any"
+        assert len(params) == 7
 
     def test_language_en_produces_like_pattern(self):
         criteria = {"language": "en"}
         params = MovieQueryBuilder.build_parameters(criteria)
-        assert params[-3] == "en"
         assert params[-2] == "en"
         assert params[-1] == "%en%"
 
     def test_defaults_fill_in_for_empty_criteria(self):
         params = MovieQueryBuilder.build_parameters({})
-        assert len(params) == 10
+        # Default language is "en" → 9 params
+        assert len(params) == 9
         assert params[0] == "movie"   # default title_type
         assert params[1] == 1900      # default min_year
         assert params[3] == 7.0       # default min_rating
@@ -165,9 +174,11 @@ class TestBuildCountQuery:
 
     def test_count_query_same_placeholder_count(self):
         for kwargs in [
-            {},
-            {"use_cache": True},
-            {"use_recent": True},
+            {"language": "en"},
+            {"use_cache": True, "language": "en"},
+            {"use_recent": True, "language": "en"},
+            {"language": "any"},
+            {"use_cache": True, "language": "any"},
         ]:
             base = MovieQueryBuilder.build_base_query(**kwargs)
             count = MovieQueryBuilder.build_count_query(**kwargs)

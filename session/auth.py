@@ -1,14 +1,14 @@
-"""Session initialization — registers users with MovieManager.
+"""Legacy session initialization — registers users with MovieManager.
 
-Token creation, fingerprinting, rotation, and cookie security are all handled
-by ``session_security_enhanced.EnhancedSessionSecurity``.  This module is
-responsible only for ensuring the user is registered in the movie manager
-and that the session contains the required navigation state.
+NOTE: ``init_session`` is no longer called from the application.  Navigation
+state is now MySQL-backed via ``NavigationStateStore``.  This module is
+retained for backward compatibility and its tests; it may be removed in a
+future release.
 """
 
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from quart import session
 
@@ -30,7 +30,7 @@ def _default_criteria() -> dict:
     """
     return {
         "min_year": 1900,
-        "max_year": datetime.now().year,
+        "max_year": datetime.now(timezone.utc).year,
         "min_rating": 7.0,
         "genres": ["Action", "Comedy"],
     }

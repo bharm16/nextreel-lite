@@ -4,7 +4,7 @@ import asyncio
 import hmac
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 from quart import Blueprint, abort, current_app, g, redirect, render_template, request, session, url_for
 
@@ -270,7 +270,7 @@ async def set_filters():
     response = await render_template(
         "set_filters.html",
         current_filters=current_filters,
-        current_year=datetime.now().year,
+        current_year=datetime.now(timezone.utc).year,
     )
     elapsed_time = time.time() - start_time
     logger.info(

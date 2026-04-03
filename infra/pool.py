@@ -14,7 +14,7 @@ import time
 from collections import deque
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, AsyncIterator, Dict, Optional
 
@@ -80,10 +80,10 @@ class ConnectionMetadata:
     query_count: int = 0
 
     def age_seconds(self) -> float:
-        return (datetime.now() - self.created_at).total_seconds()
+        return (datetime.now(timezone.utc) - self.created_at).total_seconds()
 
     def idle_seconds(self) -> float:
-        return (datetime.now() - self.last_used_at).total_seconds()
+        return (datetime.now(timezone.utc) - self.last_used_at).total_seconds()
 
 
 class SecureConnectionPool:
@@ -212,8 +212,8 @@ class SecureConnectionPool:
             )
             conn_id = id(connection)
             self.connections[conn_id] = ConnectionMetadata(
-                created_at=datetime.now(),
-                last_used_at=datetime.now(),
+                created_at=datetime.now(timezone.utc),
+                last_used_at=datetime.now(timezone.utc),
             )
             self.metrics["active_connections"] += 1
 
@@ -242,7 +242,7 @@ class SecureConnectionPool:
             if connection and conn_id:
                 metadata = self.connections.pop(conn_id, None)
                 if metadata:
-                    metadata.last_used_at = datetime.now()
+                    metadata.last_used_at = datetime.now(timezone.utc)
                     metadata.query_count += 1
                 self.metrics["active_connections"] = max(
                     0, self.metrics["active_connections"] - 1
@@ -283,7 +283,7 @@ class SecureConnectionPool:
                     query_summary = {
                         "query": query[:100],
                         "duration": query_time,
-                        "timestamp": datetime.now(),
+                        "timestamp": datetime.now(timezone.utc),
                     }
                     self.recent_queries.append(query_summary)
 
@@ -389,7 +389,7 @@ class SecureConnectionPool:
     async def _record_circuit_breaker_failure(self):
         async with self._cb_lock:
             self.circuit_breaker_failures += 1
-            self.circuit_breaker_last_failure = datetime.now()
+            self.circuit_breaker_last_failure = datetime.now(timezone.utc)
             if self.circuit_breaker_failures >= self.config.circuit_breaker_threshold:
                 if self.circuit_breaker_state != "open":
                     self.circuit_breaker_state = "open"
@@ -402,7 +402,7 @@ class SecureConnectionPool:
                 return True
             if self.circuit_breaker_last_failure is None:
                 return False
-            elapsed = (datetime.now() - self.circuit_breaker_last_failure).total_seconds()
+            elapsed = (datetime.now(timezone.utc) - self.circuit_breaker_last_failure).total_seconds()
             if elapsed > self.config.circuit_breaker_timeout:
                 self.circuit_breaker_state = "half-open"
                 logger.info("Circuit breaker entering half-open state")
@@ -489,8 +489,8 @@ class DatabaseConnectionPool:
             user=db_config["user"],
             password=db_config["password"],
             database=db_config["database"],
-            min_size=int(os.getenv("POOL_MIN_SIZE", 5)),
-            max_size=int(os.getenv("POOL_MAX_SIZE", 20)),
+            min_size=int(os.getenv("POOL_MIN_SIZE", DatabaseConfig.POOL_MIN_SIZE)),
+            max_size=int(os.getenv("POOL_MAX_SIZE", DatabaseConfig.POOL_MAX_SIZE)),
             max_connections_per_user=int(os.getenv("MAX_CONN_PER_USER", 10)),
             max_connections_per_ip=int(os.getenv("MAX_CONN_PER_IP", 20)),
             connect_timeout=int(os.getenv("DB_CONNECT_TIMEOUT", 5)),

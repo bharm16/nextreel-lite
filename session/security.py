@@ -33,7 +33,13 @@ logger = get_logger(__name__)
 
 
 class EnhancedSessionSecurity:
-    """Session integrity checks with deterministic fingerprinting."""
+    """Session integrity checks with deterministic fingerprinting.
+
+    NOTE: This class is not currently installed in ``app.py``.  Session
+    management is handled by ``NavigationStateStore`` (MySQL-backed).
+    Call ``init_app(app)`` to activate fingerprinting, rotation, and
+    production cookie hardening.
+    """
 
     def __init__(self, app=None, redis_client=None):
         self.app = None

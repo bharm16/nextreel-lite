@@ -6,15 +6,26 @@ import random
 from datetime import datetime
 from typing import Any
 
-from infra.navigation_state import criteria_from_filters
+from infra.navigation_state import criteria_from_filters, utcnow
 from logging_config import get_logger
+from movies.query_builder import MovieQueryBuilder
 
 logger = get_logger(__name__)
 
 SAMPLE_BUCKET_COUNT = 128
 SELECTION_BUCKET_STEPS = (2, 8, 32, SAMPLE_BUCKET_COUNT)
+_MYSQL_INT_MAX = 2_147_483_647
 
 _ALLOWED_CANDIDATE_TABLES = frozenset({"movie_candidates_next", "movie_candidates"})
+
+
+def _ref_from_row(row: dict[str, Any]) -> dict[str, Any]:
+    """Build a lightweight movie ref dict from a DB row."""
+    return {
+        "tconst": row["tconst"],
+        "title": row.get("primaryTitle") or "Unknown",
+        "slug": row.get("slug"),
+    }
 
 
 class CandidateStore:
@@ -32,51 +43,26 @@ class CandidateStore:
         refreshed_at = await self.latest_refresh_at()
         if not refreshed_at:
             return False
-        age = datetime.utcnow() - refreshed_at
+        age = utcnow() - refreshed_at
         return age.total_seconds() <= max_age_hours * 3600
 
     async def fetch_ref(self, tconst: str) -> dict[str, Any] | None:
         row = await self.db_pool.execute(
             """
-            SELECT tconst, primaryTitle, slug
-            FROM movie_candidates
-            WHERE tconst = %s
+            (SELECT tconst, primaryTitle, slug FROM movie_candidates WHERE tconst = %s)
+            UNION ALL
+            (SELECT tconst, primaryTitle, slug FROM `title.basics` WHERE tconst = %s)
+            LIMIT 1
             """,
-            [tconst],
-            fetch="one",
-        )
-        if row:
-            return {
-                "tconst": row["tconst"],
-                "title": row.get("primaryTitle") or "Unknown",
-                "slug": row.get("slug"),
-            }
-
-        row = await self.db_pool.execute(
-            """
-            SELECT tconst, primaryTitle, slug
-            FROM `title.basics`
-            WHERE tconst = %s
-            """,
-            [tconst],
+            [tconst, tconst],
             fetch="one",
         )
         if not row:
             return None
-        return {
-            "tconst": row["tconst"],
-            "title": row.get("primaryTitle") or "Unknown",
-            "slug": row.get("slug"),
-        }
+        return _ref_from_row(row)
 
     def _genre_clause(self, criteria: dict[str, Any]) -> tuple[str, list[Any]]:
-        genres = criteria.get("genres", [])
-        if not genres or len(genres) >= 15:
-            return "", []
-
-        stripped = str.maketrans("", "", '+-<>()~*"@')
-        search = " ".join(f'+\"{genre.translate(stripped)}\"' for genre in genres)
-        return " AND MATCH(genres) AGAINST(%s IN BOOLEAN MODE)", [search]
+        return MovieQueryBuilder.build_genre_conditions_fulltext(criteria, use_cache=True)
 
     async def fetch_candidate_refs(
         self,
@@ -86,14 +72,14 @@ class CandidateStore:
     ) -> list[dict[str, Any]]:
         criteria = criteria_from_filters(filters)
         desired_limit = max(1, limit)
-        seed = str(random.randint(0, 2_147_483_647))
+        seed = str(random.randint(0, _MYSQL_INT_MAX))
 
         min_year = criteria.get("min_year", 1900)
-        max_year = criteria.get("max_year", datetime.utcnow().year)
+        max_year = criteria.get("max_year", utcnow().year)
         min_rating = criteria.get("min_rating", 0)
         max_rating = criteria.get("max_rating", 10)
-        min_votes = criteria.get("min_votes", 0)
-        max_votes = criteria.get("max_votes", 10_000_000)
+        min_votes = criteria.get("min_votes", 100000)
+        max_votes = criteria.get("max_votes", 1000000)
         language = criteria.get("language", "en")
 
         for bucket_count in SELECTION_BUCKET_STEPS:
@@ -131,31 +117,24 @@ class CandidateStore:
                 SELECT tconst, primaryTitle, slug
                 FROM movie_candidates
                 WHERE {' AND '.join(clauses)}{genre_clause}
-                ORDER BY MOD(CRC32(CONCAT(tconst, %s)), 2147483647), numVotes DESC, averageRating DESC
+                ORDER BY MOD(CRC32(CONCAT(tconst, %s)), {_MYSQL_INT_MAX}), numVotes DESC, averageRating DESC
                 LIMIT %s
             """
             params.extend([seed, desired_limit * 3])
 
             rows = await self.db_pool.execute(query, params, fetch="all")
-            refs = [
-                {
-                    "tconst": row["tconst"],
-                    "title": row.get("primaryTitle") or "Unknown",
-                    "slug": row.get("slug"),
-                }
-                for row in rows or []
-            ]
-            if refs:
+            if rows:
                 deduped: list[dict[str, Any]] = []
                 seen: set[str] = set()
-                for ref in refs:
-                    tconst = ref["tconst"]
+                for row in rows:
+                    tconst = row["tconst"]
                     if tconst in seen:
                         continue
                     seen.add(tconst)
-                    deduped.append(ref)
+                    deduped.append(_ref_from_row(row))
                     if len(deduped) >= desired_limit:
-                        return deduped
+                        break
+                return deduped
 
         return []
 

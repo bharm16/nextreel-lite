@@ -8,9 +8,10 @@ from config.env import get_environment
 class DatabaseConfig:
     """Database connection and pool settings."""
 
-    # Pool sizes
-    POOL_MIN_SIZE = 10
-    POOL_MAX_SIZE = 30
+    # Pool sizes — authoritative defaults, also read from POOL_MIN_SIZE /
+    # POOL_MAX_SIZE env vars in infra/pool.py.
+    POOL_MIN_SIZE = 5
+    POOL_MAX_SIZE = 20
 
     @staticmethod
     def get_db_config():

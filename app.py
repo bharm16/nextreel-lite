@@ -174,6 +174,7 @@ def create_app():
         return await app.arq_redis.enqueue_job(function_name, *args)
 
     app.enqueue_runtime_job = enqueue_runtime_job
+    movie_manager.projection_store.enqueue_fn = enqueue_runtime_job
 
     @app.before_request
     async def before_request():

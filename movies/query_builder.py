@@ -1,21 +1,23 @@
+from __future__ import annotations
+
 import hashlib
 import json
 import random
 import time
-from datetime import datetime
-from typing import Any, Dict, List
+from datetime import datetime, timezone
+from typing import Any
 
 from logging_config import get_logger
 
+from infra.cache import CacheNamespace
 from infra.errors import DatabaseError
 from .interfaces import MovieFetcher
 
 logger = get_logger(__name__)
 
 
-def _criteria_cache_key(criteria: Dict[str, Any]) -> str:
+def _criteria_cache_key(criteria: dict[str, Any]) -> str:
     """Build a deterministic cache key from filter criteria."""
-    # Sort for determinism; use a short hash to keep Redis keys compact
     blob = json.dumps(criteria, sort_keys=True, default=str).encode()
     return "count:" + hashlib.sha256(blob).hexdigest()[:16]
 
@@ -25,31 +27,33 @@ def _criteria_cache_key(criteria: Dict[str, Any]) -> str:
 # asserts on startYear / averageRating / numVotes / titleType / language).
 _CACHE_COLUMNS = "tconst, primaryTitle, startYear, genres, language, titleType, slug, averageRating, numVotes"
 
-# Unified WHERE clause template — used by all three table paths so that
-# parameter ordering is identical everywhere.
-_WHERE_TEMPLATE = (
+# Base WHERE clause template — shared by all three table paths.  The
+# language predicate is appended dynamically by ``_where_clause`` so that
+# ``language='any'`` omits it entirely (sargable), and specific languages
+# avoid the ``%s = 'any'`` constant comparison that blocked index use.
+_WHERE_BASE = (
     "WHERE {p}titleType = %s "
     "AND {p}startYear BETWEEN %s AND %s "
     "AND {r}averageRating BETWEEN %s AND %s "
-    "AND {r}numVotes >= %s AND {r}numVotes <= %s "
-    "AND (%s = 'any' OR {p}language = %s OR {p}language LIKE %s OR {p}language IS NULL)"
+    "AND {r}numVotes >= %s AND {r}numVotes <= %s"
 )
 
+_LANG_CLAUSE = " AND ({p}language = %s OR {p}language LIKE %s OR {p}language IS NULL)"
 
-# Helpers for query construction
+
 class MovieQueryBuilder:
     """Build optimized SQL queries using new indexes and cache tables.
 
-    All query variants share the same WHERE clause and parameter ordering:
-    (titleType, min_year, max_year, min_rating, max_rating, min_votes,
-    max_votes, language_check, language_exact, language_pattern).
+    All query variants share the same WHERE clause structure.  Parameter
+    count depends on the language filter: 7 base params when
+    ``language='any'``, 9 when a specific language is requested.
     """
 
     @staticmethod
-    def should_use_cache(criteria: Dict[str, Any], current_year: int | None = None) -> bool:
+    def should_use_cache(criteria: dict[str, Any], current_year: int | None = None) -> bool:
         """Determine if we should use the cache table based on criteria."""
         if current_year is None:
-            current_year = datetime.now().year
+            current_year = datetime.now(timezone.utc).year
         min_year = criteria.get("min_year", 1900)
         max_year = criteria.get("max_year", current_year)
         min_votes = criteria.get("min_votes", 100000)
@@ -60,7 +64,7 @@ class MovieQueryBuilder:
         return False
 
     @staticmethod
-    def should_use_recent_cache(criteria: Dict[str, Any], current_year: int | None = None) -> bool:
+    def should_use_recent_cache(criteria: dict[str, Any], current_year: int | None = None) -> bool:
         """Determine if we should use the recent movies cache.
 
         The threshold is rolling: movies from the last 2 full calendar years
@@ -68,7 +72,7 @@ class MovieQueryBuilder:
         13+ second full-table queries.
         """
         if current_year is None:
-            current_year = datetime.now().year
+            current_year = datetime.now(timezone.utc).year
         recent_threshold = current_year - 2  # e.g. 2024 when year is 2026
 
         min_year = criteria.get("min_year", 1900)
@@ -80,22 +84,37 @@ class MovieQueryBuilder:
         return min_year >= recent_threshold and max_year >= recent_threshold
 
     @staticmethod
-    def _where_clause(use_cache: bool = False, use_recent: bool = False) -> str:
-        """Return the shared WHERE clause with correct table alias prefixes."""
+    def _where_clause(
+        use_cache: bool = False,
+        use_recent: bool = False,
+        language: str = "any",
+    ) -> str:
+        """Return the shared WHERE clause with correct table alias prefixes.
+
+        When *language* is ``"any"`` the language predicate is omitted entirely,
+        letting MySQL use available indexes without a non-sargable OR chain.
+        """
         if use_cache or use_recent:
-            # Cache tables have flat columns — no alias prefix needed.
-            return _WHERE_TEMPLATE.format(p="", r="")
-        # Main-table path: title.basics aliased as tb, title.ratings as tr.
-        return _WHERE_TEMPLATE.format(p="tb.", r="tr.")
+            p, r = "", ""
+        else:
+            p, r = "tb.", "tr."
+        base = _WHERE_BASE.format(p=p, r=r)
+        if language != "any":
+            base += _LANG_CLAUSE.format(p=p)
+        return base
 
     @staticmethod
-    def build_base_query(use_cache: bool = False, use_recent: bool = False) -> str:
+    def build_base_query(
+        use_cache: bool = False,
+        use_recent: bool = False,
+        language: str = "any",
+    ) -> str:
         """Build base SELECT query for the appropriate table."""
-        where = MovieQueryBuilder._where_clause(use_cache, use_recent)
+        where = MovieQueryBuilder._where_clause(use_cache, use_recent, language)
         if use_recent:
-            return f"SELECT {_CACHE_COLUMNS} FROM recent_movies_cache {where}"
+            return "SELECT " + _CACHE_COLUMNS + " FROM recent_movies_cache " + where
         elif use_cache:
-            return f"SELECT {_CACHE_COLUMNS} FROM popular_movies_cache {where}"
+            return "SELECT " + _CACHE_COLUMNS + " FROM popular_movies_cache " + where
         else:
             return (
                 "SELECT tb.tconst, tb.primaryTitle, tb.startYear, tb.genres, "
@@ -106,21 +125,17 @@ class MovieQueryBuilder:
             )
 
     @staticmethod
-    def build_parameters(criteria: Dict[str, Any], current_year: int | None = None) -> List[Any]:
-        """Build parameters in the unified order used by all query paths."""
-        if current_year is None:
-            current_year = datetime.now().year
-        lang = criteria.get("language", "en")
-        if lang == "any":
-            language_check = "any"
-            language_exact = "any"
-            language_pattern = "%"
-        else:
-            language_check = lang
-            language_exact = lang
-            language_pattern = "%" + lang + "%"
+    def build_parameters(criteria: dict[str, Any], current_year: int | None = None) -> list[Any]:
+        """Build parameters matching the WHERE clause from ``_where_clause``.
 
-        return [
+        Returns 7 base params when ``language='any'`` (no language predicate),
+        or 9 params when a specific language is requested.
+        """
+        if current_year is None:
+            current_year = datetime.now(timezone.utc).year
+        lang = criteria.get("language", "en")
+
+        params: list[Any] = [
             criteria.get("title_type", "movie"),
             criteria.get("min_year", 1900),
             criteria.get("max_year", current_year),
@@ -128,19 +143,24 @@ class MovieQueryBuilder:
             criteria.get("max_rating", 10),
             criteria.get("min_votes", 100000),
             criteria.get("max_votes", 1000000),
-            language_check,
-            language_exact,
-            language_pattern,
         ]
+        if lang != "any":
+            params.append(lang)
+            params.append("%" + lang + "%")
+        return params
 
     @staticmethod
-    def build_count_query(use_cache: bool = False, use_recent: bool = False) -> str:
+    def build_count_query(
+        use_cache: bool = False,
+        use_recent: bool = False,
+        language: str = "any",
+    ) -> str:
         """Build a COUNT(*) query parallel to build_base_query."""
-        where = MovieQueryBuilder._where_clause(use_cache, use_recent)
+        where = MovieQueryBuilder._where_clause(use_cache, use_recent, language)
         if use_recent:
-            return f"SELECT COUNT(*) FROM recent_movies_cache {where}"
+            return "SELECT COUNT(*) FROM recent_movies_cache " + where
         elif use_cache:
-            return f"SELECT COUNT(*) FROM popular_movies_cache {where}"
+            return "SELECT COUNT(*) FROM popular_movies_cache " + where
         else:
             return (
                 "SELECT COUNT(*) "
@@ -150,7 +170,7 @@ class MovieQueryBuilder:
             )
 
     @staticmethod
-    def build_genre_conditions_fulltext(criteria: Dict[str, Any], use_cache: bool = False) -> tuple:
+    def build_genre_conditions_fulltext(criteria: dict[str, Any], use_cache: bool = False) -> tuple:
         """Build genre conditions using FULLTEXT search for better performance."""
         genres = criteria.get("genres")
         if not genres:
@@ -182,9 +202,9 @@ class MovieQueryBuilder:
         return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
     @staticmethod
-    def build_genre_conditions(criteria: Dict[str, Any], parameters: List[Any], use_cache: bool = False) -> List[str]:
+    def build_genre_conditions(criteria: dict[str, Any], parameters: list[Any], use_cache: bool = False) -> list[str]:
         """Fallback to LIKE queries if FULLTEXT is not available."""
-        genre_conditions: List[str] = []
+        genre_conditions: list[str] = []
         genres = criteria.get("genres")
         if genres:
             # If 15+ genres selected, it's essentially "any genre" - skip the filter entirely
@@ -202,47 +222,43 @@ class MovieQueryBuilder:
         return genre_conditions
 
 
-# Set up logging
-
-# Consumers are expected to create and manage their own DatabaseConnectionPool
-# instance and pass it to ``ImdbRandomMovieFetcher``.
-
-
-# Convert the ImdbRandomMovieFetcher class methods to async
 class ImdbRandomMovieFetcher(MovieFetcher):
-    def __init__(self, database_pool):
+    def __init__(self, database_pool, cache=None):
         self.db_pool = database_pool
-        self.use_fulltext = True  # Flag to use FULLTEXT search
+        self._cache = cache
+        self.use_fulltext = True
 
     _COUNT_CACHE_TTL = 300  # 5 minutes
 
     async def _get_cached_count(self, cache_key: str) -> int | None:
         """Retrieve a cached row count from Redis."""
+        if not self._cache:
+            return None
         try:
-            from quart import current_app
-            secure_cache = getattr(current_app, "secure_cache", None)
-            if secure_cache:
-                from infra.cache import CacheNamespace
-                cached = await secure_cache.get(CacheNamespace.TEMP, cache_key)
-                if cached is not None:
-                    logger.debug("Count cache hit for %s: %d", cache_key, cached)
-                    return int(cached)
+            cached = await self._cache.get(CacheNamespace.TEMP, cache_key)
+            if cached is not None:
+                logger.debug("Count cache hit for %s: %d", cache_key, cached)
+                return int(cached)
         except Exception:
             logger.debug("Cache read failed for %s", cache_key, exc_info=True)
         return None
 
     async def _set_cached_count(self, cache_key: str, count: int) -> None:
         """Store a row count in Redis with a short TTL."""
+        if not self._cache:
+            return
         try:
-            from quart import current_app
-            secure_cache = getattr(current_app, "secure_cache", None)
-            if secure_cache:
-                from infra.cache import CacheNamespace
-                await secure_cache.set(
-                    CacheNamespace.TEMP, cache_key, count, ttl=self._COUNT_CACHE_TTL
-                )
+            await self._cache.set(
+                CacheNamespace.TEMP, cache_key, count, ttl=self._COUNT_CACHE_TTL
+            )
         except Exception:
             logger.debug("Cache write failed for %s", cache_key, exc_info=True)
+
+    @staticmethod
+    def _table_label(use_recent: bool, use_cache: bool) -> str:
+        if use_recent:
+            return "recent cache"
+        return "cache" if use_cache else "main tables"
 
     def _build_query_with_genres(self, base_query, criteria, parameters, use_cache_table):
         """Append genre conditions to *base_query* and return (query, params)."""
@@ -252,153 +268,147 @@ class ImdbRandomMovieFetcher(MovieFetcher):
             )
             return base_query + genre_condition, parameters + genre_params
 
-        # Fallback to LIKE queries
         genre_conditions = MovieQueryBuilder.build_genre_conditions(
             criteria, parameters, use_cache_table
         )
         query = base_query + (f" AND ({genre_conditions[0]})" if genre_conditions else "")
         return query, parameters
 
+    @staticmethod
+    def _resolve_table_routing(criteria: dict[str, Any]) -> tuple[bool, bool, int]:
+        """Determine which table to query and return (use_cache, use_recent, current_year)."""
+        current_year = datetime.now(timezone.utc).year
+        use_recent = MovieQueryBuilder.should_use_recent_cache(criteria, current_year)
+        use_cache = MovieQueryBuilder.should_use_cache(criteria, current_year) and not use_recent
+        return use_cache, use_recent, current_year
+
+    async def _with_fulltext_fallback(self, fn, *args, **kwargs):
+        """Call *fn* and, on FULLTEXT DatabaseError, retry with LIKE queries."""
+        try:
+            return await fn(*args, **kwargs)
+        except DatabaseError as e:
+            if self.use_fulltext and "FULLTEXT" in str(e):
+                logger.warning("FULLTEXT search failed, falling back to LIKE queries for this request")
+                self.use_fulltext = False
+                try:
+                    return await fn(*args, **kwargs)
+                finally:
+                    self.use_fulltext = True
+            raise
+
+    async def _safe_fetch(self, fn, *args, **kwargs):
+        """Run *fn* with FULLTEXT fallback, returning [] on DatabaseError."""
+        try:
+            return await self._with_fulltext_fallback(fn, *args, **kwargs)
+        except DatabaseError as e:
+            logger.error("Database error: %s", e)
+            return []
+        except Exception as e:
+            logger.error("Unexpected error: %s", e, exc_info=True)
+            raise
+
     async def fetch_movies_by_criteria(self, criteria):
         """Fetch movies using optimized queries and indexes."""
+        return await self._safe_fetch(self._fetch_movies_by_criteria_impl, criteria)
+
+    async def _fetch_movies_by_criteria_impl(self, criteria):
         start_time = time.time()
-        try:
-            current_year = datetime.now().year
-            use_recent = MovieQueryBuilder.should_use_recent_cache(criteria, current_year)
-            use_cache = MovieQueryBuilder.should_use_cache(criteria, current_year) and not use_recent
+        use_cache, use_recent, current_year = self._resolve_table_routing(criteria)
+        lang = criteria.get("language", "en")
 
-            base_query = MovieQueryBuilder.build_base_query(use_cache, use_recent)
-            parameters = MovieQueryBuilder.build_parameters(criteria, current_year)
+        base_query = MovieQueryBuilder.build_base_query(use_cache, use_recent, lang)
+        parameters = MovieQueryBuilder.build_parameters(criteria, current_year)
 
-            full_query, all_parameters = self._build_query_with_genres(
-                base_query, criteria, parameters, use_cache or use_recent
-            )
+        full_query, all_parameters = self._build_query_with_genres(
+            base_query, criteria, parameters, use_cache or use_recent
+        )
 
-            # Safety LIMIT to prevent unbounded result sets on broad filters
-            full_query += " LIMIT %s"
-            all_parameters = all_parameters + [500]
+        full_query += " LIMIT %s"
+        all_parameters = all_parameters + [500]
 
-            logger.debug("Using %s table", 'recent cache' if use_recent else 'cache' if use_cache else 'main')
+        result = await self.db_pool.execute(full_query, all_parameters, fetch="all")
 
-            result = await self.db_pool.execute(full_query, all_parameters, "all")
+        logger.info(
+            "Fetched %d movies in %.2f seconds using %s",
+            len(result) if result else 0,
+            time.time() - start_time,
+            self._table_label(use_recent, use_cache),
+        )
+        return result or []
 
-            logger.info(
-                "Fetched %d movies in %.2f seconds using %s",
-                len(result) if result else 0,
-                time.time() - start_time,
-                'recent cache' if use_recent else 'cache' if use_cache else 'main tables'
-            )
-            return result or []
-        except DatabaseError as e:
-            if self.use_fulltext and "FULLTEXT" in str(e):
-                logger.warning("FULLTEXT search failed, falling back to LIKE queries for this request")
-                # Use a local flag so the fallback is per-request, not permanent.
-                saved = self.use_fulltext
-                self.use_fulltext = False
-                try:
-                    return await self.fetch_movies_by_criteria(criteria)
-                finally:
-                    self.use_fulltext = saved
-            logger.error("Database error fetching movies by criteria: %s", e)
-            return []
-        except Exception as e:
-            logger.error("Error fetching movies by criteria: %s", e, exc_info=True)
-            raise
-
-    async def fetch_random_movies(self, criteria: Dict[str, Any], limit: int = 15):
+    async def fetch_random_movies(self, criteria: dict[str, Any], limit: int = 15):
         """Fetch random movies using optimized cache tables."""
-        method_start_time = time.time()
-        logger.info("Starting fetch_random_movies with criteria: %s and limit: %s", criteria, limit)
+        return await self._safe_fetch(self._fetch_random_movies_impl, criteria, limit)
 
+    async def _count_qualifying_rows(
+        self, criteria: dict[str, Any], parameters: list[Any],
+        use_cache: bool, use_recent: bool, lang: str,
+    ) -> int:
+        """Count rows matching criteria, using Redis cache with 5-min TTL."""
+        cache_key = _criteria_cache_key(criteria)
+        total_rows = await self._get_cached_count(cache_key)
+        if total_rows is not None:
+            return total_rows
+
+        count_query = MovieQueryBuilder.build_count_query(
+            use_cache=use_cache, use_recent=use_recent, language=lang
+        )
+        count_query, count_params = self._build_query_with_genres(
+            count_query, criteria, parameters, use_cache or use_recent
+        )
         try:
-            current_year = datetime.now().year
-            use_recent = MovieQueryBuilder.should_use_recent_cache(criteria, current_year)
-            use_cache = MovieQueryBuilder.should_use_cache(criteria, current_year) and not use_recent
+            count_result = await self.db_pool.execute(count_query, count_params, fetch="one")
+        except DatabaseError:
+            count_result = None
+        total_rows = list(count_result.values())[0] if count_result else 0
+        await self._set_cached_count(cache_key, total_rows)
+        return total_rows
 
-            if use_cache:
-                base_query = MovieQueryBuilder.build_base_query(use_cache=True)
-                order_by = " ORDER BY rand_order"
-            elif use_recent:
-                base_query = MovieQueryBuilder.build_base_query(use_recent=True)
-                order_by = ""  # handled via random-offset strategy below
-            else:
-                # Avoid ORDER BY RAND() on the full table — use a random
-                # offset into the qualifying rows instead.  This turns an
-                # O(n·log n) filesort into two index scans.
-                base_query = MovieQueryBuilder.build_base_query()
-                order_by = ""
+    async def _fetch_random_movies_impl(self, criteria: dict[str, Any], limit: int):
+        method_start_time = time.time()
+        use_cache, use_recent, current_year = self._resolve_table_routing(criteria)
+        lang = criteria.get("language", "en")
 
-            parameters = MovieQueryBuilder.build_parameters(criteria, current_year)
+        if use_cache:
+            base_query = MovieQueryBuilder.build_base_query(use_cache=True, language=lang)
+            order_by = " ORDER BY rand_order"
+        else:
+            base_query = MovieQueryBuilder.build_base_query(use_recent=use_recent, language=lang)
+            order_by = ""
 
-            where_query, all_parameters = self._build_query_with_genres(
-                base_query, criteria, parameters, use_cache or use_recent
+        parameters = MovieQueryBuilder.build_parameters(criteria, current_year)
+        where_query, all_parameters = self._build_query_with_genres(
+            base_query, criteria, parameters, use_cache or use_recent
+        )
+
+        # Random-offset strategy: count qualifying rows then pick a random
+        # offset to avoid the expensive ORDER BY RAND() full-table sort.
+        if not order_by:
+            total_rows = await self._count_qualifying_rows(
+                criteria, parameters, use_cache, use_recent, lang
             )
-
-            # Random-offset strategy: for the full table or recent cache,
-            # count qualifying rows then pick a random offset to avoid the
-            # expensive ORDER BY RAND() full-table sort.
-            #
-            # The count is cached in Redis (5 min TTL) to skip the expensive
-            # COUNT query on repeated requests with the same filters.
-            if not order_by:
-                cache_key = _criteria_cache_key(criteria)
-                total_rows = await self._get_cached_count(cache_key)
-
-                if total_rows is None:
-                    count_query = MovieQueryBuilder.build_count_query(
-                        use_cache=use_cache, use_recent=use_recent
-                    )
-                    # Reuse the same genre condition for the count query
-                    count_query, count_params = self._build_query_with_genres(
-                        count_query, criteria, parameters, use_cache or use_recent
-                    )
-                    try:
-                        count_result = await self.db_pool.execute(
-                            count_query, count_params, "one"
-                        )
-                    except DatabaseError:
-                        count_result = None
-                    total_rows = list(count_result.values())[0] if count_result else 0
-                    await self._set_cached_count(cache_key, total_rows)
-                if total_rows > int(limit):
-                    rand_offset = random.randint(0, max(0, total_rows - int(limit)))
-                    full_query = where_query + " LIMIT %s OFFSET %s"
-                    all_parameters = all_parameters + [int(limit), rand_offset]
-                else:
-                    full_query = where_query + " LIMIT %s"
-                    all_parameters = all_parameters + [int(limit)]
+            if total_rows > int(limit):
+                rand_offset = random.randint(0, max(0, total_rows - int(limit)))
+                full_query = where_query + " LIMIT %s OFFSET %s"
+                all_parameters = all_parameters + [int(limit), rand_offset]
             else:
-                full_query = where_query + order_by + " LIMIT %s"
+                full_query = where_query + " LIMIT %s"
                 all_parameters = all_parameters + [int(limit)]
+        else:
+            full_query = where_query + order_by + " LIMIT %s"
+            all_parameters = all_parameters + [int(limit)]
 
-            query_start_time = time.time()
-            result = await self.db_pool.execute(full_query, all_parameters, "all")
-            query_end_time = time.time()
+        query_start_time = time.time()
+        result = await self.db_pool.execute(full_query, all_parameters, fetch="all")
 
-            logger.info(
-                "Query executed in %.2f seconds using %s",
-                query_end_time - query_start_time,
-                'recent cache' if use_recent else 'cache' if use_cache else 'main tables'
-            )
+        logger.info(
+            "Query executed in %.2f seconds using %s",
+            time.time() - query_start_time,
+            self._table_label(use_recent, use_cache),
+        )
+        logger.info(
+            "Completed fetch_random_movies in %.2f seconds",
+            time.time() - method_start_time,
+        )
 
-            logger.info(
-                "Completed fetch_random_movies in %.2f seconds",
-                time.time() - method_start_time,
-            )
-
-            return result or []
-
-        except DatabaseError as e:
-            if self.use_fulltext and "FULLTEXT" in str(e):
-                logger.warning("FULLTEXT search failed, falling back to LIKE queries for this request")
-                saved = self.use_fulltext
-                self.use_fulltext = False
-                try:
-                    return await self.fetch_random_movies(criteria, limit)
-                finally:
-                    self.use_fulltext = saved
-            logger.error("Database error in fetch_random_movies: %s", e)
-            return []
-        except Exception as e:
-            logger.error("Error in fetch_random_movies: %s", e, exc_info=True)
-            raise
+        return result or []

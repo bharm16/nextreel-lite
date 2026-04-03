@@ -11,14 +11,6 @@ logger = get_logger(__name__)
 _logging.getLogger("httpx").setLevel(_logging.ERROR)
 
 
-def build_ratings_query():
-    return """
-    SELECT tr.tconst, tr.averageRating, tr.numVotes
-    FROM `title.ratings` tr
-    WHERE tr.tconst = %s
-    """
-
-
 class Movie:
     def __init__(self, tconst, db_pool, tmdb_helper=None):
         self.tconst = tconst
@@ -36,22 +28,6 @@ class Movie:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.close()
         return False
-
-    async def fetch_movie_slug(self):
-        """Fetch slug from the source-of-truth table (title.basics).
-
-        Cache tables replicate slugs from title.basics, so querying the
-        canonical table directly is sufficient and avoids a 3-table UNION ALL.
-        """
-        try:
-            query = "SELECT slug FROM `title.basics` WHERE tconst = %s"
-            result = await self.db_pool.execute(
-                query, [self.tconst], fetch="one"
-            )
-            self.slug = result["slug"] if result and result.get("slug") else None
-        except Exception as e:
-            logger.debug("Error fetching slug for %s: %s", self.tconst, e)
-            self.slug = None
 
     async def fetch_slug_and_ratings(self, tconst):
         """Fetch slug and ratings in a single query via JOIN."""
@@ -94,43 +70,6 @@ class Movie:
         query_time = time.time() - start_time
         logger.info("Fetched slug+ratings for %s in %.2f seconds", tconst, query_time)
         return ratings_data
-
-    async def fetch_movie_ratings(self, tconst):
-        start_time = time.time()
-
-        query = build_ratings_query()
-        try:
-            result = await self.db_pool.execute(query, [tconst], fetch="one")
-        except DatabaseError as e:
-            logger.warning("Database error fetching ratings for %s: %s", tconst, e)
-            return None
-
-        if result:
-            try:
-                ratings_data = {
-                    "tconst": result["tconst"],
-                    "averageRating": (
-                        result["averageRating"]
-                        if result["averageRating"] is not None
-                        else "N/A"
-                    ),
-                    "numVotes": (
-                        result["numVotes"] if result["numVotes"] is not None else "N/A"
-                    ),
-                }
-
-                query_time = time.time() - start_time
-                logger.info("Fetched movie ratings in %.2f seconds", query_time)
-
-                return ratings_data
-
-            except KeyError as e:
-                logger.error("Error in fetch_movie_ratings: %s", e)
-                logger.error("Result missing expected key: %s", result)
-                return None
-        else:
-            logger.info("No ratings found for tconst: %s", tconst)
-            return None
 
     async def get_movie_data(self):
         start_time = time.time()

@@ -1,8 +1,12 @@
-# NextReel-Lite — Fresh Tech Debt Audit
+# NextReel-Lite — Tech Debt Audit
 
-**Date:** 2026-03-22
+**Date:** 2026-03-22 (original) | **Updated:** 2026-04-03
 **Method:** Full read of every non-trivial Python file, all templates, CI config, and dependency files.
 **Scoring:** Priority = (Impact + Risk) × (6 − Effort). Higher = fix sooner.
+
+> **2026-04-03 update:** Items 7-9, 11, 14, 17, 19 resolved. See inline RESOLVED notes.
+> Deprecated docs (ARCHITECTURE_AUDIT.md, ACTION_PLAN.md) deleted.
+> Additional audit performed — see git log for `refactor/general-cleanup` branch.
 
 ---
 
@@ -80,7 +84,7 @@ Every unique user creates a new time series in Prometheus. With anonymous sessio
 
 ---
 
-### 7. Shared Mutable Default in `session_auth.py`
+### 7. ~~Shared Mutable Default in `session_auth.py`~~ — RESOLVED
 **Score: 28** | Impact 4 | Risk 4 | Effort 2
 
 `session_auth.py:25-30`:
@@ -101,7 +105,7 @@ Also, `max_year` is frozen to the year the process started. A process running ac
 
 ---
 
-### 8. Hardcoded `2024` Cache Routing in `filter_backend.py`
+### 8. ~~Hardcoded `2024` Cache Routing in `filter_backend.py`~~ — RESOLVED
 **Score: 28** | Impact 4 | Risk 3 | Effort 3
 
 `filter_backend.py:37` — `return min_year >= 2024 or (min_year < 2024 and max_year >= 2024)` determines whether queries use `recent_movies_cache`. This threshold is frozen. As time passes, "recent" stays stuck at 2024.
@@ -110,7 +114,7 @@ Also, `max_year` is frozen to the year the process started. A process running ac
 
 ---
 
-### 9. Dead Code Still in Version Control (13+ Files)
+### 9. ~~Dead Code Still in Version Control (13+ Files)~~ — RESOLVED
 **Score: 25** | Impact 3 | Risk 2 | Effort 1
 
 Files that exist only to `raise ImportError`:
@@ -143,7 +147,7 @@ Two issues: (a) f-string in a log call bypasses lazy evaluation — the masking 
 
 ## Medium — Fix Within 2 Sprints
 
-### 11. Dev Dependencies Mixed With Production in `requirements.txt`
+### 11. ~~Dev Dependencies Mixed With Production in `requirements.txt`~~ — RESOLVED
 **Score: 20** | Impact 3 | Risk 3 | Effort 2
 
 pytest, black, mypy, pylint, sphinx, flake8 are all in the same `requirements.txt` as production deps. This bloats Docker images and increases attack surface in production.
@@ -170,7 +174,7 @@ At least 6 files check `FLASK_ENV` to toggle SSL enforcement, cookie security, H
 
 ---
 
-### 14. No Coverage Threshold in CI
+### 14. ~~No Coverage Threshold in CI~~ — RESOLVED
 **Score: 16** | Impact 4 | Risk 4 | Effort 4
 
 CI runs pytest with `--cov=.` and uploads to Codecov, but there's no `--cov-fail-under` gate. Coverage can drop to zero without failing the build. Only 35 test functions exist, 8 of which are `pytest.skip()` placeholders.
@@ -197,7 +201,7 @@ CI runs pytest with `--cov=.` and uploads to Codecov, but there's no `--cov-fail
 
 ---
 
-### 17. Genre FULLTEXT Search Doesn't Escape Quotes
+### 17. ~~Genre FULLTEXT Search Doesn't Escape Quotes~~ — RESOLVED
 **Score: 12** | Impact 3 | Risk 2 | Effort 3
 
 `filter_backend.py:130` — `f'+"{genre}"'` — if a genre name contains a double quote, the FULLTEXT boolean syntax breaks. Not a SQL injection risk (parameterized), but causes silent search failures for genres with special characters.
@@ -215,7 +219,7 @@ CI runs pytest with `--cov=.` and uploads to Codecov, but there's no `--cov-fail
 
 ---
 
-### 19. Stale Documentation
+### 19. ~~Stale Documentation~~ — RESOLVED
 **Score: 6** | Impact 2 | Risk 1 | Effort 3
 
 `ARCHITECTURE_AUDIT.md`, `ADR-001-ARCHITECTURE-AUDIT.md`, `ACTION_PLAN.md`, `PERFORMANCE_IMPROVEMENTS.md`, and `SYSTEM_DESIGN_REVIEW.md` all reference issues that have since been fixed. They create confusion about the actual state of the codebase.

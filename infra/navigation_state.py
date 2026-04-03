@@ -9,7 +9,7 @@ import os
 import secrets
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Awaitable, Callable, MutableMapping
 
 from logging_config import get_logger
@@ -39,7 +39,8 @@ MIGRATION_META_LAST_IMPORT_AT = "nav_state_last_redis_import_at"
 
 
 def utcnow() -> datetime:
-    return datetime.utcnow()
+    """Return current UTC time as a naive datetime (for MySQL compat)."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 def _idle_timeout() -> timedelta:
