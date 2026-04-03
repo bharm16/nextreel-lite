@@ -296,28 +296,29 @@ def create_app():
             try:
                 await asyncio.wait_for(movie_manager.close(), timeout=5.0)
                 logger.info("MovieManager closed successfully")
-            except (asyncio.TimeoutError, Exception) as exc:
+            except Exception as exc:
                 logger.warning("Error closing MovieManager: %s", exc)
 
         if getattr(app_instance, "secure_cache", None):
             try:
                 await asyncio.wait_for(app_instance.secure_cache.close(), timeout=3.0)
                 logger.info("Secure cache closed")
-            except (asyncio.TimeoutError, Exception) as exc:
+            except Exception as exc:
                 logger.warning("Error closing secure cache: %s", exc)
 
         if getattr(app_instance, "arq_redis", None):
             try:
                 await asyncio.wait_for(app_instance.arq_redis.aclose(), timeout=3.0)
                 logger.info("ARQ pool closed")
-            except (asyncio.TimeoutError, Exception) as exc:
+            except Exception as exc:
                 logger.warning("Error closing ARQ pool: %s", exc)
 
         if getattr(app_instance, "config", {}).get("SESSION_REDIS"):
             try:
                 await asyncio.wait_for(app_instance.config["SESSION_REDIS"].aclose(), timeout=3.0)
-            except (asyncio.TimeoutError, Exception):
-                pass
+                logger.info("Session Redis pool closed")
+            except Exception as exc:
+                logger.warning("Error closing session Redis pool: %s", exc)
 
     app.register_blueprint(routes_bp)
     return app

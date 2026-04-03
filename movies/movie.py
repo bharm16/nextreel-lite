@@ -53,8 +53,50 @@ class Movie:
             logger.debug("Error fetching slug for %s: %s", self.tconst, e)
             self.slug = None
 
+    async def fetch_slug_and_ratings(self, tconst):
+        """Fetch slug and ratings in a single query via JOIN."""
+        start_time = time.time()
+        try:
+            result = await self.db_pool.execute(
+                """
+                SELECT tb.slug, tr.tconst, tr.averageRating, tr.numVotes
+                FROM `title.basics` tb
+                LEFT JOIN `title.ratings` tr ON tb.tconst = tr.tconst
+                WHERE tb.tconst = %s
+                """,
+                [tconst],
+                fetch="one",
+            )
+        except DatabaseError as e:
+            logger.warning("Database error fetching slug+ratings for %s: %s", tconst, e)
+            return None
+
+        if not result:
+            logger.info("No data found for tconst: %s", tconst)
+            return None
+
+        self.slug = result.get("slug")
+
+        ratings_data = {
+            "tconst": result.get("tconst") or tconst,
+            "averageRating": (
+                result["averageRating"]
+                if result.get("averageRating") is not None
+                else "N/A"
+            ),
+            "numVotes": (
+                result["numVotes"]
+                if result.get("numVotes") is not None
+                else "N/A"
+            ),
+        }
+
+        query_time = time.time() - start_time
+        logger.info("Fetched slug+ratings for %s in %.2f seconds", tconst, query_time)
+        return ratings_data
+
     async def fetch_movie_ratings(self, tconst):
-        start_time = time.time()  # Start timing
+        start_time = time.time()
 
         query = build_ratings_query()
         try:
@@ -65,7 +107,6 @@ class Movie:
 
         if result:
             try:
-                # Accessing result as a dictionary
                 ratings_data = {
                     "tconst": result["tconst"],
                     "averageRating": (
@@ -78,9 +119,7 @@ class Movie:
                     ),
                 }
 
-                logger.info("Ratings data: %s", ratings_data)  # Log the ratings data
-
-                query_time = time.time() - start_time  # Measure query execution time
+                query_time = time.time() - start_time
                 logger.info("Fetched movie ratings in %.2f seconds", query_time)
 
                 return ratings_data
@@ -97,31 +136,29 @@ class Movie:
         start_time = time.time()
 
         try:
-            # Phase 1: resolve TMDb ID + fetch slug in parallel
+            # Phase 1: resolve TMDb ID + fetch slug+ratings in parallel (single DB query)
             basic_tasks = [
                 self.tmdb_helper.get_tmdb_id_by_tconst(self.tconst),
-                self.fetch_movie_slug(),
+                self.fetch_slug_and_ratings(self.tconst),
             ]
             basic_results = await asyncio.gather(*basic_tasks, return_exceptions=True)
 
             tmdb_id = basic_results[0] if not isinstance(basic_results[0], Exception) else None
+            ratings_data = basic_results[1] if not isinstance(basic_results[1], Exception) else None
+
+            if isinstance(basic_results[1], Exception):
+                logger.warning("Slug+ratings fetch failed for %s: %s", self.tconst, basic_results[1])
 
             if not tmdb_id:
                 logger.warning("No TMDB ID found for tconst: %s", self.tconst)
                 return None
 
-            # Phase 2: single combined TMDb call + local DB ratings in parallel
-            tmdb_task = self.tmdb_helper.get_movie_full(tmdb_id)
-            ratings_task = self.fetch_movie_ratings(self.tconst)
-            results = await asyncio.gather(tmdb_task, ratings_task, return_exceptions=True)
-
-            full_data = results[0] if not isinstance(results[0], Exception) else {}
-            ratings_data = results[1] if not isinstance(results[1], Exception) else None
-
-            if isinstance(results[0], Exception):
-                logger.warning("TMDb combined fetch failed for %s: %s", self.tconst, results[0])
-            if isinstance(results[1], Exception):
-                logger.warning("Ratings fetch failed for %s: %s", self.tconst, results[1])
+            # Phase 2: single combined TMDb call (DB work already done in phase 1)
+            try:
+                full_data = await self.tmdb_helper.get_movie_full(tmdb_id)
+            except Exception as exc:
+                logger.warning("TMDb combined fetch failed for %s: %s", self.tconst, exc)
+                full_data = {}
 
             # Phase 3: parse all fields from the combined response
             h = self.tmdb_helper

@@ -32,7 +32,7 @@ _WHERE_TEMPLATE = (
     "AND {p}startYear BETWEEN %s AND %s "
     "AND {r}averageRating BETWEEN %s AND %s "
     "AND {r}numVotes >= %s AND {r}numVotes <= %s "
-    "AND (%s = 'any' OR {p}language LIKE %s OR {p}language IS NULL)"
+    "AND (%s = 'any' OR {p}language = %s OR {p}language LIKE %s OR {p}language IS NULL)"
 )
 
 
@@ -42,7 +42,7 @@ class MovieQueryBuilder:
 
     All query variants share the same WHERE clause and parameter ordering:
     (titleType, min_year, max_year, min_rating, max_rating, min_votes,
-    max_votes, language_check, language_pattern).
+    max_votes, language_check, language_exact, language_pattern).
     """
 
     @staticmethod
@@ -113,9 +113,11 @@ class MovieQueryBuilder:
         lang = criteria.get("language", "en")
         if lang == "any":
             language_check = "any"
+            language_exact = "any"
             language_pattern = "%"
         else:
             language_check = lang
+            language_exact = lang
             language_pattern = "%" + lang + "%"
 
         return [
@@ -127,6 +129,7 @@ class MovieQueryBuilder:
             criteria.get("min_votes", 100000),
             criteria.get("max_votes", 1000000),
             language_check,
+            language_exact,
             language_pattern,
         ]
 
@@ -225,7 +228,7 @@ class ImdbRandomMovieFetcher(MovieFetcher):
                     logger.debug("Count cache hit for %s: %d", cache_key, cached)
                     return int(cached)
         except Exception:
-            pass
+            logger.debug("Cache read failed for %s", cache_key, exc_info=True)
         return None
 
     async def _set_cached_count(self, cache_key: str, count: int) -> None:
@@ -239,7 +242,7 @@ class ImdbRandomMovieFetcher(MovieFetcher):
                     CacheNamespace.TEMP, cache_key, count, ttl=self._COUNT_CACHE_TTL
                 )
         except Exception:
-            pass
+            logger.debug("Cache write failed for %s", cache_key, exc_info=True)
 
     def _build_query_with_genres(self, base_query, criteria, parameters, use_cache_table):
         """Append genre conditions to *base_query* and return (query, params)."""
@@ -270,6 +273,10 @@ class ImdbRandomMovieFetcher(MovieFetcher):
             full_query, all_parameters = self._build_query_with_genres(
                 base_query, criteria, parameters, use_cache or use_recent
             )
+
+            # Safety LIMIT to prevent unbounded result sets on broad filters
+            full_query += " LIMIT %s"
+            all_parameters = all_parameters + [500]
 
             logger.debug("Using %s table", 'recent cache' if use_recent else 'cache' if use_cache else 'main')
 

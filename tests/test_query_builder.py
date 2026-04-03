@@ -107,7 +107,7 @@ class TestBuildBaseQuery:
             {"use_recent": True},
         ]:
             sql = MovieQueryBuilder.build_base_query(**kwargs)
-            assert sql.count("%s") == 9
+            assert sql.count("%s") == 10
 
 
 class TestBuildParameters:
@@ -126,7 +126,8 @@ class TestBuildParameters:
         }
         params = MovieQueryBuilder.build_parameters(criteria)
         # Unified order: title_type, min_year, max_year, min_rating,
-        # max_rating, min_votes, max_votes, language_check, language_pattern
+        # max_rating, min_votes, max_votes, language_check, language_exact,
+        # language_pattern
         assert params[0] == "movie"
         assert params[1] == 2000
         assert params[2] == 2025
@@ -134,24 +135,26 @@ class TestBuildParameters:
         assert params[4] == 9.0
         assert params[5] == 10000
         assert params[6] == 500000
-        assert len(params) == 9
+        assert len(params) == 10
 
     def test_language_any_produces_wildcard(self):
         criteria = {"language": "any"}
         params = MovieQueryBuilder.build_parameters(criteria)
-        # language_check should be "any", pattern should be "%"
+        # language_check should be "any", exact "any", pattern "%"
+        assert params[-3] == "any"
         assert params[-2] == "any"
         assert params[-1] == "%"
 
     def test_language_en_produces_like_pattern(self):
         criteria = {"language": "en"}
         params = MovieQueryBuilder.build_parameters(criteria)
+        assert params[-3] == "en"
         assert params[-2] == "en"
         assert params[-1] == "%en%"
 
     def test_defaults_fill_in_for_empty_criteria(self):
         params = MovieQueryBuilder.build_parameters({})
-        assert len(params) == 9
+        assert len(params) == 10
         assert params[0] == "movie"   # default title_type
         assert params[1] == 1900      # default min_year
         assert params[3] == 7.0       # default min_rating
