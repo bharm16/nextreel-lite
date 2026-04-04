@@ -274,7 +274,7 @@ class TestBuildGenreConditionsLike:
         criteria = {"genres": ["Action", "Comedy"]}
         result = MovieQueryBuilder.build_genre_conditions(criteria, params)
         assert len(result) == 1
-        assert "LIKE %s" in result[0]
+        assert "tb.genres LIKE %s AND tb.genres LIKE %s" in result[0]
         assert len(params) == 2
         assert params[0] == "%Action%"
         assert params[1] == "%Comedy%"

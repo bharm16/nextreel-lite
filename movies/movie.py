@@ -77,28 +77,24 @@ class Movie:
         logger.info("Fetched slug+ratings for %s in %.2f seconds", tconst, query_time)
         return ratings_data
 
-    async def get_movie_data(self) -> dict[str, Any] | None:
+    async def get_movie_data(self, known_tmdb_id: int | None = None) -> dict[str, Any] | None:
         start_time = time.time()
 
         try:
-            # Phase 1: resolve TMDb ID + fetch slug+ratings in parallel (single DB query)
-            basic_tasks = [
-                self.tmdb_helper.get_tmdb_id_by_tconst(self.tconst),
-                self.fetch_slug_and_ratings(self.tconst),
-            ]
-            basic_results = await asyncio.gather(*basic_tasks, return_exceptions=True)
+            ratings_task = asyncio.create_task(self.fetch_slug_and_ratings(self.tconst))
+            tmdb_id = known_tmdb_id
+            if tmdb_id is None:
+                try:
+                    tmdb_id = await self.tmdb_helper.get_tmdb_id_by_tconst(self.tconst)
+                except Exception as exc:
+                    logger.warning("TMDb ID lookup failed for %s: %s", self.tconst, exc)
+                    tmdb_id = None
 
-            tmdb_id = basic_results[0] if not isinstance(basic_results[0], Exception) else None
-            ratings_data = basic_results[1] if not isinstance(basic_results[1], Exception) else None
-
-            if isinstance(basic_results[1], Exception):
-                logger.warning("Slug+ratings fetch failed for %s: %s", self.tconst, basic_results[1])
-
+            ratings_data = await ratings_task
             if not tmdb_id:
                 logger.warning("No TMDB ID found for tconst: %s", self.tconst)
                 return None
 
-            # Phase 2: single combined TMDb call (DB work already done in phase 1)
             try:
                 full_data = await self.tmdb_helper.get_movie_full(tmdb_id)
             except Exception as exc:
@@ -166,9 +162,7 @@ class Movie:
                     else "N/A"
                 ),
                 "cast": tmdb_cast_info,
-                "images": images,
                 "trailer": trailer,
-                "credits": full_data.get("credits", {}),
                 "backdrop_url": backdrop_url,
                 "original_language": full_data.get("original_language", "unknown"),
                 "spoken_languages": [

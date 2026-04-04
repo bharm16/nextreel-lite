@@ -39,6 +39,7 @@ def _make_state(**overrides) -> NavigationState:
         csrf_token="tok",
         filters=default_filter_state(),
         current_tconst=None,
+        current_ref=None,
         queue=[],
         prev=[],
         future=[],
@@ -98,6 +99,7 @@ def test_clone_deep_copies_mutable_fields():
         queue=[_ref("tt1")],
         filters=default_filter_state(),
         seen=["tt9"],
+        current_ref=_ref("tt1"),
     )
     cloned = state.clone()
 
@@ -105,10 +107,12 @@ def test_clone_deep_copies_mutable_fields():
     cloned.queue.append(_ref("tt99"))
     cloned.filters["year_min"] = 2020
     cloned.seen.append("tt100")
+    cloned.current_ref["title"] = "Changed"
 
     assert len(state.queue) == 1
     assert state.filters["year_min"] == 1900
     assert len(state.seen) == 1
+    assert state.current_ref["title"] == "Movie"
 
 
 # ===========================================================================
@@ -499,6 +503,28 @@ def test_row_to_state_falls_back_on_invalid_filters_json(mock_db_pool):
     assert state.filters == default_filter_state()
 
 
+def test_row_to_state_loads_current_ref_json(mock_db_pool):
+    store = NavigationStateStore(mock_db_pool)
+    now = utcnow()
+    row = {
+        "session_id": "s4",
+        "version": 1,
+        "csrf_token": "tok",
+        "filters_json": json.dumps(default_filter_state()),
+        "current_tconst": "tt1234567",
+        "current_ref_json": json.dumps(_ref("tt1234567", "Loaded", "loaded")),
+        "queue_json": "[]",
+        "prev_json": "[]",
+        "future_json": "[]",
+        "seen_json": "[]",
+        "created_at": now,
+        "last_activity_at": now,
+        "expires_at": now + timedelta(hours=1),
+    }
+    state = store._row_to_state(row)
+    assert state.current_ref == _ref("tt1234567", "Loaded", "loaded")
+
+
 # ===========================================================================
 # NavigationStateStore.save_state() — optimistic locking
 # ===========================================================================
@@ -536,6 +562,36 @@ async def test_save_state_updates_timestamps(mock_db_pool):
 
     assert state.last_activity_at > old_time
     assert state.expires_at > old_time
+
+
+async def test_ready_check_is_select_only(mock_db_pool):
+    mock_db_pool.execute = AsyncMock(return_value={"ready": 1})
+    store = NavigationStateStore(mock_db_pool)
+
+    result = await store.ready_check()
+
+    assert result is True
+    mock_db_pool.execute.assert_awaited_once()
+    query = mock_db_pool.execute.await_args.args[0]
+    assert "SELECT 1 AS ready" in query
+
+
+async def test_save_state_only_updates_changed_fields(mock_db_pool):
+    mock_db_pool.execute = AsyncMock(return_value=1)
+    store = NavigationStateStore(mock_db_pool)
+    previous_state = _make_state(current_tconst="tt1", current_ref=_ref("tt1"))
+    state = previous_state.clone()
+    state.current_tconst = "tt2"
+    state.current_ref = _ref("tt2", "Two", "two")
+
+    await store.save_state(state, expected_version=1, previous_state=previous_state)
+
+    query = mock_db_pool.execute.await_args.args[0]
+    params = mock_db_pool.execute.await_args.args[1]
+    assert "current_tconst = %s" in query
+    assert "current_ref_json = %s" in query
+    assert "filters_json = %s" not in query
+    assert any(isinstance(param, str) and '"tt2"' in param for param in params)
 
 
 # ===========================================================================
@@ -723,3 +779,22 @@ async def test_mutate_supports_async_mutator(mock_db_pool):
     assert result.conflicted is False
     assert result.result == "async-result"
     assert result.state.current_tconst == "tt555"
+
+
+async def test_mutate_uses_current_state_without_reloading(mock_db_pool):
+    store = NavigationStateStore(mock_db_pool)
+    state = _make_state(version=3)
+    mock_db_pool.execute = AsyncMock(return_value=1)
+
+    def mutator(current):
+        current.current_tconst = "tt333"
+        current.current_ref = _ref("tt333", "Three", "three")
+
+    with patch("infra.navigation_state.NavigationStateStore.dual_write_enabled",
+               new_callable=AsyncMock, return_value=False):
+        result = await store.mutate(state.session_id, mutator, current_state=state)
+
+    assert result.conflicted is False
+    assert result.state.current_tconst == "tt333"
+    assert result.state.current_ref == _ref("tt333", "Three", "three")
+    mock_db_pool.execute.assert_awaited_once()

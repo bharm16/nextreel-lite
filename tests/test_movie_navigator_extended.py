@@ -19,6 +19,7 @@ def _state() -> NavigationState:
         csrf_token="csrf",
         filters=default_filter_state(),
         current_tconst=None,
+        current_ref=None,
         queue=[],
         prev=[],
         future=[],
@@ -50,10 +51,10 @@ class NavigationStoreStub:
         self.state = state
         self.should_conflict = False
 
-    async def mutate(self, session_id, mutator, legacy_session=None):
+    async def mutate(self, session_id, mutator, legacy_session=None, current_state=None):
         if self.should_conflict:
             return MutationResult(state=self.state, conflicted=True)
-        working = self.state.clone()
+        working = current_state.clone() if current_state is not None else self.state.clone()
         result = mutator(working)
         if inspect.isawaitable(result):
             result = await result
@@ -132,6 +133,42 @@ async def test_previous_movie_moves_current_into_future(nav_app):
     assert response.location.endswith("/movie/tt1")
     assert store.state.current_tconst == "tt1"
     assert store.state.future == [{"tconst": "tt2", "title": "Two", "slug": "two"}]
+
+
+@pytest.mark.asyncio
+async def test_next_movie_uses_current_ref_without_fetch_lookup(nav_app):
+    state = _state()
+    state.current_tconst = "tt0"
+    state.current_ref = {"tconst": "tt0", "title": "Zero", "slug": "zero"}
+    state.queue = [{"tconst": "tt1", "title": "One", "slug": "one"}]
+    store = NavigationStoreStub(state)
+    candidates = CandidateStoreStub()
+    navigator = MovieNavigator(candidates, store)
+
+    async with nav_app.app_context():
+        async with nav_app.test_request_context("/"):
+            response = await navigator.next_movie("state-1", current_state=state)
+
+    assert response.location.endswith("/movie/tt1")
+    assert store.state.prev == [{"tconst": "tt0", "title": "Zero", "slug": "zero"}]
+    assert candidates.fetch_ref_calls == []
+
+
+@pytest.mark.asyncio
+async def test_next_movie_only_refills_once_when_queue_starts_empty(nav_app):
+    state = _state()
+    store = NavigationStoreStub(state)
+    candidates = CandidateStoreStub(
+        refs=[{"tconst": "tt1", "title": "One", "slug": "one"}]
+    )
+    navigator = MovieNavigator(candidates, store)
+
+    async with nav_app.app_context():
+        async with nav_app.test_request_context("/"):
+            response = await navigator.next_movie("state-1")
+
+    assert response.location.endswith("/movie/tt1")
+    assert len(candidates.fetch_candidate_refs_calls) == 1
 
 
 @pytest.mark.asyncio

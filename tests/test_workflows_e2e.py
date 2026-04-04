@@ -10,15 +10,26 @@ Run:
 """
 
 import os
-import sys
 import time
 from dataclasses import dataclass
 
-try:
-    from playwright.sync_api import sync_playwright
-except ImportError:
-    print("ERROR: pip install playwright && python -m playwright install chromium")
-    sys.exit(1)
+import pytest
+
+RUN_E2E = os.environ.get("RUN_E2E") == "1"
+
+if RUN_E2E:
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        pytest.skip(
+            "E2E workflows require Playwright. Install it and run with RUN_E2E=1.",
+            allow_module_level=True,
+        )
+else:
+    pytest.skip(
+        "Interactive Playwright workflows are opt-in. Set RUN_E2E=1 to run them.",
+        allow_module_level=True,
+    )
 
 # ---------------------------------------------------------------------------
 # Config

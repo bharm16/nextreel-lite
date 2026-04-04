@@ -5,6 +5,7 @@ from infra.filter_normalizer import (
     default_filter_state,
     filters_from_criteria,
     normalize_filters,
+    validate_filters,
 )
 
 
@@ -73,3 +74,86 @@ def test_criteria_from_filters_produces_query_criteria():
     filters = default_filter_state()
     criteria = criteria_from_filters(filters)
     assert "min_year" in criteria or "max_year" in criteria
+
+
+def test_validate_filters_rejects_reversed_year_range():
+    errors = validate_filters(
+        {
+            "year_min": "2025",
+            "year_max": "1990",
+            "imdb_score_min": "7.0",
+            "imdb_score_max": "8.0",
+            "num_votes_min": "100",
+            "num_votes_max": "1000",
+        }
+    )
+
+    assert "year_min" in errors
+    assert "year_max" in errors
+
+
+def test_validate_filters_rejects_reversed_rating_range():
+    errors = validate_filters(
+        {
+            "year_min": "1990",
+            "year_max": "2025",
+            "imdb_score_min": "9.5",
+            "imdb_score_max": "8.0",
+            "num_votes_min": "100",
+            "num_votes_max": "1000",
+        }
+    )
+
+    assert "imdb_score_min" in errors
+    assert "imdb_score_max" in errors
+
+
+def test_validate_filters_rejects_reversed_vote_range():
+    errors = validate_filters(
+        {
+            "year_min": "1990",
+            "year_max": "2025",
+            "imdb_score_min": "7.0",
+            "imdb_score_max": "8.0",
+            "num_votes_min": "5000",
+            "num_votes_max": "1000",
+        }
+    )
+
+    assert "num_votes_min" in errors
+    assert "num_votes_max" in errors
+
+
+def test_validate_filters_rejects_malformed_numeric_values():
+    errors = validate_filters(
+        {
+            "year_min": "nineteen-ninety",
+            "year_max": "2201",
+            "imdb_score_min": "high",
+            "imdb_score_max": "11.0",
+            "num_votes_min": "lots",
+            "num_votes_max": "1000",
+        }
+    )
+
+    assert "year_min" in errors
+    assert "year_max" in errors
+    assert "imdb_score_min" in errors
+    assert "imdb_score_max" in errors
+    assert "num_votes_min" in errors
+
+
+def test_validate_filters_allows_empty_genres_as_all_genres():
+    errors = validate_filters(
+        {
+            "year_min": "1990",
+            "year_max": "2025",
+            "imdb_score_min": "7.0",
+            "imdb_score_max": "9.0",
+            "num_votes_min": "1000",
+            "num_votes_max": "5000",
+            "genres_selected": [],
+        }
+    )
+
+    assert errors == {}

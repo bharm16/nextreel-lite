@@ -24,6 +24,14 @@ class TestInitialization:
         assert cache._owns_connection is False
 
     @pytest.mark.asyncio
+    async def test_init_with_preverified_shared_client_skips_ping(self, fake_redis):
+        fake_redis.ping = AsyncMock()
+        cache = SimpleCacheManager.from_client(fake_redis, verify_connection=False)
+        await cache.initialize()
+        fake_redis.ping.assert_not_awaited()
+        assert cache._redis is fake_redis
+
+    @pytest.mark.asyncio
     async def test_init_with_connection_pool(self):
         mock_pool = MagicMock()
         with patch("infra.cache.aioredis.Redis") as MockRedis:

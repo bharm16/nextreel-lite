@@ -138,6 +138,7 @@ class LegacyMigrationHelper:
         state.csrf_token = legacy_session.get("_csrf_token") or state.csrf_token
         state.filters = raw_filters or default_filter_state()
         state.current_tconst = current_ref["tconst"] if current_ref else None
+        state.current_ref = current_ref
         state.queue = normalize_ref_list_fn(legacy_session.get(WATCH_QUEUE_KEY, []), max_items=queue_target)
         state.prev = normalize_ref_list_fn(legacy_session.get(PREVIOUS_STACK_KEY, []), max_items=prev_max)
         state.future = normalize_ref_list_fn(legacy_session.get(FUTURE_STACK_KEY, []), max_items=future_max)
@@ -168,5 +169,11 @@ class LegacyMigrationHelper:
         ]
         legacy_session[SEEN_TCONSTS_KEY] = list(state.seen)
         legacy_session[CURRENT_MOVIE_KEY] = (
-            {"imdb_id": state.current_tconst} if state.current_tconst else None
+            {
+                "imdb_id": state.current_tconst,
+                "title": (state.current_ref or {}).get("title"),
+                "slug": (state.current_ref or {}).get("slug"),
+            }
+            if state.current_tconst
+            else None
         )

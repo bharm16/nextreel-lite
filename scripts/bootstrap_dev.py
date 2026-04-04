@@ -11,6 +11,9 @@ Node dependencies and ``npm run build-css`` (skipped if ``npm`` is missing).
 
 from __future__ import annotations
 
+import argparse
+import hashlib
+import json
 import os
 import shutil
 import subprocess
@@ -23,6 +26,11 @@ REQ_FILE = REPO_ROOT / "requirements.txt"
 ENV_EXAMPLE = REPO_ROOT / ".env.example"
 ENV_FILE = REPO_ROOT / ".env"
 PACKAGE_JSON = REPO_ROOT / "package.json"
+PACKAGE_LOCK = REPO_ROOT / "package-lock.json"
+TAILWIND_CONFIG = REPO_ROOT / "tailwind.config.js"
+CSS_INPUT = REPO_ROOT / "static" / "css" / "input.css"
+CSS_TOKENS = REPO_ROOT / "static" / "css" / "tokens.css"
+BOOTSTRAP_STATE = REPO_ROOT / ".cache" / "bootstrap_dev.json"
 
 
 def _run(cmd: list[str], *, cwd: Path | None = None) -> None:
@@ -64,8 +72,45 @@ def _venv_python() -> Path:
     return VENV_DIR / "bin" / "python"
 
 
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Reinstall Python and Node dependencies and rebuild CSS even when inputs are unchanged.",
+    )
+    return parser.parse_args()
+
+
+def _hash_files(paths: list[Path]) -> str:
+    digest = hashlib.sha256()
+    for path in paths:
+        digest.update(str(path.relative_to(REPO_ROOT)).encode("utf-8"))
+        if not path.exists():
+            digest.update(b"<missing>")
+            continue
+        digest.update(path.read_bytes())
+    return digest.hexdigest()
+
+
+def _load_state() -> dict[str, str]:
+    if not BOOTSTRAP_STATE.is_file():
+        return {}
+    try:
+        return json.loads(BOOTSTRAP_STATE.read_text())
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def _save_state(state: dict[str, str]) -> None:
+    BOOTSTRAP_STATE.parent.mkdir(parents=True, exist_ok=True)
+    BOOTSTRAP_STATE.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n")
+
+
 def main() -> None:
+    args = _parse_args()
     os.chdir(REPO_ROOT)
+    venv_created = False
 
     if not REQ_FILE.is_file():
         print("ERROR: Missing %s" % REQ_FILE)
@@ -75,6 +120,7 @@ def main() -> None:
         py = _host_python_for_venv()
         print("Creating virtualenv at %s using %s" % (VENV_DIR, py))
         _run([py, "-m", "venv", str(VENV_DIR)])
+        venv_created = True
     else:
         print("venv/ already exists; skipping venv creation.")
 
@@ -83,16 +129,37 @@ def main() -> None:
         print("ERROR: Expected interpreter missing: %s" % vpy)
         sys.exit(1)
 
-    _run([str(vpy), "-m", "pip", "install", "--upgrade", "pip"])
-    _run([str(vpy), "-m", "pip", "install", "-r", str(REQ_FILE)])
+    state = _load_state()
+    python_hash = _hash_files([REQ_FILE])
+    node_hash = _hash_files([PACKAGE_JSON, PACKAGE_LOCK]) if PACKAGE_JSON.is_file() else ""
+    css_hash = _hash_files([CSS_INPUT, CSS_TOKENS, TAILWIND_CONFIG]) if PACKAGE_JSON.is_file() else ""
+
+    python_changed = args.force or venv_created or state.get("python_hash") != python_hash
+    node_changed = args.force or state.get("node_hash") != node_hash
+    css_changed = args.force or state.get("css_hash") != css_hash
+
+    if python_changed:
+        _run([str(vpy), "-m", "pip", "install", "--upgrade", "pip"])
+        _run([str(vpy), "-m", "pip", "install", "-r", str(REQ_FILE)])
+    else:
+        print("Python dependencies unchanged; skipping pip install.")
 
     npm = shutil.which("npm")
+    npm_steps_completed = False
     if PACKAGE_JSON.is_file():
         if not npm:
             print("WARN: npm not on PATH; skipping npm install and build-css.")
         else:
-            _run([npm, "install"])
-            _run([npm, "run", "build-css"])
+            if node_changed:
+                _run([npm, "install"])
+            else:
+                print("Node dependencies unchanged; skipping npm install.")
+
+            if node_changed or css_changed:
+                _run([npm, "run", "build-css"])
+            else:
+                print("CSS inputs unchanged; skipping build-css.")
+            npm_steps_completed = True
     else:
         print("WARN: package.json missing; skipping npm steps.")
 
@@ -103,6 +170,12 @@ def main() -> None:
         print("Created .env from .env.example — edit it with your real secrets.")
     else:
         print("WARN: .env.example missing; no .env created.")
+
+    state["python_hash"] = python_hash
+    if PACKAGE_JSON.is_file() and npm_steps_completed:
+        state["node_hash"] = node_hash
+        state["css_hash"] = css_hash
+    _save_state(state)
 
     print("")
     print("Bootstrap complete. Next:")

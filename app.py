@@ -21,7 +21,7 @@ from quart import Quart, g, request, session
 from redis import asyncio as aioredis
 
 import settings
-from config.env import get_environment
+from env_bootstrap import get_environment
 from infra.cache import SimpleCacheManager
 from infra.metrics import MetricsCollector, setup_metrics_middleware
 from infra.navigation_state import (
@@ -31,6 +31,7 @@ from infra.navigation_state import (
     default_filter_state,
     utcnow,
 )
+from infra.runtime_schema import ensure_movie_candidates_fulltext_index
 from infra.secrets import secrets_manager
 from infra.security_headers import add_security_headers
 from logging_config import get_logger, setup_logging
@@ -52,8 +53,6 @@ class FixedQuart(Quart):
     default_config = dict(Quart.default_config)
     default_config.setdefault("PROVIDE_AUTOMATIC_OPTIONS", True)
 
-
-setup_logging(log_level=logging.INFO)
 logger = get_logger(__name__)
 
 _SKIP_PATHS = ("/static", "/favicon.ico", "/health", "/ready", "/metrics")
@@ -80,6 +79,7 @@ def _build_test_navigation_state() -> NavigationState:
         csrf_token="test-csrf-token",
         filters=default_filter_state(),
         current_tconst=None,
+        current_ref=None,
         queue=[],
         prev=[],
         future=[],
@@ -105,6 +105,7 @@ async def _setup_redis(app):
         redis_client = aioredis.Redis(connection_pool=shared_pool)
         await redis_client.ping()
         app.shared_redis_pool = shared_pool
+        app.redis_url = redis_url
         app.config["SESSION_REDIS"] = redis_client
         app.redis_available = True
 
@@ -116,24 +117,20 @@ async def _setup_redis(app):
             logger.warning("Legacy Redis session install failed: %s", exc)
 
         try:
-            app.secure_cache = SimpleCacheManager(connection_pool=shared_pool)
+            app.secure_cache = SimpleCacheManager.from_client(
+                redis_client,
+                verify_connection=False,
+            )
             await app.secure_cache.initialize()
         except Exception as exc:
             logger.warning("Redis cache initialization failed: %s", exc)
             app.secure_cache = None
 
-        if create_arq_pool and RedisSettings:
-            try:
-                app.arq_redis = await create_arq_pool(RedisSettings.from_dsn(redis_url))
-                app.worker_available = True
-            except Exception as exc:
-                logger.warning("ARQ pool initialization failed: %s", exc)
-                app.arq_redis = None
-
         logger.info("Redis runtime dependencies initialized")
     except Exception as exc:
         logger.warning("Redis unavailable; continuing in degraded mode: %s", exc)
         app.shared_redis_pool = None
+        app.redis_url = redis_url
         app.config["SESSION_REDIS"] = None
         app.redis_available = False
         app.worker_available = False
@@ -190,9 +187,11 @@ def _init_core(app):
     app.navigation_state_store = None
     app.shared_redis_pool = None
     app.arq_redis = None
+    app.redis_url = None
     app.redis_available = False
     app.worker_available = False
     app.secure_cache = None
+    app.background_tasks = set()
     app.config["SESSION_REDIS"] = None
     return movie_manager
 
@@ -228,6 +227,7 @@ def _make_manager_starter(app, movie_manager):
 
 
 def create_app():
+    setup_logging(log_level=logging.INFO)
     if not secrets_manager.validate_all_secrets():
         raise RuntimeError("Failed to validate required secrets. Check logs for details.")
 
@@ -240,10 +240,32 @@ def create_app():
     async def setup_redis():
         await _setup_redis(app)
 
-    async def enqueue_runtime_job(function_name: str, *args):
-        if not app.arq_redis:
+    arq_lock = asyncio.Lock()
+
+    async def ensure_arq_pool():
+        if app.arq_redis:
+            return app.arq_redis
+        if not app.redis_available or not app.redis_url or not create_arq_pool or not RedisSettings:
             return None
-        return await app.arq_redis.enqueue_job(function_name, *args)
+
+        async with arq_lock:
+            if app.arq_redis:
+                return app.arq_redis
+            try:
+                app.arq_redis = await create_arq_pool(RedisSettings.from_dsn(app.redis_url))
+                app.worker_available = True
+                logger.info("ARQ pool initialized lazily")
+            except Exception as exc:
+                app.worker_available = False
+                logger.warning("ARQ pool initialization failed: %s", exc)
+                app.arq_redis = None
+            return app.arq_redis
+
+    async def enqueue_runtime_job(function_name: str, *args):
+        pool = await ensure_arq_pool()
+        if not pool:
+            return None
+        return await pool.enqueue_job(function_name, *args)
 
     app.enqueue_runtime_job = enqueue_runtime_job
     movie_manager.projection_store.enqueue_fn = enqueue_runtime_job
@@ -335,10 +357,20 @@ def create_app():
         logger.info("Starting application warm-up...")
         await ensure_movie_manager_started()
 
+        async def repair_fulltext_index():
+            try:
+                await ensure_movie_candidates_fulltext_index(movie_manager.db_pool)
+            except Exception as exc:
+                logger.warning("Failed to repair movie_candidates FULLTEXT index: %s", exc)
+
+        task = asyncio.create_task(repair_fulltext_index())
+        app.background_tasks.add(task)
+        task.add_done_callback(app.background_tasks.discard)
+
         try:
             if not await movie_manager.candidate_store.latest_refresh_at():
-                if app.worker_available:
-                    await app.enqueue_runtime_job("refresh_movie_candidates")
+                job = await app.enqueue_runtime_job("refresh_movie_candidates")
+                if job is not None:
                     logger.info("Enqueued initial movie_candidates refresh")
                 else:
                     logger.warning(
@@ -347,10 +379,6 @@ def create_app():
         except Exception as exc:
             logger.warning("Failed to enqueue initial movie_candidates refresh: %s", exc)
 
-        warm_up_tasks = []
-        for _ in range(5):
-            warm_up_tasks.append(movie_manager.db_pool.execute("SELECT 1", fetch="one"))
-        await asyncio.gather(*warm_up_tasks, return_exceptions=True)
         logger.info("Application warm-up complete")
 
     app.register_blueprint(routes_bp)

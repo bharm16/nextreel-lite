@@ -213,9 +213,9 @@ class MovieQueryBuilder:
                 return []
 
             if use_cache:
-                genre_conditions = [" OR ".join(["genres LIKE %s" for _ in genres])]
+                genre_conditions = [" AND ".join(["genres LIKE %s" for _ in genres])]
             else:
-                genre_conditions = [" OR ".join(["tb.genres LIKE %s" for _ in genres])]
+                genre_conditions = [" AND ".join(["tb.genres LIKE %s" for _ in genres])]
             parameters.extend(
                 ["%" + MovieQueryBuilder._escape_like(genre) + "%" for genre in genres]
             )

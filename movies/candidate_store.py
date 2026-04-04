@@ -6,6 +6,7 @@ import random
 from datetime import datetime
 from typing import Any
 
+from infra.errors import DatabaseError
 from infra.navigation_state import criteria_from_filters
 from infra.time_utils import utcnow
 from logging_config import get_logger
@@ -36,7 +37,12 @@ class CandidateStore:
 
     async def latest_refresh_at(self) -> datetime | None:
         row = await self.db_pool.execute(
-            "SELECT MAX(refreshed_at) AS refreshed_at FROM movie_candidates",
+            """
+            SELECT refreshed_at
+            FROM movie_candidates
+            ORDER BY refreshed_at DESC
+            LIMIT 1
+            """,
             fetch="one",
         )
         return row["refreshed_at"] if row else None
@@ -63,8 +69,85 @@ class CandidateStore:
             return None
         return _ref_from_row(row)
 
-    def _genre_clause(self, criteria: dict[str, Any]) -> tuple[str, list[Any]]:
-        return MovieQueryBuilder.build_genre_conditions_fulltext(criteria, use_cache=True)
+    def _genre_clause(
+        self,
+        criteria: dict[str, Any],
+        *,
+        use_fulltext: bool = True,
+    ) -> tuple[str, list[Any]]:
+        if use_fulltext:
+            return MovieQueryBuilder.build_genre_conditions_fulltext(criteria, use_cache=True)
+
+        genre_params: list[Any] = []
+        genre_conditions = MovieQueryBuilder.build_genre_conditions(
+            criteria,
+            genre_params,
+            use_cache=True,
+        )
+        if not genre_conditions:
+            return "", []
+        return f" AND ({genre_conditions[0]})", genre_params
+
+    @staticmethod
+    def _is_fulltext_index_error(exc: DatabaseError) -> bool:
+        message = str(exc).lower()
+        return "fulltext" in message
+
+    def _build_candidate_query(
+        self,
+        *,
+        criteria: dict[str, Any],
+        excluded_tconsts: set[str],
+        desired_limit: int,
+        buckets: list[int],
+        seed: str,
+        use_fulltext: bool,
+    ) -> tuple[str, list[Any]]:
+        min_year = criteria.get("min_year", 1900)
+        max_year = criteria.get("max_year", utcnow().year)
+        min_rating = criteria.get("min_rating", 0)
+        max_rating = criteria.get("max_rating", 10)
+        min_votes = criteria.get("min_votes", 100000)
+        max_votes = criteria.get("max_votes", 1000000)
+        language = criteria.get("language", "en")
+
+        params: list[Any] = [
+            "movie",
+            min_year,
+            max_year,
+            min_rating,
+            max_rating,
+            min_votes,
+            max_votes,
+        ]
+        clauses = [
+            "titleType = %s",
+            "startYear BETWEEN %s AND %s",
+            "averageRating BETWEEN %s AND %s",
+            "numVotes BETWEEN %s AND %s",
+            f"sample_bucket IN ({', '.join(['%s'] * len(buckets))})",
+        ]
+        if language != "any":
+            clauses.append("(language = %s OR language LIKE %s OR language IS NULL)")
+            params.extend([language, f"%{language}%"])
+        params.extend(buckets)
+
+        if excluded_tconsts:
+            clauses.append(f"tconst NOT IN ({', '.join(['%s'] * len(excluded_tconsts))})")
+            params.extend(sorted(excluded_tconsts))
+
+        genre_clause, genre_params = self._genre_clause(criteria, use_fulltext=use_fulltext)
+        params.extend(genre_params)
+
+        query = f"""
+            SELECT tconst, primaryTitle, slug
+            FROM movie_candidates
+            WHERE {' AND '.join(clauses)}{genre_clause}
+            ORDER BY shuffle_key, numVotes DESC, averageRating DESC
+            LIMIT %s
+        """
+        params.append(desired_limit * 3)
+        return query, params
 
     async def fetch_candidate_refs(
         self,
@@ -76,55 +159,34 @@ class CandidateStore:
         desired_limit = max(1, limit)
         seed = str(random.randint(0, _MYSQL_INT_MAX))
 
-        min_year = criteria.get("min_year", 1900)
-        max_year = criteria.get("max_year", utcnow().year)
-        min_rating = criteria.get("min_rating", 0)
-        max_rating = criteria.get("max_rating", 10)
-        min_votes = criteria.get("min_votes", 100000)
-        max_votes = criteria.get("max_votes", 1000000)
-        language = criteria.get("language", "en")
-
         for bucket_count in SELECTION_BUCKET_STEPS:
             buckets = random.sample(range(SAMPLE_BUCKET_COUNT), bucket_count)
-            params: list[Any] = [
-                "movie",
-                min_year,
-                max_year,
-                min_rating,
-                max_rating,
-                min_votes,
-                max_votes,
-                language,
-                language,
-                f"%{language}%",
-            ]
-            clauses = [
-                "titleType = %s",
-                "startYear BETWEEN %s AND %s",
-                "averageRating BETWEEN %s AND %s",
-                "numVotes BETWEEN %s AND %s",
-                "(%s = 'any' OR language = %s OR language LIKE %s OR language IS NULL)",
-                f"sample_bucket IN ({', '.join(['%s'] * len(buckets))})",
-            ]
-            params.extend(buckets)
-
-            if excluded_tconsts:
-                clauses.append(f"tconst NOT IN ({', '.join(['%s'] * len(excluded_tconsts))})")
-                params.extend(sorted(excluded_tconsts))
-
-            genre_clause, genre_params = self._genre_clause(criteria)
-            params.extend(genre_params)
-
-            query = f"""
-                SELECT tconst, primaryTitle, slug
-                FROM movie_candidates
-                WHERE {' AND '.join(clauses)}{genre_clause}
-                ORDER BY MOD(CRC32(CONCAT(tconst, %s)), {_MYSQL_INT_MAX}), numVotes DESC, averageRating DESC
-                LIMIT %s
-            """
-            params.extend([seed, desired_limit * 3])
-
-            rows = await self.db_pool.execute(query, params, fetch="all")
+            query, params = self._build_candidate_query(
+                criteria=criteria,
+                excluded_tconsts=excluded_tconsts,
+                desired_limit=desired_limit,
+                buckets=buckets,
+                seed=seed,
+                use_fulltext=True,
+            )
+            try:
+                rows = await self.db_pool.execute(query, params, fetch="all")
+            except DatabaseError as exc:
+                if not criteria.get("genres") or not self._is_fulltext_index_error(exc):
+                    raise
+                logger.warning(
+                    "movie_candidates FULLTEXT genre search failed; retrying with LIKE fallback: %s",
+                    exc,
+                )
+                fallback_query, fallback_params = self._build_candidate_query(
+                    criteria=criteria,
+                    excluded_tconsts=excluded_tconsts,
+                    desired_limit=desired_limit,
+                    buckets=buckets,
+                    seed=seed,
+                    use_fulltext=False,
+                )
+                rows = await self.db_pool.execute(fallback_query, fallback_params, fetch="all")
             if rows:
                 deduped: list[dict[str, Any]] = []
                 seen: set[str] = set()
@@ -206,6 +268,7 @@ class CandidateTableMaintainer:
                 averageRating DECIMAL(4,2) NOT NULL DEFAULT 0,
                 numVotes INT NOT NULL DEFAULT 0,
                 sample_bucket INT NOT NULL,
+                shuffle_key INT NOT NULL,
                 refreshed_at DATETIME(6) NOT NULL
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """,
@@ -215,7 +278,7 @@ class CandidateTableMaintainer:
             """
             INSERT INTO movie_candidates_next (
                 tconst, primaryTitle, startYear, genres, language, titleType, slug,
-                averageRating, numVotes, sample_bucket, refreshed_at
+                averageRating, numVotes, sample_bucket, shuffle_key, refreshed_at
             )
             SELECT
                 tb.tconst,
@@ -228,6 +291,7 @@ class CandidateTableMaintainer:
                 COALESCE(tr.averageRating, 0),
                 COALESCE(tr.numVotes, 0),
                 MOD(CRC32(tb.tconst), 128),
+                CAST(RAND() * 2147483647 AS UNSIGNED),
                 UTC_TIMESTAMP(6)
             FROM `title.basics` tb
             LEFT JOIN `title.ratings` tr ON tb.tconst = tr.tconst
@@ -239,6 +303,7 @@ class CandidateTableMaintainer:
             "CREATE INDEX idx_movie_candidates_next_filter ON movie_candidates_next (titleType, startYear, averageRating, numVotes, sample_bucket)",
             "CREATE INDEX idx_movie_candidates_next_language ON movie_candidates_next (language)",
             "CREATE INDEX idx_movie_candidates_next_slug ON movie_candidates_next (slug(191))",
+            "CREATE INDEX idx_movie_candidates_next_refreshed_at ON movie_candidates_next (refreshed_at)",
             "CREATE FULLTEXT INDEX ftx_movie_candidates_next_genres ON movie_candidates_next (genres)",
         ):
             await self.db_pool.execute(statement, fetch="none")

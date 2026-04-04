@@ -108,7 +108,7 @@ async def test_enrich_projection_delegates():
 
     result = await enrich_projection(ctx, "tt9999999")
 
-    mock_store.enrich_projection.assert_awaited_once_with("tt9999999")
+    mock_store.enrich_projection.assert_awaited_once_with("tt9999999", known_tmdb_id=None)
     assert result == "ready"
 
 

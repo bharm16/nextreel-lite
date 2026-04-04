@@ -81,6 +81,7 @@
   <main id="main">
     <section id="filters" class="py-12 sm:py-16 bg-surface-alt">
       <div class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
+        {% set validation_errors = validation_errors or {} %}
         {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
         {% for category, message in messages %}
@@ -92,6 +93,11 @@
         {% endfor %}
         {% endif %}
         {% endwith %}
+        {% if form_notice %}
+        <div role="alert" class="mb-6 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm font-medium text-red-800">
+          {{ form_notice }}
+        </div>
+        {% endif %}
         <form action="/filtered_movie" method="post" class="card border-t-4" style="border-top-color: var(--color-accent)" aria-describedby="filters-status">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div id="filters-status" class="sr-only" role="status" aria-live="polite"></div>
@@ -106,11 +112,19 @@
                 </h2>
                 <div>
                   <label for="imdb_score_min" class="block text-sm font-medium">Min Score</label>
-                  <input type="number" id="imdb_score_min" name="imdb_score_min" min="1" max="10" step="0.1" value="{{ current_filters.get('imdb_score_min', 7.0) }}" class="mt-1 w-full rounded-2xl border-2 border-token px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30">
+                  {% set imdb_score_min_error = validation_errors.get('imdb_score_min') %}
+                  <input type="number" id="imdb_score_min" name="imdb_score_min" min="1" max="10" step="0.1" value="{{ current_filters.get('imdb_score_min', 7.0) }}" {% if imdb_score_min_error %}aria-invalid="true" aria-describedby="imdb_score_min_error"{% endif %} class="mt-1 w-full rounded-2xl border-2 px-4 py-2.5 text-sm shadow-sm focus:outline-none focus:ring-2 {% if imdb_score_min_error %}border-red-400 focus:border-red-500 focus:ring-red-200{% else %}border-token focus:border-accent focus:ring-accent/30{% endif %}">
+                  {% if imdb_score_min_error %}
+                  <p id="imdb_score_min_error" class="mt-2 text-sm font-medium text-red-700">{{ imdb_score_min_error }}</p>
+                  {% endif %}
                 </div>
                 <div>
                   <label for="imdb_score_max" class="block text-sm font-medium">Max Score</label>
-                  <input type="number" id="imdb_score_max" name="imdb_score_max" min="1" max="10" step="0.1" value="{{ current_filters.get('imdb_score_max', 10.0) }}" class="mt-1 w-full rounded-2xl border-2 border-token px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30">
+                  {% set imdb_score_max_error = validation_errors.get('imdb_score_max') %}
+                  <input type="number" id="imdb_score_max" name="imdb_score_max" min="1" max="10" step="0.1" value="{{ current_filters.get('imdb_score_max', 10.0) }}" {% if imdb_score_max_error %}aria-invalid="true" aria-describedby="imdb_score_max_error"{% endif %} class="mt-1 w-full rounded-2xl border-2 px-4 py-2.5 text-sm shadow-sm focus:outline-none focus:ring-2 {% if imdb_score_max_error %}border-red-400 focus:border-red-500 focus:ring-red-200{% else %}border-token focus:border-accent focus:ring-accent/30{% endif %}">
+                  {% if imdb_score_max_error %}
+                  <p id="imdb_score_max_error" class="mt-2 text-sm font-medium text-red-700">{{ imdb_score_max_error }}</p>
+                  {% endif %}
                 </div>
               </section>
 
@@ -122,11 +136,19 @@
                 </h2>
                 <div>
                   <label for="num_votes_min" class="block text-sm font-medium">Min Votes</label>
-                  <input type="number" id="num_votes_min" name="num_votes_min" min="0" value="{{ current_filters.get('num_votes_min', 100000) }}" class="mt-1 w-full rounded-2xl border-2 border-token px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30">
+                  {% set num_votes_min_error = validation_errors.get('num_votes_min') %}
+                  <input type="number" id="num_votes_min" name="num_votes_min" min="0" value="{{ current_filters.get('num_votes_min', 100000) }}" {% if num_votes_min_error %}aria-invalid="true" aria-describedby="num_votes_min_error"{% endif %} class="mt-1 w-full rounded-2xl border-2 px-4 py-2.5 text-sm shadow-sm focus:outline-none focus:ring-2 {% if num_votes_min_error %}border-red-400 focus:border-red-500 focus:ring-red-200{% else %}border-token focus:border-accent focus:ring-accent/30{% endif %}">
+                  {% if num_votes_min_error %}
+                  <p id="num_votes_min_error" class="mt-2 text-sm font-medium text-red-700">{{ num_votes_min_error }}</p>
+                  {% endif %}
                 </div>
                 <div>
                   <label for="num_votes_max" class="block text-sm font-medium">Max Votes</label>
-                  <input type="number" id="num_votes_max" name="num_votes_max" min="1" max="2000000" value="{{ current_filters.get('num_votes_max', 200000) }}" class="mt-1 w-full rounded-2xl border-2 border-token px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30">
+                  {% set num_votes_max_error = validation_errors.get('num_votes_max') %}
+                  <input type="number" id="num_votes_max" name="num_votes_max" min="1" max="2000000" value="{{ current_filters.get('num_votes_max', 200000) }}" {% if num_votes_max_error %}aria-invalid="true" aria-describedby="num_votes_max_error"{% endif %} class="mt-1 w-full rounded-2xl border-2 px-4 py-2.5 text-sm shadow-sm focus:outline-none focus:ring-2 {% if num_votes_max_error %}border-red-400 focus:border-red-500 focus:ring-red-200{% else %}border-token focus:border-accent focus:ring-accent/30{% endif %}">
+                  {% if num_votes_max_error %}
+                  <p id="num_votes_max_error" class="mt-2 text-sm font-medium text-red-700">{{ num_votes_max_error }}</p>
+                  {% endif %}
                 </div>
               </section>
             </div>
@@ -141,11 +163,19 @@
                 </h2>
                 <div>
                   <label for="year_min" class="block text-sm font-medium">Earliest</label>
-                  <input type="number" id="year_min" name="year_min" min="1900" value="{{ current_filters.get('year_min', 1900) }}" class="mt-1 w-full rounded-2xl border-2 border-token px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30">
+                  {% set year_min_error = validation_errors.get('year_min') %}
+                  <input type="number" id="year_min" name="year_min" min="1900" value="{{ current_filters.get('year_min', 1900) }}" {% if year_min_error %}aria-invalid="true" aria-describedby="year_min_error"{% endif %} class="mt-1 w-full rounded-2xl border-2 px-4 py-2.5 text-sm shadow-sm focus:outline-none focus:ring-2 {% if year_min_error %}border-red-400 focus:border-red-500 focus:ring-red-200{% else %}border-token focus:border-accent focus:ring-accent/30{% endif %}">
+                  {% if year_min_error %}
+                  <p id="year_min_error" class="mt-2 text-sm font-medium text-red-700">{{ year_min_error }}</p>
+                  {% endif %}
                 </div>
                 <div>
                   <label for="year_max" class="block text-sm font-medium">Latest</label>
-                  <input type="number" id="year_max" name="year_max" value="{{ current_filters.get('year_max', current_year) }}" class="mt-1 w-full rounded-2xl border-2 border-token px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30">
+                  {% set year_max_error = validation_errors.get('year_max') %}
+                  <input type="number" id="year_max" name="year_max" value="{{ current_filters.get('year_max', current_year) }}" {% if year_max_error %}aria-invalid="true" aria-describedby="year_max_error"{% endif %} class="mt-1 w-full rounded-2xl border-2 px-4 py-2.5 text-sm shadow-sm focus:outline-none focus:ring-2 {% if year_max_error %}border-red-400 focus:border-red-500 focus:ring-red-200{% else %}border-token focus:border-accent focus:ring-accent/30{% endif %}">
+                  {% if year_max_error %}
+                  <p id="year_max_error" class="mt-2 text-sm font-medium text-red-700">{{ year_max_error }}</p>
+                  {% endif %}
                 </div>
               </section>
 
@@ -191,6 +221,10 @@
                   <input type="checkbox" id="selectAll" checked class="h-4 w-4 rounded border-token text-accent focus:ring-accent" />
                   <label for="selectAll">Select All</label>
                 </div>
+                <p id="genres-helper" class="hidden text-sm text-body/80" aria-live="polite">No genres selected. Nextreel will use all genres.</p>
+                {% if genres_notice %}
+                <p class="rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-800">{{ genres_notice }}</p>
+                {% endif %}
                 <div class="genre-grid mt-2 flex flex-wrap gap-2">
                   {% set genres = ['Action','Adventure','Animation','Biography','Comedy','Crime','Documentary','Drama','Fantasy','Horror','Musical','Sci-Fi','Sport','Thriller','War','Western'] %}
                   {% for g in genres %}
@@ -251,21 +285,33 @@
 
     // Select All genres
     const selectAllChk = document.getElementById('selectAll');
+    const genresHelper = document.getElementById('genres-helper');
     const genreGrid   = document.querySelector('.genre-grid');
     const genreBoxes  = () => Array.from(genreGrid.querySelectorAll('input[type="checkbox"]'));
 
     function setAllGenres(checked) {
       genreBoxes().forEach(cb => cb.checked = checked);
+      syncGenreState();
     }
-    function updateSelectAllState() {
+    function syncGenreState() {
+      if (!selectAllChk || !genreGrid) return;
       const boxes = genreBoxes();
       const allChecked = boxes.length > 0 && boxes.every(cb => cb.checked);
+      const noneChecked = boxes.every(cb => !cb.checked);
       selectAllChk.checked = allChecked;
+      if (genresHelper) {
+        genresHelper.classList.toggle('hidden', !noneChecked);
+      }
     }
 
     if (selectAllChk && genreGrid) {
       selectAllChk.addEventListener('change', (e) => setAllGenres(e.target.checked));
-      genreGrid.addEventListener('change', updateSelectAllState);
+      genreGrid.addEventListener('change', syncGenreState);
+      const filtersForm = selectAllChk.closest('form');
+      if (filtersForm) {
+        filtersForm.addEventListener('reset', () => window.setTimeout(syncGenreState, 0));
+      }
+      syncGenreState();
     }
   </script>
 </body>

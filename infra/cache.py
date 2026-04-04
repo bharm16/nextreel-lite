@@ -46,6 +46,7 @@ class SimpleCacheManager:
         connection_pool: Optional[aioredis.ConnectionPool] = None,
         redis_client: Optional[aioredis.Redis] = None,
         default_ttl: int = 3600,
+        verify_connection: bool = True,
         **kwargs,
     ):
         # kwargs accepts (and ignores) secret_key, enable_monitoring, etc.
@@ -55,6 +56,7 @@ class SimpleCacheManager:
         self._default_ttl = default_ttl
         self._owns_connection = False  # True when we created our own connection
         self._redis: Optional[aioredis.Redis] = redis_client
+        self._verify_connection = verify_connection
 
     @classmethod
     def from_url(cls, redis_url: str, default_ttl: int = 3600) -> "SimpleCacheManager":
@@ -67,14 +69,26 @@ class SimpleCacheManager:
         return cls(connection_pool=connection_pool, default_ttl=default_ttl)
 
     @classmethod
-    def from_client(cls, redis_client: aioredis.Redis, default_ttl: int = 3600) -> "SimpleCacheManager":
+    def from_client(
+        cls,
+        redis_client: aioredis.Redis,
+        default_ttl: int = 3600,
+        verify_connection: bool = True,
+    ) -> "SimpleCacheManager":
         """Create a cache manager wrapping an existing Redis client."""
-        return cls(redis_client=redis_client, default_ttl=default_ttl)
+        return cls(
+            redis_client=redis_client,
+            default_ttl=default_ttl,
+            verify_connection=verify_connection,
+        )
 
     async def initialize(self) -> None:
         """Connect to Redis (or verify shared connection)."""
         # If a Redis client was already provided, just verify it works
         if self._redis is not None:
+            if not self._verify_connection:
+                logger.info("SimpleCacheManager using pre-verified Redis connection")
+                return
             try:
                 await self._redis.ping()
                 logger.info("SimpleCacheManager using shared Redis connection")

@@ -2,44 +2,29 @@
 Enhanced Logging Configuration with Loki Integration
 This sends all NextReel logs to Grafana Cloud
 """
-import os
-import sys
 import logging
 import logging.handlers
-from pathlib import Path
 import json
-import requests
-import threading
+import os
 import queue
-import time
-from datetime import datetime
-from dotenv import load_dotenv
+import sys
+import threading
+from pathlib import Path
 
-# Load environment — cannot use config.env.get_environment() here because
-# config/__init__.py triggers imports that depend on logging_config.
-flask_env = os.getenv('NEXTREEL_ENV', os.getenv('FLASK_ENV', 'production'))
-if flask_env == 'development':
-    load_dotenv('.env.development')
-    if not os.getenv('GRAFANA_LOKI_URL'):
-        load_dotenv('.env')
-else:
-    load_dotenv('.env.production')
-    if not os.getenv('GRAFANA_LOKI_URL'):
-        load_dotenv('.env')
+from env_bootstrap import ensure_env_loaded, get_environment
 
-# Loki configuration
-LOKI_URL = os.getenv('GRAFANA_LOKI_URL', 'https://logs-prod-036.grafana.net')
-LOKI_USER = os.getenv('GRAFANA_LOKI_USER', '1304607')
-LOKI_KEY = os.getenv('GRAFANA_LOKI_KEY', '')
+_LOGGING_CONFIGURED = False
 
 class LokiHandler(logging.Handler):
     """Custom handler to send logs to Grafana Loki"""
     
     def __init__(self, url=None, user=None, key=None):
         super().__init__()
-        self.url = url or LOKI_URL
-        self.user = user or LOKI_USER
-        self.key = key or LOKI_KEY
+        ensure_env_loaded()
+        self.url = url or os.getenv('GRAFANA_LOKI_URL', 'https://logs-prod-036.grafana.net')
+        self.user = user or os.getenv('GRAFANA_LOKI_USER', '1304607')
+        self.key = key or os.getenv('GRAFANA_LOKI_KEY', '')
+        import requests
         self.session = requests.Session()
         # Use headers directly instead of session.auth to avoid credential leaks in tracebacks
         import base64 as _b64
@@ -88,7 +73,7 @@ class LokiHandler(logging.Handler):
         # Create labels for the stream
         labels = {
             "application": "nextreel",
-            "environment": os.getenv('FLASK_ENV', 'development'),
+            "environment": get_environment(),
             "level": record.levelname.lower(),
             "module": record.module,
             "function": record.funcName
@@ -173,12 +158,21 @@ class LokiHandler(logging.Handler):
 
 def setup_logging(log_level=logging.INFO):
     """Set up logging with Loki integration"""
+    global _LOGGING_CONFIGURED
+    ensure_env_loaded()
+
+    root_logger = logging.getLogger()
+    if _LOGGING_CONFIGURED:
+        for handler in root_logger.handlers:
+            if isinstance(handler, logging.StreamHandler):
+                handler.setLevel(log_level)
+        return root_logger
+
     # Create logs directory
     log_dir = Path('logs')
     log_dir.mkdir(exist_ok=True)
     
     # Root logger configuration
-    root_logger = logging.getLogger()
     root_logger.setLevel(logging.DEBUG)
     
     # Clear existing handlers
@@ -208,7 +202,7 @@ def setup_logging(log_level=logging.INFO):
     root_logger.addHandler(file_handler)
     
     # Loki handler
-    if LOKI_KEY:
+    if os.getenv('GRAFANA_LOKI_KEY'):
         try:
             loki_handler = LokiHandler()
             loki_format = logging.Formatter('%(message)s')
@@ -220,7 +214,7 @@ def setup_logging(log_level=logging.INFO):
             print(f"⚠ Could not enable Loki logging: {e}")
     else:
         print("⚠ Loki API key not found - logs won't be sent to Grafana")
-    
+    _LOGGING_CONFIGURED = True
     return root_logger
 
 # Create logger for import

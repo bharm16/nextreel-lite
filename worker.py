@@ -40,8 +40,8 @@ async def ensure_core_projection(ctx, tconst: str):
     return await ctx["projection_store"].ensure_core_projection(tconst)
 
 
-async def enrich_projection(ctx, tconst: str):
-    return await ctx["projection_store"].enrich_projection(tconst)
+async def enrich_projection(ctx, tconst: str, tmdb_id: int | None = None):
+    return await ctx["projection_store"].enrich_projection(tconst, known_tmdb_id=tmdb_id)
 
 
 async def requeue_stale_projections(ctx):

@@ -3,12 +3,10 @@ from __future__ import annotations
 import asyncio
 from typing import Any, MutableMapping
 
-import httpx
-
 from logging_config import get_logger
 
 from infra.metrics import home_prewarm_failed_total
-from infra.navigation_state import NavigationState, normalize_filters
+from infra.navigation_state import NavigationState
 from infra.runtime_schema import ensure_runtime_schema
 from movies.candidate_store import CandidateStore
 from movies.projection_store import ProjectionStore
@@ -47,15 +45,6 @@ class MovieManager:
         self.navigation_state_store = NavigationStateStore(self.db_pool)
         self._navigator = MovieNavigator(self.candidate_store, self.navigation_state_store)
 
-        try:
-            await self.set_default_backdrop()
-        except httpx.HTTPError as exc:
-            self.default_backdrop_url = None
-            logger.warning(
-                "TMDb backdrop warm-up failed; continuing without default backdrop: %s",
-                exc,
-            )
-
     async def close(self) -> None:
         try:
             if self.tmdb_helper:
@@ -86,7 +75,11 @@ class MovieManager:
         if state and not state.queue and self._navigator:
             try:
                 await asyncio.wait_for(
-                    self._navigator.prewarm_queue(state.session_id, legacy_session=legacy_session),
+                    self._navigator.prewarm_queue(
+                        state.session_id,
+                        legacy_session=legacy_session,
+                        current_state=state,
+                    ),
                     timeout=0.1,
                 )
             except Exception as exc:
@@ -132,7 +125,11 @@ class MovieManager:
     ) -> dict[str, Any] | None:
         if not self._navigator or not state:
             return None
-        return await self._navigator.next_movie(state.session_id, legacy_session=legacy_session)
+        return await self._navigator.next_movie(
+            state.session_id,
+            legacy_session=legacy_session,
+            current_state=state,
+        )
 
     async def previous_movie(
         self,
@@ -141,22 +138,26 @@ class MovieManager:
     ) -> dict[str, Any] | None:
         if not self._navigator or not state:
             return None
-        return await self._navigator.previous_movie(state.session_id, legacy_session=legacy_session)
+        return await self._navigator.previous_movie(
+            state.session_id,
+            legacy_session=legacy_session,
+            current_state=state,
+        )
 
     async def filtered_movie(
         self,
         state: NavigationState | None,
-        form_data: Any,
+        filters: dict[str, Any],
         legacy_session: MutableMapping[str, Any] | None = None,
     ) -> dict[str, Any] | None:
         if not self._navigator or not state:
             return None
 
-        filters = normalize_filters(form_data)
         return await self._navigator.apply_filters(
             state.session_id,
             filters,
             legacy_session=legacy_session,
+            current_state=state,
         )
 
     async def logout(

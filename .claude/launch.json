@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "mockup",
-      "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8090"],
+      "runtimeExecutable": "/Users/bryceharmon/Desktop/nextreel-lite/venv/bin/python3",
+      "runtimeArgs": ["-m", "http.server", "8090", "-d", "mockups"],
       "port": 8090
     }
   ]

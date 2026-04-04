@@ -167,20 +167,18 @@ async def test_handle_new_user_route_removed():
             assert response.status_code == 404
 
 
-async def test_startup_hook_initializes_movie_manager_before_warmup_queries():
-    """Warm-up should not execute DB queries before MovieManager.start()."""
+async def test_startup_hook_initializes_movie_manager_without_db_warmup_queries():
+    """Warm-up should avoid synthetic DB pings and use lazy job enqueueing."""
     with patch.dict(os.environ, TEST_ENV), \
-         patch('app.MovieManager') as MockManager:
+         patch('app.MovieManager') as MockManager, \
+         patch('app.ensure_movie_candidates_fulltext_index', AsyncMock()):
         manager = MockManager.return_value
         manager.start = AsyncMock()
-
-        async def execute_side_effect(*args, **kwargs):
-            assert manager.start.await_count == 1
-            return {"1": 1}
-
-        manager.db_pool.execute = AsyncMock(side_effect=execute_side_effect)
+        manager.db_pool.execute = AsyncMock()
+        manager.candidate_store.latest_refresh_at = AsyncMock(return_value=None)
 
         app = _make_test_app()
+        app.enqueue_runtime_job = AsyncMock(return_value=object())
         startup_hook = next(
             func for func in app.before_serving_funcs if func.__name__ == 'startup'
         )
@@ -188,4 +186,5 @@ async def test_startup_hook_initializes_movie_manager_before_warmup_queries():
         await startup_hook()
 
         manager.start.assert_awaited_once()
-        assert manager.db_pool.execute.await_count == 5
+        manager.db_pool.execute.assert_not_awaited()
+        app.enqueue_runtime_job.assert_awaited_once_with("refresh_movie_candidates")

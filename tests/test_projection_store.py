@@ -1,5 +1,6 @@
 """Tests for movies/projection_store.py — ProjectionStore class."""
 
+import asyncio
 import json
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -154,8 +155,8 @@ class TestBuildCorePayload:
 
         expected_keys = {
             "title", "imdb_id", "tmdb_id", "slug", "genres", "directors",
-            "rating", "votes", "plot", "poster_url", "year", "cast", "images",
-            "trailer", "credits", "backdrop_url", "original_language",
+            "rating", "votes", "plot", "poster_url", "year", "cast",
+            "trailer", "backdrop_url", "original_language",
             "spoken_languages", "age_rating", "budget", "revenue", "runtime",
             "production_countries", "status", "tagline", "watch_providers",
             "key_crew", "keywords", "recommendations", "external_ids",
@@ -314,7 +315,7 @@ class TestEnrichProjectionSuccess:
             result = await store.enrich_projection("tt1234567")
 
         MockMovie.assert_called_once_with("tt1234567", mock_db_pool, tmdb_helper=store.tmdb_helper)
-        mock_movie.get_movie_data.assert_awaited_once()
+        mock_movie.get_movie_data.assert_awaited_once_with(known_tmdb_id=42)
         assert result["projection_state"] == PROJECTION_READY
 
     async def test_saves_with_ready_state(self, mock_db_pool):
@@ -478,3 +479,100 @@ class TestRequeueStaleProjections:
         store = _make_store(mock_db_pool)
         count = await store.requeue_stale_projections()
         assert count == 0
+
+
+async def test_ready_check_is_select_only(mock_db_pool):
+    mock_db_pool.execute = AsyncMock(return_value={"ready": 1})
+    store = _make_store(mock_db_pool)
+
+    result = await store.ready_check()
+
+    assert result is True
+    mock_db_pool.execute.assert_awaited_once()
+    query = mock_db_pool.execute.await_args.args[0]
+    assert "SELECT 1 AS ready" in query
+
+
+# ---------------------------------------------------------------------------
+# fetch_renderable_payload
+# ---------------------------------------------------------------------------
+
+
+class TestFetchRenderablePayload:
+    async def test_ready_payload_returns_without_enqueue(self, mock_db_pool):
+        mock_db_pool.execute = AsyncMock(return_value=_projection_row())
+        enqueue = AsyncMock()
+        store = ProjectionStore(mock_db_pool, enqueue_fn=enqueue)
+
+        payload = await store.fetch_renderable_payload("tt1234567")
+
+        assert payload["title"] == "Test Movie"
+        enqueue.assert_not_awaited()
+
+    async def test_stale_payload_enqueues_and_returns_existing_payload(self, mock_db_pool):
+        mock_db_pool.execute = AsyncMock(side_effect=[
+            _projection_row(projection_state=PROJECTION_STALE),
+            None,
+        ])
+        enqueue = AsyncMock(return_value=object())
+        store = ProjectionStore(mock_db_pool, enqueue_fn=enqueue)
+
+        payload = await store.fetch_renderable_payload("tt1234567")
+
+        assert payload["projection_state"] == PROJECTION_STALE
+        enqueue.assert_awaited_once_with("enrich_projection", "tt1234567", 42)
+
+    async def test_core_payload_returns_immediately_and_enqueues_refresh(self, mock_db_pool):
+        mock_db_pool.execute = AsyncMock(side_effect=[
+            _projection_row(projection_state=PROJECTION_CORE),
+            None,
+        ])
+        enqueue = AsyncMock(return_value=object())
+        store = ProjectionStore(mock_db_pool, enqueue_fn=enqueue)
+
+        payload = await store.fetch_renderable_payload("tt1234567")
+
+        assert payload["title"] == "Test Movie"
+        assert payload["projection_state"] == PROJECTION_CORE
+        enqueue.assert_awaited_once_with("enrich_projection", "tt1234567", 42)
+
+    async def test_cold_miss_returns_core_payload_without_waiting_for_enrichment(self, mock_db_pool):
+        mock_db_pool.execute = AsyncMock(side_effect=[
+            None,
+            _core_db_row(),
+            None,
+            None,
+        ])
+        enqueue = AsyncMock(return_value=object())
+        store = ProjectionStore(mock_db_pool, enqueue_fn=enqueue)
+
+        payload = await store.fetch_renderable_payload("tt1234567")
+
+        assert payload["projection_state"] == PROJECTION_CORE
+        assert payload["_full"] is False
+        enqueue.assert_awaited_once_with("enrich_projection", "tt1234567", None)
+
+    async def test_local_enrichment_is_deduped_per_tconst(self, mock_db_pool):
+        store = ProjectionStore(mock_db_pool, tmdb_helper=MagicMock())
+        started = asyncio.Event()
+        release = asyncio.Event()
+
+        async def fake_enrich_projection(tconst, known_tmdb_id=None):
+            started.set()
+            await release.wait()
+            return {"tconst": tconst, "tmdb_id": known_tmdb_id}
+
+        store.enrich_projection = AsyncMock(side_effect=fake_enrich_projection)
+
+        first = await store._schedule_local_enrichment("tt1234567", tmdb_id=42)
+        second = await store._schedule_local_enrichment("tt1234567", tmdb_id=42)
+
+        assert first is True
+        assert second is False
+
+        await started.wait()
+        release.set()
+        if store._local_enrichment_tasks:
+            await asyncio.gather(*store._local_enrichment_tasks)
+
+        store.enrich_projection.assert_awaited_once_with("tt1234567", known_tmdb_id=42)

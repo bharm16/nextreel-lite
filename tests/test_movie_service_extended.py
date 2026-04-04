@@ -19,6 +19,7 @@ def _state(**overrides) -> NavigationState:
         csrf_token="csrf",
         filters=default_filter_state(),
         current_tconst=None,
+        current_ref=None,
         queue=[],
         prev=[],
         future=[],
@@ -44,7 +45,9 @@ class TestNextMovie:
 
         assert result == "redirect-response"
         mm._navigator.next_movie.assert_awaited_once_with(
-            "state-1", legacy_session=None
+            "state-1",
+            legacy_session=None,
+            current_state=state,
         )
 
     @pytest.mark.asyncio
@@ -80,7 +83,9 @@ class TestPreviousMovie:
 
         assert result == "prev-redirect"
         mm._navigator.previous_movie.assert_awaited_once_with(
-            "state-1", legacy_session=None
+            "state-1",
+            legacy_session=None,
+            current_state=state,
         )
 
     @pytest.mark.asyncio

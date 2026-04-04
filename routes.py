@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from quart import Blueprint, abort, current_app, flash, g, redirect, render_template, request, session, url_for
 
 from infra.metrics import user_actions_total
+from infra.navigation_state import normalize_filters, validate_filters
 from infra.ops_auth import check_ops_auth
 from infra.rate_limit import check_rate_limit, get_rate_limit_backend
 from infra.route_helpers import csrf_required, rate_limited, validate_csrf, with_timeout
@@ -49,6 +50,25 @@ def _current_state():
 
 def _get_csrf_token() -> str:
     return _current_state().csrf_token
+
+
+async def _render_filters_page(
+    current_filters,
+    *,
+    validation_errors: dict[str, str] | None = None,
+    form_notice: str | None = None,
+    genres_notice: str | None = None,
+    status_code: int = 200,
+):
+    response = await render_template(
+        "set_filters.html",
+        current_filters=current_filters,
+        current_year=datetime.now(timezone.utc).year,
+        validation_errors=validation_errors or {},
+        form_notice=form_notice,
+        genres_notice=genres_notice,
+    )
+    return response, status_code
 
 
 # CSRF validation is canonical in infra.route_helpers.validate_csrf.
@@ -229,11 +249,7 @@ async def set_filters():
         g.correlation_id,
     )
 
-    response = await render_template(
-        "set_filters.html",
-        current_filters=current_filters,
-        current_year=datetime.now(timezone.utc).year,
-    )
+    response = await _render_filters_page(current_filters)
     elapsed_time = time.time() - start_time
     logger.info(
         "Completed setting filters for state_id: %s in %.2f seconds. Correlation ID: %s",
@@ -251,6 +267,8 @@ async def set_filters():
 async def filtered_movie_endpoint():
     state = _current_state()
     form_data = await request.form
+    filters = normalize_filters(form_data)
+    validation_errors = validate_filters(filters)
 
     start_time = time.time()
     logger.info(
@@ -259,7 +277,33 @@ async def filtered_movie_endpoint():
         g.correlation_id,
     )
 
-    response = await _movie_manager.filtered_movie(state, form_data, legacy_session=_legacy_session())
+    if validation_errors:
+        logger.info(
+            "Rejected invalid filters for state_id: %s. Correlation ID: %s. Errors: %s",
+            state.session_id,
+            g.correlation_id,
+            validation_errors,
+        )
+        elapsed_time = time.time() - start_time
+        logger.info(
+            "Completed filtering movies for state_id: %s in %.2f seconds. Correlation ID: %s",
+            state.session_id,
+            elapsed_time,
+            g.correlation_id,
+        )
+        return await _render_filters_page(
+            filters,
+            validation_errors=validation_errors,
+            form_notice="Fix the highlighted filters and try again.",
+            genres_notice=(
+                "No genres selected. Nextreel will use all genres."
+                if not filters.get("genres_selected")
+                else None
+            ),
+            status_code=400,
+        )
+
+    response = await _movie_manager.filtered_movie(state, filters, legacy_session=_legacy_session())
     elapsed_time = time.time() - start_time
     logger.info(
         "Completed filtering movies for state_id: %s in %.2f seconds. Correlation ID: %s",

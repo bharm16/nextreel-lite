@@ -31,6 +31,7 @@ from infra.filter_normalizer import (  # noqa: F401
     default_filter_state,
     filters_from_criteria,
     normalize_filters,
+    validate_filters,
 )
 
 logger = get_logger(__name__)
@@ -100,6 +101,7 @@ class NavigationState:
     created_at: datetime
     last_activity_at: datetime
     expires_at: datetime
+    current_ref: dict[str, Any] | None = None
 
     def clone(self) -> "NavigationState":
         return NavigationState(
@@ -115,6 +117,7 @@ class NavigationState:
             created_at=self.created_at,
             last_activity_at=self.last_activity_at,
             expires_at=self.expires_at,
+            current_ref=copy.deepcopy(self.current_ref),
         )
 
 
@@ -157,6 +160,7 @@ class NavigationStateStore:
             created_at=created_at,
             last_activity_at=created_at,
             expires_at=self._fresh_expiry(created_at, created_at),
+            current_ref=None,
         )
 
     def _state_from_legacy(self, session_id: str, legacy_session: MutableMapping[str, Any]) -> NavigationState:
@@ -175,7 +179,7 @@ class NavigationStateStore:
     async def _load_row(self, session_id: str) -> NavigationState | None:
         row = await self.db_pool.execute(
             """
-            SELECT session_id, version, csrf_token, filters_json, current_tconst,
+            SELECT session_id, version, csrf_token, filters_json, current_tconst, current_ref_json,
                    queue_json, prev_json, future_json, seen_json,
                    created_at, last_activity_at, expires_at
             FROM user_navigation_state
@@ -202,6 +206,7 @@ class NavigationStateStore:
 
     def _row_to_state(self, row: dict[str, Any]) -> NavigationState:
         filters = self._json_load(row.get("filters_json"), default_filter_state())
+        current_ref = _normalize_ref(self._json_load(row.get("current_ref_json"), None))
         return NavigationState(
             session_id=row["session_id"],
             version=int(row["version"]),
@@ -215,28 +220,57 @@ class NavigationStateStore:
             created_at=row["created_at"],
             last_activity_at=row["last_activity_at"],
             expires_at=row["expires_at"],
+            current_ref=current_ref,
         )
 
+    @staticmethod
+    def _normalize_current_ref(state: NavigationState) -> dict[str, Any] | None:
+        current_ref = _normalize_ref(state.current_ref) if state.current_ref else None
+        if current_ref and state.current_tconst and current_ref["tconst"] != state.current_tconst:
+            current_ref = {
+                "tconst": state.current_tconst,
+                "title": current_ref.get("title"),
+                "slug": current_ref.get("slug"),
+            }
+        elif current_ref and state.current_tconst is None:
+            state.current_tconst = current_ref["tconst"]
+        return current_ref
+
+    def _serialized_state_fields(self, state: NavigationState) -> dict[str, Any]:
+        current_ref = self._normalize_current_ref(state)
+        return {
+            "csrf_token": state.csrf_token,
+            "filters_json": json.dumps(state.filters),
+            "current_tconst": state.current_tconst,
+            "current_ref_json": json.dumps(current_ref) if current_ref else None,
+            "queue_json": json.dumps(state.queue),
+            "prev_json": json.dumps(state.prev),
+            "future_json": json.dumps(state.future),
+            "seen_json": json.dumps(state.seen),
+        }
+
     async def _insert_state(self, state: NavigationState) -> None:
+        serialized = self._serialized_state_fields(state)
         await self.db_pool.execute(
             """
             INSERT INTO user_navigation_state (
-                session_id, version, csrf_token, filters_json, current_tconst,
+                session_id, version, csrf_token, filters_json, current_tconst, current_ref_json,
                 queue_json, prev_json, future_json, seen_json,
                 created_at, last_activity_at, expires_at
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
             [
                 state.session_id,
                 state.version,
-                state.csrf_token,
-                json.dumps(state.filters),
-                state.current_tconst,
-                json.dumps(state.queue),
-                json.dumps(state.prev),
-                json.dumps(state.future),
-                json.dumps(state.seen),
+                serialized["csrf_token"],
+                serialized["filters_json"],
+                serialized["current_tconst"],
+                serialized["current_ref_json"],
+                serialized["queue_json"],
+                serialized["prev_json"],
+                serialized["future_json"],
+                serialized["seen_json"],
                 state.created_at,
                 state.last_activity_at,
                 state.expires_at,
@@ -302,51 +336,53 @@ class NavigationStateStore:
         return None
 
     async def ready_check(self) -> bool:
-        probe_id = f"ready-{uuid.uuid4().hex}"
-        state = self._fresh_state(probe_id)
-        await self._insert_state(state)
-        fetched = await self.get_state(probe_id)
         await self.db_pool.execute(
-            "DELETE FROM user_navigation_state WHERE session_id = %s",
-            [probe_id],
-            fetch="none",
+            "SELECT 1 AS ready FROM user_navigation_state LIMIT 1",
+            fetch="one",
         )
-        return fetched is not None
+        return True
 
-    async def save_state(self, state: NavigationState, expected_version: int) -> bool:
+    async def save_state(
+        self,
+        state: NavigationState,
+        expected_version: int,
+        previous_state: NavigationState | None = None,
+    ) -> bool:
         now = utcnow()
         state.last_activity_at = now
         state.expires_at = self._fresh_expiry(state.created_at, now)
         next_version = expected_version + 1
+        current_values = self._serialized_state_fields(state)
+        previous_values = (
+            self._serialized_state_fields(previous_state)
+            if previous_state is not None
+            else None
+        )
+
+        assignments = ["version = %s"]
+        params: list[Any] = [next_version]
+        for field in (
+            "csrf_token",
+            "filters_json",
+            "current_tconst",
+            "current_ref_json",
+            "queue_json",
+            "prev_json",
+            "future_json",
+            "seen_json",
+        ):
+            if previous_values is None or current_values[field] != previous_values[field]:
+                assignments.append(f"{field} = %s")
+                params.append(current_values[field])
+        assignments.extend(["last_activity_at = %s", "expires_at = %s"])
+        params.extend([state.last_activity_at, state.expires_at, state.session_id, expected_version])
         updated = await self.db_pool.execute(
-            """
+            f"""
             UPDATE user_navigation_state
-            SET version = %s,
-                csrf_token = %s,
-                filters_json = %s,
-                current_tconst = %s,
-                queue_json = %s,
-                prev_json = %s,
-                future_json = %s,
-                seen_json = %s,
-                last_activity_at = %s,
-                expires_at = %s
+            SET {', '.join(assignments)}
             WHERE session_id = %s AND version = %s
             """,
-            [
-                next_version,
-                state.csrf_token,
-                json.dumps(state.filters),
-                state.current_tconst,
-                json.dumps(state.queue),
-                json.dumps(state.prev),
-                json.dumps(state.future),
-                json.dumps(state.seen),
-                state.last_activity_at,
-                state.expires_at,
-                state.session_id,
-                expected_version,
-            ],
+            params,
             fetch="none",
         )
         if updated != 1:
@@ -362,11 +398,12 @@ class NavigationStateStore:
         session_id: str,
         mutator: Callable[[NavigationState], Any | Awaitable[Any]],
         legacy_session: MutableMapping[str, Any] | None = None,
+        current_state: NavigationState | None = None,
     ) -> MutationResult:
         from infra.metrics import navigation_state_conflicts_total
 
         for _ in range(2):
-            current = await self.get_state(session_id)
+            current = current_state.clone() if current_state is not None else await self.get_state(session_id)
             if not current:
                 return MutationResult(state=None, conflicted=True)
 
@@ -375,12 +412,17 @@ class NavigationStateStore:
             if inspect.isawaitable(result):
                 result = await result
 
-            if await self.save_state(working, expected_version=current.version):
+            if await self.save_state(
+                working,
+                expected_version=current.version,
+                previous_state=current,
+            ):
                 if legacy_session and await self.dual_write_enabled():
                     self._write_legacy_session(working, legacy_session)
                 return MutationResult(state=working, result=result, conflicted=False)
 
             navigation_state_conflicts_total.inc()
+            current_state = None
 
         return MutationResult(state=await self.get_state(session_id), conflicted=True)
 

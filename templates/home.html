@@ -177,7 +177,7 @@
 
   {% include 'footer_modern.html' %}
 
-  <!-- Minimal JS for mobile menu toggling and image loading -->
+  <!-- Minimal JS for mobile menu toggling and theme -->
   <script>
     // Mobile menu toggle
     const menuBtn = document.getElementById('menuBtn');
@@ -218,22 +218,6 @@
       const pref = localStorage.getItem('nr-theme');
       if (pref === 'dark' || pref === 'light') setTheme(pref);
     } catch (e) {}
-    
-    // Graceful background image loading with fallback
-    document.addEventListener('DOMContentLoaded', function() {
-      const heroSection = document.querySelector('.bg-cover.bg-center.opacity-30');
-      if (heroSection) {
-        const img = new Image();
-        img.onload = function() {
-          // Image loaded successfully
-        };
-        img.onerror = function() {
-          heroSection.style.backgroundImage = 'none';
-        };
-        // Trigger the load
-        img.src = 'https://image.tmdb.org/t/p/w1280/dMrAwwB7PMC4SjgsTbgmEJblaYd.jpg';
-      }
-    });
   </script>
 </body>
 </html>

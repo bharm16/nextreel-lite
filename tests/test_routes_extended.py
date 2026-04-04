@@ -141,6 +141,45 @@ class TestOpsAuth:
                 )
                 assert response.status_code == 200
 
+    async def test_ready_reports_component_status(self):
+        with patch("app.MovieManager") as MockManager, \
+             patch.dict(os.environ, {**TEST_ENV, "OPS_AUTH_TOKEN": "secret-token"}):
+            manager = MockManager.return_value
+            manager.home = AsyncMock(return_value={"default_backdrop_url": None})
+            manager.db_pool.get_metrics = AsyncMock(
+                return_value={
+                    "pool_size": 2,
+                    "free_connections": 1,
+                    "circuit_breaker_state": "closed",
+                    "queries_executed": 5,
+                    "avg_query_time_ms": 3.2,
+                }
+            )
+            manager.candidate_store.has_fresh_data = AsyncMock(return_value=True)
+            manager.projection_store.ready_check = AsyncMock(return_value=True)
+
+            from app import create_app
+            app = create_app()
+            app.config["TESTING"] = True
+            app.navigation_state_store = AsyncMock()
+            app.navigation_state_store.ready_check = AsyncMock(return_value=True)
+            app.redis_available = True
+            app.worker_available = False
+
+            async with app.app_context():
+                client = app.test_client()
+                response = await client.get(
+                    "/ready",
+                    headers={"Authorization": "Bearer secret-token"},
+                )
+                data = await response.get_json()
+
+            assert response.status_code == 200
+            assert data["status"] == "ready"
+            assert data["navigation_state"]["ready"] is True
+            assert data["movie_candidates"]["fresh"] is True
+            assert data["projection_generation"]["ready"] is True
+
 
 # ---------------------------------------------------------------------------
 # CSRF validation

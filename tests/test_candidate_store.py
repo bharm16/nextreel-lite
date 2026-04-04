@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from infra.errors import DatabaseError
 from infra.time_utils import utcnow
 from movies.candidate_store import (
     SAMPLE_BUCKET_COUNT,
@@ -44,7 +45,7 @@ async def test_latest_refresh_at_returns_datetime(mock_db_pool):
     assert result == now
     mock_db_pool.execute.assert_awaited_once()
     call_args = mock_db_pool.execute.call_args
-    assert "MAX(refreshed_at)" in call_args[0][0]
+    assert "ORDER BY refreshed_at DESC" in call_args[0][0]
     assert call_args[1]["fetch"] == "one"
 
 
@@ -400,6 +401,63 @@ async def test_fetch_candidate_refs_includes_genre_clause(mock_db_pool):
     call_args = mock_db_pool.execute.call_args
     query = call_args[0][0]
     assert "MATCH(genres) AGAINST(%s IN BOOLEAN MODE)" in query
+
+
+def test_build_candidate_query_omits_language_clause_for_any(mock_db_pool):
+    store = _make_store(mock_db_pool)
+
+    query, params = store._build_candidate_query(
+        criteria={"language": "any"},
+        excluded_tconsts=set(),
+        desired_limit=2,
+        buckets=[1, 2],
+        seed="unused",
+        use_fulltext=True,
+    )
+
+    assert "language = %s" not in query
+    assert "language LIKE %s" not in query
+    assert "any" not in params
+
+
+def test_build_candidate_query_orders_by_shuffle_key_first(mock_db_pool):
+    store = _make_store(mock_db_pool)
+
+    query, _ = store._build_candidate_query(
+        criteria={"language": "en"},
+        excluded_tconsts=set(),
+        desired_limit=2,
+        buckets=[1, 2],
+        seed="unused",
+        use_fulltext=True,
+    )
+
+    assert "ORDER BY shuffle_key, numVotes DESC, averageRating DESC" in query
+
+
+async def test_fetch_candidate_refs_retries_like_clause_when_fulltext_missing(mock_db_pool):
+    """Retries with LIKE clauses when the movie_candidates FULLTEXT index is missing."""
+    mock_db_pool.execute.side_effect = [
+        DatabaseError("(1191, \"Can't find FULLTEXT index matching the column list\")"),
+        [_row("tt0001")],
+    ]
+    store = _make_store(mock_db_pool)
+
+    with patch("movies.candidate_store.criteria_from_filters", return_value={
+        "language": "en", "genres": ["Action", "Comedy"],
+    }):
+        refs = await store.fetch_candidate_refs(
+            filters={},
+            excluded_tconsts=set(),
+            limit=1,
+        )
+
+    assert refs == [{"tconst": "tt0001", "title": "Test Movie", "slug": "test-movie"}]
+    assert mock_db_pool.execute.await_count == 2
+    first_query = mock_db_pool.execute.await_args_list[0].args[0]
+    second_query = mock_db_pool.execute.await_args_list[1].args[0]
+    assert "MATCH(genres) AGAINST(%s IN BOOLEAN MODE)" in first_query
+    assert "genres LIKE %s AND genres LIKE %s" in second_query
 
 
 async def test_fetch_candidate_refs_minimum_limit_is_one(mock_db_pool):
