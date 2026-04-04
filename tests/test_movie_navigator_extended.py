@@ -7,7 +7,7 @@ from quart import Quart
 
 from infra.navigation_state import MutationResult, NavigationState, default_filter_state
 from infra.time_utils import utcnow
-from movie_navigator import MovieNavigator, _movie_ref
+from movie_navigator import MovieNavigator, NavigationOutcome, _movie_ref
 from routes import bp
 
 
@@ -107,9 +107,9 @@ async def test_next_movie_consumes_queue_and_tracks_history(nav_app):
 
     async with nav_app.app_context():
         async with nav_app.test_request_context("/"):
-            response = await navigator.next_movie("state-1")
+            outcome = await navigator.next_movie("state-1")
 
-    assert response.location.endswith("/movie/tt1")
+    assert outcome == NavigationOutcome(tconst="tt1")
     assert store.state.current_tconst == "tt1"
     assert store.state.prev == [{"tconst": "tt0", "title": "Zero", "slug": "zero"}]
     assert "tt1" in store.state.seen
@@ -128,9 +128,9 @@ async def test_previous_movie_moves_current_into_future(nav_app):
 
     async with nav_app.app_context():
         async with nav_app.test_request_context("/"):
-            response = await navigator.previous_movie("state-1")
+            outcome = await navigator.previous_movie("state-1")
 
-    assert response.location.endswith("/movie/tt1")
+    assert outcome == NavigationOutcome(tconst="tt1")
     assert store.state.current_tconst == "tt1"
     assert store.state.future == [{"tconst": "tt2", "title": "Two", "slug": "two"}]
 
@@ -147,9 +147,9 @@ async def test_next_movie_uses_current_ref_without_fetch_lookup(nav_app):
 
     async with nav_app.app_context():
         async with nav_app.test_request_context("/"):
-            response = await navigator.next_movie("state-1", current_state=state)
+            outcome = await navigator.next_movie("state-1", current_state=state)
 
-    assert response.location.endswith("/movie/tt1")
+    assert outcome == NavigationOutcome(tconst="tt1")
     assert store.state.prev == [{"tconst": "tt0", "title": "Zero", "slug": "zero"}]
     assert candidates.fetch_ref_calls == []
 
@@ -165,9 +165,9 @@ async def test_next_movie_only_refills_once_when_queue_starts_empty(nav_app):
 
     async with nav_app.app_context():
         async with nav_app.test_request_context("/"):
-            response = await navigator.next_movie("state-1")
+            outcome = await navigator.next_movie("state-1")
 
-    assert response.location.endswith("/movie/tt1")
+    assert outcome == NavigationOutcome(tconst="tt1")
     assert len(candidates.fetch_candidate_refs_calls) == 1
 
 
@@ -185,12 +185,12 @@ async def test_apply_filters_resets_state_and_redirects(nav_app):
 
     async with nav_app.app_context():
         async with nav_app.test_request_context("/"):
-            response = await navigator.apply_filters(
+            outcome = await navigator.apply_filters(
                 "state-1",
                 {"language": "fr", "genres_selected": ["Drama"]},
             )
 
-    assert response.location.endswith("/movie/tt5")
+    assert outcome == NavigationOutcome(tconst="tt5")
     assert store.state.current_tconst == "tt5"
     assert store.state.prev == []
     assert store.state.future == []
@@ -208,7 +208,6 @@ async def test_conflict_redirects_to_current_movie(nav_app):
 
     async with nav_app.app_context():
         async with nav_app.test_request_context("/"):
-            response = await navigator.next_movie("state-1")
+            outcome = await navigator.next_movie("state-1")
 
-    assert response.status_code == 303
-    assert response.location.endswith("/movie/tt2?state_conflict=1")
+    assert outcome == NavigationOutcome(tconst="tt2", state_conflict=True)

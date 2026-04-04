@@ -1,32 +1,65 @@
 """Application route handlers."""
 
+from dataclasses import dataclass
 import re
 import time
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 
 from quart import Blueprint, abort, current_app, flash, g, redirect, render_template, request, session, url_for
 
+from filter_contracts import FilterState
 from infra.metrics import user_actions_total
 from infra.navigation_state import normalize_filters, validate_filters
 from infra.ops_auth import check_ops_auth
 from infra.rate_limit import check_rate_limit, get_rate_limit_backend
 from infra.route_helpers import csrf_required, rate_limited, validate_csrf, with_timeout
 from logging_config import get_logger
+from movie_navigator import NavigationOutcome
+
+if TYPE_CHECKING:
+    from infra.metrics import MetricsCollector
+    from movie_service import MovieManager
 
 logger = get_logger(__name__)
 
 bp = Blueprint("main", __name__)
-_movie_manager = None
-_metrics_collector = None
 
 _REQUEST_TIMEOUT = 30
 _TCONST_RE = re.compile(r"^tt\d{1,10}$")
 
 
-def init_routes(movie_manager, metrics_collector):
-    global _movie_manager, _metrics_collector
-    _movie_manager = movie_manager
-    _metrics_collector = metrics_collector
+@dataclass(slots=True)
+class NextReelServices:
+    movie_manager: "MovieManager"
+    metrics_collector: "MetricsCollector"
+
+
+def init_routes(app, movie_manager, metrics_collector):
+    app.extensions["nextreel"] = NextReelServices(
+        movie_manager=movie_manager,
+        metrics_collector=metrics_collector,
+    )
+
+
+def _services() -> NextReelServices:
+    services = current_app.extensions.get("nextreel")
+    if services is None:
+        abort(503, description="Application services unavailable")
+    return services
+
+
+def _redirect_for_navigation_outcome(outcome: NavigationOutcome):
+    if outcome.state_conflict:
+        if outcome.tconst:
+            return redirect(
+                url_for("main.movie_detail", tconst=outcome.tconst, state_conflict=1),
+                code=303,
+            )
+        return redirect(url_for("main.home", state_conflict=1), code=303)
+    if outcome.tconst:
+        return redirect(url_for("main.movie_detail", tconst=outcome.tconst), code=303)
+    abort(500, description="Navigation outcome missing target movie")
 
 def _legacy_session():
     if current_app.config.get("SESSION_REDIS"):
@@ -78,7 +111,7 @@ def inject_csrf_token():
 @csrf_required
 async def logout():
     state = _current_state()
-    await _movie_manager.logout(state, legacy_session=_legacy_session())
+    await _services().movie_manager.logout(state, legacy_session=_legacy_session())
 
     response = redirect(url_for("main.home"), code=303)
     response.delete_cookie(
@@ -114,19 +147,20 @@ async def metrics():
 
 @bp.route("/ready")
 async def readiness_check():
+    movie_manager = _services().movie_manager
     if not check_ops_auth():
         return {"error": "unauthorized"}, 401
     if not await check_rate_limit("ready"):
         return {"error": "rate limited"}, 429
 
     try:
-        pool_metrics = await _movie_manager.db_pool.get_metrics()
+        pool_metrics = await movie_manager.db_pool.get_metrics()
         if pool_metrics["circuit_breaker_state"] == "open":
             return {"status": "not_ready", "reason": "database_circuit_breaker_open"}, 503
 
         navigation_ready = await current_app.navigation_state_store.ready_check()
-        candidates_fresh = await _movie_manager.candidate_store.has_fresh_data()
-        projection_ready = await _movie_manager.projection_store.ready_check()
+        candidates_fresh = await movie_manager.candidate_store.has_fresh_data()
+        projection_ready = await movie_manager.projection_store.ready_check()
         status_code = 200 if navigation_ready and candidates_fresh and projection_ready else 503
 
         return {
@@ -166,18 +200,22 @@ async def movie_detail(tconst):
 
     state = _current_state()
     logger.debug(
-        "Fetching movie details for tconst: %s, state_id: %s. Correlation ID: %s",
+        "Fetching movie details for tconst: %s, session_id: %s. Correlation ID: %s",
         tconst,
         state.session_id,
         g.correlation_id,
     )
-    return await _movie_manager.render_movie_by_tconst(state, tconst, template_name="movie.html")
+    return await _services().movie_manager.render_movie_by_tconst(
+        state,
+        tconst,
+        template_name="movie.html",
+    )
 
 
 @bp.route("/")
 async def home():
     state = _current_state()
-    data = await _movie_manager.home(state, legacy_session=_legacy_session())
+    data = await _services().movie_manager.home(state, legacy_session=_legacy_session())
     return await render_template(
         "home.html",
         default_backdrop_url=data["default_backdrop_url"],
@@ -189,20 +227,24 @@ async def home():
 @rate_limited("next_movie")
 @with_timeout(_REQUEST_TIMEOUT)
 async def next_movie():
+    services = _services()
     state = _current_state()
     logger.info(
-        "Requesting next movie for state_id: %s. Correlation ID: %s",
+        "Requesting next movie for session_id: %s. Correlation ID: %s",
         state.session_id,
         g.correlation_id,
     )
 
-    _metrics_collector.track_movie_recommendation("next_movie")
+    services.metrics_collector.track_movie_recommendation("next_movie")
     user_actions_total.labels(action_type="next_movie").inc()
 
-    response = await _movie_manager.next_movie(state, legacy_session=_legacy_session())
+    outcome = await services.movie_manager.next_movie(
+        state,
+        legacy_session=_legacy_session(),
+    )
 
-    if response:
-        return response
+    if outcome is not None:
+        return _redirect_for_navigation_outcome(outcome)
 
     logger.warning("No more movies available. Correlation ID: %s", g.correlation_id)
     return "No more movies available. Please try again later.", 200
@@ -213,21 +255,22 @@ async def next_movie():
 @rate_limited("previous_movie")
 @with_timeout(_REQUEST_TIMEOUT)
 async def previous_movie():
+    movie_manager = _services().movie_manager
     state = _current_state()
     logger.info(
-        "Requesting previous movie for state_id: %s. Correlation ID: %s",
+        "Requesting previous movie for session_id: %s. Correlation ID: %s",
         state.session_id,
         g.correlation_id,
     )
-    response = await _movie_manager.previous_movie(state, legacy_session=_legacy_session())
+    outcome = await movie_manager.previous_movie(state, legacy_session=_legacy_session())
 
-    if response is None:
-        tconst = _movie_manager.get_current_movie_tconst(state)
+    if outcome is None:
+        tconst = movie_manager.get_current_movie_tconst(state)
         if tconst:
             return redirect(url_for("main.movie_detail", tconst=tconst))
         return redirect(url_for("main.home"))
 
-    return response
+    return _redirect_for_navigation_outcome(outcome)
 
 
 @bp.route("/filters")
@@ -237,7 +280,7 @@ async def set_filters():
 
     start_time = time.time()
     logger.info(
-        "Starting to set filters for state_id: %s. Correlation ID: %s",
+        "Starting to set filters for session_id: %s. Correlation ID: %s",
         state.session_id,
         g.correlation_id,
     )
@@ -245,7 +288,7 @@ async def set_filters():
     response = await _render_filters_page(current_filters)
     elapsed_time = time.time() - start_time
     logger.info(
-        "Completed setting filters for state_id: %s in %.2f seconds. Correlation ID: %s",
+        "Completed setting filters for session_id: %s in %.2f seconds. Correlation ID: %s",
         state.session_id,
         elapsed_time,
         g.correlation_id,
@@ -258,28 +301,29 @@ async def set_filters():
 @rate_limited("filtered_movie")
 @with_timeout(_REQUEST_TIMEOUT)
 async def filtered_movie_endpoint():
+    movie_manager = _services().movie_manager
     state = _current_state()
     form_data = await request.form
-    filters = normalize_filters(form_data)
+    filters: FilterState = normalize_filters(form_data)
     validation_errors = validate_filters(filters)
 
     start_time = time.time()
     logger.info(
-        "Starting filtering movies for state_id: %s. Correlation ID: %s",
+        "Starting filtering movies for session_id: %s. Correlation ID: %s",
         state.session_id,
         g.correlation_id,
     )
 
     if validation_errors:
         logger.info(
-            "Rejected invalid filters for state_id: %s. Correlation ID: %s. Errors: %s",
+            "Rejected invalid filters for session_id: %s. Correlation ID: %s. Errors: %s",
             state.session_id,
             g.correlation_id,
             validation_errors,
         )
         elapsed_time = time.time() - start_time
         logger.info(
-            "Completed filtering movies for state_id: %s in %.2f seconds. Correlation ID: %s",
+            "Completed filtering movies for session_id: %s in %.2f seconds. Correlation ID: %s",
             state.session_id,
             elapsed_time,
             g.correlation_id,
@@ -296,15 +340,19 @@ async def filtered_movie_endpoint():
             status_code=400,
         )
 
-    response = await _movie_manager.filtered_movie(state, filters, legacy_session=_legacy_session())
+    outcome = await movie_manager.apply_filters(
+        state,
+        filters,
+        legacy_session=_legacy_session(),
+    )
     elapsed_time = time.time() - start_time
     logger.info(
-        "Completed filtering movies for state_id: %s in %.2f seconds. Correlation ID: %s",
+        "Completed filtering movies for session_id: %s in %.2f seconds. Correlation ID: %s",
         state.session_id,
         elapsed_time,
         g.correlation_id,
     )
-    if response:
-        return response
+    if outcome is not None:
+        return _redirect_for_navigation_outcome(outcome)
     await flash("No movies matched your filters. Try broadening your criteria.", "warning")
     return redirect(url_for("main.set_filters"))

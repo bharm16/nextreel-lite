@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Awaitable, Callable, MutableMapping
 
+from filter_contracts import FilterState
 from logging_config import get_logger
 from session.keys import (
     CRITERIA_KEY,
@@ -92,7 +93,7 @@ class NavigationState:
     session_id: str
     version: int
     csrf_token: str
-    filters: dict[str, Any]
+    filters: FilterState
     current_tconst: str | None
     queue: list[dict[str, Any]]
     prev: list[dict[str, Any]]

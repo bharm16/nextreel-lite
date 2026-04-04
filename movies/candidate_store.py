@@ -6,8 +6,9 @@ import random
 from datetime import datetime
 from typing import Any
 
+from filter_contracts import FilterState, MovieCriteria
 from infra.errors import DatabaseError
-from infra.navigation_state import criteria_from_filters
+from infra.filter_normalizer import criteria_from_filters
 from infra.time_utils import utcnow
 from logging_config import get_logger
 from movies.query_builder import MovieQueryBuilder
@@ -151,11 +152,23 @@ class CandidateStore:
 
     async def fetch_candidate_refs(
         self,
-        filters: dict[str, Any],
+        filters: FilterState | None,
         excluded_tconsts: set[str],
         limit: int,
     ) -> list[dict[str, Any]]:
         criteria = criteria_from_filters(filters)
+        return await self.fetch_candidate_refs_for_criteria(
+            criteria,
+            excluded_tconsts,
+            limit,
+        )
+
+    async def fetch_candidate_refs_for_criteria(
+        self,
+        criteria: MovieCriteria,
+        excluded_tconsts: set[str],
+        limit: int,
+    ) -> list[dict[str, Any]]:
         desired_limit = max(1, limit)
         seed = str(random.randint(0, _MYSQL_INT_MAX))
 

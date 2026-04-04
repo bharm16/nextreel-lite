@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from quart import redirect, url_for
+from dataclasses import dataclass
 
+from filter_contracts import FilterState
 from infra.navigation_state import (
     FUTURE_STACK_MAX,
     PREV_STACK_MAX,
@@ -14,6 +15,12 @@ from infra.navigation_state import (
 from logging_config import get_logger
 
 logger = get_logger(__name__)
+
+
+@dataclass(frozen=True, slots=True)
+class NavigationOutcome:
+    tconst: str | None
+    state_conflict: bool = False
 
 
 def _movie_ref(movie_data: dict) -> dict:
@@ -86,13 +93,11 @@ class MovieNavigator:
         state.seen.append(tconst)
         state.seen = state.seen[-SEEN_MAX:]
 
-    def _conflict_redirect(self, state):
-        if state and state.current_tconst:
-            return redirect(
-                url_for("main.movie_detail", tconst=state.current_tconst, state_conflict=1),
-                code=303,
-            )
-        return redirect(url_for("main.home", state_conflict=1), code=303)
+    def _conflict_outcome(self, state) -> NavigationOutcome:
+        return NavigationOutcome(
+            tconst=state.current_tconst if state else None,
+            state_conflict=True,
+        )
 
     async def prewarm_queue(self, session_id: str, legacy_session=None, current_state=None):
         async def mutate(state):
@@ -108,7 +113,12 @@ class MovieNavigator:
         )
         return result.state
 
-    async def next_movie(self, session_id: str, legacy_session=None, current_state=None):
+    async def next_movie(
+        self,
+        session_id: str,
+        legacy_session=None,
+        current_state=None,
+    ) -> NavigationOutcome | None:
         async def mutate(state):
             prefilled_empty_queue = False
             next_ref = None
@@ -144,13 +154,18 @@ class MovieNavigator:
             current_state=current_state,
         )
         if result.conflicted:
-            return self._conflict_redirect(result.state)
+            return self._conflict_outcome(result.state)
         if result.result:
             logger.info("Navigating to next movie %s", result.result)
-            return redirect(url_for("main.movie_detail", tconst=result.result), code=303)
+            return NavigationOutcome(tconst=result.result)
         return None
 
-    async def previous_movie(self, session_id: str, legacy_session=None, current_state=None):
+    async def previous_movie(
+        self,
+        session_id: str,
+        legacy_session=None,
+        current_state=None,
+    ) -> NavigationOutcome | None:
         async def mutate(state):
             if not state.prev:
                 return None
@@ -171,13 +186,19 @@ class MovieNavigator:
             current_state=current_state,
         )
         if result.conflicted:
-            return self._conflict_redirect(result.state)
+            return self._conflict_outcome(result.state)
         if result.result:
             logger.info("Navigating to previous movie %s", result.result)
-            return redirect(url_for("main.movie_detail", tconst=result.result), code=303)
+            return NavigationOutcome(tconst=result.result)
         return None
 
-    async def apply_filters(self, session_id: str, filters: dict, legacy_session=None, current_state=None):
+    async def apply_filters(
+        self,
+        session_id: str,
+        filters: FilterState,
+        legacy_session=None,
+        current_state=None,
+    ) -> NavigationOutcome | None:
         async def mutate(state):
             state.filters = filters
             state.queue = []
@@ -204,7 +225,7 @@ class MovieNavigator:
             current_state=current_state,
         )
         if result.conflicted:
-            return self._conflict_redirect(result.state)
+            return self._conflict_outcome(result.state)
         if result.result:
-            return redirect(url_for("main.movie_detail", tconst=result.result), code=303)
+            return NavigationOutcome(tconst=result.result)
         return None

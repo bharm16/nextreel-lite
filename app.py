@@ -88,8 +88,6 @@ def _build_test_navigation_state() -> NavigationState:
         last_activity_at=now,
         expires_at=now,
     )
-
-
 async def _setup_redis(app):
     """Initialize Redis runtime dependencies (session, cache, ARQ)."""
     redis_url = _redis_url()
@@ -117,13 +115,15 @@ async def _setup_redis(app):
             logger.warning("Legacy Redis session install failed: %s", exc)
 
         try:
-            app.secure_cache = SimpleCacheManager.from_client(
+            app.redis_cache = SimpleCacheManager.from_client(
                 redis_client,
                 verify_connection=False,
             )
-            await app.secure_cache.initialize()
+            app.secure_cache = app.redis_cache
+            await app.redis_cache.initialize()
         except Exception as exc:
             logger.warning("Redis cache initialization failed: %s", exc)
+            app.redis_cache = None
             app.secure_cache = None
 
         logger.info("Redis runtime dependencies initialized")
@@ -134,6 +134,7 @@ async def _setup_redis(app):
         app.config["SESSION_REDIS"] = None
         app.redis_available = False
         app.worker_available = False
+        app.redis_cache = None
         app.secure_cache = None
 
 
@@ -154,9 +155,9 @@ async def _shutdown_resources(app):
         except Exception as exc:
             logger.warning("Error closing MovieManager: %s", exc)
 
-    if getattr(app, "secure_cache", None):
+    if getattr(app, "redis_cache", None):
         try:
-            await asyncio.wait_for(app.secure_cache.close(), timeout=3.0)
+            await asyncio.wait_for(app.redis_cache.close(), timeout=3.0)
             logger.info("Secure cache closed")
         except Exception as exc:
             logger.warning("Error closing secure cache: %s", exc)
@@ -190,6 +191,7 @@ def _init_core(app):
     app.redis_url = None
     app.redis_available = False
     app.worker_available = False
+    app.redis_cache = None
     app.secure_cache = None
     app.background_tasks = set()
     app.config["SESSION_REDIS"] = None
@@ -200,7 +202,7 @@ def _init_metrics(app, movie_manager):
     """Phase 2: Metrics collector and route wiring."""
     metrics_collector = MetricsCollector(db_pool=movie_manager.db_pool, movie_manager=movie_manager)
     app.metrics_collector = metrics_collector
-    init_routes(movie_manager, metrics_collector)
+    init_routes(app, movie_manager, metrics_collector)
     return metrics_collector
 
 

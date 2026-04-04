@@ -277,6 +277,33 @@ async def test_fetch_candidate_refs_returns_refs(mock_db_pool):
     assert refs[1]["slug"] == "movie-two"
 
 
+async def test_fetch_candidate_refs_for_criteria_returns_refs(mock_db_pool):
+    """Criteria-native API returns normalized ref dicts from DB rows."""
+    mock_db_pool.execute.return_value = [
+        _row("tt0001", "Movie One", "movie-one"),
+        _row("tt0002", "Movie Two", "movie-two"),
+    ]
+    store = _make_store(mock_db_pool)
+
+    refs = await store.fetch_candidate_refs_for_criteria(
+        criteria={
+            "min_year": 2000,
+            "max_year": 2024,
+            "min_rating": 7.0,
+            "max_rating": 10.0,
+            "min_votes": 1000,
+            "max_votes": 500000,
+            "language": "en",
+        },
+        excluded_tconsts=set(),
+        limit=2,
+    )
+
+    assert len(refs) == 2
+    assert refs[0]["tconst"] == "tt0001"
+    assert refs[1]["slug"] == "movie-two"
+
+
 async def test_fetch_candidate_refs_handles_empty_results(mock_db_pool):
     """Returns empty list when no candidates match."""
     mock_db_pool.execute.return_value = []

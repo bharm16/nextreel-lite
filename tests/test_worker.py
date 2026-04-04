@@ -36,18 +36,23 @@ async def test_startup_initializes_context():
         mock_ps.assert_called_once_with(mock_pool)
         assert ctx["candidate_store"] is mock_cs.return_value
         assert ctx["projection_store"] is mock_ps.return_value
+        assert ctx["projection_coordinator"] is mock_ps.return_value.coordinator
 
 
 async def test_shutdown_closes_db_pool():
     """shutdown() should close the pool when present in ctx."""
     mock_pool = AsyncMock()
     mock_pool.close_pool = AsyncMock()
+    mock_projection_store = MagicMock()
+    mock_projection_store.coordinator = AsyncMock()
+    mock_projection_store.coordinator.aclose = AsyncMock()
 
     from worker import shutdown
 
-    ctx = {"db_pool": mock_pool}
+    ctx = {"db_pool": mock_pool, "projection_store": mock_projection_store}
     await shutdown(ctx)
 
+    mock_projection_store.coordinator.aclose.assert_awaited_once()
     mock_pool.close_pool.assert_awaited_once()
 
 
@@ -140,7 +145,7 @@ async def test_validate_referential_integrity_no_issues():
     mock_pool.execute = AsyncMock(return_value={"orphans": 0})
     ctx = {"db_pool": mock_pool}
 
-    with patch("scripts.validate_referential_integrity.INTEGRITY_CHECKS", [("check1", "SELECT 1"), ("check2", "SELECT 2")]):
+    with patch("worker.INTEGRITY_CHECKS", [("check1", "SELECT 1"), ("check2", "SELECT 2")]):
         result = await validate_referential_integrity(ctx)
 
     assert result == 0
@@ -159,7 +164,7 @@ async def test_validate_referential_integrity_with_issues():
     ctx = {"db_pool": mock_pool}
 
     checks = [("c1", "Q1"), ("c2", "Q2"), ("c3", "Q3")]
-    with patch("scripts.validate_referential_integrity.INTEGRITY_CHECKS", checks):
+    with patch("worker.INTEGRITY_CHECKS", checks):
         result = await validate_referential_integrity(ctx)
 
     assert result == 2
@@ -173,7 +178,7 @@ async def test_validate_referential_integrity_none_result():
     mock_pool.execute = AsyncMock(return_value=None)
     ctx = {"db_pool": mock_pool}
 
-    with patch("scripts.validate_referential_integrity.INTEGRITY_CHECKS", [("check1", "SELECT 1")]):
+    with patch("worker.INTEGRITY_CHECKS", [("check1", "SELECT 1")]):
         result = await validate_referential_integrity(ctx)
 
     assert result == 0

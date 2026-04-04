@@ -14,67 +14,10 @@ See ADR-001-ARCHITECTURE-AUDIT.md, Finding 2.4.
 import asyncio
 import sys
 
+from infra.integrity_checks import INTEGRITY_CHECKS
 from logging_config import get_logger
 
 logger = get_logger(__name__)
-
-# Each check is (description, query that returns orphan count).
-INTEGRITY_CHECKS = [
-    (
-        "title.ratings referencing non-existent title.basics",
-        """
-        SELECT COUNT(*) AS orphans
-        FROM `title.ratings` tr
-        LEFT JOIN `title.basics` tb ON tr.tconst = tb.tconst
-        WHERE tb.tconst IS NULL
-        """,
-    ),
-    (
-        "title.crew referencing non-existent title.basics",
-        """
-        SELECT COUNT(*) AS orphans
-        FROM `title.crew` tc
-        LEFT JOIN `title.basics` tb ON tc.tconst = tb.tconst
-        WHERE tb.tconst IS NULL
-        """,
-    ),
-    (
-        "title.principals referencing non-existent title.basics",
-        """
-        SELECT COUNT(*) AS orphans
-        FROM `title.principals` tp
-        LEFT JOIN `title.basics` tb ON tp.tconst = tb.tconst
-        WHERE tb.tconst IS NULL
-        """,
-    ),
-    (
-        "title.principals referencing non-existent name.basics",
-        """
-        SELECT COUNT(*) AS orphans
-        FROM `title.principals` tp
-        LEFT JOIN `name.basics` nb ON tp.nconst = nb.nconst
-        WHERE tp.nconst IS NOT NULL AND nb.nconst IS NULL
-        """,
-    ),
-    (
-        "popular_movies_cache referencing non-existent title.basics",
-        """
-        SELECT COUNT(*) AS orphans
-        FROM popular_movies_cache pmc
-        LEFT JOIN `title.basics` tb ON pmc.tconst = tb.tconst
-        WHERE tb.tconst IS NULL
-        """,
-    ),
-    (
-        "recent_movies_cache referencing non-existent title.basics",
-        """
-        SELECT COUNT(*) AS orphans
-        FROM recent_movies_cache rmc
-        LEFT JOIN `title.basics` tb ON rmc.tconst = tb.tconst
-        WHERE tb.tconst IS NULL
-        """,
-    ),
-]
 
 
 async def run_checks():

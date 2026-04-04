@@ -7,6 +7,7 @@ import pytest
 
 from infra.navigation_state import NavigationState, default_filter_state
 from infra.time_utils import utcnow
+from movie_navigator import NavigationOutcome
 from movie_service import MovieManager
 from tests.helpers import TEST_ENV
 
@@ -38,12 +39,12 @@ class TestNextMovie:
     async def test_delegates_to_navigator(self):
         mm = MovieManager(db_config=None)
         mm._navigator = AsyncMock()
-        mm._navigator.next_movie = AsyncMock(return_value="redirect-response")
+        mm._navigator.next_movie = AsyncMock(return_value=NavigationOutcome(tconst="tt1234567"))
 
         state = _state()
         result = await mm.next_movie(state)
 
-        assert result == "redirect-response"
+        assert result == NavigationOutcome(tconst="tt1234567")
         mm._navigator.next_movie.assert_awaited_once_with(
             "state-1",
             legacy_session=None,
@@ -76,12 +77,12 @@ class TestPreviousMovie:
     async def test_delegates_to_navigator(self):
         mm = MovieManager(db_config=None)
         mm._navigator = AsyncMock()
-        mm._navigator.previous_movie = AsyncMock(return_value="prev-redirect")
+        mm._navigator.previous_movie = AsyncMock(return_value=NavigationOutcome(tconst="tt7654321"))
 
         state = _state()
         result = await mm.previous_movie(state)
 
-        assert result == "prev-redirect"
+        assert result == NavigationOutcome(tconst="tt7654321")
         mm._navigator.previous_movie.assert_awaited_once_with(
             "state-1",
             legacy_session=None,
@@ -182,6 +183,8 @@ class TestClose:
     @patch.dict(os.environ, TEST_ENV)
     async def test_closes_tmdb_and_pool(self):
         mm = MovieManager(db_config=None)
+        mm.projection_coordinator = AsyncMock()
+        mm.projection_coordinator.aclose = AsyncMock()
         mm.tmdb_helper = AsyncMock()
         mm.tmdb_helper.close = AsyncMock()
         mm.db_pool = AsyncMock()
@@ -189,6 +192,7 @@ class TestClose:
 
         await mm.close()
 
+        mm.projection_coordinator.aclose.assert_awaited_once()
         mm.tmdb_helper.close.assert_awaited_once()
         mm.db_pool.close_pool.assert_awaited_once()
 
@@ -196,6 +200,8 @@ class TestClose:
     @patch.dict(os.environ, TEST_ENV)
     async def test_close_continues_on_tmdb_error(self):
         mm = MovieManager(db_config=None)
+        mm.projection_coordinator = AsyncMock()
+        mm.projection_coordinator.aclose = AsyncMock()
         mm.tmdb_helper = AsyncMock()
         mm.tmdb_helper.close = AsyncMock(side_effect=RuntimeError("close fail"))
         mm.db_pool = AsyncMock()

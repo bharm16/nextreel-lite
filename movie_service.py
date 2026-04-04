@@ -3,17 +3,19 @@ from __future__ import annotations
 import asyncio
 from typing import Any, MutableMapping
 
+from filter_contracts import FilterState
 from logging_config import get_logger
 
 from infra.metrics import home_prewarm_failed_total
 from infra.navigation_state import NavigationState
+from infra.pool import DatabaseConnectionPool
 from infra.runtime_schema import ensure_runtime_schema
 from movies.candidate_store import CandidateStore
 from movies.projection_store import ProjectionStore
 from movies.tmdb_client import TMDbHelper
-from movie_navigator import MovieNavigator
+from movie_navigator import MovieNavigator, NavigationOutcome
 from movie_renderer import MovieRenderer
-from settings import Config, DatabaseConnectionPool
+from settings import Config
 
 logger = get_logger(__name__)
 
@@ -30,7 +32,8 @@ class MovieManager:
         self.tmdb_helper = TMDbHelper()
 
         self.candidate_store = CandidateStore(self.db_pool)
-        self.projection_store = ProjectionStore(self.db_pool, self.tmdb_helper)
+        self.projection_store = ProjectionStore(self.db_pool, tmdb_helper=self.tmdb_helper)
+        self.projection_coordinator = self.projection_store.coordinator
         self.navigation_state_store = None
         self._navigator: MovieNavigator | None = None
         self._renderer = MovieRenderer(self.projection_store)
@@ -46,6 +49,13 @@ class MovieManager:
         self._navigator = MovieNavigator(self.candidate_store, self.navigation_state_store)
 
     async def close(self) -> None:
+        try:
+            if self.projection_coordinator:
+                await asyncio.wait_for(self.projection_coordinator.aclose(), timeout=5.0)
+                logger.info("MovieManager projection enrichment drained")
+        except Exception as e:
+            logger.error("Error closing projection enrichment: %s", e)
+
         try:
             if self.tmdb_helper:
                 await self.tmdb_helper.close()
@@ -115,7 +125,7 @@ class MovieManager:
         self,
         state: NavigationState | None,
         legacy_session: MutableMapping[str, Any] | None = None,
-    ) -> dict[str, Any] | None:
+    ) -> NavigationOutcome | None:
         if not self._navigator or not state:
             return None
         return await self._navigator.next_movie(
@@ -128,7 +138,7 @@ class MovieManager:
         self,
         state: NavigationState | None,
         legacy_session: MutableMapping[str, Any] | None = None,
-    ) -> dict[str, Any] | None:
+    ) -> NavigationOutcome | None:
         if not self._navigator or not state:
             return None
         return await self._navigator.previous_movie(
@@ -137,12 +147,12 @@ class MovieManager:
             current_state=state,
         )
 
-    async def filtered_movie(
+    async def apply_filters(
         self,
         state: NavigationState | None,
-        filters: dict[str, Any],
+        filters: FilterState,
         legacy_session: MutableMapping[str, Any] | None = None,
-    ) -> dict[str, Any] | None:
+    ) -> NavigationOutcome | None:
         if not self._navigator or not state:
             return None
 
@@ -151,6 +161,18 @@ class MovieManager:
             filters,
             legacy_session=legacy_session,
             current_state=state,
+        )
+
+    async def filtered_movie(
+        self,
+        state: NavigationState | None,
+        filters: FilterState,
+        legacy_session: MutableMapping[str, Any] | None = None,
+    ) -> NavigationOutcome | None:
+        return await self.apply_filters(
+            state,
+            filters,
+            legacy_session=legacy_session,
         )
 
     async def logout(
