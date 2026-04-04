@@ -28,13 +28,6 @@ def init_routes(movie_manager, metrics_collector):
     _movie_manager = movie_manager
     _metrics_collector = metrics_collector
 
-
-def _get_manager():
-    if _movie_manager is None:
-        abort(503, description="Application not fully initialized")
-    return _movie_manager
-
-
 def _legacy_session():
     if current_app.config.get("SESSION_REDIS"):
         return session

@@ -22,11 +22,8 @@ class SessionConfig:
             return None
         return os.getenv("COOKIE_DOMAIN", None)
 
-    # Timeout configuration — these are read-through defaults.
-    # EnhancedSessionSecurity owns the effective values at runtime.
-    SESSION_TIMEOUT_MINUTES = int(os.getenv("SESSION_TIMEOUT_MINUTES", 30))
+    # Navigation-state lifetime configuration.
     SESSION_IDLE_TIMEOUT_MINUTES = int(os.getenv("SESSION_IDLE_TIMEOUT_MINUTES", 15))
-    SESSION_ROTATION_INTERVAL = int(os.getenv("SESSION_ROTATION_INTERVAL", 10))
     MAX_SESSION_DURATION_HOURS = int(os.getenv("MAX_SESSION_DURATION_HOURS", 8))
 
     # Redis session backend

@@ -1,1 +1,1 @@
-"""Session management — keys, auth, and security."""
+"""Session key constants and Quart session compatibility helpers."""

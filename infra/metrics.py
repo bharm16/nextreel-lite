@@ -10,7 +10,7 @@ continue to work.
 
 import time
 import asyncio
-from typing import Optional, Dict, Any
+from typing import Optional
 from prometheus_client import generate_latest, REGISTRY
 from quart import Response, request, g
 from logging_config import get_logger
@@ -228,27 +228,6 @@ def setup_metrics_middleware(app, metrics_collector: MetricsCollector):
             logger.error("Error in metrics middleware: %s", e)
         
         return response
-
-
-# ============================================================================
-# UTILITY FUNCTIONS
-# ============================================================================
-
-def _gauge_value(gauge):
-    """Safely read a Gauge's current value via the public collect() API."""
-    for metric in gauge.collect():
-        for sample in metric.samples:
-            return sample.value
-    return 0
-
-
-def get_metrics_summary() -> Dict[str, Any]:
-    """Get a summary of current metrics"""
-    return {
-        'db_connections_active': _gauge_value(db_connections_active),
-        'db_connections_idle': _gauge_value(db_connections_idle),
-        'active_users': _gauge_value(active_users),
-    }
 
 
 def set_rate_limit_backend(backend: str) -> None:

@@ -112,17 +112,6 @@ class TestSessionConfig:
             sc = Config()
             assert sc.SESSION_COOKIE_SECURE is False
 
-    def test_session_timeout_from_env(self):
-        with patch.dict(os.environ, {"SESSION_TIMEOUT_MINUTES": "60"}):
-            Config = self._reimport()
-            assert Config.SESSION_TIMEOUT_MINUTES == 60
-
-    def test_session_timeout_default(self):
-        with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("SESSION_TIMEOUT_MINUTES", None)
-            Config = self._reimport()
-            assert Config.SESSION_TIMEOUT_MINUTES == 30
-
     def test_cookie_domain_none_in_development(self):
         with patch.dict(os.environ, {"NEXTREEL_ENV": "development"}):
             Config = self._reimport()

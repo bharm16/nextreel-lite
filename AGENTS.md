@@ -6,7 +6,7 @@ Don't be overly agreeable. Honest technical feedback is more useful than politen
 
 ## Repo Reality
 
-- This is a Python Quart app with a small Tailwind build step, not a real Next.js app. `next.config.js` exists, but the operational workflow is Python-first.
+- This is a Python Quart app with a small Tailwind build step, not a real Next.js app. There is no active `next.config.js`; the operational workflow is Python-first.
 - Use Python `3.11` locally. `runtime.txt` pins `python-3.11.11`. CI runs `3.11` and `3.12`.
 - `pytest` is configured in `pyproject.toml` to discover tests from `tests/` only. Root-level `test_*.py` files are legacy/staging files unless explicitly moved into `tests/`.
 - `npm test` is a placeholder that exits with an error. Do not use it as a verification step.
@@ -41,7 +41,7 @@ python app.py
 Notes:
 
 - The app auto-loads local env defaults through `local_env_setup.py` when `FLASK_ENV != production`.
-- Local defaults assume MySQL on `127.0.0.1`, Redis on `localhost:6379`, and database name `imdb`.
+- When env vars are absent, runtime defaults fall back to MySQL on `127.0.0.1`, Redis at `redis://localhost:6379`, and database name `imdb`.
 - `app.py` will search for an open port starting at `5000`.
 
 ### Run tests
@@ -98,13 +98,13 @@ python -m scripts.validate_referential_integrity
 Populate missing movie slugs:
 
 ```bash
-python add_movie_slugs.py
+python scripts/add_movie_slugs.py
 ```
 
 Update missing language values from TMDB:
 
 ```bash
-python update_languages_from_tmdb.py
+python scripts/update_languages_from_tmdb.py
 ```
 
 Bulk update ratings from TSV:
@@ -113,16 +113,16 @@ Bulk update ratings from TSV:
 python scripts/update_ratings.py
 ```
 
-Inspect recent movie coverage in the database:
+Inspect the historical 2024 movie coverage audit:
 
 ```bash
-python check_2024_movies.py
+python scripts/check_2024_movies.py
 ```
 
 ## Environment Caveats
 
-- The main app configuration is centered on `DB_*` and Upstash Redis variables from `.env.example`.
-- Some older scripts still read `STACKHERO_DB_*`, `MYSQL_*`, or other legacy names. Check the target script before changing env vars or assuming one naming scheme applies everywhere.
+- The main app configuration is centered on `DB_*`, `REDIS_URL` for local Redis, and `UPSTASH_REDIS_HOST` / `UPSTASH_REDIS_PORT` / `UPSTASH_REDIS_PASSWORD` for production Redis.
+- `REDIS_PASSWORD` is an optional legacy secret recognized by `infra/secrets.py`, but runtime Redis connectivity prefers `REDIS_URL` or the Upstash variables.
 - `setup_production_env.py` is intentionally dead code right now. Do not build workflows around it.
 
 ## Change Discipline

@@ -60,13 +60,6 @@ class MovieManager:
         except Exception as e:
             logger.error("Error closing MovieManager: %s", e)
 
-    async def add_user(self, user_id: str, criteria: dict[str, Any]) -> None:
-        """Backward-compatible no-op.
-
-        User bootstrap now happens through NavigationStateStore.
-        """
-        logger.info("Legacy add_user invoked for %s with criteria %s", user_id, criteria)
-
     async def home(
         self,
         state: NavigationState | None,
