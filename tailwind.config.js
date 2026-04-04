@@ -5,15 +5,15 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        primary: '#02243f', // deep navy
-        accent: '#2db830',  // brand green
+        primary: '#1a1e27', // dark charcoal
+        accent: '#e85d50',  // coral-red
       },
       fontFamily: {
         'brand-serif': ['Merriweather', 'Georgia', 'Cambria', 'Times New Roman', 'Times', 'serif'],
         'sans': ['Poppins', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
       },
       boxShadow: {
-        'soft': '0 10px 25px rgba(2, 36, 63, 0.08)'
+        'soft': '0 10px 25px rgba(0, 0, 0, 0.25)'
       }
     }
   },
