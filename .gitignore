@@ -13,6 +13,10 @@ venv1/
 env/
 ENV/
 
+# Node dependencies
+node_modules/
+npm-debug.log
+
 # Make files
 Makefile
 
@@ -25,6 +29,7 @@ htmlcov
 ## Vim files
 .*.swp
 .idea
+.DS_Store
 
 # Environment files with secrets
 .env
@@ -32,6 +37,7 @@ htmlcov
 .env.development
 .env.production
 .env.*.local
+.env.*.backup
 
 # Keep example files
 !.env.example
@@ -52,7 +58,9 @@ backups/
 backup.sh
 
 # Log files (runtime data, can be large, may contain sensitive info)
+app.log
 logs/*.log
+logs/*.log.*
 
 # Integration documentation (internal use only)
 SECURITY_INTEGRATION.md
@@ -66,14 +74,10 @@ bug_report_*.txt
 test_report_*.json
 comprehensive_test.py
 
-logs/nextreel.log.1
-
-logs/nextreel.log.2
-
-logs/nextreel.log.3
-
 # Development and optimization scripts (not needed in production)
 scripts/filter_backend_optimized.py
 execute_db_optimization.py
 execute_prod_db_optimization.py
 test_performance_improvements.py
+
+firebase-debug.log

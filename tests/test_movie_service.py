@@ -1,109 +1,101 @@
-import asyncio
+import os
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from quart import Quart, session
 
+from infra.navigation_state import NavigationState, default_filter_state
+from infra.time_utils import utcnow
+from tests.helpers import TEST_ENV
 from movie_service import MovieManager
-from session_keys import USER_ID_KEY
 
 
-@pytest.fixture
-def app():
-    app = Quart(__name__)
-    app.config["SECRET_KEY"] = "test-secret"
-    app.config["TESTING"] = True
-    return app
+def _state() -> NavigationState:
+    now = utcnow()
+    return NavigationState(
+        session_id="state-1",
+        version=1,
+        csrf_token="csrf",
+        filters=default_filter_state(),
+        current_tconst=None,
+        current_ref=None,
+        queue=[],
+        prev=[],
+        future=[],
+        seen=[],
+        created_at=now,
+        last_activity_at=now,
+        expires_at=now,
+    )
 
 
 @pytest.mark.asyncio
-async def test_start_initializes_pool_and_backdrop():
-    set_default_backdrop_mock = AsyncMock()
-    with patch.object(MovieManager, "set_default_backdrop", set_default_backdrop_mock):
-        movie_manager = MovieManager(db_config=None)
-        movie_manager.db_pool.init_pool = AsyncMock()
+@patch.dict(os.environ, TEST_ENV)
+async def test_start_initializes_pool_schema_without_backdrop_warmup():
+    movie_manager = MovieManager(db_config=None)
+    movie_manager.db_pool.init_pool = AsyncMock()
+
+    with patch("movie_service.ensure_runtime_schema", AsyncMock()) as ensure_schema:
+        with patch.object(MovieManager, "set_default_backdrop", AsyncMock()) as set_backdrop:
+            await movie_manager.start()
+
+    movie_manager.db_pool.init_pool.assert_awaited_once()
+    ensure_schema.assert_awaited_once_with(movie_manager.db_pool)
+    set_backdrop.assert_not_awaited()
+    assert movie_manager.navigation_state_store is not None
+    assert movie_manager._navigator is not None
+
+
+@pytest.mark.asyncio
+@patch.dict(os.environ, TEST_ENV)
+async def test_start_leaves_default_backdrop_unset():
+    movie_manager = MovieManager(db_config=None)
+    movie_manager.db_pool.init_pool = AsyncMock()
+
+    with patch("movie_service.ensure_runtime_schema", AsyncMock()):
         await movie_manager.start()
-        movie_manager.db_pool.init_pool.assert_awaited_once()
-        set_default_backdrop_mock.assert_awaited_once()
+
+    movie_manager.db_pool.init_pool.assert_awaited_once()
+    assert movie_manager.default_backdrop_url is None
 
 
 @pytest.mark.asyncio
-async def test_add_user_sets_criteria_and_loads_queue(app):
-    async with app.test_request_context("/"):
-        movie_manager = MovieManager(db_config=None)
-        movie_manager._navigator._load_movies_into_queue = AsyncMock()
-        await movie_manager.add_user("test_user", {"genre": "comedy"})
-        assert session["criteria"] == {"genre": "comedy"}
-        movie_manager._navigator._load_movies_into_queue.assert_awaited_once()
-
-
-@pytest.mark.asyncio
-async def test_home_reuses_existing_prefetch_task(app):
-    render_template_mock = AsyncMock(return_value="rendered_template")
+@patch.dict(os.environ, TEST_ENV)
+async def test_home_prewarm_only_runs_for_empty_queue():
     movie_manager = MovieManager(db_config=None)
-    started = asyncio.Event()
-    release = asyncio.Event()
+    movie_manager._navigator = AsyncMock()
 
-    async def fake_ensure_queue():
-        started.set()
-        await release.wait()
+    state = _state()
+    await movie_manager.home(state)
+    movie_manager._navigator.prewarm_queue.assert_awaited_once_with(
+        "state-1",
+        legacy_session=None,
+        current_state=state,
+    )
 
-    movie_manager._navigator._ensure_queue = fake_ensure_queue
-
-    async with app.test_request_context("/"):
-        session[USER_ID_KEY] = "test-user"
-        with patch("movie_service.render_template", render_template_mock):
-            first_result = await movie_manager.home("test-user")
-            await started.wait()
-            second_result = await movie_manager.home("test-user")
-
-            assert first_result == "rendered_template"
-            assert second_result == "rendered_template"
-            assert len(movie_manager._queue_prefetch_tasks) == 1
-
-            release.set()
-            task = next(iter(movie_manager._queue_prefetch_tasks.values()))
-            await task
-            await asyncio.sleep(0)
-            assert movie_manager._queue_prefetch_tasks == {}
+    movie_manager._navigator.prewarm_queue.reset_mock()
+    state.queue = [{"tconst": "tt1", "title": "Movie", "slug": "movie"}]
+    await movie_manager.home(state)
+    movie_manager._navigator.prewarm_queue.assert_not_awaited()
 
 
 @pytest.mark.asyncio
-async def test_close_cancels_prefetch_tasks(app):
+@patch.dict(os.environ, TEST_ENV)
+async def test_filtered_movie_normalizes_and_delegates():
     movie_manager = MovieManager(db_config=None)
-    movie_manager.tmdb_helper.close = AsyncMock()
-    movie_manager.db_pool.close_pool = AsyncMock()
-    release = asyncio.Event()
+    movie_manager._navigator = AsyncMock()
+    movie_manager._navigator.apply_filters = AsyncMock(return_value="redirect")
+    state = _state()
+    filters = {
+        "year_min": "1990",
+        "year_max": "2000",
+        "language": "fr",
+        "imdb_score_min": "6.5",
+        "genres_selected": ["Drama", "Comedy"],
+    }
 
-    async def fake_ensure_queue():
-        await release.wait()
+    result = await movie_manager.filtered_movie(state, filters)
 
-    movie_manager._navigator._ensure_queue = fake_ensure_queue
-
-    async with app.test_request_context("/"):
-        session[USER_ID_KEY] = "test-user"
-        with patch("movie_service.render_template", AsyncMock(return_value="ok")):
-            await movie_manager.home("test-user")
-            task = next(iter(movie_manager._queue_prefetch_tasks.values()))
-            assert not task.done()
-
-            await movie_manager.close()
-
-            assert task.cancelled()
-            movie_manager.tmdb_helper.close.assert_awaited_once()
-            movie_manager.db_pool.close_pool.assert_awaited_once()
-
-
-@pytest.mark.asyncio
-async def test_set_default_backdrop():
-    class Helper:
-        async def get_images_by_tmdb_id(self, tmdb_id):
-            return {"backdrops": ["backdrop_url"]}
-
-        def get_full_image_url(self, path):
-            return f"full:{path}"
-
-    movie_manager = MovieManager(db_config=None)
-    movie_manager.tmdb_helper = Helper()
-    await movie_manager.set_default_backdrop()
-    assert movie_manager.default_backdrop_url == "full:backdrop_url"
+    assert result == "redirect"
+    movie_manager._navigator.apply_filters.assert_awaited_once()
+    _, delegated_filters = movie_manager._navigator.apply_filters.await_args.args[:2]
+    assert delegated_filters == filters

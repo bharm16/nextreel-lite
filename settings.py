@@ -6,17 +6,15 @@ For focused access, import directly from ``config.database``,
 """
 
 import os
-from dotenv import load_dotenv
+
+from env_bootstrap import ensure_env_loaded, get_environment
 from logging_config import get_logger
 
 logger = get_logger(__name__)
 
-flask_env = os.getenv("FLASK_ENV", "development")
-logger.debug("FLASK_ENV is set to: %s", flask_env)
-
-env_file = ".env.development" if flask_env == "development" else ".env"
-load_dotenv(dotenv_path=env_file)
-logger.debug("Loaded .env file: %s", env_file)
+ensure_env_loaded()
+flask_env = get_environment()
+logger.debug("NEXTREEL_ENV is set to: %s", flask_env)
 logger.debug("Database Host from environment: %s", os.getenv("DB_HOST"))
 
 # Import domain-specific configs
@@ -40,5 +38,4 @@ class Config(DatabaseConfig, SessionConfig, ApiConfig):
 
 
 # Re-export DatabaseConnectionPool and pool helpers for backward compatibility.
-# The canonical implementation now lives in database/pool.py.
-from database.pool import DatabaseConnectionPool, init_pool, get_pool, close_pool
+from infra.pool import DatabaseConnectionPool, init_pool, get_pool, close_pool

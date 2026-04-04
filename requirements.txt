@@ -1,5 +1,5 @@
-# NextReel Requirements File
-# ===========================
+# NextReel Requirements — Production
+# ===================================
 # Last updated: 2026-03-22
 #
 # Core Web Framework & Server
@@ -11,20 +11,16 @@ werkzeug==3.1.6                  # WSGI utilities (used by Quart)
 
 # Database & Storage
 # -----------------
-aiomysql==0.3.2                  # Async MySQL/MariaDB client
-redis==7.1.1                     # Redis client for caching and sessions
-PyMySQL==1.1.1                   # Pure Python MySQL client (fallback)
+aiomysql==0.3.2                  # Async MySQL/MariaDB client (pulls PyMySQL transitively)
+redis>=4.2.0,<6                  # redis-py; <6 required by arq 0.26.x (server can be Redis 6/7)
 
 # API Clients & HTTP
 # -----------------
 httpx==0.28.1                    # Modern async HTTP client
-tmdbsimple==2.9.1                # TMDB (The Movie Database) API wrapper
-requests==2.32.3                 # HTTP library (for tmdbsimple)
 
 # Security & Authentication
 # ------------------------
 cryptography==46.0.5             # Cryptographic primitives for security features
-PyJWT==2.12.1                    # JSON Web Token implementation
 
 # Configuration & Environment
 # --------------------------
@@ -36,35 +32,13 @@ prometheus-client==0.21.1        # Prometheus metrics collection
 
 # Logging & Debugging (Optional but Recommended)
 # ----------------------------------------------
-python-logging-loki==0.3.1       # Grafana Loki log aggregation (optional)
 colorlog==6.9.0                  # Colored terminal output for logs
 
 # Task Scheduling & Background Jobs
 # ---------------------------------
-APScheduler==3.11.0              # Advanced Python Scheduler (consolidated — removed `schedule`)
-
-# Testing & Development
-# --------------------
-pytest==8.3.5                    # Testing framework
-pytest-asyncio==0.25.3           # Async test support for pytest
-pytest-cov==6.1.1                # Coverage reporting for pytest
-pytest-mock==3.14.0              # Mock object library for pytest
-
-# Code Quality & Linting
-# ---------------------
-flake8==7.1.2                    # Style guide enforcement
-black==25.1.0                    # Code formatter
-mypy==1.15.0                     # Static type checker
-pylint==3.3.6                    # Code analysis tool
-
-# Documentation
-# ------------
-sphinx==8.2.3                    # Documentation generator
-sphinx-rtd-theme==3.0.2          # ReadTheDocs theme for Sphinx
+arq==0.26.3                      # Redis-backed worker for enrichment and refresh jobs
 
 # Utilities
 # --------
-python-dateutil==2.9.0.post0     # Date/time utilities
-aiofiles==24.1.0                 # Async file operations
 jinja2==3.1.6                    # Template engine (used by Quart)
 markupsafe==3.0.2                # Safe string markup for Jinja2

@@ -22,6 +22,14 @@
   --radius-xl: 1.25rem;/* 20px */
   --radius-2xl: 1.5rem;/* 24px */
 
+  /* Motion tokens */
+  --duration-fast: 150ms;
+  --duration-normal: 200ms;
+  --easing-default: ease;
+
+  /* Rating star color */
+  --color-star: #ffd166;
+
   color-scheme: light;
 }
 

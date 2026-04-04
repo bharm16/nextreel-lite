@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Concept C — Retro Cinema</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Hanken+Grotesk:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  /* ═══════════════════════════════════════════
+     CONCEPT C — RETRO CINEMA
+     Warm amber tones, perforated film strip
+     motifs, ticket-stub accents, analog warmth.
+     The feeling of a 1970s revival house.
+     ═══════════════════════════════════════════ */
+
+  :root {
+    --bg: #181210;
+    --surface: #221c17;
+    --surface-raised: #2a231c;
+    --amber: #e8a634;
+    --amber-dim: rgba(232,166,52,0.12);
+    --amber-glow: rgba(232,166,52,0.06);
+    --warm-white: #f2e8d8;
+    --warm-muted: #a89880;
+    --warm-faint: #5c5044;
+    --warm-border: #3a322a;
+    --ticket-red: #c94030;
+    --heading: 'Instrument Serif', Georgia, serif;
+    --body: 'Hanken Grotesk', 'Helvetica Neue', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: var(--body);
+    background: var(--bg);
+    color: var(--warm-white);
+    overflow-x: hidden;
+    min-height: 100vh;
+  }
+
+  /* Film grain */
+  body::after {
+    content: ''; position: fixed; inset: 0; z-index: 9999; pointer-events: none;
+    opacity: 0.035;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 200px;
+    mix-blend-mode: overlay;
+  }
+
+  /* === FILM STRIP DECORATIVE BORDER === */
+  .filmstrip-border {
+    position: fixed; left: 0; top: 0; bottom: 0; width: 36px;
+    z-index: 50; background: #0d0b09;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 8px 0; gap: 6px; overflow: hidden;
+  }
+  .perf {
+    width: 16px; height: 10px; border-radius: 2px;
+    background: #1a1614; border: 1px solid #2a2420;
+    flex-shrink: 0;
+  }
+  @media (max-width: 768px) { .filmstrip-border { display: none; } }
+
+  .page { margin-left: 36px; }
+  @media (max-width: 768px) { .page { margin-left: 0; } }
+
+  /* === NAV === */
+  .nav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(24,18,16,0.92);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--warm-border);
+    padding: 0 2.5rem;
+    display: flex; align-items: center; justify-content: space-between;
+    height: 56px;
+  }
+  @media (max-width: 768px) { .nav { padding: 0 1.25rem; } }
+
+  .nav-brand {
+    font-family: var(--heading);
+    font-size: 1.5rem; font-style: italic;
+    color: var(--amber); text-decoration: none;
+    transition: opacity 0.2s;
+  }
+  .nav-brand:hover { opacity: 0.8; }
+  .nav-right { display: flex; gap: 0.5rem; align-items: center; }
+  .nav-pill {
+    padding: 0.4rem 1rem; border-radius: 999px;
+    font-size: 0.78rem; font-weight: 600; letter-spacing: 0.03em;
+    cursor: pointer; transition: all 0.2s;
+    font-family: var(--body); text-decoration: none;
+  }
+  .nav-pill-amber {
+    background: var(--amber); color: var(--bg); border: none;
+  }
+  .nav-pill-amber:hover { box-shadow: 0 0 16px var(--amber-dim); }
+  .nav-pill-outline {
+    background: transparent; color: var(--warm-muted);
+    border: 1px solid var(--warm-border);
+  }
+  .nav-pill-outline:hover { border-color: var(--warm-muted); color: var(--warm-white); }
+
+  /* === TICKET STUB HEADER === */
+  .ticket-header {
+    background: var(--surface);
+    border-bottom: 2px dashed var(--warm-border);
+    padding: 3rem 2.5rem 2.5rem;
+    position: relative;
+    overflow: hidden;
+  }
+  @media (max-width: 768px) { .ticket-header { padding: 2rem 1.25rem 1.75rem; } }
+
+  /* Decorative circles (ticket perforation) */
+  .ticket-header::before, .ticket-header::after {
+    content: ''; position: absolute; bottom: -14px;
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--bg);
+  }
+  .ticket-header::before { left: 2rem; }
+  .ticket-header::after { right: 2rem; }
+
+  .ticket-top {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    flex-wrap: wrap; gap: 1.5rem;
+  }
+
+  .ticket-title-area { flex: 1; min-width: 280px; }
+  .ticket-label {
+    font-size: 0.65rem; font-weight: 700; letter-spacing: 0.2em;
+    text-transform: uppercase; color: var(--amber);
+    margin-bottom: 0.5rem;
+  }
+  .ticket-title {
+    font-family: var(--heading);
+    font-size: clamp(2.8rem, 6vw, 5rem);
+    font-weight: 400; line-height: 1;
+    letter-spacing: -0.01em;
+    margin-bottom: 0.4rem;
+  }
+  .ticket-year {
+    font-family: var(--heading);
+    font-style: italic;
+    color: var(--amber);
+    font-size: clamp(1.5rem, 2.5vw, 2rem);
+  }
+  .ticket-meta {
+    margin-top: 0.75rem;
+    font-size: 0.9rem; color: var(--warm-muted);
+    display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap;
+  }
+  .ticket-sep { color: var(--warm-faint); }
+  .ticket-rating-badge {
+    display: inline-flex; align-items: center; gap: 0.3rem;
+    padding: 0.3rem 0.7rem; border-radius: 6px;
+    background: var(--amber-dim); border: 1px solid rgba(232,166,52,0.2);
+    font-weight: 700; font-size: 0.85rem; color: var(--amber);
+  }
+  .ticket-rating-badge .star { margin-right: 0.1rem; }
+
+  /* Ticket admit-one side */
+  .ticket-admit {
+    flex-shrink: 0; text-align: center;
+    padding: 1rem 1.5rem;
+    border: 2px solid var(--warm-border);
+    border-radius: 10px;
+    position: relative;
+  }
+  .ticket-admit::before {
+    content: 'ADMIT ONE';
+    position: absolute; top: -0.5rem; left: 50%; transform: translateX(-50%);
+    background: var(--surface); padding: 0 0.5rem;
+    font-size: 0.55rem; font-weight: 700; letter-spacing: 0.2em;
+    color: var(--warm-faint);
+  }
+  .admit-score { font-family: var(--heading); font-size: 3rem; color: var(--amber); line-height: 1; }
+  .admit-outof { font-size: 0.75rem; color: var(--warm-muted); font-weight: 600; }
+  .admit-votes { font-size: 0.7rem; color: var(--warm-faint); margin-top: 0.25rem; }
+
+  /* === MAIN CONTENT === */
+  .main-content {
+    padding: 3rem 2.5rem;
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: 3rem;
+    max-width: 1100px;
+  }
+  @media (max-width: 900px) {
+    .main-content { grid-template-columns: 1fr; padding: 2rem 1.25rem; }
+  }
+
+  /* Poster with vintage frame */
+  .poster-vintage {
+    position: relative;
+    border: 3px solid var(--warm-border);
+    border-radius: 4px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+  }
+  .poster-vintage img { width: 100%; display: block; }
+  .poster-vintage::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(180deg, rgba(232,166,52,0.03) 0%, transparent 30%, rgba(0,0,0,0.15) 100%);
+    mix-blend-mode: multiply;
+  }
+
+  /* Right column */
+  .info-col {}
+
+  .genres-row { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+  .genre-pill {
+    padding: 0.35rem 0.75rem; border-radius: 4px;
+    font-size: 0.75rem; font-weight: 700;
+    letter-spacing: 0.06em;
+    background: var(--amber-dim); color: var(--amber);
+    border: 1px solid rgba(232,166,52,0.15);
+  }
+
+  .synopsis {
+    font-size: 1rem; line-height: 1.75;
+    color: var(--warm-muted);
+    margin-bottom: 2rem;
+    max-width: 560px;
+  }
+  .synopsis::first-line { color: var(--warm-white); font-weight: 500; }
+
+  /* Details list */
+  .details-list {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 0 2.5rem;
+    border-top: 1px solid var(--warm-border);
+    border-bottom: 1px solid var(--warm-border);
+    padding: 1.25rem 0; margin-bottom: 2rem;
+  }
+  @media (max-width: 500px) { .details-list { grid-template-columns: 1fr; } }
+  .detail-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 0.5rem 0; font-size: 0.85rem;
+  }
+  .detail-item:nth-child(odd) { border-right: 1px solid var(--warm-border); padding-right: 1.25rem; }
+  .detail-item:nth-child(even) { padding-left: 1.25rem; }
+  @media (max-width: 500px) {
+    .detail-item:nth-child(odd) { border-right: none; padding-right: 0; }
+    .detail-item:nth-child(even) { padding-left: 0; }
+  }
+  .detail-key { color: var(--warm-faint); font-weight: 500; }
+  .detail-val { color: var(--warm-white); font-weight: 700; }
+
+  /* Buttons */
+  .btn-row { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 2rem; }
+  .btn-retro {
+    padding: 0.6rem 1.5rem; border-radius: 6px;
+    font-family: var(--body); font-size: 0.82rem; font-weight: 700;
+    letter-spacing: 0.04em; cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .btn-amber { background: var(--amber); color: var(--bg); border: none; }
+  .btn-amber:hover { box-shadow: 0 4px 20px var(--amber-dim); transform: translateY(-1px); }
+  .btn-warm { background: var(--surface-raised); color: var(--warm-white); border: 1px solid var(--warm-border); }
+  .btn-warm:hover { border-color: var(--warm-muted); }
+  .btn-dim { background: transparent; color: var(--warm-faint); border: 1px solid var(--warm-border); }
+  .btn-dim:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  /* === CAST === */
+  .cast-area {
+    border-top: 1px solid var(--warm-border);
+    padding: 2.5rem 2.5rem 2rem;
+  }
+  @media (max-width: 768px) { .cast-area { padding: 2rem 1.25rem; } }
+
+  .section-heading {
+    font-family: var(--heading); font-style: italic;
+    font-size: 1.3rem; color: var(--amber);
+    margin-bottom: 1.25rem;
+  }
+
+  .cast-reel {
+    display: flex; gap: 1rem; overflow-x: auto;
+    padding-bottom: 0.75rem; scrollbar-width: thin;
+    scrollbar-color: var(--warm-border) transparent;
+  }
+  .cast-reel::-webkit-scrollbar { height: 4px; }
+  .cast-reel::-webkit-scrollbar-thumb { background: var(--warm-border); border-radius: 4px; }
+
+  .cast-card {
+    min-width: 130px; width: 130px;
+    background: var(--surface);
+    border: 1px solid var(--warm-border);
+    border-radius: 8px; overflow: hidden;
+    transition: all 0.3s ease;
+    animation: riseIn 0.5s ease both;
+  }
+  .cast-card:nth-child(1) { animation-delay: 0.05s; }
+  .cast-card:nth-child(2) { animation-delay: 0.1s; }
+  .cast-card:nth-child(3) { animation-delay: 0.15s; }
+  .cast-card:nth-child(4) { animation-delay: 0.2s; }
+  .cast-card:nth-child(5) { animation-delay: 0.25s; }
+  .cast-card:nth-child(6) { animation-delay: 0.3s; }
+  .cast-card:nth-child(7) { animation-delay: 0.35s; }
+  .cast-card:nth-child(8) { animation-delay: 0.4s; }
+
+  .cast-card:hover {
+    transform: translateY(-3px);
+    border-color: var(--amber);
+    box-shadow: 0 8px 30px rgba(232,166,52,0.1);
+  }
+  .cast-card img { width: 100%; height: 170px; object-fit: cover; display: block; filter: sepia(15%) contrast(1.05); }
+  .cast-card:hover img { filter: sepia(0%) contrast(1.1); }
+  .cast-no { height: 170px; background: var(--surface-raised); display: flex; align-items: center; justify-content: center; color: var(--warm-faint); font-size: 0.7rem; }
+  .cast-name { padding: 0.5rem 0.6rem 0.15rem; font-size: 0.78rem; font-weight: 700; color: var(--warm-white); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cast-role { padding: 0 0.6rem 0.5rem; font-size: 0.7rem; color: var(--warm-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* === WATCH PROVIDERS === */
+  .watch-area {
+    border-top: 1px solid var(--warm-border);
+    padding: 2.5rem 2.5rem 4rem;
+  }
+  @media (max-width: 768px) { .watch-area { padding: 2rem 1.25rem 3rem; } }
+
+  .watch-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1.5rem;
+  }
+  .watch-group h4 {
+    font-size: 0.65rem; font-weight: 700; letter-spacing: 0.15em;
+    text-transform: uppercase; color: var(--warm-faint);
+    margin-bottom: 0.6rem;
+  }
+  .watch-tags { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+  .watch-tag {
+    padding: 0.4rem 0.8rem; border-radius: 5px;
+    background: var(--surface-raised); border: 1px solid var(--warm-border);
+    font-size: 0.78rem; font-weight: 600; color: var(--warm-muted);
+    cursor: pointer; text-decoration: none; transition: all 0.2s;
+  }
+  .watch-tag:hover { background: var(--amber-dim); border-color: rgba(232,166,52,0.2); color: var(--amber); }
+
+  @keyframes riseIn {
+    from { opacity: 0; transform: translateY(15px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>
+</head>
+<body>
+
+<!-- Film strip border -->
+<div class="filmstrip-border">
+  <div class="perf"></div><div class="perf"></div><div class="perf"></div><div class="perf"></div>
+  <div class="perf"></div><div class="perf"></div><div class="perf"></div><div class="perf"></div>
+  <div class="perf"></div><div class="perf"></div><div class="perf"></div><div class="perf"></div>
+  <div class="perf"></div><div class="perf"></div><div class="perf"></div><div class="perf"></div>
+  <div class="perf"></div><div class="perf"></div><div class="perf"></div><div class="perf"></div>
+  <div class="perf"></div><div class="perf"></div><div class="perf"></div><div class="perf"></div>
+  <div class="perf"></div><div class="perf"></div><div class="perf"></div><div class="perf"></div>
+  <div class="perf"></div><div class="perf"></div><div class="perf"></div><div class="perf"></div>
+  <div class="perf"></div><div class="perf"></div><div class="perf"></div><div class="perf"></div>
+  <div class="perf"></div><div class="perf"></div><div class="perf"></div><div class="perf"></div>
+</div>
+
+<div class="page">
+  <!-- Nav -->
+  <nav class="nav">
+    <a href="#" class="nav-brand">Nextreel</a>
+    <div class="nav-right">
+      <button class="nav-pill nav-pill-amber">Pick a Movie</button>
+      <a href="#" class="nav-pill nav-pill-outline">Filters</a>
+    </div>
+  </nav>
+
+  <!-- Ticket header -->
+  <div class="ticket-header">
+    <div class="ticket-top">
+      <div class="ticket-title-area">
+        <div class="ticket-label">Now Showing</div>
+        <h1 class="ticket-title">The Shawshank Redemption</h1>
+        <span class="ticket-year">1994</span>
+        <div class="ticket-meta">
+          <span>Frank Darabont</span>
+          <span class="ticket-sep">/</span>
+          <span>142 min</span>
+          <span class="ticket-sep">/</span>
+          <span>Rated R</span>
+          <span class="ticket-sep">/</span>
+          <span class="ticket-rating-badge"><span class="star">&#9733;</span> 9.3</span>
+          <span style="font-size:0.78rem; color:var(--warm-faint);">2.9M ratings</span>
+        </div>
+      </div>
+      <div class="ticket-admit">
+        <div class="admit-score">9.3</div>
+        <div class="admit-outof">out of 10</div>
+        <div class="admit-votes">2.9M ratings</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div class="main-content">
+    <div>
+      <div class="poster-vintage">
+        <img src="https://image.tmdb.org/t/p/w500/9cjIGRiQI5KwzTMRbGikUPVBkbB.jpg" alt="The Shawshank Redemption poster">
+      </div>
+    </div>
+
+    <div class="info-col">
+      <div class="genres-row">
+        <span class="genre-pill">Drama</span>
+        <span class="genre-pill">Crime</span>
+      </div>
+
+      <p class="synopsis">Imprisoned in the 1940s for the double murder of his wife and her lover, upstanding banker Andy Dufresne begins a new life at the Shawshank prison, where he puts his accounting skills to work for a corrupt warden. During his long stretch in prison, Dufresne comes to be admired by the other inmates — including a philosophical fellow combatant named Red — for his integrity and unquenchable sense of hope.</p>
+
+      <div class="details-list">
+        <div class="detail-item">
+          <span class="detail-key">Runtime</span>
+          <span class="detail-val">142 min</span>
+        </div>
+        <div class="detail-item">
+          <span class="detail-key">Language</span>
+          <span class="detail-val">English</span>
+        </div>
+        <div class="detail-item">
+          <span class="detail-key">Budget</span>
+          <span class="detail-val">$25,000,000</span>
+        </div>
+        <div class="detail-item">
+          <span class="detail-key">Box Office</span>
+          <span class="detail-val">$58,300,000</span>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn-retro btn-amber">&#9654; Play Trailer</button>
+        <button class="btn-retro btn-warm">Next Movie &rarr;</button>
+        <button class="btn-retro btn-dim" disabled>&larr; Previous</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cast -->
+  <div class="cast-area">
+    <div class="section-heading">Cast</div>
+    <div class="cast-reel">
+      <div class="cast-card">
+        <img src="https://image.tmdb.org/t/p/w185/jdjm37cMTzalxxPm0HVlHOWmZgz.jpg" alt="Tim Robbins">
+        <div class="cast-name">Tim Robbins</div>
+        <div class="cast-role">Andy Dufresne</div>
+      </div>
+      <div class="cast-card">
+        <img src="https://image.tmdb.org/t/p/w185/oIciQWr8VwKoR8TmAw1owaiZFyb.jpg" alt="Morgan Freeman">
+        <div class="cast-name">Morgan Freeman</div>
+        <div class="cast-role">Ellis Boyd 'Red' Redding</div>
+      </div>
+      <div class="cast-card">
+        <img src="https://image.tmdb.org/t/p/w185/bv6KWOSdfFJSbLcIPNRSlKC6mDR.jpg" alt="Bob Gunton">
+        <div class="cast-name">Bob Gunton</div>
+        <div class="cast-role">Warden Norton</div>
+      </div>
+      <div class="cast-card">
+        <img src="https://image.tmdb.org/t/p/w185/kBMRKoLz0pVE4mOAE5bqz0vMlsm.jpg" alt="William Sadler">
+        <div class="cast-name">William Sadler</div>
+        <div class="cast-role">Heywood</div>
+      </div>
+      <div class="cast-card">
+        <img src="https://image.tmdb.org/t/p/w185/gJOeg4jtRRMx1A2FYiUdAcQ9XyR.jpg" alt="Clancy Brown">
+        <div class="cast-name">Clancy Brown</div>
+        <div class="cast-role">Captain Hadley</div>
+      </div>
+      <div class="cast-card">
+        <img src="https://image.tmdb.org/t/p/w185/5PnBF5neamS1bxFsoJM0oUv28Nw.jpg" alt="Gil Bellows">
+        <div class="cast-name">Gil Bellows</div>
+        <div class="cast-role">Tommy Williams</div>
+      </div>
+      <div class="cast-card">
+        <div class="cast-no">No image</div>
+        <div class="cast-name">Mark Rolston</div>
+        <div class="cast-role">Bogs Diamond</div>
+      </div>
+      <div class="cast-card">
+        <img src="https://image.tmdb.org/t/p/w185/bBCuCjhRCjA8kViLkNccAp1xlqg.jpg" alt="James Whitmore">
+        <div class="cast-name">James Whitmore</div>
+        <div class="cast-role">Brooks Hatlen</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Watch -->
+  <div class="watch-area">
+    <div class="section-heading">Where to Watch</div>
+    <div class="watch-grid">
+      <div class="watch-group">
+        <h4>Stream</h4>
+        <div class="watch-tags">
+          <a href="#" class="watch-tag">Max</a>
+          <a href="#" class="watch-tag">Hulu</a>
+        </div>
+      </div>
+      <div class="watch-group">
+        <h4>Rent</h4>
+        <div class="watch-tags">
+          <a href="#" class="watch-tag">Apple TV</a>
+          <a href="#" class="watch-tag">Amazon</a>
+          <a href="#" class="watch-tag">Vudu</a>
+        </div>
+      </div>
+      <div class="watch-group">
+        <h4>Buy</h4>
+        <div class="watch-tags">
+          <a href="#" class="watch-tag">Apple TV</a>
+          <a href="#" class="watch-tag">Amazon</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

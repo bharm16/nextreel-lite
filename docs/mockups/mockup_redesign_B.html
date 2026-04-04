@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Concept B — Editorial Magazine</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=Source+Sans+3:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ═══════════════════════════════════════════
+     CONCEPT B — EDITORIAL MAGAZINE
+     Criterion Collection meets Monocle.
+     Typography-forward, generous whitespace,
+     asymmetric layout, warm cream paper feel.
+     ═══════════════════════════════════════════ */
+
+  :root {
+    --cream: #faf6f0;
+    --paper: #f5efe5;
+    --ink: #1a1612;
+    --ink-light: #6b5e50;
+    --ink-faint: #b5a898;
+    --rule: #d4c8b8;
+    --rule-light: #e8dfd3;
+    --red: #c4392d;
+    --red-soft: rgba(196,57,45,0.08);
+    --serif: 'Playfair Display', Georgia, serif;
+    --sans: 'Source Sans 3', 'Helvetica Neue', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: var(--sans);
+    background: var(--cream);
+    color: var(--ink);
+    overflow-x: hidden;
+  }
+
+  /* Paper texture */
+  body::before {
+    content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    opacity: 0.4;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.08'/%3E%3C/svg%3E");
+  }
+
+  /* === NAV (thin editorial rule) === */
+  .nav {
+    position: sticky; top: 0; z-index: 100;
+    background: var(--cream);
+    border-bottom: 1px solid var(--rule);
+    padding: 0 3rem;
+    display: flex; align-items: center; justify-content: space-between;
+    height: 56px;
+  }
+  @media (max-width: 768px) { .nav { padding: 0 1.25rem; } }
+
+  .nav-brand {
+    font-family: var(--serif);
+    font-size: 1.2rem; font-weight: 700; font-style: italic;
+    color: var(--ink); text-decoration: none;
+    letter-spacing: -0.02em;
+  }
+  .nav-right { display: flex; gap: 1.5rem; align-items: center; }
+  .nav-link {
+    font-size: 0.75rem; font-weight: 600; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--ink-light);
+    text-decoration: none; transition: color 0.2s;
+  }
+  .nav-link:hover { color: var(--ink); }
+  .nav-link-accent {
+    color: var(--red); border-bottom: 1.5px solid var(--red);
+    padding-bottom: 1px;
+  }
+
+  /* === EDITORIAL LAYOUT === */
+  .editorial {
+    position: relative; z-index: 1;
+    max-width: 1200px; margin: 0 auto;
+    padding: 4rem 3rem 2rem;
+  }
+  @media (max-width: 768px) { .editorial { padding: 2.5rem 1.25rem 1.5rem; } }
+
+  /* Issue number / category line */
+  .overline {
+    font-size: 0.7rem; font-weight: 600; letter-spacing: 0.2em;
+    text-transform: uppercase; color: var(--red);
+    margin-bottom: 1.5rem;
+    display: flex; align-items: center; gap: 0.75rem;
+  }
+  .overline::after {
+    content: ''; flex: 1; height: 1px;
+    background: var(--rule);
+  }
+
+  /* Giant title */
+  .headline {
+    font-family: var(--serif);
+    font-size: clamp(3.5rem, 8vw, 7rem);
+    font-weight: 900; line-height: 0.9;
+    letter-spacing: -0.03em;
+    margin-bottom: 0.5rem;
+  }
+  .headline-year {
+    font-family: var(--serif);
+    font-size: clamp(1.5rem, 3vw, 2.5rem);
+    font-weight: 400; font-style: italic;
+    color: var(--ink-light);
+    margin-left: 0.2rem;
+  }
+
+  /* Byline */
+  .byline {
+    margin: 1.5rem 0 2.5rem;
+    font-size: 0.95rem; font-weight: 500;
+    color: var(--ink-light);
+  }
+  .byline strong { color: var(--ink); font-weight: 700; }
+
+  /* Two-column asymmetric grid */
+  .spread {
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    gap: 3.5rem;
+    align-items: start;
+  }
+  @media (max-width: 900px) {
+    .spread { grid-template-columns: 1fr; gap: 2rem; }
+  }
+
+  /* Poster column */
+  .poster-col { position: relative; }
+  .poster-frame {
+    position: relative;
+    border: 1px solid var(--rule);
+    padding: 10px;
+    background: white;
+    box-shadow:
+      0 2px 4px rgba(0,0,0,0.04),
+      0 20px 60px rgba(26,22,18,0.08);
+  }
+  .poster-frame img {
+    width: 100%; display: block;
+  }
+  .poster-caption {
+    margin-top: 0.75rem;
+    font-size: 0.7rem; color: var(--ink-faint);
+    font-style: italic; line-height: 1.5;
+    text-align: center;
+  }
+
+  /* Rating sidebar (decorative element) */
+  .rating-aside {
+    position: absolute; top: -1rem; right: -2rem;
+    width: 80px; height: 80px;
+    border-radius: 50%; background: var(--red);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    color: white; box-shadow: 0 8px 30px rgba(196,57,45,0.25);
+    z-index: 2;
+  }
+  .rating-aside .num {
+    font-family: var(--serif); font-size: 1.6rem; font-weight: 900; line-height: 1;
+  }
+  .rating-aside .outof {
+    font-size: 0.6rem; font-weight: 600; opacity: 0.8;
+    letter-spacing: 0.05em;
+  }
+  @media (max-width: 900px) {
+    .rating-aside { right: -0.5rem; top: -0.75rem; width: 64px; height: 64px; }
+    .rating-aside .num { font-size: 1.3rem; }
+  }
+
+  /* Text column */
+  .text-col { padding-top: 0.5rem; }
+
+  /* Genre bar */
+  .genre-bar {
+    display: flex; gap: 0.5rem; margin-bottom: 2rem; flex-wrap: wrap;
+  }
+  .genre-label {
+    font-size: 0.7rem; font-weight: 600; letter-spacing: 0.15em;
+    text-transform: uppercase; color: var(--ink-faint);
+    padding: 0.35rem 0.75rem;
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    transition: all 0.2s;
+  }
+  .genre-label:hover {
+    border-color: var(--ink-light); color: var(--ink-light);
+  }
+
+  /* Drop cap paragraph */
+  .body-text {
+    font-family: var(--serif);
+    font-size: 1.1rem; line-height: 1.8;
+    color: #3a342c; margin-bottom: 2rem;
+    text-align: justify;
+    hyphens: auto;
+  }
+  .body-text::first-letter {
+    font-size: 4.2rem; float: left;
+    line-height: 0.75; font-weight: 900;
+    margin: 0.1rem 0.6rem 0 0;
+    color: var(--red);
+  }
+
+  /* Meta details */
+  .meta-rule {
+    border-top: 2px solid var(--ink);
+    padding-top: 1.25rem; margin-bottom: 2rem;
+  }
+  .meta-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr);
+    gap: 1rem 2rem;
+  }
+  @media (max-width: 500px) { .meta-grid { grid-template-columns: 1fr; } }
+
+  .meta-item-label {
+    font-size: 0.65rem; font-weight: 600; letter-spacing: 0.15em;
+    text-transform: uppercase; color: var(--ink-faint);
+    margin-bottom: 0.2rem;
+  }
+  .meta-item-value {
+    font-size: 1rem; font-weight: 600; color: var(--ink);
+  }
+
+  /* Trailer + Nav buttons */
+  .button-row {
+    display: flex; gap: 0.75rem; margin-top: 2rem; flex-wrap: wrap;
+  }
+  .btn-editorial {
+    padding: 0.65rem 1.5rem;
+    font-family: var(--sans); font-size: 0.8rem; font-weight: 600;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .btn-filled {
+    background: var(--ink); color: var(--cream); border: none;
+  }
+  .btn-filled:hover { background: #2a241e; }
+  .btn-outlined {
+    background: transparent; color: var(--ink);
+    border: 1.5px solid var(--ink);
+  }
+  .btn-outlined:hover { background: var(--ink); color: var(--cream); }
+  .btn-ghost {
+    background: transparent; color: var(--ink-light);
+    border: 1.5px solid var(--rule);
+  }
+  .btn-ghost:hover { border-color: var(--ink-light); color: var(--ink); }
+  .btn-ghost:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  /* === CAST SECTION === */
+  .cast-section {
+    border-top: 1px solid var(--rule);
+    margin-top: 4rem; padding-top: 2.5rem;
+  }
+  .cast-header {
+    font-family: var(--serif);
+    font-size: 0.8rem; font-weight: 700; font-style: italic;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--ink-light); margin-bottom: 1.5rem;
+  }
+  .cast-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 1.25rem;
+  }
+  .cast-member {
+    text-align: center;
+    animation: fadeUp 0.5s ease both;
+  }
+  .cast-member:nth-child(1) { animation-delay: 0.05s; }
+  .cast-member:nth-child(2) { animation-delay: 0.1s; }
+  .cast-member:nth-child(3) { animation-delay: 0.15s; }
+  .cast-member:nth-child(4) { animation-delay: 0.2s; }
+  .cast-member:nth-child(5) { animation-delay: 0.25s; }
+  .cast-member:nth-child(6) { animation-delay: 0.3s; }
+  .cast-member:nth-child(7) { animation-delay: 0.35s; }
+  .cast-member:nth-child(8) { animation-delay: 0.4s; }
+
+  .cast-photo {
+    width: 100%; aspect-ratio: 3/4;
+    object-fit: cover; display: block;
+    filter: grayscale(100%) contrast(1.05);
+    transition: filter 0.3s;
+    border: 1px solid var(--rule);
+  }
+  .cast-member:hover .cast-photo { filter: grayscale(0%) contrast(1); }
+  .cast-no-photo {
+    width: 100%; aspect-ratio: 3/4;
+    background: var(--paper); border: 1px solid var(--rule);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--ink-faint); font-size: 0.7rem; font-style: italic;
+  }
+  .cast-member-name {
+    margin-top: 0.5rem; font-size: 0.8rem; font-weight: 700;
+    color: var(--ink);
+  }
+  .cast-member-role {
+    font-size: 0.7rem; font-style: italic; color: var(--ink-faint);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
+  /* === WATCH PROVIDERS === */
+  .watch-section {
+    border-top: 1px solid var(--rule);
+    margin-top: 3rem; padding-top: 2rem;
+    padding-bottom: 4rem;
+  }
+  .watch-header {
+    font-family: var(--serif);
+    font-size: 0.8rem; font-weight: 700; font-style: italic;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--ink-light); margin-bottom: 1rem;
+  }
+  .watch-row {
+    display: flex; align-items: center; gap: 0.75rem;
+    padding: 0.65rem 0; flex-wrap: wrap;
+  }
+  .watch-row + .watch-row { border-top: 1px solid var(--rule-light); }
+  .watch-label {
+    font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.1em; color: var(--ink-faint);
+    width: 60px; flex-shrink: 0;
+  }
+  .watch-chips { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+  .watch-chip {
+    padding: 0.3rem 0.65rem;
+    font-size: 0.75rem; font-weight: 600;
+    color: var(--ink-light); background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    cursor: pointer; transition: all 0.2s;
+    text-decoration: none;
+  }
+  .watch-chip:hover { background: var(--ink); color: var(--cream); border-color: var(--ink); }
+
+  /* Animations */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (max-width: 768px) {
+    .editorial { padding: 2rem 1.25rem 1.5rem; }
+    .headline { font-size: clamp(2.8rem, 10vw, 4.5rem); }
+  }
+</style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav class="nav">
+  <a href="#" class="nav-brand">Nextreel</a>
+  <div class="nav-right">
+    <a href="#" class="nav-link nav-link-accent">Pick a Movie</a>
+    <a href="#" class="nav-link">Filters</a>
+  </div>
+</nav>
+
+<div class="editorial">
+  <!-- Overline -->
+  <div class="overline">Film No. 278 &middot; Drama</div>
+
+  <!-- Giant headline -->
+  <h1 class="headline">
+    The Shawshank<br>Redemption
+    <span class="headline-year">1994</span>
+  </h1>
+
+  <div class="byline">
+    Directed by <strong>Frank Darabont</strong> &middot; Rated R &middot; 142 minutes
+  </div>
+
+  <!-- Two-column spread -->
+  <div class="spread">
+    <!-- Poster -->
+    <div class="poster-col">
+      <div class="poster-frame">
+        <img src="https://image.tmdb.org/t/p/w500/9cjIGRiQI5KwzTMRbGikUPVBkbB.jpg" alt="The Shawshank Redemption poster">
+        <div class="rating-aside">
+          <span class="num">9.3</span>
+          <span class="outof">/ 10</span>
+        </div>
+      </div>
+      <div class="poster-caption">
+        Columbia Pictures, 1994. Based on Stephen King's novella<br>
+        <em>"Rita Hayworth and Shawshank Redemption"</em>
+      </div>
+    </div>
+
+    <!-- Text -->
+    <div class="text-col">
+      <div class="genre-bar">
+        <span class="genre-label">Drama</span>
+        <span class="genre-label">Crime</span>
+      </div>
+
+      <p class="body-text">
+        Imprisoned in the 1940s for the double murder of his wife and her lover, upstanding banker Andy Dufresne begins a new life at the Shawshank prison, where he puts his accounting skills to work for an openly corrupt warden. During his long stretch in prison, Dufresne comes to be admired by the other inmates — including a philosophical fellow combatant named Red — for his integrity and unquenchable sense of hope.
+      </p>
+
+      <div class="meta-rule">
+        <div class="meta-grid">
+          <div>
+            <div class="meta-item-label">Runtime</div>
+            <div class="meta-item-value">142 min</div>
+          </div>
+          <div>
+            <div class="meta-item-label">Language</div>
+            <div class="meta-item-value">English</div>
+          </div>
+          <div>
+            <div class="meta-item-label">Budget</div>
+            <div class="meta-item-value">$25,000,000</div>
+          </div>
+          <div>
+            <div class="meta-item-label">Box Office</div>
+            <div class="meta-item-value">$58,300,000</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="button-row">
+        <button class="btn-editorial btn-filled">&#9654; Play Trailer</button>
+        <button class="btn-editorial btn-outlined">Next Movie &rarr;</button>
+        <button class="btn-editorial btn-ghost" disabled>&larr; Previous</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cast -->
+  <div class="cast-section">
+    <div class="cast-header">Principal Cast</div>
+    <div class="cast-grid">
+      <div class="cast-member">
+        <img class="cast-photo" src="https://image.tmdb.org/t/p/w185/jdjm37cMTzalxxPm0HVlHOWmZgz.jpg" alt="Tim Robbins">
+        <div class="cast-member-name">Tim Robbins</div>
+        <div class="cast-member-role">Andy Dufresne</div>
+      </div>
+      <div class="cast-member">
+        <img class="cast-photo" src="https://image.tmdb.org/t/p/w185/oIciQWr8VwKoR8TmAw1owaiZFyb.jpg" alt="Morgan Freeman">
+        <div class="cast-member-name">Morgan Freeman</div>
+        <div class="cast-member-role">Ellis Boyd 'Red' Redding</div>
+      </div>
+      <div class="cast-member">
+        <img class="cast-photo" src="https://image.tmdb.org/t/p/w185/bv6KWOSdfFJSbLcIPNRSlKC6mDR.jpg" alt="Bob Gunton">
+        <div class="cast-member-name">Bob Gunton</div>
+        <div class="cast-member-role">Warden Norton</div>
+      </div>
+      <div class="cast-member">
+        <img class="cast-photo" src="https://image.tmdb.org/t/p/w185/kBMRKoLz0pVE4mOAE5bqz0vMlsm.jpg" alt="William Sadler">
+        <div class="cast-member-name">William Sadler</div>
+        <div class="cast-member-role">Heywood</div>
+      </div>
+      <div class="cast-member">
+        <img class="cast-photo" src="https://image.tmdb.org/t/p/w185/gJOeg4jtRRMx1A2FYiUdAcQ9XyR.jpg" alt="Clancy Brown">
+        <div class="cast-member-name">Clancy Brown</div>
+        <div class="cast-member-role">Captain Hadley</div>
+      </div>
+      <div class="cast-member">
+        <img class="cast-photo" src="https://image.tmdb.org/t/p/w185/5PnBF5neamS1bxFsoJM0oUv28Nw.jpg" alt="Gil Bellows">
+        <div class="cast-member-name">Gil Bellows</div>
+        <div class="cast-member-role">Tommy Williams</div>
+      </div>
+      <div class="cast-member">
+        <div class="cast-no-photo">No photo</div>
+        <div class="cast-member-name">Mark Rolston</div>
+        <div class="cast-member-role">Bogs Diamond</div>
+      </div>
+      <div class="cast-member">
+        <img class="cast-photo" src="https://image.tmdb.org/t/p/w185/bBCuCjhRCjA8kViLkNccAp1xlqg.jpg" alt="James Whitmore">
+        <div class="cast-member-name">James Whitmore</div>
+        <div class="cast-member-role">Brooks Hatlen</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Watch providers -->
+  <div class="watch-section">
+    <div class="watch-header">Where to Watch</div>
+    <div class="watch-row">
+      <span class="watch-label">Stream</span>
+      <div class="watch-chips">
+        <a href="#" class="watch-chip">Max</a>
+        <a href="#" class="watch-chip">Hulu</a>
+      </div>
+    </div>
+    <div class="watch-row">
+      <span class="watch-label">Rent</span>
+      <div class="watch-chips">
+        <a href="#" class="watch-chip">Apple TV</a>
+        <a href="#" class="watch-chip">Amazon</a>
+        <a href="#" class="watch-chip">Vudu</a>
+      </div>
+    </div>
+    <div class="watch-row">
+      <span class="watch-label">Buy</span>
+      <div class="watch-chips">
+        <a href="#" class="watch-chip">Apple TV</a>
+        <a href="#" class="watch-chip">Amazon</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

@@ -1,87 +1,78 @@
+"""Batch-update title.ratings from a TSV file.
+
+Uses the application's DatabaseConnectionPool (with SSL) rather than
+raw aiomysql connections.
+
+Usage:
+    python -m scripts.update_ratings
+"""
+
 import csv
-from logging_config import get_logger
 import os
 import asyncio
 
-from settings import Config, DatabaseConnectionPool
+from logging_config import get_logger
 
-dbconfig = Config.STACKHERO_DB_CONFIG
-database_pool = DatabaseConnectionPool(dbconfig)
-
-# Use os.path.dirname to go up one level from the current script's directory
-# Use os.path.dirname to go up one level from the current script's directory
-parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-# Now change the working directory to the parent directory
-os.chdir(parent_dir)
-
-# Configure logging
 logger = get_logger(__name__)
 
+# Resolve project root so the TSV path works regardless of cwd.
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DEFAULT_TSV_PATH = os.path.join(_PROJECT_ROOT, "scripts", "title.ratings.tsv")
 
-async def read_tsv_and_update_database(tsv_file_path, database_pool, batch_size=500):
-    """
-    Reads a TSV file and updates the averageRating and numVotes in the database.
-    Uses batch execution for performance.
 
-    :param tsv_file_path: Path to the TSV file containing the updates.
-    :param database_pool: DatabaseConnectionPool instance for DB operations.
-    :param batch_size: Number of rows per batch commit.
-    """
+async def read_tsv_and_update_database(tsv_file_path, db_pool, batch_size=500):
+    """Read a TSV file and update averageRating/numVotes via the pool."""
     if not os.path.isfile(tsv_file_path):
-        logger.error(f"TSV file not found: {tsv_file_path}")
+        logger.error("TSV file not found: %s", tsv_file_path)
         return
 
-    connection = None
+    update_sql = """
+    UPDATE `title.ratings`
+    SET `averageRating` = %s, `numVotes` = %s
+    WHERE `tconst` = %s
+    """
+
     try:
-        connection = await database_pool.get_async_connection()
-        logger.info("Successfully connected to database.")
+        async with db_pool.acquire() as connection:
+            async with connection.cursor() as cursor:
+                with open(tsv_file_path, "r", encoding="utf-8") as tsvfile:
+                    reader = csv.DictReader(tsvfile, delimiter="\t")
+                    batch = []
+                    total = 0
 
-        update_sql = """
-        UPDATE `title.ratings`
-        SET `averageRating` = %s, `numVotes` = %s
-        WHERE `tconst` = %s
-        """
+                    for row in reader:
+                        batch.append(
+                            (row["averageRating"], row["numVotes"], row["tconst"])
+                        )
 
-        async with connection.cursor() as cursor:
-            with open(tsv_file_path, 'r', encoding='utf-8') as tsvfile:
-                reader = csv.DictReader(tsvfile, delimiter='\t')
-                batch = []
-                total = 0
+                        if len(batch) >= batch_size:
+                            await cursor.executemany(update_sql, batch)
+                            await connection.commit()
+                            total += len(batch)
+                            logger.info("Committed batch — %d rows updated so far", total)
+                            batch = []
 
-                for row in reader:
-                    batch.append((row['averageRating'], row['numVotes'], row['tconst']))
-
-                    if len(batch) >= batch_size:
+                    # Final batch
+                    if batch:
                         await cursor.executemany(update_sql, batch)
                         await connection.commit()
                         total += len(batch)
-                        logger.info(f"Committed batch — {total} rows updated so far")
-                        batch = []
 
-                # Final batch
-                if batch:
-                    await cursor.executemany(update_sql, batch)
-                    await connection.commit()
-                    total += len(batch)
-
-            logger.info(f"Database updated successfully. Total rows: {total}")
-
+                logger.info("Database updated successfully. Total rows: %d", total)
     except Exception as e:
-        logger.error(f"An error occurred: {e}")
-    finally:
-        if connection:
-            await database_pool.release_async_connection(connection)
-            logger.info("Database connection released.")
+        logger.error("An error occurred: %s", e)
 
-
-# Path to your TSV file - ensure this path is correct
-tsv_file_path = 'scripts/title.ratings.tsv'  # Update this path as necessary
 
 async def main():
-    await database_pool.init_pool()
-    await read_tsv_and_update_database(tsv_file_path, database_pool)
-    await database_pool.close_pool()
+    from settings import Config, DatabaseConnectionPool
 
-if __name__ == '__main__':
+    db_pool = DatabaseConnectionPool(Config.get_db_config())
+    await db_pool.init_pool()
+    try:
+        await read_tsv_and_update_database(DEFAULT_TSV_PATH, db_pool)
+    finally:
+        await db_pool.close_pool()
+
+
+if __name__ == "__main__":
     asyncio.run(main())

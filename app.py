@@ -1,348 +1,401 @@
 import asyncio
 import logging
-import signal
+import os
+import socket
 import sys
 import time
-import socket
-import os
 from contextlib import asynccontextmanager
+from uuid import uuid4
 
+# --- Early local-env bootstrap -------------------------------------------
+# Must run BEFORE ``import settings`` so that ``get_environment()``'s first
+# (cached) call sees NEXTREEL_ENV=development when no env var is set in the
+# shell.  In production the env var is always set by the deploy pipeline, so
+# this block is a no-op there.
+if not os.environ.get("NEXTREEL_ENV") and not os.environ.get("FLASK_ENV"):
+    from scripts.local_env_setup import setup_local_environment
+    setup_local_environment()
+# -------------------------------------------------------------------------
+
+from quart import Quart, g, request, session
 from redis import asyncio as aioredis
-from quart import Quart, request, session, g
-from quart_session import Session
 
 import settings
-from local_env_setup import setup_local_environment
-from logging_config import setup_logging, get_logger
-from metrics_collector import MetricsCollector, setup_metrics_middleware
+from env_bootstrap import get_environment
+from infra.cache import SimpleCacheManager
+from infra.metrics import MetricsCollector, setup_metrics_middleware
+from infra.navigation_state import (
+    SESSION_COOKIE_MAX_AGE,
+    SESSION_COOKIE_NAME,
+    NavigationState,
+    default_filter_state,
+    utcnow,
+)
+from infra.runtime_schema import ensure_movie_candidates_fulltext_index
+from infra.secrets import secrets_manager
+from infra.security_headers import add_security_headers
+from logging_config import get_logger, setup_logging
 from middleware import add_correlation_id
 from movie_service import MovieManager
 from routes import bp as routes_bp, init_routes
-from secrets_manager import secrets_manager
-from session_auth import init_session
-from session_keys import USER_ID_KEY
-from session_security_enhanced import EnhancedSessionSecurity, add_security_headers
+
+try:
+    from arq import create_pool as create_arq_pool
+    from arq.connections import RedisSettings
+except ImportError:  # pragma: no cover - optional dependency at import time
+    create_arq_pool = None
+    RedisSettings = None
 
 
 class FixedQuart(Quart):
     """Quart subclass ensuring Flask compatibility keys."""
+
     default_config = dict(Quart.default_config)
     default_config.setdefault("PROVIDE_AUTOMATIC_OPTIONS", True)
-from simple_cache import SimpleCacheManager
 
-setup_logging(log_level=logging.INFO)
 logger = get_logger(__name__)
 
-
-# Automatically set up local environment if not in production
-if os.getenv("FLASK_ENV") != "production":
-    setup_local_environment()
+_SKIP_PATHS = ("/static", "/favicon.ico", "/health", "/ready", "/metrics")
 
 
-def create_app():
-    # Validate all secrets at startup
-    if not secrets_manager.validate_all_secrets():
-        raise RuntimeError("Failed to validate required secrets. Check logs for details.")
+def _redis_url() -> str:
+    if get_environment() == "production":
+        redis_host = os.getenv("UPSTASH_REDIS_HOST")
+        redis_port = os.getenv("UPSTASH_REDIS_PORT")
+        redis_pw = os.getenv("UPSTASH_REDIS_PASSWORD")
+        if not redis_host or not redis_port:
+            raise RuntimeError(
+                "UPSTASH_REDIS_HOST and UPSTASH_REDIS_PORT must be set in production"
+            )
+        return f"rediss://:{redis_pw}@{redis_host}:{redis_port}"
+    return os.getenv("REDIS_URL", "redis://localhost:6379")
 
-    app = FixedQuart(__name__)
-    app.config.from_object(settings.Config())
 
-    # Initialize enhanced session security
-    session_security = EnhancedSessionSecurity(app)
-    # Store on config so routes can access it for logout
-    app.config["_session_security"] = session_security
+def _build_test_navigation_state() -> NavigationState:
+    now = utcnow()
+    return NavigationState(
+        session_id=uuid4().hex,
+        version=1,
+        csrf_token="test-csrf-token",
+        filters=default_filter_state(),
+        current_tconst=None,
+        current_ref=None,
+        queue=[],
+        prev=[],
+        future=[],
+        seen=[],
+        created_at=now,
+        last_activity_at=now,
+        expires_at=now,
+    )
 
-    # Session configuration — EnhancedSessionSecurity._configure_secure_settings
-    # applies the canonical values per environment.  These are safe defaults
-    # that get overridden for production.
-    app.config['SESSION_TYPE'] = 'redis'
-    app.config['SESSION_COOKIE_HTTPONLY'] = True
-    app.config['SESSION_COOKIE_SAMESITE'] = 'Strict'
-    app.config['PERMANENT_SESSION_LIFETIME'] = 28800  # 8 hours
-    app.config['SESSION_REFRESH_EACH_REQUEST'] = False
 
-    @app.before_serving
-    async def setup_redis():
-        # Build a single Redis URL used by all consumers.
-        if os.getenv("FLASK_ENV") == "production":
-            redis_host = os.getenv("UPSTASH_REDIS_HOST")
-            redis_port = os.getenv("UPSTASH_REDIS_PORT")
-            redis_pw = os.getenv("UPSTASH_REDIS_PASSWORD")
-            if not redis_host or not redis_port:
-                raise RuntimeError(
-                    "UPSTASH_REDIS_HOST and UPSTASH_REDIS_PORT must be set in production"
-                )
-            redis_url = f"rediss://:{redis_pw}@{redis_host}:{redis_port}"
-        else:
-            redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
-
-        # Shared connection pool — one pool, multiple consumers
+async def _setup_redis(app):
+    """Initialize Redis runtime dependencies (session, cache, ARQ)."""
+    redis_url = _redis_url()
+    try:
         shared_pool = aioredis.ConnectionPool.from_url(
             redis_url,
-            max_connections=50,
+            max_connections=int(os.getenv("REDIS_MAX_CONNECTIONS", 30)),
             socket_connect_timeout=5,
             socket_timeout=5,
             retry_on_timeout=True,
             health_check_interval=30,
         )
+        redis_client = aioredis.Redis(connection_pool=shared_pool)
+        await redis_client.ping()
         app.shared_redis_pool = shared_pool
+        app.redis_url = redis_url
+        app.config["SESSION_REDIS"] = redis_client
+        app.redis_available = True
 
-        # 1) Session backend — uses the shared pool
-        session_redis = aioredis.Redis(connection_pool=shared_pool)
-        app.config['SESSION_REDIS'] = session_redis
-        Session(app)
+        try:
+            from session.quart_session_compat import install_session
 
-        # 2) Simple cache manager — plain JSON, no encryption (public data)
-        app.secure_cache = SimpleCacheManager(redis_url=redis_url)
-        await app.secure_cache.initialize()
-        logger.info("Redis shared pool, session backend, and simple cache initialized")
+            install_session(app)
+        except Exception as exc:
+            logger.warning("Legacy Redis session install failed: %s", exc)
+
+        try:
+            app.secure_cache = SimpleCacheManager.from_client(
+                redis_client,
+                verify_connection=False,
+            )
+            await app.secure_cache.initialize()
+        except Exception as exc:
+            logger.warning("Redis cache initialization failed: %s", exc)
+            app.secure_cache = None
+
+        logger.info("Redis runtime dependencies initialized")
+    except Exception as exc:
+        logger.warning("Redis unavailable; continuing in degraded mode: %s", exc)
+        app.shared_redis_pool = None
+        app.redis_url = redis_url
+        app.config["SESSION_REDIS"] = None
+        app.redis_available = False
+        app.worker_available = False
+        app.secure_cache = None
+
+
+async def _shutdown_resources(app):
+    """Gracefully shut down all runtime resources."""
+    try:
+        await asyncio.wait_for(app.metrics_collector.stop_collection(), timeout=5.0)
+        logger.info("Metrics collection stopped")
+    except asyncio.TimeoutError:
+        logger.warning("Metrics collection stop timed out")
+    except Exception as exc:
+        logger.warning("Error stopping metrics collection: %s", exc)
+
+    if hasattr(app.movie_manager, "close"):
+        try:
+            await asyncio.wait_for(app.movie_manager.close(), timeout=5.0)
+            logger.info("MovieManager closed successfully")
+        except Exception as exc:
+            logger.warning("Error closing MovieManager: %s", exc)
+
+    if getattr(app, "secure_cache", None):
+        try:
+            await asyncio.wait_for(app.secure_cache.close(), timeout=3.0)
+            logger.info("Secure cache closed")
+        except Exception as exc:
+            logger.warning("Error closing secure cache: %s", exc)
+
+    if getattr(app, "arq_redis", None):
+        try:
+            await asyncio.wait_for(app.arq_redis.aclose(), timeout=3.0)
+            logger.info("ARQ pool closed")
+        except Exception as exc:
+            logger.warning("Error closing ARQ pool: %s", exc)
+
+    if getattr(app, "config", {}).get("SESSION_REDIS"):
+        try:
+            await asyncio.wait_for(app.config["SESSION_REDIS"].aclose(), timeout=3.0)
+            logger.info("Session Redis pool closed")
+        except Exception as exc:
+            logger.warning("Error closing session Redis pool: %s", exc)
+
+
+def _init_core(app):
+    """Phase 1: Core app config and movie manager."""
+    app.config.from_object(settings.Config())
+    app.config["NR_SESSION_COOKIE_NAME"] = SESSION_COOKIE_NAME
+    app.config["NR_SESSION_COOKIE_MAX_AGE"] = SESSION_COOKIE_MAX_AGE
 
     movie_manager = MovieManager(settings.Config.get_db_config())
+    app.movie_manager = movie_manager
+    app.navigation_state_store = None
+    app.shared_redis_pool = None
+    app.arq_redis = None
+    app.redis_url = None
+    app.redis_available = False
+    app.worker_available = False
+    app.secure_cache = None
+    app.background_tasks = set()
+    app.config["SESSION_REDIS"] = None
+    return movie_manager
 
-    # Initialize metrics collector
-    metrics_collector = MetricsCollector(
-        db_pool=movie_manager.db_pool,
-        movie_manager=movie_manager
-    )
 
-    # Inject dependencies into routes
+def _init_metrics(app, movie_manager):
+    """Phase 2: Metrics collector and route wiring."""
+    metrics_collector = MetricsCollector(db_pool=movie_manager.db_pool, movie_manager=movie_manager)
+    app.metrics_collector = metrics_collector
     init_routes(movie_manager, metrics_collector)
+    return metrics_collector
+
+
+def _make_manager_starter(app, movie_manager):
+    """Phase 3: Lazy MovieManager startup guard."""
+    started = False
+    lock = asyncio.Lock()
+
+    async def ensure_movie_manager_started():
+        nonlocal started
+        if started:
+            return
+
+        async with lock:
+            if started:
+                return
+
+            await movie_manager.start()
+            app.navigation_state_store = movie_manager.navigation_state_store
+            started = True
+            logger.info("MovieManager started successfully")
+
+    return ensure_movie_manager_started
+
+
+def create_app():
+    setup_logging(log_level=logging.INFO)
+    if not secrets_manager.validate_all_secrets():
+        raise RuntimeError("Failed to validate required secrets. Check logs for details.")
+
+    app = FixedQuart(__name__)
+    movie_manager = _init_core(app)
+    metrics_collector = _init_metrics(app, movie_manager)
+    ensure_movie_manager_started = _make_manager_starter(app, movie_manager)
+
+    @app.before_serving
+    async def setup_redis():
+        await _setup_redis(app)
+
+    arq_lock = asyncio.Lock()
+
+    async def ensure_arq_pool():
+        if app.arq_redis:
+            return app.arq_redis
+        if not app.redis_available or not app.redis_url or not create_arq_pool or not RedisSettings:
+            return None
+
+        async with arq_lock:
+            if app.arq_redis:
+                return app.arq_redis
+            try:
+                app.arq_redis = await create_arq_pool(RedisSettings.from_dsn(app.redis_url))
+                app.worker_available = True
+                logger.info("ARQ pool initialized lazily")
+            except Exception as exc:
+                app.worker_available = False
+                logger.warning("ARQ pool initialization failed: %s", exc)
+                app.arq_redis = None
+            return app.arq_redis
+
+    async def enqueue_runtime_job(function_name: str, *args):
+        pool = await ensure_arq_pool()
+        if not pool:
+            return None
+        return await pool.enqueue_job(function_name, *args)
+
+    app.enqueue_runtime_job = enqueue_runtime_job
+    movie_manager.projection_store.enqueue_fn = enqueue_runtime_job
 
     @app.before_request
     async def before_request():
         try:
             await add_correlation_id()
-            g.start_time = time.time()
 
-            skip_paths = ['/static', '/favicon.ico', '/health', '/ready', '/metrics']
-            if any(request.path.startswith(path) for path in skip_paths):
+            if any(request.path.startswith(p) for p in _SKIP_PATHS):
                 return
 
-            if app.config.get('TESTING'):
+            if app.config.get("TESTING") and app.navigation_state_store is None:
+                g.navigation_state = _build_test_navigation_state()
+                g.set_nr_sid_cookie = False
                 return
 
-            await init_session(movie_manager, metrics_collector)
+            await ensure_movie_manager_started()
 
-            req_size = sys.getsizeof(await request.get_data())
-            logger.debug(
-                "Request Size: %s bytes. Correlation ID: %s", req_size, g.correlation_id
+            legacy_session = session if app.config.get("SESSION_REDIS") else None
+            state, needs_cookie = await app.navigation_state_store.load_for_request(
+                request.cookies.get(SESSION_COOKIE_NAME),
+                legacy_session=legacy_session,
             )
-        except Exception as e:
-            logger.error("Error in session management: %s", e, exc_info=True)
-            # Let the request proceed without a session rather than crashing,
-            # but surface the error clearly so it can be investigated.
-            # Critical auth failures should still propagate.
-            if isinstance(e, RuntimeError):
-                raise
+            g.navigation_state = state
+            g.set_nr_sid_cookie = needs_cookie or request.cookies.get(SESSION_COOKIE_NAME) != state.session_id
+        except (asyncio.CancelledError, SystemExit, KeyboardInterrupt):
+            raise
+        except Exception as exc:
+            logger.error("Error loading navigation state: %s", exc, exc_info=True)
+            from quart import make_response
+
+            return await make_response(("Service temporarily unavailable", 503))
 
     @app.after_request
-    async def set_security_headers(response):
-        if hasattr(g, 'start_time'):
+    async def after_request(response):
+        if hasattr(g, "start_time"):
             elapsed = time.time() - g.start_time
             if elapsed > 1.0:
                 logger.warning(
-                    "Slow request: %s took %.2fs (user: %s, correlation: %s)",
-                    request.endpoint, elapsed, session.get(USER_ID_KEY), g.get('correlation_id')
+                    "Slow request: %s took %.2fs (state: %s, correlation: %s)",
+                    request.endpoint,
+                    elapsed,
+                    getattr(getattr(g, "navigation_state", None), "session_id", None),
+                    g.get("correlation_id"),
                 )
-            response.headers['X-Response-Time'] = f"{elapsed:.3f}"
+            response.headers["X-Response-Time"] = f"{elapsed:.3f}"
+
+        state = getattr(g, "navigation_state", None)
+        if state and getattr(g, "set_nr_sid_cookie", False):
+            response.set_cookie(
+                SESSION_COOKIE_NAME,
+                state.session_id,
+                max_age=SESSION_COOKIE_MAX_AGE,
+                secure=app.config.get("SESSION_COOKIE_SECURE", False),
+                httponly=True,
+                samesite=app.config.get("SESSION_COOKIE_SAMESITE", "Lax"),
+                domain=app.config.get("SESSION_COOKIE_DOMAIN"),
+                path="/",
+            )
 
         return await add_security_headers(response)
 
-    # ── Scheduled cache refresh ──────────────────────────────────────
-    from apscheduler.schedulers.asyncio import AsyncIOScheduler
-
-    cache_scheduler = AsyncIOScheduler()
-
-    async def _refresh_movie_caches():
-        """Call the stored procedure that refreshes denormalized cache tables."""
-        try:
-            await movie_manager.db_pool.execute(
-                "CALL refresh_movie_caches()", fetch='none'
-            )
-            logger.info("Scheduled cache refresh completed successfully")
-        except Exception as e:
-            logger.warning("Scheduled cache refresh failed: %s", e)
-
-    # Run daily at 03:00 UTC
-    cache_scheduler.add_job(_refresh_movie_caches, 'cron', hour=3, minute=0)
-
     @asynccontextmanager
     async def lifespan(app: Quart):
-        """Manage app lifecycle - startup and shutdown"""
         logger.info("Starting application lifecycle")
-
         try:
-            await movie_manager.start()
-            logger.info("MovieManager started successfully")
-
-            await metrics_collector.start_collection()
+            await ensure_movie_manager_started()
+            await app.metrics_collector.start_collection()
             logger.info("Metrics collection started")
-
-            cache_scheduler.start()
-            logger.info("Cache refresh scheduler started (daily at 03:00 UTC)")
-        except Exception as e:
-            logger.error("Failed to start MovieManager: %s", e)
+        except Exception as exc:
+            logger.error("Failed to start MovieManager: %s", exc)
             raise
 
         yield
 
         logger.info("Shutting down application lifecycle")
         try:
-            cache_scheduler.shutdown(wait=False)
             await _shutdown_resources(app)
-        except Exception as e:
-            logger.error("Critical error during shutdown: %s", e)
+        except Exception as exc:
+            logger.error("Critical error during shutdown: %s", exc)
 
     app.lifespan = lifespan
 
-    # Setup metrics middleware
     setup_metrics_middleware(app, metrics_collector)
 
     @app.before_serving
     async def startup():
-        """Warm up connections on startup.
-
-        NOTE: ``movie_manager.start()`` is called by the lifespan context
-        manager — do NOT call it again here to avoid double-initialisation
-        of the database pool.
-        """
         logger.info("Starting application warm-up...")
+        await ensure_movie_manager_started()
 
-        # Warm up DB connections so the first user request doesn't pay the
-        # connection establishment cost.
-        warm_up_tasks = []
-        for i in range(5):
-            warm_up_tasks.append(
-                movie_manager.db_pool.execute("SELECT 1", fetch='one')
-            )
+        async def repair_fulltext_index():
+            try:
+                await ensure_movie_candidates_fulltext_index(movie_manager.db_pool)
+            except Exception as exc:
+                logger.warning("Failed to repair movie_candidates FULLTEXT index: %s", exc)
 
-        await asyncio.gather(*warm_up_tasks, return_exceptions=True)
+        task = asyncio.create_task(repair_fulltext_index())
+        app.background_tasks.add(task)
+        task.add_done_callback(app.background_tasks.discard)
+
+        try:
+            if not await movie_manager.candidate_store.latest_refresh_at():
+                job = await app.enqueue_runtime_job("refresh_movie_candidates")
+                if job is not None:
+                    logger.info("Enqueued initial movie_candidates refresh")
+                else:
+                    logger.warning(
+                        "movie_candidates is empty and no worker is available to refresh it"
+                    )
+        except Exception as exc:
+            logger.warning("Failed to enqueue initial movie_candidates refresh: %s", exc)
 
         logger.info("Application warm-up complete")
 
-    async def _shutdown_resources(app_instance):
-        """Shared shutdown logic — called from both lifespan and after_serving."""
-        try:
-            await asyncio.wait_for(metrics_collector.stop_collection(), timeout=5.0)
-            logger.info("Metrics collection stopped")
-        except asyncio.TimeoutError:
-            logger.warning("Metrics collection stop timed out")
-        except Exception as e:
-            logger.warning("Error stopping metrics collection: %s", e)
-
-        if hasattr(movie_manager, 'close'):
-            try:
-                await asyncio.wait_for(movie_manager.close(), timeout=5.0)
-                logger.info("MovieManager closed successfully")
-            except (asyncio.TimeoutError, Exception) as e:
-                logger.warning("Error closing MovieManager: %s", e)
-
-        if hasattr(app_instance, 'secure_cache'):
-            try:
-                await asyncio.wait_for(app_instance.secure_cache.close(), timeout=3.0)
-                logger.info("Secure cache closed")
-            except (asyncio.TimeoutError, Exception) as e:
-                logger.warning("Error closing secure cache: %s", e)
-
-        if 'SESSION_REDIS' in app_instance.config and app_instance.config['SESSION_REDIS']:
-            try:
-                await asyncio.wait_for(
-                    app_instance.config['SESSION_REDIS'].aclose(), timeout=3.0
-                )
-                logger.info("Session Redis closed")
-            except (asyncio.TimeoutError, Exception) as e:
-                logger.warning("Error closing session Redis: %s", e)
-
-        # Close the shared Redis connection pool last
-        if hasattr(app_instance, 'shared_redis_pool') and app_instance.shared_redis_pool:
-            try:
-                await asyncio.wait_for(
-                    app_instance.shared_redis_pool.disconnect(), timeout=3.0
-                )
-                logger.info("Shared Redis pool closed")
-            except (asyncio.TimeoutError, Exception) as e:
-                logger.warning("Error closing shared Redis pool: %s", e)
-
-    # NOTE: shutdown is handled exclusively by the lifespan() context manager.
-    # A previous @after_serving cleanup() handler was removed to prevent
-    # double-close of Redis pools, DB connections, and secure cache.
-
-    # Register the Blueprint
     app.register_blueprint(routes_bp)
-
     return app
 
 
-def get_current_user_id():
-    user_id = session.get(USER_ID_KEY)
-    return user_id
+def find_free_port(start_port=5000, host="127.0.0.1"):
+    port = start_port
+    while True:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            if sock.connect_ex((host, port)) != 0:
+                return port
+            port += 1
 
-
-app = create_app()
-
-
-def signal_handler(signum, frame):
-    logger.info("Received signal %s. Shutting down gracefully...", signum)
-    try:
-        loop = asyncio.get_event_loop()
-        if loop and loop.is_running():
-            # Only stop the loop — Quart's shutdown hooks will handle cleanup
-            loop.stop()
-    except Exception as e:
-        logger.error("Error during signal handling: %s", e)
-    sys.exit(0)
-
-
-def check_port_available(port: int, host: str = '127.0.0.1') -> bool:
-    """Check if a port is available for binding."""
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        try:
-            sock.bind((host, port))
-            sock.close()
-            return True
-        except OSError:
-            return False
-
-
-def find_available_port(start_port: int = 5000, max_attempts: int = 10, host: str = '127.0.0.1') -> int:
-    """Find an available port starting from start_port."""
-    for i in range(max_attempts):
-        port = start_port + i
-        if check_port_available(port, host):
-            logger.info("Found available port: %s", port)
-            return port
-        else:
-            logger.debug("Port %s is already in use", port)
-
-    logger.error("Could not find an available port after %s attempts", max_attempts)
-    sys.exit(1)
 
 if __name__ == "__main__":
-    host = os.environ.get('HOST', '127.0.0.1')
-    default_port = int(os.environ.get('PORT', 5000))
-
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-
-    port = find_available_port(default_port, max_attempts=10, host=host)
-
-    try:
-        logger.info("Starting NextReel-Lite on http://%s:%s", host, port)
-        app.run(
-            host=host,
-            port=port,
-            debug=False,
-            use_reloader=False
-        )
-    except OSError as e:
-        import errno
-        if e.errno in (errno.EADDRINUSE, 48):  # 48 = macOS, EADDRINUSE = Linux
-            logger.error("Port %s is still in use. Please wait a moment and try again.", port)
-        else:
-            logger.error("Failed to start server: %s", e)
-        sys.exit(1)
-    except KeyboardInterrupt:
-        logger.info("Application interrupted by user")
-    except Exception as e:
-        logger.error("Application failed to start: %s", e)
-        sys.exit(1)
+    app = create_app()
+    port = int(os.getenv("PORT", find_free_port()))
+    logger.info("Starting development server on http://127.0.0.1:%s", port)
+    app.run(host="127.0.0.1", port=port)

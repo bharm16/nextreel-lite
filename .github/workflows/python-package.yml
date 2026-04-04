@@ -24,19 +24,39 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        pip install -r requirements-dev.txt
+    - name: Check formatting with black
+      run: |
+        black --check --line-length 100 . --exclude='venv|node_modules'
+    - name: Type check with mypy
+      run: |
+        mypy . --ignore-missing-imports --exclude='venv|node_modules'
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics --exclude=venv,node_modules
         # exit-zero treats all errors as warnings
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics --exclude=venv,node_modules
+    - name: Check for secrets in repository
+      uses: trufflesecurity/trufflehog@main
+      with:
+        extra_args: --only-verified
+    - name: Dependency vulnerability scan
+      run: |
+        pip install pip-audit
+        pip-audit -r requirements.txt
+    - name: SAST with bandit
+      run: |
+        pip install bandit
+        bandit -r . --exclude venv,tests,node_modules -ll -q
     - name: Test with pytest
       env:
         TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+        NEXTREEL_ENV: testing
         FLASK_ENV: testing
       run: |
         pytest tests/ --cov=. --cov-report=term-missing --cov-report=xml \
+          --cov-fail-under=40 \
           --ignore=venv --ignore=node_modules
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4

@@ -1,3 +1,4 @@
+{% from "macros.html" import pick_movie_button, pick_movie_button_block with context %}
 <!-- Modern Reusable Navbar Component -->
 <!-- Include this at the top of your page templates -->
 <header class="sticky top-0 z-50 bg-primary/95 backdrop-blur supports-[backdrop-filter]:bg-primary/80 text-white shadow">
@@ -14,11 +15,8 @@
 
       <!-- Desktop actions -->
       <nav class="hidden gap-2 md:flex items-center">
-        <a href="/next_movie" class="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent/70 focus:ring-offset-primary/20">
-          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
-          Pick a Movie
-        </a>
-        <a href="/setFilters" class="inline-flex items-center gap-2 rounded-xl border border-accent px-4 py-2 text-sm font-semibold text-accent hover:bg-accent/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent/70 focus:ring-offset-primary/20">
+        {{ pick_movie_button(class="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent/70 focus:ring-offset-primary/20") }}
+        <a href="{{ url_for('main.set_filters') }}" class="inline-flex items-center gap-2 rounded-xl border border-accent px-4 py-2 text-sm font-semibold text-accent hover:bg-accent/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent/70 focus:ring-offset-primary/20">
           <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5h18v2H3zm4 6h10v2H7zm3 6h4v2h-4z"/></svg>
           Set Filters
         </a>
@@ -38,8 +36,8 @@
   <!-- Mobile dropdown -->
   <div id="mobileMenu" class="hidden md:hidden border-t border-white/10">
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-3 space-y-2">
-      <a href="/next_movie" class="block w-full rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white text-center">Pick a Movie</a>
-      <a href="/setFilters" class="block w-full rounded-lg border border-accent px-4 py-2 text-sm font-semibold text-accent text-center">Set Filters</a>
+      {{ pick_movie_button_block(class="block w-full rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white text-center") }}
+      <a href="{{ url_for('main.set_filters') }}" class="block w-full rounded-lg border border-accent px-4 py-2 text-sm font-semibold text-accent text-center">Set Filters</a>
       <button id="themeToggleMobile" class="block w-full rounded-lg px-4 py-2 text-sm font-semibold text-white text-center bg-white/10">Toggle Theme</button>
     </div>
   </div>

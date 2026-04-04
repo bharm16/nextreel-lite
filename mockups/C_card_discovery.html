@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockup C — Card Discovery | NextReel</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --color-bg: #0b1220;
+  --color-surface: #0f172a;
+  --color-surface-alt: #111827;
+  --color-text: #e5e7eb;
+  --color-text-muted: #9ca3af;
+  --color-border: #1f2937;
+  --color-primary: #0b3b63;
+  --color-accent: #36d13a;
+  --color-chip: #111827;
+  --color-chip-ring: #374151;
+  --color-star: #ffd166;
+  --font-sans: 'Poppins', system-ui, sans-serif;
+  --duration-normal: 200ms;
+  --easing-default: ease;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body { font-family: var(--font-sans); background: var(--color-bg); color: var(--color-text); -webkit-font-smoothing: antialiased; }
+
+/* ── App Shell ── */
+.app-shell {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  height: 100vh;
+}
+
+/* ── Navbar — minimal ── */
+.navbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.6rem 1.5rem;
+  background: transparent;
+  position: relative; z-index: 50;
+}
+.navbar-brand { font-size: 1.1rem; font-weight: 700; color: #fff; text-decoration: none; display: flex; align-items: center; gap: 0.4rem; }
+.navbar-actions { display: flex; gap: 0.5rem; }
+.btn-sm {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  padding: 0.4rem 1rem; border-radius: 999px;
+  font-weight: 600; font-size: 0.8rem; cursor: pointer;
+  text-decoration: none; border: none;
+  transition: all var(--duration-normal) var(--easing-default);
+}
+.btn-accent { background: var(--color-accent); color: #fff; }
+.btn-accent:hover { filter: brightness(1.1); }
+.btn-ghost { background: rgba(255,255,255,0.08); color: #fff; border: 1px solid rgba(255,255,255,0.15); }
+.btn-ghost:hover { background: rgba(255,255,255,0.14); }
+
+/* ── Discovery View ── */
+.discovery-view {
+  display: grid;
+  grid-template-columns: 1fr 420px;
+  gap: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ── Movie Card — full-height poster hero ── */
+.movie-hero {
+  position: relative;
+  overflow: hidden;
+  cursor: default;
+}
+.movie-hero-bg {
+  position: absolute; inset: 0;
+  background: url('https://image.tmdb.org/t/p/w1280/jDPmMFe0dna3m4lfJfrYZPFgaGM.jpg') center / cover no-repeat;
+}
+.movie-hero-bg::after {
+  content: ''; position: absolute; inset: 0;
+  background:
+    linear-gradient(0deg, rgba(11,18,32,0.97) 0%, rgba(11,18,32,0.6) 35%, transparent 55%),
+    linear-gradient(90deg, rgba(11,18,32,0.4) 0%, transparent 40%);
+}
+
+.hero-overlay {
+  position: relative; z-index: 2;
+  display: flex; flex-direction: column;
+  justify-content: flex-end;
+  height: 100%;
+  padding: 2rem 2.5rem;
+}
+
+.poster-float {
+  position: absolute; top: 2rem; left: 2.5rem; z-index: 3;
+  width: 180px;
+}
+.poster-float img {
+  width: 100%; border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.hero-content { max-width: 600px; }
+.hero-content h1 {
+  font-size: clamp(2rem, 4vw, 3.2rem);
+  font-weight: 800; line-height: 1.05; letter-spacing: -0.03em;
+  margin-bottom: 0.5rem;
+}
+.hero-content .tagline {
+  color: var(--color-text-muted); font-style: italic;
+  margin-bottom: 0.75rem; font-size: 0.95rem;
+}
+.meta-line {
+  display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;
+  color: var(--color-text-muted); font-weight: 500; font-size: 0.85rem;
+  margin-bottom: 0.75rem;
+}
+.meta-sep { opacity: 0.3; }
+
+.genre-row { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
+.genre-pill {
+  padding: 0.2rem 0.6rem; border-radius: 999px;
+  background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+  font-size: 0.75rem; font-weight: 600;
+}
+
+.plot-text {
+  color: rgba(229,231,235,0.85); line-height: 1.7; font-size: 0.9rem;
+  margin-bottom: 1rem;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+
+.rating-inline {
+  display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem;
+}
+.rating-big {
+  display: flex; align-items: baseline; gap: 0.3rem;
+  background: rgba(255,215,102,0.1); border: 1px solid rgba(255,215,102,0.2);
+  border-radius: 10px; padding: 0.35rem 0.7rem;
+}
+.rating-big .star { color: var(--color-star); font-size: 1rem; margin-right: 0.2rem; }
+.rating-big .score { font-size: 1.3rem; font-weight: 700; }
+.rating-big .max { color: var(--color-text-muted); font-size: 0.8rem; }
+.vote-count { color: var(--color-text-muted); font-size: 0.8rem; }
+
+/* ── Navigation: Big action buttons ── */
+.action-row {
+  display: flex; gap: 0.75rem; align-items: center;
+}
+.action-btn {
+  display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+  padding: 0.85rem 2rem; border-radius: 14px;
+  font-weight: 700; font-size: 1rem; cursor: pointer;
+  border: none;
+  transition: all var(--duration-normal) var(--easing-default);
+}
+.action-next {
+  background: var(--color-accent); color: #fff; flex: 1;
+  box-shadow: 0 4px 24px rgba(45,184,48,0.3);
+}
+.action-next:hover { filter: brightness(1.1); transform: translateY(-1px); box-shadow: 0 6px 32px rgba(45,184,48,0.4); }
+.action-prev {
+  background: rgba(255,255,255,0.08); color: var(--color-text);
+  border: 1px solid rgba(255,255,255,0.15);
+  padding: 0.85rem 1.5rem;
+}
+.action-prev:hover { background: rgba(255,255,255,0.14); }
+.action-trailer {
+  background: rgba(255,255,255,0.08); color: var(--color-text);
+  border: 1px solid rgba(255,255,255,0.15);
+  padding: 0.85rem 1.5rem;
+}
+.action-trailer:hover { background: rgba(255,255,255,0.14); }
+
+/* ── Info Panel (right side) ── */
+.info-panel {
+  background: var(--color-surface);
+  border-left: 1px solid var(--color-border);
+  overflow-y: auto;
+  padding: 1.5rem;
+  display: flex; flex-direction: column; gap: 1.25rem;
+}
+.info-panel::-webkit-scrollbar { width: 4px; }
+.info-panel::-webkit-scrollbar-thumb { background: var(--color-chip-ring); border-radius: 999px; }
+
+.panel-section {}
+.panel-heading {
+  font-size: 0.75rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--color-text-muted);
+  margin-bottom: 0.6rem;
+  display: flex; align-items: center; gap: 0.4rem;
+}
+.panel-heading::before {
+  content: ''; width: 3px; height: 0.85em;
+  background: var(--color-accent); border-radius: 2px;
+}
+.panel-divider { height: 1px; background: var(--color-border); }
+
+/* Details list */
+.detail-list { display: flex; flex-direction: column; gap: 0.35rem; }
+.detail-item { display: flex; justify-content: space-between; font-size: 0.82rem; }
+.detail-item .label { color: var(--color-text-muted); }
+.detail-item .value { font-weight: 600; }
+
+/* Cast mini */
+.cast-mini { display: flex; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.25rem; scrollbar-width: thin; }
+.cast-mini::-webkit-scrollbar { height: 3px; }
+.cast-mini::-webkit-scrollbar-thumb { background: var(--color-chip-ring); border-radius: 999px; }
+.cast-chip {
+  display: flex; align-items: center; gap: 0.4rem;
+  min-width: fit-content;
+  padding: 0.3rem 0.6rem 0.3rem 0.3rem;
+  background: var(--color-chip); border: 1px solid var(--color-border);
+  border-radius: 999px; font-size: 0.75rem;
+}
+.cast-chip img { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; }
+.cast-chip .cast-info { display: flex; flex-direction: column; line-height: 1.2; }
+.cast-chip .cast-name { font-weight: 600; font-size: 0.72rem; }
+.cast-chip .cast-role { color: var(--color-text-muted); font-size: 0.65rem; }
+
+/* Crew mini */
+.crew-mini { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+.crew-entry .crew-role { font-size: 0.65rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-text-muted); }
+.crew-entry .crew-name { font-size: 0.82rem; }
+
+/* Provider mini */
+.provider-group { margin-bottom: 0.5rem; }
+.provider-type { font-size: 0.65rem; font-weight: 600; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.25rem; }
+.provider-icons { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+.provider-icon { width: 34px; height: 34px; border-radius: 7px; overflow: hidden; border: 1px solid var(--color-border); }
+.provider-icon img { width: 100%; height: 100%; object-fit: cover; }
+
+/* Keyword mini */
+.keyword-row { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.keyword-tag {
+  padding: 0.2rem 0.5rem; border-radius: 999px;
+  border: 1px solid var(--color-border); background: var(--color-chip);
+  color: var(--color-text-muted); font-size: 0.7rem;
+}
+
+/* Rec mini */
+.rec-mini { display: flex; gap: 0.5rem; overflow-x: auto; scrollbar-width: thin; }
+.rec-mini::-webkit-scrollbar { height: 3px; }
+.rec-mini::-webkit-scrollbar-thumb { background: var(--color-chip-ring); border-radius: 999px; }
+.rec-thumb {
+  min-width: 90px; width: 90px;
+  border-radius: 8px; overflow: hidden;
+  border: 1px solid var(--color-border);
+  transition: transform var(--duration-normal) var(--easing-default);
+}
+.rec-thumb:hover { transform: scale(1.05); }
+.rec-thumb img { width: 100%; height: 130px; object-fit: cover; }
+.rec-thumb .rec-label { padding: 0.25rem 0.35rem; font-size: 0.65rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rec-thumb .rec-sub { padding: 0 0.35rem 0.3rem; font-size: 0.6rem; color: var(--color-text-muted); }
+
+/* Ext links */
+.link-row { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+.link-pill {
+  padding: 0.25rem 0.55rem; border-radius: 6px;
+  border: 1px solid var(--color-border); background: var(--color-chip);
+  color: var(--color-text-muted); font-size: 0.7rem; font-weight: 600;
+  text-decoration: none;
+  transition: all var(--duration-normal) var(--easing-default);
+}
+.link-pill:hover { color: var(--color-text); background: var(--color-surface-alt); }
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .discovery-view { grid-template-columns: 1fr; }
+  .info-panel { display: none; }
+  .poster-float { width: 120px; top: 1rem; left: 1.5rem; }
+  .hero-overlay { padding: 1.5rem; }
+  .plot-text { -webkit-line-clamp: 4; }
+  /* Show a "More Info" toggle button on mobile */
+  .mobile-info-toggle { display: block !important; }
+}
+
+.mobile-info-toggle { display: none; }
+
+.mockup-label {
+  position: fixed; bottom: 1rem; left: 50%; transform: translateX(-50%);
+  background: #ec4899; color: #fff;
+  padding: 0.5rem 1.5rem; border-radius: 999px;
+  font-weight: 700; font-size: 0.85rem; z-index: 999;
+  box-shadow: 0 4px 20px rgba(236,72,153,0.3);
+}
+</style>
+</head>
+<body>
+
+<div class="mockup-label">Mockup C — Card Discovery</div>
+
+<div class="app-shell">
+  <!-- Minimal Navbar -->
+  <nav class="navbar">
+    <a href="#" class="navbar-brand">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z"/></svg>
+      Nextreel
+    </a>
+    <div class="navbar-actions">
+      <a href="#" class="btn-sm btn-ghost">Filters</a>
+      <a href="#" class="btn-sm btn-accent">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        Pick
+      </a>
+    </div>
+  </nav>
+
+  <!-- Discovery View -->
+  <div class="discovery-view">
+
+    <!-- LEFT: Full-screen movie card -->
+    <div class="movie-hero">
+      <div class="movie-hero-bg"></div>
+
+      <!-- Floating poster -->
+      <div class="poster-float">
+        <img src="https://image.tmdb.org/t/p/w500/4KzTB2GbOR5VcROZRjmNxBBhFEI.jpg" alt="Amour poster">
+      </div>
+
+      <div class="hero-overlay">
+        <div class="hero-content">
+          <h1>Amour</h1>
+          <p class="tagline">"There is no deeper truth." &mdash; 2012</p>
+          <div class="meta-line">
+            <span>Michael Haneke</span>
+            <span class="meta-sep">&#183;</span>
+            <span>PG-13</span>
+            <span class="meta-sep">&#183;</span>
+            <span>127 min</span>
+            <span class="meta-sep">&#183;</span>
+            <span>FR</span>
+          </div>
+          <div class="genre-row">
+            <span class="genre-pill">Drama</span>
+            <span class="genre-pill">Romance</span>
+          </div>
+          <p class="plot-text">Georges and Anne are in their eighties. They are cultivated, retired music teachers. Their daughter, who is also a musician, lives abroad with her family. One day, Anne has a stroke, and the couple's bond of love is severely tested.</p>
+
+          <div class="rating-inline">
+            <div class="rating-big">
+              <span class="star">&#9733;</span>
+              <span class="score">7.9</span>
+              <span class="max">/10</span>
+            </div>
+            <span class="vote-count">108.9K ratings</span>
+          </div>
+
+          <!-- BIG ACTION BUTTONS -->
+          <div class="action-row">
+            <button class="action-btn action-prev">&larr; Back</button>
+            <button class="action-btn action-trailer">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+              Trailer
+            </button>
+            <button class="action-btn action-next">
+              Next Movie &rarr;
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Info Panel -->
+    <div class="info-panel">
+
+      <!-- Cast -->
+      <div class="panel-section">
+        <div class="panel-heading">Cast</div>
+        <div class="cast-mini">
+          <div class="cast-chip"><img src="https://image.tmdb.org/t/p/w185/lvEFN7gTKerDfsIVyO5mrrLrGHt.jpg" alt=""><div class="cast-info"><span class="cast-name">Jean-Louis T.</span><span class="cast-role">Georges</span></div></div>
+          <div class="cast-chip"><img src="https://image.tmdb.org/t/p/w185/oWaWHGrtw91x5gCIBbnnCfYMhFC.jpg" alt=""><div class="cast-info"><span class="cast-name">Emmanuelle R.</span><span class="cast-role">Anne</span></div></div>
+          <div class="cast-chip"><img src="https://image.tmdb.org/t/p/w185/jmlnoTRetIWFeelqpKqjhLlGJxQ.jpg" alt=""><div class="cast-info"><span class="cast-name">Isabelle H.</span><span class="cast-role">Eva</span></div></div>
+          <div class="cast-chip"><img src="https://image.tmdb.org/t/p/w185/pIkVT7yhmKg3e4nqRJjJVJnBfSO.jpg" alt=""><div class="cast-info"><span class="cast-name">Alexandre T.</span><span class="cast-role">Alexandre</span></div></div>
+          <div class="cast-chip"><img src="https://image.tmdb.org/t/p/w185/n84Ie4i8NroJ6z8nAjH0IhDJINi.jpg" alt=""><div class="cast-info"><span class="cast-name">William S.</span><span class="cast-role">Geoff</span></div></div>
+        </div>
+      </div>
+
+      <div class="panel-divider"></div>
+
+      <!-- Details -->
+      <div class="panel-section">
+        <div class="panel-heading">Details</div>
+        <div class="detail-list">
+          <div class="detail-item"><span class="label">Budget</span><span class="value">$8,900,000</span></div>
+          <div class="detail-item"><span class="label">Revenue</span><span class="value">$29,800,000</span></div>
+          <div class="detail-item"><span class="label">Countries</span><span class="value">France, Germany, Austria</span></div>
+        </div>
+      </div>
+
+      <div class="panel-divider"></div>
+
+      <!-- Crew -->
+      <div class="panel-section">
+        <div class="panel-heading">Crew</div>
+        <div class="crew-mini">
+          <div class="crew-entry"><div class="crew-role">Written by</div><div class="crew-name">Michael Haneke</div></div>
+          <div class="crew-entry"><div class="crew-role">Cinematography</div><div class="crew-name">Darius Khondji</div></div>
+        </div>
+      </div>
+
+      <div class="panel-divider"></div>
+
+      <!-- Where to Watch -->
+      <div class="panel-section">
+        <div class="panel-heading">Where to Watch</div>
+        <div class="provider-group">
+          <div class="provider-type">Rent</div>
+          <div class="provider-icons">
+            <div class="provider-icon"><img src="https://image.tmdb.org/t/p/original/peURlLlr8jggOwK53fJ5wdQl05y.jpg" alt="Prime Video"></div>
+            <div class="provider-icon"><img src="https://image.tmdb.org/t/p/original/6uhKBfmtzFqOcLousHwZuzcrScK.jpg" alt="Apple TV"></div>
+            <div class="provider-icon"><img src="https://image.tmdb.org/t/p/original/tbEdFQDwx5LEVr8WpSeXQSIirVq.jpg" alt="Google Play"></div>
+            <div class="provider-icon"><img src="https://image.tmdb.org/t/p/original/oIkQkEkwfmcG7IGpRR1NB8frZZM.jpg" alt="YouTube"></div>
+          </div>
+        </div>
+        <div class="provider-group">
+          <div class="provider-type">Buy</div>
+          <div class="provider-icons">
+            <div class="provider-icon"><img src="https://image.tmdb.org/t/p/original/peURlLlr8jggOwK53fJ5wdQl05y.jpg" alt="Prime Video"></div>
+            <div class="provider-icon"><img src="https://image.tmdb.org/t/p/original/6uhKBfmtzFqOcLousHwZuzcrScK.jpg" alt="Apple TV"></div>
+            <div class="provider-icon"><img src="https://image.tmdb.org/t/p/original/tbEdFQDwx5LEVr8WpSeXQSIirVq.jpg" alt="Google Play"></div>
+            <div class="provider-icon"><img src="https://image.tmdb.org/t/p/original/oIkQkEkwfmcG7IGpRR1NB8frZZM.jpg" alt="YouTube"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-divider"></div>
+
+      <!-- Keywords -->
+      <div class="panel-section">
+        <div class="panel-heading">Keywords</div>
+        <div class="keyword-row">
+          <span class="keyword-tag">daughter</span>
+          <span class="keyword-tag">nurse</span>
+          <span class="keyword-tag">music teacher</span>
+          <span class="keyword-tag">married couple</span>
+          <span class="keyword-tag">aging</span>
+          <span class="keyword-tag">love</span>
+          <span class="keyword-tag">illness</span>
+          <span class="keyword-tag">stroke</span>
+        </div>
+      </div>
+
+      <div class="panel-divider"></div>
+
+      <!-- Similar -->
+      <div class="panel-section">
+        <div class="panel-heading">Similar Films</div>
+        <div class="rec-mini">
+          <div class="rec-thumb"><img src="https://image.tmdb.org/t/p/w342/gH42GBrPCqaRXJYbUaB0dIJvWfo.jpg" alt=""><div class="rec-label">Magical Night</div><div class="rec-sub">&#9733; 6.2</div></div>
+          <div class="rec-thumb"><img src="https://image.tmdb.org/t/p/w342/bLLM0E7JBL7ETwEGt3o1tBqDjmI.jpg" alt=""><div class="rec-label">Three Friends</div><div class="rec-sub">&#9733; 6.3</div></div>
+          <div class="rec-thumb"><img src="https://image.tmdb.org/t/p/w342/lPlnGODMiGNjpDhLiYRm6rT8JYl.jpg" alt=""><div class="rec-label">Little Fish</div><div class="rec-sub">&#9733; 7.1</div></div>
+          <div class="rec-thumb"><img src="https://image.tmdb.org/t/p/w342/46bp3RGil9YcKFJjJyAVYbsq7J9.jpg" alt=""><div class="rec-label">Elsa &amp; Fred</div><div class="rec-sub">&#9733; 6.0</div></div>
+          <div class="rec-thumb"><img src="https://image.tmdb.org/t/p/w342/f0yVUIfOQXUaIvaVcF0lUMFVfDh.jpg" alt=""><div class="rec-label">Blue Valentine</div><div class="rec-sub">&#9733; 7.0</div></div>
+        </div>
+      </div>
+
+      <div class="panel-divider"></div>
+
+      <!-- External Links -->
+      <div class="panel-section">
+        <div class="panel-heading">Links</div>
+        <div class="link-row">
+          <a href="#" class="link-pill">IMDb</a>
+          <a href="#" class="link-pill">Website</a>
+          <a href="#" class="link-pill">Facebook</a>
+          <a href="#" class="link-pill">JustWatch</a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

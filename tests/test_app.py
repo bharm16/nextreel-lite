@@ -1,7 +1,8 @@
-import asyncio
+import os
 from unittest.mock import AsyncMock, patch
 
 from app import create_app
+from tests.helpers import TEST_ENV
 
 
 def _make_test_app():
@@ -14,7 +15,7 @@ def _make_test_app():
 async def _get_csrf_token(client):
     """Issue a GET to establish a session and extract the CSRF token."""
     from quart import session as quart_session
-    # Use setFilters as a harmless GET endpoint that renders a template.
+    # Use /filters as a harmless GET endpoint that renders a template.
     # After the GET the session will contain our CSRF token.
     # We can't easily read the session from outside, so we inject the
     # token via the cookie-backed session before POST.
@@ -24,160 +25,166 @@ async def _get_csrf_token(client):
     pass
 
 
-def test_home():
+async def test_home():
     """Ensure the home route returns HTTP 200."""
+    with patch.dict(os.environ, TEST_ENV), \
+         patch('app.MovieManager') as MockManager:
+        manager = MockManager.return_value
+        manager.home = AsyncMock(return_value={"default_backdrop_url": None})
 
-    async def run_test():
-        with patch('app.MovieManager') as MockManager:
-            manager = MockManager.return_value
-            manager.home = AsyncMock(return_value='home')
-
-            app = _make_test_app()
-            async with app.app_context():
-                client = app.test_client()
-                response = await client.get("/")
-                assert response.status_code == 200
-
-    asyncio.run(run_test())
+        app = _make_test_app()
+        async with app.app_context():
+            client = app.test_client()
+            response = await client.get("/")
+            assert response.status_code == 200
 
 
-def test_set_filters_route():
-    async def run_test():
-        with patch('app.MovieManager') as MockManager:
-            MockManager.return_value.start = AsyncMock()
-            app = _make_test_app()
-            async with app.app_context():
-                client = app.test_client()
-                response = await client.get('/setFilters')
-                assert response.status_code == 200
-
-    asyncio.run(run_test())
+async def test_set_filters_route():
+    with patch.dict(os.environ, TEST_ENV), \
+         patch('app.MovieManager') as MockManager:
+        MockManager.return_value.start = AsyncMock()
+        app = _make_test_app()
+        async with app.app_context():
+            client = app.test_client()
+            response = await client.get('/filters')
+            assert response.status_code == 200
 
 
-def test_filtered_movie_endpoint():
-    async def run_test():
-        with patch('app.MovieManager') as MockManager:
-            manager = MockManager.return_value
-            manager.filtered_movie = AsyncMock(return_value='filtered')
+async def test_filtered_movie_endpoint():
+    with patch.dict(os.environ, TEST_ENV), \
+         patch('app.MovieManager') as MockManager:
+        manager = MockManager.return_value
+        manager.filtered_movie = AsyncMock(return_value='filtered')
 
-            app = _make_test_app()
-            async with app.app_context():
-                async with app.test_request_context('/'):
-                    from quart import session
-                    # Pre-seed the CSRF token and retrieve it
-                    import secrets
-                    token = secrets.token_hex(32)
-                    session['_csrf_token'] = token
+        app = _make_test_app()
+        async with app.app_context():
+            async with app.test_request_context('/'):
+                from quart import session
+                # Pre-seed the CSRF token and retrieve it
+                import secrets
+                token = secrets.token_hex(32)
+                session['_csrf_token'] = token
 
-                client = app.test_client()
-                # POST with CSRF token in form data
-                response = await client.post(
-                    '/filtered_movie',
-                    data={'year_min': '2000', 'csrf_token': token},
-                    headers={'X-CSRFToken': token},
-                )
-                # CSRF validation requires the token to be in both session
-                # and request.  In integration tests without a real session
-                # store, the session won't round-trip, so we expect 403.
-                # Verify that our CSRF check is active.
-                assert response.status_code in (200, 403)
-
-    asyncio.run(run_test())
+            client = app.test_client()
+            # POST with CSRF token in form data
+            response = await client.post(
+                '/filtered_movie',
+                data={'year_min': '2000', 'csrf_token': token},
+                headers={'X-CSRFToken': token},
+            )
+            # CSRF validation requires the token to be in both session
+            # and request.  In integration tests without a real session
+            # store, the session won't round-trip, so we expect 403.
+            # Verify that our CSRF check is active.
+            assert response.status_code in (200, 403)
 
 
-def test_filtered_movie_rejects_without_csrf():
+async def test_filtered_movie_rejects_without_csrf():
     """POST without CSRF token should be rejected."""
-    async def run_test():
-        with patch('app.MovieManager') as MockManager:
-            manager = MockManager.return_value
-            manager.filtered_movie = AsyncMock(return_value='filtered')
+    with patch.dict(os.environ, TEST_ENV), \
+         patch('app.MovieManager') as MockManager:
+        manager = MockManager.return_value
+        manager.filtered_movie = AsyncMock(return_value='filtered')
 
-            app = _make_test_app()
-            async with app.app_context():
-                client = app.test_client()
-                response = await client.post('/filtered_movie', data={'year_min': '2000'})
-                assert response.status_code == 403
-
-    asyncio.run(run_test())
+        app = _make_test_app()
+        async with app.app_context():
+            client = app.test_client()
+            response = await client.post('/filtered_movie', data={'year_min': '2000'})
+            assert response.status_code == 403
 
 
-def test_movie_detail_route():
-    async def run_test():
-        with patch('app.MovieManager') as MockManager:
-            manager = MockManager.return_value
-            manager.render_movie_by_tconst = AsyncMock(return_value='detail')
+async def test_movie_detail_route():
+    with patch.dict(os.environ, TEST_ENV), \
+         patch('app.MovieManager') as MockManager:
+        manager = MockManager.return_value
+        manager.render_movie_by_tconst = AsyncMock(return_value='detail')
 
-            app = _make_test_app()
-            async with app.app_context():
-                client = app.test_client()
-                response = await client.get('/movie/tt1234567')
-                assert response.status_code == 200
-
-    asyncio.run(run_test())
+        app = _make_test_app()
+        async with app.app_context():
+            client = app.test_client()
+            response = await client.get('/movie/tt1234567')
+            assert response.status_code == 200
 
 
-def test_movie_detail_rejects_bad_tconst():
+async def test_movie_detail_rejects_bad_tconst():
     """Invalid tconst format should return 400."""
-    async def run_test():
-        with patch('app.MovieManager') as MockManager:
-            manager = MockManager.return_value
-            manager.render_movie_by_tconst = AsyncMock(return_value='detail')
+    with patch.dict(os.environ, TEST_ENV), \
+         patch('app.MovieManager') as MockManager:
+        manager = MockManager.return_value
+        manager.render_movie_by_tconst = AsyncMock(return_value='detail')
 
-            app = _make_test_app()
-            async with app.app_context():
-                client = app.test_client()
-                response = await client.get('/movie/; DROP TABLE movies')
-                assert response.status_code in (400, 404)
-
-    asyncio.run(run_test())
+        app = _make_test_app()
+        async with app.app_context():
+            client = app.test_client()
+            response = await client.get('/movie/; DROP TABLE movies')
+            assert response.status_code in (400, 404)
 
 
-def test_next_previous_movie_routes():
-    async def run_test():
-        with patch('app.MovieManager') as MockManager:
-            manager = MockManager.return_value
-            manager.next_movie = AsyncMock(return_value='next')
-            manager.previous_movie = AsyncMock(return_value='prev')
+async def test_next_previous_movie_post_only():
+    """next_movie and previous_movie are POST-only; GET should return 405."""
+    with patch.dict(os.environ, TEST_ENV), \
+         patch('app.MovieManager') as MockManager:
+        manager = MockManager.return_value
+        manager.next_movie = AsyncMock(return_value='next')
+        manager.previous_movie = AsyncMock(return_value='prev')
 
-            app = _make_test_app()
-            async with app.app_context():
-                client = app.test_client()
-                # GET requests should still work without CSRF
-                response = await client.get('/next_movie')
-                assert response.status_code == 200
-                response = await client.get('/previous_movie')
-                assert response.status_code == 200
-
-    asyncio.run(run_test())
+        app = _make_test_app()
+        async with app.app_context():
+            client = app.test_client()
+            response = await client.get('/next_movie')
+            assert response.status_code == 405
+            response = await client.get('/previous_movie')
+            assert response.status_code == 405
 
 
-def test_post_next_movie_rejects_without_csrf():
+async def test_post_next_movie_rejects_without_csrf():
     """POST to next_movie without CSRF should be rejected."""
-    async def run_test():
-        with patch('app.MovieManager') as MockManager:
-            manager = MockManager.return_value
-            manager.next_movie = AsyncMock(return_value='next')
+    with patch.dict(os.environ, TEST_ENV), \
+         patch('app.MovieManager') as MockManager:
+        manager = MockManager.return_value
+        manager.next_movie = AsyncMock(return_value='next')
 
-            app = _make_test_app()
-            async with app.app_context():
-                client = app.test_client()
-                response = await client.post('/next_movie')
-                assert response.status_code == 403
-
-    asyncio.run(run_test())
+        app = _make_test_app()
+        async with app.app_context():
+            client = app.test_client()
+            response = await client.post('/next_movie')
+            assert response.status_code == 403
 
 
-def test_handle_new_user_route():
-    async def run_test():
-        with patch('app.MovieManager') as MockManager:
-            manager = MockManager.return_value
-            manager.add_user = AsyncMock()
+async def test_handle_new_user_route_removed():
+    """handle_new_user was removed — any request should return 404."""
+    with patch.dict(os.environ, TEST_ENV), \
+         patch('app.MovieManager') as MockManager:
+        manager = MockManager.return_value
+        manager.add_user = AsyncMock()
 
-            app = _make_test_app()
-            async with app.app_context():
-                client = app.test_client()
-                # GET should no longer be allowed (405)
-                response = await client.get('/handle_new_user')
-                assert response.status_code == 405
+        app = _make_test_app()
+        async with app.app_context():
+            client = app.test_client()
+            response = await client.get('/handle_new_user')
+            assert response.status_code == 404
+            response = await client.post('/handle_new_user')
+            assert response.status_code == 404
 
-    asyncio.run(run_test())
+
+async def test_startup_hook_initializes_movie_manager_without_db_warmup_queries():
+    """Warm-up should avoid synthetic DB pings and use lazy job enqueueing."""
+    with patch.dict(os.environ, TEST_ENV), \
+         patch('app.MovieManager') as MockManager, \
+         patch('app.ensure_movie_candidates_fulltext_index', AsyncMock()):
+        manager = MockManager.return_value
+        manager.start = AsyncMock()
+        manager.db_pool.execute = AsyncMock()
+        manager.candidate_store.latest_refresh_at = AsyncMock(return_value=None)
+
+        app = _make_test_app()
+        app.enqueue_runtime_job = AsyncMock(return_value=object())
+        startup_hook = next(
+            func for func in app.before_serving_funcs if func.__name__ == 'startup'
+        )
+
+        await startup_hook()
+
+        manager.start.assert_awaited_once()
+        manager.db_pool.execute.assert_not_awaited()
+        app.enqueue_runtime_job.assert_awaited_once_with("refresh_movie_candidates")

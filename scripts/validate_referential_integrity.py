@@ -78,8 +78,8 @@ INTEGRITY_CHECKS = [
 
 
 async def run_checks():
-    from db_utils import init_pool
-    from database.errors import DatabaseError
+    from infra.pool import init_pool
+    from infra.errors import DatabaseError
 
     db_pool = await init_pool()
     issues_found = 0

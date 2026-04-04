@@ -2,10 +2,10 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from database.errors import DatabaseError
-from database.pool import DatabaseConnectionPool
-from scripts.filter_backend import ImdbRandomMovieFetcher
-from scripts.movie import Movie
+from infra.errors import DatabaseError
+from infra.pool import DatabaseConnectionPool
+from movies.query_builder import ImdbRandomMovieFetcher
+from movies.movie import Movie
 
 
 @pytest.mark.asyncio
@@ -31,11 +31,11 @@ async def test_fetch_random_movies_returns_empty_on_database_error():
 
 
 @pytest.mark.asyncio
-async def test_fetch_movie_ratings_returns_none_on_database_error():
+async def test_fetch_slug_and_ratings_returns_none_on_database_error():
     db_pool = AsyncMock()
     db_pool.execute = AsyncMock(side_effect=DatabaseError("boom"))
     movie = Movie("tt1234567", db_pool, tmdb_helper=AsyncMock())
 
-    ratings = await movie.fetch_movie_ratings("tt1234567")
+    ratings = await movie.fetch_slug_and_ratings("tt1234567")
 
     assert ratings is None

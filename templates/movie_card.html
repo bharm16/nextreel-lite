@@ -1,317 +1,27 @@
+{% set backdrop_url = movie.backdrop_url or '/static/img/backdrop-placeholder.svg' %}
+{% set hero_backdrop = backdrop_url if backdrop_url[:8] == '/static/' else 'https://image.tmdb.org/t/p/w1280' ~ backdrop_url %}
+{% set poster_url = movie.poster_url or '/static/img/poster-placeholder.svg' %}
+<!-- Hero background-image requires Jinja interpolation — kept inline -->
 <style>
-    :root{
-      /* Map local variables to global tokens if present, with fallbacks */
-      --bg: var(--color-bg, #f8fafc);
-      --card: var(--color-surface, #ffffff);
-      --text: var(--color-text, #0f172a);
-      --muted: var(--color-text-muted, #64748b);
-      --accent: var(--color-accent, #22c55e);
-      --accent-2: var(--color-accent, #16a34a);
-      --chip: var(--color-chip, #f1f5f9);
-      --chip-ring: var(--color-chip-ring, #e2e8f040);
-      --border: var(--color-border, #e2e8f0);
-    }
-
-    html,body{height:100%;}
-    body{
-      font-family:'Poppins',sans-serif;
-      background:var(--bg);
-      color:var(--text);
-    }
-
-    /* HERO / BACKDROP */
-    .hero{
-      position:relative;
-      min-height:46vh;
-      background:
-        radial-gradient(1000px 400px at 10% 0%, #f8fafc 0%, #f8fafcd6 60%, #f8fafc00 100%),
-        linear-gradient(0deg, #f8fafc 0%, #f8fafcd6 40%, #f8fafc00 70%),
-        url('https://image.tmdb.org/t/p/w1280{{ movie.backdrop_url }}') center/cover no-repeat;
-    }
-    .hero::after{
-      content:"";
-      position:absolute; inset:0;
-      background:linear-gradient(180deg, #f8fafc00 0%, #f8fafc 85%);
-    }
-
-    /* Edge arrows */
-    .arrow-btn{
-      position:absolute; top:50%; transform:translateY(-50%);
-      z-index:5; border:1px solid #e2e8f0; border-radius:999px; padding:.75rem;
-      background:#ffffffee; color:#0f172a;
-      backdrop-filter: blur(6px);
-      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-      transition: all 0.2s ease;
-    }
-    .arrow-btn:hover:not(:disabled){
-      background:#ffffff;
-      box-shadow: 0 6px 12px rgba(0,0,0,0.15);
-      cursor:pointer;
-    }
-    .arrow-btn:disabled{
-      opacity:.4; 
-      cursor:not-allowed;
-      pointer-events: none;
-      background:#ffffff99;
-      border-color: #f1f5f9;
-    }
-    .arrow-left{ left: 12px; }
-    .arrow-right{ right: 12px; }
-
-    /* CONTENT CARD */
-    .movie-card{
-      position:relative; z-index:6; margin-top:-120px;
-      background:var(--card); border:1px solid var(--border);
-      border-radius:20px; box-shadow:0 10px 40px rgba(0,0,0,0.1);
-    }
-
-    .poster{
-      width:100%; max-width:340px; border-radius:14px; border:1px solid var(--border);
-      box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-    }
-
-    .title{
-      font-weight:700; font-size:clamp(1.6rem, 2.2vw, 2.6rem); line-height:1.15; letter-spacing:-.02em;
-    }
-    .meta{
-      color:var(--muted); font-weight:600; display:flex; gap:.75rem; flex-wrap:wrap;
-    }
-    .dot{opacity:.5;}
-
-    /* Genre chips */
-    .genre-chip{
-      border:1px solid var(--border);
-      background:var(--chip); color:var(--muted);
-      border-radius:999px; padding:.35rem .7rem; font-size:.85rem; font-weight:600;
-    }
-
-    .plot{ color:#475569; line-height:1.65; }
-
-    /* RATING CHIP (votes inside) */
-    .rating-wrap{
-      display:flex; flex-wrap:wrap; gap:1rem; align-items:center;
-    }
-    .rating-chip{
-      display:flex; align-items:flex-start; gap:.6rem;
-      background:var(--chip); border:1px solid var(--chip-ring);
-      border-radius:14px; padding:.55rem .75rem; font-weight:700;
-    }
-    .rating-chip i{ font-size:1rem; color:#ffd166; line-height:1.2; margin-top:.1rem; }
-    .rating-stack{ display:flex; flex-direction:column; line-height:1.1; }
-    .rating-line{ display:flex; align-items:baseline; gap:.35rem; }
-    .rating-number{ font-size:1.1rem; }
-    .rating-outof{ color:var(--muted); font-weight:600; font-size:.95rem; }
-    .rating-votes-mini{ color:var(--muted); font-weight:600; font-size:.85rem; }
-
-    /* Trailer button */
-    .trailer-btn{
-      display:inline-flex; align-items:center; gap:.6rem;
-      border-radius:12px; padding:.6rem .9rem; border:1px solid #cbd5e1;
-      background:white; color:#475569; font-weight:600;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    .trailer-btn:hover {
-      background: #f8fafc;
-    }
-    .trailer-btn i{ font-size:.95rem; }
-
-    /* Cast scroller */
-    .cast-strip{
-      display:flex; gap:.75rem; overflow-x:auto; padding-bottom:.25rem;
-      -webkit-overflow-scrolling:touch; scrollbar-width:thin;
-    }
-    .cast-strip::-webkit-scrollbar { height:6px; }
-    .cast-strip::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:999px; }
-
-    .actor-card{
-      background:#ffffff; border:1px solid var(--border);
-      width:135px; min-width:135px; border-radius:14px; overflow:hidden;
-    }
-    .actor-card img{ width:100%; height:180px; object-fit:cover; }
-    .actor-card .actor-name, .actor-card .character{
-      padding:.5rem .6rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-      font-size:.85rem;
-    }
-    .actor-card .actor-name{ color:#0f172a; font-weight:600; }
-    .actor-card .character{ color:var(--muted); border-top:1px solid var(--border); }
-
-    .divider{ height:1px; background:var(--border); }
-    
-    /* Bottom navigation buttons */
-    .nav-btn-prev, .nav-btn-next {
-      padding: 0.5rem 1rem;
-      border: 1px solid #cbd5e1;
-      border-radius: 0.5rem;
-      background: white;
-      color: #475569;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    .nav-btn-prev:hover:not(:disabled), .nav-btn-next:hover {
-      background: #f8fafc;
-    }
-    .nav-btn-prev:disabled {
-      opacity: 0.25;
-      cursor: not-allowed;
-    }
-
-    /* Floating stats container */
-    .stats-container{
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 1.5rem;
-      box-shadow: 0 10px 40px rgba(0,0,0,0.1);
-    }
-
-    .stats-container h3{
-      font-size: 1rem;
-      font-weight: 700;
-      margin-bottom: 1rem;
-      color: var(--text);
-    }
-
-    .stats-container .space-y-3 > * + *{
-      margin-top: 0.75rem;
-    }
-
-    .stats-container .flex{
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      font-size: 0.875rem;
-    }
-
-    .stats-container i{
-      color: var(--muted);
-      width: 16px;
-      text-align: center;
-    }
-
-    /* Watch Providers */
-    .watch-providers {
-      margin-top: 1rem;
-      padding: 1rem;
-      background: var(--chip);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-    }
-
-    .watch-providers h3 {
-      font-size: 0.875rem;
-      font-weight: 600;
-      color: var(--muted);
-      margin-bottom: 0.75rem;
-      text-transform: uppercase;
-      letter-spacing: 0.025em;
-    }
-
-    .provider-section {
-      margin-bottom: 1rem;
-    }
-
-    .provider-section:last-child {
-      margin-bottom: 0;
-    }
-
-    .provider-label {
-      font-size: 0.75rem;
-      font-weight: 600;
-      color: var(--muted);
-      margin-bottom: 0.5rem;
-      display: flex;
-      align-items: center;
-      gap: 0.25rem;
-    }
-
-    .provider-label i {
-      font-size: 0.625rem;
-    }
-
-    .provider-logos {
-      display: flex;
-      gap: 0.5rem;
-      flex-wrap: wrap;
-    }
-
-    .provider-logo-link {
-      display: inline-block;
-      text-decoration: none;
-      transition: transform 0.2s ease, opacity 0.2s ease;
-    }
-
-    .provider-logo-link:hover {
-      transform: scale(1.1);
-      opacity: 0.9;
-    }
-
-    .provider-logo {
-      width: 40px;
-      height: 40px;
-      border-radius: 8px;
-      overflow: hidden;
-      border: 1px solid var(--border);
-      background: white;
-      cursor: pointer;
-      transition: box-shadow 0.2s ease;
-    }
-
-    .provider-logo-link:hover .provider-logo {
-      box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-    }
-
-    .provider-logo img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-
-    .justwatch-link {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35rem;
-      margin-top: 0.75rem;
-      padding: 0.35rem 0.7rem;
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--muted);
-      font-size: 0.75rem;
-      font-weight: 600;
-      text-decoration: none;
-      transition: all 0.2s;
-    }
-
-    .justwatch-link:hover {
-      background: white;
-      color: var(--text);
-    }
-
-    .justwatch-link i {
-      font-size: 0.625rem;
-    }
-
-    @media (max-width: 1400px){
-      .floating-containers{
-        display: none !important;
-      }
-    }
-
-    @media (max-width: 992px){
-      .movie-card{ margin-top:-80px; }
-    }
-  </style>
+  .hero {
+    background:
+      radial-gradient(1000px 400px at 10% 0%, var(--color-bg) 0%, color-mix(in srgb, var(--color-bg) 84%, transparent) 60%, transparent 100%),
+      linear-gradient(0deg, var(--color-bg) 0%, color-mix(in srgb, var(--color-bg) 84%, transparent) 40%, transparent 70%),
+      url('{{ hero_backdrop }}') center/cover no-repeat;
+  }
+</style>
   <!-- HERO / BACKDROP -->
   <section class="hero relative">
     <!-- Prev -->
     <form method="POST" action="/previous_movie" id="prev-form" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button type="submit" class="arrow-btn arrow-left" {% if previous_count == 0 %}disabled{% endif %} aria-label="Previous movie">
         <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15 19l-7-7 7-7"/></svg>
       </button>
     </form>
     <!-- Next -->
     <form method="POST" action="/next_movie" id="next-form" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button type="submit" class="arrow-btn arrow-right" aria-label="Next movie">
         <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
       </button>
@@ -326,12 +36,16 @@
 
         <!-- Poster -->
         <div class="col-span-1 md:col-span-4 flex justify-center md:justify-start">
-          <img class="poster aspect-poster" src="{{ movie.poster_url }}" alt="Poster for {{ movie.title }}" fetchpriority="high" decoding="async">
+          <img class="poster aspect-poster" src="{{ poster_url }}" alt="Poster for {{ movie.title }}" fetchpriority="high" decoding="async" onerror="this.src='/static/img/poster-placeholder.svg'">
         </div>
 
         <!-- Details -->
         <div class="col-span-1 md:col-span-8">
           <h1 class="title mb-2">{{ movie.title }} ({{ movie.year }})</h1>
+
+          {% if movie.tagline %}
+          <p class="tagline mb-2">"{{ movie.tagline }}"</p>
+          {% endif %}
 
           <div class="meta mb-3">
             <span>Directed by {{ movie.directors }}</span>
@@ -350,7 +64,7 @@
           <!-- Rating chip (with votes beneath /10) -->
           <div class="rating-wrap mb-4">
             <div class="rating-chip">
-              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="#ffd166" aria-hidden="true"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" style="color:var(--color-star)" aria-hidden="true"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
               <div class="rating-stack">
                 <div class="rating-line">
                   <span class="rating-number">{{ '%.1f'|format(movie.rating) }}</span>
@@ -360,21 +74,74 @@
               </div>
             </div>
 
+            {% if movie.trailer %}
             <button class="trailer-btn" id="play-button" data-video-url="{{ movie.trailer }}">
               <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
               Play Trailer
             </button>
+            {% endif %}
           </div>
+
+          <!-- Collection banner -->
+          {% if movie.collection %}
+          <div class="collection-banner mb-4">
+            {% if movie.collection.poster_url %}
+            <img src="{{ movie.collection.poster_url }}" alt="{{ movie.collection.name }}">
+            {% endif %}
+            <div>
+              <div class="collection-label">Part of</div>
+              <div class="collection-name">{{ movie.collection.name }}</div>
+            </div>
+          </div>
+          {% endif %}
+
+          <!-- External links -->
+          {% if movie.external_ids or movie.homepage %}
+          <div class="external-links mb-4">
+            {% if movie.external_ids and movie.external_ids.imdb_url %}
+            <a href="{{ movie.external_ids.imdb_url }}" target="_blank" rel="noopener" class="ext-link">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M14.31 9.588v.005c-.077-.048-.227-.07-.42-.07v4.815c.27 0 .44-.06.5-.165.062-.104.095-.405.095-.904v-2.19c0-.39-.013-.65-.04-.78-.025-.13-.07-.22-.135-.27v-.005h.005-.005zm-3.065.005c-.105.21-.183.57-.245 1.075v3.15c.062.49.148.84.262 1.05.115.21.29.315.52.315.225 0 .39-.1.497-.295.107-.195.16-.545.16-1.05v-3.17c0-.507-.053-.862-.158-1.06-.105-.2-.27-.3-.5-.3-.23 0-.41.1-.536.285zM22 2v20H2V2h20zm-9.768 7.155c-.207 0-.397.04-.567.12-.165.08-.312.195-.435.35v-.395h-1.27v7.545h1.27v-4.79c.025-.3.08-.52.155-.66.075-.135.195-.2.36-.2.195 0 .315.065.36.2.045.134.07.4.07.795v4.655h1.268v-5.23c0-.62-.063-1.02-.192-1.2-.13-.18-.39-.27-.77-.27H12l.232-.12zm-4.56 0h-1.89v7.545h1.88V9.155h.01zm8.988.015c-.437 0-.742.165-.917.495-.176.33-.264.865-.264 1.6v2.71c0 .68.092 1.19.276 1.525.184.34.496.51.943.51.394 0 .684-.147.864-.435.18-.289.274-.727.286-1.317l1.188.07c.015.555-.103 1.04-.351 1.46-.248.42-.683.634-1.324.634-.72 0-1.2-.264-1.44-.79-.237-.527-.357-1.35-.357-2.48v-1.46c0-1.235.133-2.11.398-2.624.265-.515.738-.774 1.42-.774.575 0 .99.222 1.244.665.253.443.38 1.16.38 2.145l-1.17.07c0-.477-.045-.83-.134-1.06-.09-.23-.268-.346-.527-.346-.217 0-.37.094-.456.28-.087.19-.13.5-.13.935v.475h-.001v.015c.016.03.016.09 0 .18v2.105c0 .51.04.852.118 1.025.078.174.228.26.447.26.22 0 .365-.102.433-.305.068-.2.102-.575.102-1.12V11.87h-1.145v-.97h2.336v5.875h-.886l-.16-.74c-.158.26-.34.46-.538.595-.198.135-.408.2-.63.2-.33 0-.59-.125-.78-.375-.19-.25-.31-.57-.367-.965-.057-.395-.086-.9-.086-1.52V12.7h.001v-.135c0-.94-.116-1.623-.347-2.05-.23-.424-.618-.65-1.164-.655l.108.11.1.1zM6.49 9.14H3.555v7.58h1.1v-7.58h.74V16.72h1.097l-.002-7.58z"/></svg>
+              IMDb
+            </a>
+            {% endif %}
+            {% if movie.homepage %}
+            <a href="{{ movie.homepage }}" target="_blank" rel="noopener" class="ext-link">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+              Website
+            </a>
+            {% endif %}
+            {% if movie.external_ids and movie.external_ids.facebook_url %}
+            <a href="{{ movie.external_ids.facebook_url }}" target="_blank" rel="noopener" class="ext-link">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+              Facebook
+            </a>
+            {% endif %}
+            {% if movie.external_ids and movie.external_ids.instagram_url %}
+            <a href="{{ movie.external_ids.instagram_url }}" target="_blank" rel="noopener" class="ext-link">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>
+              Instagram
+            </a>
+            {% endif %}
+            {% if movie.external_ids and movie.external_ids.twitter_url %}
+            <a href="{{ movie.external_ids.twitter_url }}" target="_blank" rel="noopener" class="ext-link">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+              X
+            </a>
+            {% endif %}
+          </div>
+          {% endif %}
 
           <!-- Divider + Prev/Next buttons -->
           <div class="divider my-4"></div>
           <div class="flex gap-2">
             <form method="POST" action="/previous_movie" id="prev-form-bottom" class="inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button type="submit" class="nav-btn-prev" {% if previous_count == 0 %}disabled{% endif %}>
                 ← Previous
               </button>
             </form>
-            <form method="POST" action="/next_movie" class="inline">
+            <form method="POST" action="/next_movie" id="next-form-bottom" class="inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button type="submit" class="nav-btn-next">
                 Next →
               </button>
@@ -384,13 +151,14 @@
       </div>
 
       <!-- Cast -->
+      {% if movie.cast %}
       <div class="mt-8">
-        <h2 class="text-lg font-bold mb-3">Cast</h2>
+        <h2 class="section-heading">Cast</h2>
         <div class="cast-strip">
           {% for actor in movie.cast %}
           <div class="actor-card">
             {% if actor.image_url %}
-              <img src="{{ actor.image_url }}" alt="{{ actor.name }}">
+              <img src="{{ actor.image_url }}" alt="{{ actor.name }}" loading="lazy">
             {% else %}
               <div style="height:180px; display:flex; align-items:center; justify-content:center; color:var(--muted);">No image</div>
             {% endif %}
@@ -400,197 +168,218 @@
           {% endfor %}
         </div>
       </div>
+      {% endif %}
+
+      <div class="movie-secondary-layout mt-6">
+        <aside class="movie-sidebar">
+          <div class="stats-container">
+            <h2 class="section-heading">Movie Details</h2>
+            <div class="space-y-3">
+              {% if movie.runtime and movie.runtime != "0 min" and movie.runtime != "Unknown" %}
+              <div class="flex">
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1a11 11 0 1 0 0 22 11 11 0 0 0 0-22zm1 11H7v-2h4V5h2v7z"/></svg>
+                <span>{{ movie.runtime }}</span>
+              </div>
+              {% endif %}
+              {% if movie.original_language and movie.original_language != "unknown" %}
+              <div class="flex">
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 4h16v2H4zm6 4h10v2H10zm0 4h8v2h-8zm0 4h6v2h-6zM4 8h4v2H4zM4 12h4v2H4zM4 16h4v2H4z"/></svg>
+                <span>{{ movie.original_language.upper() }}</span>
+              </div>
+              {% endif %}
+              {% if movie.budget and movie.budget != "Unknown" and movie.budget != "$0" %}
+              <div class="flex">
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1a3 3 0 0 1 3 3v1h2v2h-2v8h2v2h-2v1a3 3 0 0 1-3 3h-1a3 3 0 0 1-3-3v-1H6v-2h2V7H6V5h2V4a3 3 0 0 1 3-3h1zm-1 6v8h1a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1h-1z"/></svg>
+                <span>Budget: {{ movie.budget }}</span>
+              </div>
+              {% endif %}
+              {% if movie.revenue and movie.revenue != "Unknown" and movie.revenue != "$0" %}
+              <div class="flex">
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 3h2v16h16v2H3z" opacity="0.3"/><path d="M7 15l4-4 3 3 5-6 1.5 1.3-6.5 7.7-3-3-4 4z"/></svg>
+                <span>Revenue: {{ movie.revenue }}</span>
+              </div>
+              {% endif %}
+              {% if movie.production_countries and movie.production_countries != "Unknown" %}
+              <div class="flex">
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+                <span>{{ movie.production_countries }}</span>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+
+          {% if movie.watch_providers %}
+          <div class="stats-container">
+            <h2 class="section-heading">Where to Watch</h2>
+            {% if movie.watch_providers.stream %}
+            <div class="provider-section">
+              <div class="provider-label">
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+                Stream
+              </div>
+              <div class="provider-logos">
+                {% for provider in movie.watch_providers.stream %}
+                <a href="{{ movie.watch_providers.justwatch_link if movie.watch_providers.justwatch_link else '#' }}" target="_blank" class="provider-logo-link" title="Watch on {{ provider.provider_name }}">
+                  <div class="provider-logo">
+                    {% if provider.logo_path %}
+                    <img src="{{ provider.logo_path }}" alt="{{ provider.provider_name }}">
+                    {% else %}
+                    <span style="display:flex;align-items:center;justify-content:center;height:100%;font-size:.65rem;padding:.25rem;text-align:center;">{{ provider.provider_name }}</span>
+                    {% endif %}
+                  </div>
+                </a>
+                {% endfor %}
+              </div>
+            </div>
+            {% endif %}
+            {% if movie.watch_providers.rent %}
+            <div class="provider-section">
+              <div class="provider-label">
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h14v6h-2a2 2 0 1 0 0 4h2v6H5a2 2 0 0 1-2-2v-3a2 2 0 1 0 0-4V7z"/></svg>
+                Rent
+              </div>
+              <div class="provider-logos">
+                {% for provider in movie.watch_providers.rent %}
+                <a href="{{ movie.watch_providers.justwatch_link if movie.watch_providers.justwatch_link else '#' }}" target="_blank" class="provider-logo-link" title="Rent on {{ provider.provider_name }}">
+                  <div class="provider-logo">
+                    {% if provider.logo_path %}
+                    <img src="{{ provider.logo_path }}" alt="{{ provider.provider_name }}">
+                    {% else %}
+                    <span style="display:flex;align-items:center;justify-content:center;height:100%;font-size:.65rem;padding:.25rem;text-align:center;">{{ provider.provider_name }}</span>
+                    {% endif %}
+                  </div>
+                </a>
+                {% endfor %}
+              </div>
+            </div>
+            {% endif %}
+            {% if movie.watch_providers.buy %}
+            <div class="provider-section">
+              <div class="provider-label">
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4h-2l-1 2H1v2h2l3.6 7.59-1.35 2.45A2 2 0 0 0 7 20h12v-2H7l1.1-2h7.45a2 2 0 0 0 1.79-1.11L21 9H6.42l-1-2H7V4z"/></svg>
+                Buy
+              </div>
+              <div class="provider-logos">
+                {% for provider in movie.watch_providers.buy %}
+                <a href="{{ movie.watch_providers.justwatch_link if movie.watch_providers.justwatch_link else '#' }}" target="_blank" class="provider-logo-link" title="Buy on {{ provider.provider_name }}">
+                  <div class="provider-logo">
+                    {% if provider.logo_path %}
+                    <img src="{{ provider.logo_path }}" alt="{{ provider.provider_name }}">
+                    {% else %}
+                    <span style="display:flex;align-items:center;justify-content:center;height:100%;font-size:.65rem;padding:.25rem;text-align:center;">{{ provider.provider_name }}</span>
+                    {% endif %}
+                  </div>
+                </a>
+                {% endfor %}
+              </div>
+            </div>
+            {% endif %}
+            {% if movie.watch_providers.ads %}
+            <div class="provider-section">
+              <div class="provider-label">
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14zM9 8l7 4-7 4V8z"/></svg>
+                Free with Ads
+              </div>
+              <div class="provider-logos">
+                {% for provider in movie.watch_providers.ads %}
+                <a href="{{ movie.watch_providers.justwatch_link if movie.watch_providers.justwatch_link else '#' }}" target="_blank" class="provider-logo-link" title="Free on {{ provider.provider_name }}">
+                  <div class="provider-logo">
+                    {% if provider.logo_path %}
+                    <img src="{{ provider.logo_path }}" alt="{{ provider.provider_name }}">
+                    {% else %}
+                    <span style="display:flex;align-items:center;justify-content:center;height:100%;font-size:.65rem;padding:.25rem;text-align:center;">{{ provider.provider_name }}</span>
+                    {% endif %}
+                  </div>
+                </a>
+                {% endfor %}
+              </div>
+            </div>
+            {% endif %}
+            {% if movie.watch_providers.justwatch_link %}
+            <a href="{{ movie.watch_providers.justwatch_link }}" target="_blank" class="justwatch-link">
+              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M14 3h7v7h-2V6.41l-9.29 9.3-1.42-1.42 9.3-9.29H14V3z"/><path d="M5 5h7v2H7v10h10v-5h2v7H5z"/></svg>
+              View all on JustWatch
+            </a>
+            {% endif %}
+          </div>
+          {% endif %}
+        </aside>
+
+        <div class="movie-secondary-content">
+          <!-- Key Crew -->
+          {% if movie.key_crew %}
+          <div>
+            <h2 class="section-heading">Crew</h2>
+            <div class="crew-grid">
+              {% if movie.key_crew.writers %}
+              <div class="crew-item">
+                <div class="crew-role">Written by</div>
+                <div>{{ movie.key_crew.writers | join(', ') }}</div>
+              </div>
+              {% endif %}
+              {% if movie.key_crew.composer %}
+              <div class="crew-item">
+                <div class="crew-role">Music</div>
+                <div>{{ movie.key_crew.composer }}</div>
+              </div>
+              {% endif %}
+              {% if movie.key_crew.cinematographer %}
+              <div class="crew-item">
+                <div class="crew-role">Cinematography</div>
+                <div>{{ movie.key_crew.cinematographer }}</div>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+          {% endif %}
+
+          <!-- Keywords -->
+          {% if movie.keywords %}
+          <div class="{% if movie.key_crew %}mt-6{% endif %}">
+            <h2 class="section-heading">Keywords</h2>
+            <div class="flex flex-wrap gap-2">
+              {% for kw in movie.keywords[:12] %}
+              <span class="keyword-chip">{{ kw }}</span>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+
+          <!-- Recommendations -->
+          {% if movie.recommendations %}
+          <div class="{% if movie.key_crew or movie.keywords %}mt-6{% endif %}">
+            <h2 class="section-heading">Recommended</h2>
+            <div class="rec-strip">
+              {% for rec in movie.recommendations %}
+              <div class="rec-card" title="{{ rec.title }}">
+                {% if rec.poster_url %}
+                <img src="{{ rec.poster_url }}" alt="{{ rec.title }}" loading="lazy">
+                {% else %}
+                <div style="height:220px; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:.85rem; padding:.5rem; text-align:center;">{{ rec.title }}</div>
+                {% endif %}
+                <div class="rec-info">
+                  <div class="rec-title">{{ rec.title }}</div>
+                  <div class="rec-meta">
+                    <span>{{ rec.year }}</span>
+                    {% if rec.vote_average %}
+                    <span class="rec-rating">
+                      <svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                      {{ '%.1f'|format(rec.vote_average) }}
+                    </span>
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
     </div>
   </main>
-
-  <!-- Floating Containers -->
-  <div class="floating-containers" id="floating-containers" style="position: absolute; right: 2rem; top: 0; width: 280px; z-index: 10;">
-    <!-- Movie Details Container -->
-    <div class="stats-container" style="position: relative; margin-bottom: 1rem;">
-      <h3>Movie Details</h3>
-      <div class="space-y-3">
-        <!-- Runtime, Budget, Revenue, Language -->
-        {% if movie.runtime and movie.runtime != "0 min" and movie.runtime != "Unknown" %}
-        <div class="flex">
-          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1a11 11 0 1 0 0 22 11 11 0 0 0 0-22zm1 11H7v-2h4V5h2v7z"/></svg>
-          <span>{{ movie.runtime }}</span>
-        </div>
-        {% endif %}
-        
-        {% if movie.original_language and movie.original_language != "unknown" %}
-        <div class="flex">
-          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 4h16v2H4zm6 4h10v2H10zm0 4h8v2h-8zm0 4h6v2h-6zM4 8h4v2H4zM4 12h4v2H4zM4 16h4v2H4z"/></svg>
-          <span>{{ movie.original_language.upper() }}</span>
-        </div>
-        {% endif %}
-        
-        {% if movie.budget and movie.budget != "Unknown" and movie.budget != "$0" %}
-        <div class="flex">
-          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1a3 3 0 0 1 3 3v1h2v2h-2v8h2v2h-2v1a3 3 0 0 1-3 3h-1a3 3 0 0 1-3-3v-1H6v-2h2V7H6V5h2V4a3 3 0 0 1 3-3h1zm-1 6v8h1a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1h-1z"/></svg>
-          <span>Budget: {{ movie.budget }}</span>
-        </div>
-        {% endif %}
-        
-        {% if movie.revenue and movie.revenue != "Unknown" and movie.revenue != "$0" %}
-        <div class="flex">
-          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 3h2v16h16v2H3z" opacity="0.3"/><path d="M7 15l4-4 3 3 5-6 1.5 1.3-6.5 7.7-3-3-4 4z"/></svg>
-          <span>Revenue: {{ movie.revenue }}</span>
-        </div>
-        {% endif %}
-      </div>
-    </div>
-
-    <!-- Where to Watch Container -->
-    {% if movie.watch_providers %}
-    <div class="stats-container" style="position: relative;">
-      <h3>Where to Watch</h3>
-      
-      {% if movie.watch_providers.stream %}
-      <div class="provider-section">
-        <div class="provider-label">
-          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
-          Stream
-        </div>
-        <div class="provider-logos">
-          {% for provider in movie.watch_providers.stream %}
-          <a href="{{ movie.watch_providers.justwatch_link if movie.watch_providers.justwatch_link else '#' }}" 
-             target="_blank" 
-             class="provider-logo-link"
-             title="Watch on {{ provider.provider_name }}">
-            <div class="provider-logo">
-              {% if provider.logo_path %}
-              <img src="{{ provider.logo_path }}" alt="{{ provider.provider_name }}">
-              {% else %}
-              <span style="display: flex; align-items: center; justify-content: center; height: 100%; font-size: 0.65rem; padding: 0.25rem; text-align: center;">{{ provider.provider_name }}</span>
-              {% endif %}
-            </div>
-          </a>
-          {% endfor %}
-        </div>
-      </div>
-      {% endif %}
-      
-      {% if movie.watch_providers.rent %}
-      <div class="provider-section">
-        <div class="provider-label">
-          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h14v6h-2a2 2 0 1 0 0 4h2v6H5a2 2 0 0 1-2-2v-3a2 2 0 1 0 0-4V7z"/></svg>
-          Rent
-        </div>
-        <div class="provider-logos">
-          {% for provider in movie.watch_providers.rent %}
-          <a href="{{ movie.watch_providers.justwatch_link if movie.watch_providers.justwatch_link else '#' }}" 
-             target="_blank" 
-             class="provider-logo-link"
-             title="Rent on {{ provider.provider_name }}">
-            <div class="provider-logo">
-              {% if provider.logo_path %}
-              <img src="{{ provider.logo_path }}" alt="{{ provider.provider_name }}">
-              {% else %}
-              <span style="display: flex; align-items: center; justify-content: center; height: 100%; font-size: 0.65rem; padding: 0.25rem; text-align: center;">{{ provider.provider_name }}</span>
-              {% endif %}
-            </div>
-          </a>
-          {% endfor %}
-        </div>
-      </div>
-      {% endif %}
-      
-      {% if movie.watch_providers.buy %}
-      <div class="provider-section">
-        <div class="provider-label">
-          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4h-2l-1 2H1v2h2l3.6 7.59-1.35 2.45A2 2 0 0 0 7 20h12v-2H7l1.1-2h7.45a2 2 0 0 0 1.79-1.11L21 9H6.42l-1-2H7V4z"/></svg>
-          Buy
-        </div>
-        <div class="provider-logos">
-          {% for provider in movie.watch_providers.buy %}
-          <a href="{{ movie.watch_providers.justwatch_link if movie.watch_providers.justwatch_link else '#' }}" 
-             target="_blank" 
-             class="provider-logo-link"
-             title="Buy on {{ provider.provider_name }}">
-            <div class="provider-logo">
-              {% if provider.logo_path %}
-              <img src="{{ provider.logo_path }}" alt="{{ provider.provider_name }}">
-              {% else %}
-              <span style="display: flex; align-items: center; justify-content: center; height: 100%; font-size: 0.65rem; padding: 0.25rem; text-align: center;">{{ provider.provider_name }}</span>
-              {% endif %}
-            </div>
-          </a>
-          {% endfor %}
-        </div>
-      </div>
-      {% endif %}
-      
-      {% if movie.watch_providers.justwatch_link %}
-      <a href="{{ movie.watch_providers.justwatch_link }}" target="_blank" class="justwatch-link">
-        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M14 3h7v7h-2V6.41l-9.29 9.3-1.42-1.42 9.3-9.29H14V3z"/><path d="M5 5h7v2H7v10h10v-5h2v7H5z"/></svg>
-        View all on JustWatch
-      </a>
-      {% endif %}
-    </div>
-    {% endif %}
-  </div>
-
   <!-- JavaScript -->
   <script>
-    // Sticky floating containers on scroll
-    (function() {
-      const floatingContainers = document.getElementById('floating-containers');
-      if (!floatingContainers) return;
-      
-      const movieCard = document.querySelector('.movie-card');
-      if (!movieCard) return;
-      
-      // Store initial position
-      let movieCardRect = movieCard.getBoundingClientRect();
-      let initialTop = movieCardRect.top + window.pageYOffset;
-      
-      // Initially position containers at the same level as movie card
-      floatingContainers.style.top = initialTop + 'px';
-      
-      function handleScroll() {
-        const scrollY = window.scrollY || window.pageYOffset;
-        const windowHeight = window.innerHeight;
-        const containerHeight = floatingContainers.offsetHeight;
-        
-        // Calculate when to start sticking (when movie card top reaches viewport top)
-        const triggerPoint = initialTop - 20;
-        
-        if (scrollY >= triggerPoint) {
-          // Fixed positioning when scrolled past trigger point
-          if (containerHeight < windowHeight - 40) {
-            // Center vertically if containers fit
-            floatingContainers.style.position = 'fixed';
-            floatingContainers.style.top = '50%';
-            floatingContainers.style.transform = 'translateY(-50%)';
-          } else {
-            // Stick to top if containers are too tall
-            floatingContainers.style.position = 'fixed';
-            floatingContainers.style.top = '20px';
-            floatingContainers.style.transform = 'none';
-          }
-        } else {
-          // Absolute positioning before trigger point
-          floatingContainers.style.position = 'absolute';
-          floatingContainers.style.top = initialTop + 'px';
-          floatingContainers.style.transform = 'none';
-        }
-      }
-      
-      // Update on resize to recalculate positions
-      function handleResize() {
-        movieCardRect = movieCard.getBoundingClientRect();
-        initialTop = movieCardRect.top + window.pageYOffset;
-        handleScroll();
-      }
-      
-      // Attach event listeners
-      window.addEventListener('scroll', handleScroll);
-      window.addEventListener('resize', handleResize);
-      
-      // Initial positioning
-      handleScroll();
-    })();
-
     // Build up to 3 genre chips from CSV text already in #genre-info
     (function(){
       const el = document.getElementById("genre-info");
@@ -615,7 +404,7 @@
 
     // Format votes (e.g., 245000 -> 245K, 1_200_000 -> 1.2M)
     (function(){
-      const voteElements = document.querySelectorAll("#vote-number, #vote-number-floating");
+      const voteElements = document.querySelectorAll("#vote-number");
       voteElements.forEach(voteEl => {
         if(!voteEl) return;
         const num = parseInt(voteEl.textContent.replace(/[^0-9]/g,''), 10);
@@ -656,7 +445,7 @@
           }
         });
       }
-      ['#prev-form', '#prev-form-bottom', '#next-form'].forEach(sel => {
+      ['#prev-form', '#prev-form-bottom', '#next-form', '#next-form-bottom'].forEach(sel => {
         const f = document.querySelector(sel);
         if (f) guardDisabled(f);
       });

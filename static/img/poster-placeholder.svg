@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 900" role="img" aria-labelledby="title desc">
+  <title id="title">Poster placeholder</title>
+  <desc id="desc">Fallback poster image for movies without artwork.</desc>
+  <defs>
+    <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+  </defs>
+  <rect width="600" height="900" fill="url(#g)"/>
+  <rect x="56" y="56" width="488" height="788" rx="24" fill="none" stroke="#94a3b8" stroke-width="8" stroke-dasharray="16 20"/>
+  <circle cx="300" cy="310" r="86" fill="#334155"/>
+  <path d="M300 250l60 92h-120l60-92z" fill="#94a3b8"/>
+  <rect x="140" y="500" width="320" height="28" rx="14" fill="#475569"/>
+  <rect x="180" y="552" width="240" height="20" rx="10" fill="#334155"/>
+  <rect x="120" y="690" width="360" height="18" rx="9" fill="#334155"/>
+  <rect x="150" y="728" width="300" height="18" rx="9" fill="#334155"/>
+</svg>
