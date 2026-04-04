@@ -31,7 +31,7 @@
   <!-- CONTENT -->
   <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
     <div id="movie-status" class="sr-only" role="status" aria-live="polite"></div>
-    <div class="movie-card p-4 md:p-8">
+    <div class="movie-card p-4 sm:p-6 lg:p-8">
       <div class="grid grid-cols-1 md:grid-cols-12 gap-4 lg:gap-8 items-start">
 
         <!-- Poster -->
@@ -41,7 +41,7 @@
 
         <!-- Details -->
         <div class="col-span-1 md:col-span-8">
-          <h1 class="title mb-2">{{ movie.title }} ({{ movie.year }})</h1>
+          <h1 class="title mb-2">{{ movie.title }} <span style="font-weight:400; color:var(--color-text-muted)">({{ movie.year }})</span></h1>
 
           {% if movie.tagline %}
           <p class="tagline mb-2">"{{ movie.tagline }}"</p>
@@ -58,10 +58,7 @@
           <!-- Genres (built from CSV below) -->
           <div class="flex flex-wrap gap-2 mb-4" id="genre-info">{{ movie.genres }}</div>
 
-          <!-- Plot -->
-          <p class="plot mb-4">{{ movie.plot }}</p>
-
-          <!-- Rating chip (with votes beneath /10) -->
+          <!-- Rating chip — before plot for scan-and-decide -->
           <div class="rating-wrap mb-4">
             <div class="rating-chip">
               <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" style="color:var(--color-star)" aria-hidden="true"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
@@ -76,11 +73,14 @@
 
             {% if movie.trailer %}
             <button class="trailer-btn" id="play-button" data-video-url="{{ movie.trailer }}">
-              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l14 8-14 8V4z"/></svg>
               Play Trailer
             </button>
             {% endif %}
           </div>
+
+          <!-- Plot -->
+          <p class="plot mb-4">{{ movie.plot }}</p>
 
           <!-- Collection banner -->
           {% if movie.collection %}
@@ -155,8 +155,8 @@
       <!-- Cast -->
       {% if movie.cast %}
       <div class="mt-8">
-        <h2 class="section-heading">Cast</h2>
-        <div class="cast-strip">
+        <h2 class="section-heading-lg">Cast</h2>
+        <div class="scroll-fade"><div class="cast-strip">
           {% for actor in movie.cast %}
           <div class="actor-card">
             {% if actor.image_url %}
@@ -168,11 +168,41 @@
             <div class="character">{{ actor.character }}</div>
           </div>
           {% endfor %}
-        </div>
+        </div></div>
       </div>
       {% endif %}
 
-      <div class="movie-secondary-layout mt-6">
+      <!-- Recommendations — before Crew/Keywords for discovery-first -->
+      {% if movie.recommendations %}
+      <div class="mt-8">
+        <h2 class="section-heading-lg">Recommended</h2>
+        <div class="scroll-fade"><div class="rec-strip">
+          {% for rec in movie.recommendations %}
+          <div class="rec-card" title="{{ rec.title }}" tabindex="0">
+            {% if rec.poster_url %}
+            <img src="{{ rec.poster_url }}" alt="{{ rec.title }}" loading="lazy">
+            {% else %}
+            <div style="height:220px; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:.85rem; padding:.5rem; text-align:center;">{{ rec.title }}</div>
+            {% endif %}
+            <div class="rec-info">
+              <div class="rec-title">{{ rec.title }}</div>
+              <div class="rec-meta">
+                <span>{{ rec.year }}</span>
+                {% if rec.vote_average %}
+                <span class="rec-rating">
+                  <svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                  {{ '%.1f'|format(rec.vote_average) }}
+                </span>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div></div>
+      </div>
+      {% endif %}
+
+      <div class="movie-secondary-layout mt-8">
         <aside class="movie-sidebar">
           <div class="stats-container">
             <h2 class="section-heading">Movie Details</h2>
@@ -211,7 +241,7 @@
           </div>
 
           {% if movie.watch_providers %}
-          <div class="stats-container">
+          <div class="stats-container watch-accent">
             <h2 class="section-heading">Where to Watch</h2>
             {% if movie.watch_providers.stream %}
             <div class="provider-section">
@@ -347,35 +377,6 @@
           </div>
           {% endif %}
 
-          <!-- Recommendations -->
-          {% if movie.recommendations %}
-          <div class="{% if movie.key_crew or movie.keywords %}mt-6{% endif %}">
-            <h2 class="section-heading">Recommended</h2>
-            <div class="rec-strip">
-              {% for rec in movie.recommendations %}
-              <div class="rec-card" title="{{ rec.title }}">
-                {% if rec.poster_url %}
-                <img src="{{ rec.poster_url }}" alt="{{ rec.title }}" loading="lazy">
-                {% else %}
-                <div style="height:220px; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:.85rem; padding:.5rem; text-align:center;">{{ rec.title }}</div>
-                {% endif %}
-                <div class="rec-info">
-                  <div class="rec-title">{{ rec.title }}</div>
-                  <div class="rec-meta">
-                    <span>{{ rec.year }}</span>
-                    {% if rec.vote_average %}
-                    <span class="rec-rating">
-                      <svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-                      {{ '%.1f'|format(rec.vote_average) }}
-                    </span>
-                    {% endif %}
-                  </div>
-                </div>
-              </div>
-              {% endfor %}
-            </div>
-          </div>
-          {% endif %}
         </div>
       </div>
     </div>
