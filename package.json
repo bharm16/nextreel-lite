@@ -7,6 +7,7 @@
     "test": "tests"
   },
   "scripts": {
+    "bootstrap": "python3 scripts/bootstrap_dev.py",
     "test": "echo \"Error: no test specified\" && exit 1",
     "build-css": "npx tailwindcss -i ./static/css/input.css -o ./static/css/output.css --minify",
     "watch-css": "npx tailwindcss -i ./static/css/input.css -o ./static/css/output.css --watch"

@@ -12,7 +12,7 @@ werkzeug==3.1.6                  # WSGI utilities (used by Quart)
 # Database & Storage
 # -----------------
 aiomysql==0.3.2                  # Async MySQL/MariaDB client (pulls PyMySQL transitively)
-redis==7.1.1                     # Redis client for caching and sessions
+redis>=4.2.0,<6                  # redis-py; <6 required by arq 0.26.x (server can be Redis 6/7)
 
 # API Clients & HTTP
 # -----------------

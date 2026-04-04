@@ -77,9 +77,24 @@ class ProjectionStore:
                 await self._enqueue_enrichment_if_needed(tconst, row)
                 return self._payload_from_row(row)
 
+        # Ensure a core projection exists first.
         payload = await self.ensure_core_projection(tconst)
-        if payload:
-            await self._enqueue_enrichment_if_needed(tconst, row)
+        if not payload:
+            return None
+
+        # If we have a tmdb_helper, enrich inline so the request returns
+        # full data instead of a placeholder page.  This covers both the
+        # "no worker at all" case and "worker exists but hasn't processed
+        # the job yet" case.  Once the projection reaches READY state,
+        # subsequent requests hit the fast path above.
+        if self.tmdb_helper:
+            enriched = await self.enrich_projection(tconst)
+            if enriched:
+                return enriched
+
+        # Background enrichment as a fallback (e.g. tmdb_helper missing).
+        await self._enqueue_enrichment_if_needed(tconst, row)
+
         return payload
 
     async def ensure_core_projection(self, tconst: str) -> dict[str, Any] | None:
@@ -113,14 +128,14 @@ class ProjectionStore:
             AS new_row
             ON DUPLICATE KEY UPDATE
                 payload_json = CASE
-                    WHEN projection_state IN ('ready', 'stale') THEN payload_json
+                    WHEN movie_projection.projection_state IN ('ready', 'stale') THEN movie_projection.payload_json
                     ELSE new_row.payload_json
                 END,
                 projection_state = CASE
-                    WHEN projection_state IN ('ready', 'stale') THEN projection_state
+                    WHEN movie_projection.projection_state IN ('ready', 'stale') THEN movie_projection.projection_state
                     ELSE new_row.projection_state
                 END,
-                last_attempt_at = COALESCE(last_attempt_at, %s)
+                last_attempt_at = COALESCE(movie_projection.last_attempt_at, %s)
             """,
             [
                 tconst,
@@ -175,18 +190,21 @@ class ProjectionStore:
             "projection_state": PROJECTION_CORE,
         }
 
-    async def _enqueue_enrichment_if_needed(self, tconst: str, row: dict[str, Any] | None) -> None:
+    async def _enqueue_enrichment_if_needed(self, tconst: str, row: dict[str, Any] | None) -> bool:
+        """Try to enqueue background enrichment. Returns True if enqueued."""
         enqueue = self.enqueue_fn
         if not enqueue:
-            return
+            return False
 
         now = utcnow()
         last_attempt_at = row.get("last_attempt_at") if row else None
         if last_attempt_at and now < last_attempt_at + ENQUEUE_COOLDOWN:
-            return
+            return False
 
         try:
-            await enqueue("enrich_projection", tconst)
+            result = await enqueue("enrich_projection", tconst)
+            if result is None:
+                return False
             await self.db_pool.execute(
                 """
                 UPDATE movie_projection
@@ -196,8 +214,10 @@ class ProjectionStore:
                 [now, tconst],
                 fetch="none",
             )
+            return True
         except Exception as exc:
             logger.debug("Failed to enqueue enrich_projection(%s): %s", tconst, exc)
+            return False
 
     async def ready_check(self) -> bool:
         row = await self.db_pool.execute(

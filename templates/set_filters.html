@@ -81,6 +81,17 @@
   <main id="main">
     <section id="filters" class="py-12 sm:py-16 bg-surface-alt">
       <div class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div role="alert" class="mb-6 rounded-lg border px-4 py-3 text-sm font-medium
+          {% if category == 'warning' %}border-yellow-400 bg-yellow-50 text-yellow-800 dark:border-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-200
+          {% else %}border-blue-400 bg-blue-50 text-blue-800 dark:border-blue-600 dark:bg-blue-900/30 dark:text-blue-200{% endif %}">
+          {{ message }}
+        </div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
         <form action="/filtered_movie" method="post" class="card border-t-4" style="border-top-color: var(--color-accent)" aria-describedby="filters-status">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div id="filters-status" class="sr-only" role="status" aria-live="polite"></div>

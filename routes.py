@@ -4,7 +4,7 @@ import re
 import time
 from datetime import datetime, timezone
 
-from quart import Blueprint, abort, current_app, g, redirect, render_template, request, session, url_for
+from quart import Blueprint, abort, current_app, flash, g, redirect, render_template, request, session, url_for
 
 from infra.metrics import user_actions_total
 from infra.ops_auth import check_ops_auth
@@ -269,4 +269,5 @@ async def filtered_movie_endpoint():
     )
     if response:
         return response
-    return "No movie found", 404
+    await flash("No movies matched your filters. Try broadening your criteria.", "warning")
+    return redirect(url_for("main.set_filters"))

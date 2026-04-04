@@ -13,6 +13,14 @@ Don't be overly agreeable. Honest technical feedback is more useful than politen
 
 ## Setup
 
+One-shot (creates `venv/`, installs Python + npm deps, runs `build-css`, seeds `.env` from `.env.example` if missing):
+
+```bash
+python3 scripts/bootstrap_dev.py
+```
+
+Manual equivalent:
+
 ```bash
 python3.11 -m venv venv
 source venv/bin/activate
@@ -20,7 +28,7 @@ pip install -r requirements.txt
 npm install
 ```
 
-Copy `.env.example` to `.env` and fill in real values before running anything that needs MySQL, Redis, or TMDB.
+Copy `.env.example` to `.env` and fill in real values before running anything that needs MySQL, Redis, or TMDB (the bootstrap script copies the template only when `.env` does not exist).
 
 ## Primary Workflows
 

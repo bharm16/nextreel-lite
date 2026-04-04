@@ -7,6 +7,16 @@ import time
 from contextlib import asynccontextmanager
 from uuid import uuid4
 
+# --- Early local-env bootstrap -------------------------------------------
+# Must run BEFORE ``import settings`` so that ``get_environment()``'s first
+# (cached) call sees NEXTREEL_ENV=development when no env var is set in the
+# shell.  In production the env var is always set by the deploy pipeline, so
+# this block is a no-op there.
+if not os.environ.get("NEXTREEL_ENV") and not os.environ.get("FLASK_ENV"):
+    from scripts.local_env_setup import setup_local_environment
+    setup_local_environment()
+# -------------------------------------------------------------------------
+
 from quart import Quart, g, request, session
 from redis import asyncio as aioredis
 
@@ -27,7 +37,6 @@ from logging_config import get_logger, setup_logging
 from middleware import add_correlation_id
 from movie_service import MovieManager
 from routes import bp as routes_bp, init_routes
-from scripts.local_env_setup import setup_local_environment
 
 try:
     from arq import create_pool as create_arq_pool
@@ -48,9 +57,6 @@ setup_logging(log_level=logging.INFO)
 logger = get_logger(__name__)
 
 _SKIP_PATHS = ("/static", "/favicon.ico", "/health", "/ready", "/metrics")
-
-if get_environment() != "production":
-    setup_local_environment()
 
 
 def _redis_url() -> str:

@@ -5,6 +5,10 @@ Async Python web app for personalized movie discovery. Quart (async Flask) + MyS
 ## Commands
 
 ```bash
+# One-time local setup (venv, pip, npm, Tailwind build; copies .env.example → .env if missing)
+python3 scripts/bootstrap_dev.py
+# or: npm run bootstrap
+
 # Dev server
 python3 app.py                          # Starts on http://127.0.0.1:5000
 

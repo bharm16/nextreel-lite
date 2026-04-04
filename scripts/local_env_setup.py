@@ -1,14 +1,14 @@
 import os
-from dotenv import load_dotenv
 
 
 def setup_local_environment():
-    """
-    Dynamically configure environment variables for local testing or production.
-    """
-    # Load environment variables from .env file
-    load_dotenv(dotenv_path=".env", override=True)
+    """Set fallback environment defaults for local development.
 
+    Env-file loading is handled by ``settings.py`` (which picks the right
+    file via ``get_environment()``).  This function only fills in missing
+    vars with safe localhost defaults so the app can boot without a fully
+    populated ``.env.development``.
+    """
     os.environ.setdefault("NEXTREEL_ENV", "development")
     os.environ.setdefault("FLASK_ENV", "development")  # compat
     os.environ.setdefault("SESSION_TYPE", "redis")
