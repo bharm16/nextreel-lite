@@ -14,7 +14,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700&family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
     
     <!-- Compiled Tailwind CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/output.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/output.css') }}?v={{ config.get('CSS_VERSION', '1') }}">
     {% if movie and movie.poster_url %}
     <link rel="preload" as="image" href="{{ movie.poster_url }}" fetchpriority="high" imagesizes="(min-width: 768px) 340px, 60vw">
     {% endif %}

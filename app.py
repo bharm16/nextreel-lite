@@ -183,6 +183,11 @@ def _init_core(app):
     app.config["NR_SESSION_COOKIE_NAME"] = SESSION_COOKIE_NAME
     app.config["NR_SESSION_COOKIE_MAX_AGE"] = SESSION_COOKIE_MAX_AGE
 
+    # CSS cache-busting: use output.css mtime as version query param
+    import os as _os
+    css_path = _os.path.join(app.root_path, "static", "css", "output.css")
+    app.config["CSS_VERSION"] = str(int(_os.path.getmtime(css_path))) if _os.path.exists(css_path) else "1"
+
     movie_manager = MovieManager(settings.Config.get_db_config())
     app.movie_manager = movie_manager
     app.navigation_state_store = None

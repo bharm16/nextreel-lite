@@ -5,9 +5,10 @@
 <style>
   .hero {
     background:
-      radial-gradient(1000px 400px at 10% 0%, var(--color-bg) 0%, color-mix(in srgb, var(--color-bg) 84%, transparent) 60%, transparent 100%),
+      linear-gradient(to right, var(--color-bg) 0%, transparent 30%),
+      linear-gradient(to left, var(--color-bg) 0%, transparent 30%),
       linear-gradient(0deg, var(--color-bg) 0%, color-mix(in srgb, var(--color-bg) 84%, transparent) 40%, transparent 70%),
-      url('{{ hero_backdrop }}') center/cover no-repeat;
+      url('{{ hero_backdrop }}') center center / cover no-repeat;
   }
 </style>
   <!-- HERO / BACKDROP -->
