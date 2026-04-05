@@ -113,23 +113,23 @@ class ProjectionStore:
                 )
                 return self._payload_from_row(row)
             if ProjectionState(state).needs_enrichment():
+                enriched = await self.enrich_projection(
+                    tconst,
+                    known_tmdb_id=row.get("tmdb_id"),
+                )
+                if enriched:
+                    return enriched
                 payload = self._payload_from_row(row)
                 if not payload or payload.get("projection_state") == PROJECTION_FAILED:
                     payload = await self.ensure_core_projection(tconst)
-                if payload:
-                    await self._maybe_enqueue_enrichment(
-                        tconst,
-                        row,
-                        tmdb_id=row.get("tmdb_id"),
-                    )
                 return payload
 
-        # Ensure a core projection exists first.
-        payload = await self.ensure_core_projection(tconst)
-        if not payload:
-            return None
+        # No projection row — enrich inline so the first render has full data.
+        enriched = await self.enrich_projection(tconst)
+        if enriched:
+            return enriched
 
-        await self._maybe_enqueue_enrichment(tconst, row)
+        payload = await self.ensure_core_projection(tconst)
         return payload
 
     @staticmethod

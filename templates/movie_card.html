@@ -109,63 +109,28 @@
     </div>
     {% endif %}
 
-    <!-- Watch Providers — flat flow -->
+    <!-- Watch Providers — flat flow, deduplicated -->
     {% if movie.watch_providers %}
     <div class="watch-section mb-5">
       <div class="watch-heading">Where to Watch</div>
       <div class="provider-flow">
-        {% if movie.watch_providers.stream %}
-          {% for provider in movie.watch_providers.stream %}
-          <a href="{{ movie.watch_providers.justwatch_link if movie.watch_providers.justwatch_link else '#' }}" target="_blank" class="provider-logo-link" title="{{ provider.provider_name }} (Stream)">
-            <div class="provider-logo">
-              {% if provider.logo_path %}
-              <img src="{{ provider.logo_path }}" alt="{{ provider.provider_name }}">
-              {% else %}
-              <span style="display:flex;align-items:center;justify-content:center;height:100%;font-size:.55rem;padding:.15rem;text-align:center;">{{ provider.provider_name }}</span>
-              {% endif %}
-            </div>
-          </a>
-          {% endfor %}
-        {% endif %}
-        {% if movie.watch_providers.rent %}
-          {% for provider in movie.watch_providers.rent %}
-          <a href="{{ movie.watch_providers.justwatch_link if movie.watch_providers.justwatch_link else '#' }}" target="_blank" class="provider-logo-link" title="{{ provider.provider_name }} (Rent)">
-            <div class="provider-logo">
-              {% if provider.logo_path %}
-              <img src="{{ provider.logo_path }}" alt="{{ provider.provider_name }}">
-              {% else %}
-              <span style="display:flex;align-items:center;justify-content:center;height:100%;font-size:.55rem;padding:.15rem;text-align:center;">{{ provider.provider_name }}</span>
-              {% endif %}
-            </div>
-          </a>
-          {% endfor %}
-        {% endif %}
-        {% if movie.watch_providers.buy %}
-          {% for provider in movie.watch_providers.buy %}
-          <a href="{{ movie.watch_providers.justwatch_link if movie.watch_providers.justwatch_link else '#' }}" target="_blank" class="provider-logo-link" title="{{ provider.provider_name }} (Buy)">
-            <div class="provider-logo">
-              {% if provider.logo_path %}
-              <img src="{{ provider.logo_path }}" alt="{{ provider.provider_name }}">
-              {% else %}
-              <span style="display:flex;align-items:center;justify-content:center;height:100%;font-size:.55rem;padding:.15rem;text-align:center;">{{ provider.provider_name }}</span>
-              {% endif %}
-            </div>
-          </a>
-          {% endfor %}
-        {% endif %}
-        {% if movie.watch_providers.ads %}
-          {% for provider in movie.watch_providers.ads %}
-          <a href="{{ movie.watch_providers.justwatch_link if movie.watch_providers.justwatch_link else '#' }}" target="_blank" class="provider-logo-link" title="{{ provider.provider_name }} (Free)">
-            <div class="provider-logo">
-              {% if provider.logo_path %}
-              <img src="{{ provider.logo_path }}" alt="{{ provider.provider_name }}">
-              {% else %}
-              <span style="display:flex;align-items:center;justify-content:center;height:100%;font-size:.55rem;padding:.15rem;text-align:center;">{{ provider.provider_name }}</span>
-              {% endif %}
-            </div>
-          </a>
-          {% endfor %}
-        {% endif %}
+        {# Collect all providers across stream/rent/buy/ads, skip duplicates by name #}
+        {% set seen = namespace(names=[]) %}
+        {% set all_providers = (movie.watch_providers.stream or []) + (movie.watch_providers.rent or []) + (movie.watch_providers.buy or []) + (movie.watch_providers.ads or []) %}
+        {% for provider in all_providers %}
+          {% if provider.provider_name not in seen.names %}
+            {% set seen.names = seen.names + [provider.provider_name] %}
+            <a href="{{ movie.watch_providers.justwatch_link if movie.watch_providers.justwatch_link else '#' }}" target="_blank" class="provider-logo-link" title="{{ provider.provider_name }}">
+              <div class="provider-logo">
+                {% if provider.logo_path %}
+                <img src="{{ provider.logo_path }}" alt="{{ provider.provider_name }}">
+                {% else %}
+                <span style="display:flex;align-items:center;justify-content:center;height:100%;font-size:.55rem;padding:.15rem;text-align:center;">{{ provider.provider_name }}</span>
+                {% endif %}
+              </div>
+            </a>
+          {% endif %}
+        {% endfor %}
       </div>
     </div>
     {% endif %}
