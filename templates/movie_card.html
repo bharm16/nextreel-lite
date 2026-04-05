@@ -7,183 +7,232 @@
     background:
       linear-gradient(to right, var(--color-bg) 0%, transparent 30%),
       linear-gradient(to left, var(--color-bg) 0%, transparent 30%),
-      linear-gradient(0deg, var(--color-bg) 0%, color-mix(in srgb, var(--color-bg) 84%, transparent) 40%, transparent 70%),
+      linear-gradient(0deg, var(--color-bg) 0%, rgba(17,17,17,0.7) 40%, transparent 70%),
       url('{{ hero_backdrop }}') center center / cover no-repeat;
   }
 </style>
+
   <!-- HERO / BACKDROP -->
   <section class="hero relative">
-    <!-- Prev -->
+    <!-- Prev arrow -->
     <form method="POST" action="/previous_movie" id="prev-form" class="inline">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button type="submit" class="arrow-btn arrow-left" {% if previous_count == 0 %}disabled{% endif %} aria-label="Previous movie">
-        <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 19l-7-7 7-7"/></svg>
+        <svg viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7"/></svg>
       </button>
     </form>
-    <!-- Next -->
+    <!-- Next arrow -->
     <form method="POST" action="/next_movie" id="next-form" class="inline">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button type="submit" class="arrow-btn arrow-right" aria-label="Next movie">
-        <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+        <svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>
       </button>
     </form>
   </section>
 
-  <!-- CONTENT -->
-  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+  <!-- CONTENT — single narrow column, editorial flow -->
+  <main class="movie-content">
     <div id="movie-status" class="sr-only" role="status" aria-live="polite"></div>
-    <div class="movie-card p-4 sm:p-6 lg:p-8">
-      <div class="grid grid-cols-1 md:grid-cols-12 gap-4 lg:gap-8 items-start">
 
-        <!-- Poster -->
-        <div class="col-span-1 md:col-span-4 flex justify-center md:justify-start">
-          <img class="poster aspect-poster" src="{{ poster_url }}" alt="Poster for {{ movie.title }}" fetchpriority="high" decoding="async" onerror="this.src='/static/img/poster-placeholder.svg'">
+    <!-- Movie Header: poster thumb + title/meta -->
+    <div class="movie-header">
+      <img class="poster-thumb" src="{{ poster_url }}" alt="Poster for {{ movie.title }}" fetchpriority="high" decoding="async" onerror="this.src='/static/img/poster-placeholder.svg'">
+      <div class="movie-info">
+        <h1 class="title">{{ movie.title }} <span class="title-year">({{ movie.year }})</span></h1>
+        <div class="meta">
+          <span>Directed by {{ movie.directors }}</span>
+          {% if movie.age_rating and movie.age_rating != "Not Rated" %}
+          <span class="dot">&middot;</span>
+          <span>{{ movie.age_rating }}</span>
+          {% endif %}
+          {% if movie.runtime and movie.runtime != "0 min" and movie.runtime != "Unknown" %}
+          <span class="dot">&middot;</span>
+          <span>{{ movie.runtime }}</span>
+          {% endif %}
         </div>
-
-        <!-- Details -->
-        <div class="col-span-1 md:col-span-8">
-          <h1 class="title mb-2">{{ movie.title }} <span style="font-weight:400; color:var(--color-text-muted)">({{ movie.year }})</span></h1>
-
-          {% if movie.tagline %}
-          <p class="tagline mb-2">"{{ movie.tagline }}"</p>
-          {% endif %}
-
-          <div class="meta mb-3">
-            <span>Directed by {{ movie.directors }}</span>
-            {% if movie.age_rating and movie.age_rating != "Not Rated" %}
-            <span class="dot">•</span>
-            <span>{{ movie.age_rating }}</span>
-            {% endif %}
-          </div>
-
-          <!-- Genres (built from CSV below) -->
-          <div class="flex flex-wrap gap-2 mb-4" id="genre-info">{{ movie.genres }}</div>
-
-          <!-- Rating chip — before plot for scan-and-decide -->
-          <div class="rating-wrap mb-4">
-            <div class="rating-chip">
-              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" style="color:var(--color-star)" aria-hidden="true"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-              <div class="rating-stack">
-                <div class="rating-line">
-                  <span class="rating-number">{{ '%.1f'|format(movie.rating) }}</span>
-                  <span class="rating-outof">/10</span>
-                </div>
-                <div class="rating-votes-mini"><span id="vote-number">{{ movie.votes }}</span> ratings</div>
-              </div>
-            </div>
-
-            {% if movie.trailer %}
-            <button class="trailer-btn" id="play-button" data-video-url="{{ movie.trailer }}">
-              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l14 8-14 8V4z"/></svg>
-              Play Trailer
-            </button>
-            {% endif %}
-          </div>
-
-          <!-- Plot -->
-          <p class="plot mb-4">{{ movie.plot }}</p>
-
-          <!-- Collection banner -->
-          {% if movie.collection %}
-          <div class="collection-banner mb-4">
-            {% if movie.collection.poster_url %}
-            <img src="{{ movie.collection.poster_url }}" alt="{{ movie.collection.name }}">
-            {% endif %}
-            <div>
-              <div class="collection-label">Part of</div>
-              <div class="collection-name">{{ movie.collection.name }}</div>
-            </div>
-          </div>
-          {% endif %}
-
-          <!-- External links -->
-          {% if movie.external_ids or movie.homepage %}
-          <div class="external-links mb-4">
-            {% if movie.external_ids and movie.external_ids.imdb_url %}
-            <a href="{{ movie.external_ids.imdb_url }}" target="_blank" rel="noopener" class="ext-link">
-              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M14.31 9.588v.005c-.077-.048-.227-.07-.42-.07v4.815c.27 0 .44-.06.5-.165.062-.104.095-.405.095-.904v-2.19c0-.39-.013-.65-.04-.78-.025-.13-.07-.22-.135-.27v-.005h.005-.005zm-3.065.005c-.105.21-.183.57-.245 1.075v3.15c.062.49.148.84.262 1.05.115.21.29.315.52.315.225 0 .39-.1.497-.295.107-.195.16-.545.16-1.05v-3.17c0-.507-.053-.862-.158-1.06-.105-.2-.27-.3-.5-.3-.23 0-.41.1-.536.285zM22 2v20H2V2h20zm-9.768 7.155c-.207 0-.397.04-.567.12-.165.08-.312.195-.435.35v-.395h-1.27v7.545h1.27v-4.79c.025-.3.08-.52.155-.66.075-.135.195-.2.36-.2.195 0 .315.065.36.2.045.134.07.4.07.795v4.655h1.268v-5.23c0-.62-.063-1.02-.192-1.2-.13-.18-.39-.27-.77-.27H12l.232-.12zm-4.56 0h-1.89v7.545h1.88V9.155h.01zm8.988.015c-.437 0-.742.165-.917.495-.176.33-.264.865-.264 1.6v2.71c0 .68.092 1.19.276 1.525.184.34.496.51.943.51.394 0 .684-.147.864-.435.18-.289.274-.727.286-1.317l1.188.07c.015.555-.103 1.04-.351 1.46-.248.42-.683.634-1.324.634-.72 0-1.2-.264-1.44-.79-.237-.527-.357-1.35-.357-2.48v-1.46c0-1.235.133-2.11.398-2.624.265-.515.738-.774 1.42-.774.575 0 .99.222 1.244.665.253.443.38 1.16.38 2.145l-1.17.07c0-.477-.045-.83-.134-1.06-.09-.23-.268-.346-.527-.346-.217 0-.37.094-.456.28-.087.19-.13.5-.13.935v.475h-.001v.015c.016.03.016.09 0 .18v2.105c0 .51.04.852.118 1.025.078.174.228.26.447.26.22 0 .365-.102.433-.305.068-.2.102-.575.102-1.12V11.87h-1.145v-.97h2.336v5.875h-.886l-.16-.74c-.158.26-.34.46-.538.595-.198.135-.408.2-.63.2-.33 0-.59-.125-.78-.375-.19-.25-.31-.57-.367-.965-.057-.395-.086-.9-.086-1.52V12.7h.001v-.135c0-.94-.116-1.623-.347-2.05-.23-.424-.618-.65-1.164-.655l.108.11.1.1zM6.49 9.14H3.555v7.58h1.1v-7.58h.74V16.72h1.097l-.002-7.58z"/></svg>
-              IMDb
-            </a>
-            {% endif %}
-            {% if movie.homepage %}
-            <a href="{{ movie.homepage }}" target="_blank" rel="noopener" class="ext-link">
-              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
-              Website
-            </a>
-            {% endif %}
-            {% if movie.external_ids and movie.external_ids.facebook_url %}
-            <a href="{{ movie.external_ids.facebook_url }}" target="_blank" rel="noopener" class="ext-link">
-              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
-              Facebook
-            </a>
-            {% endif %}
-            {% if movie.external_ids and movie.external_ids.instagram_url %}
-            <a href="{{ movie.external_ids.instagram_url }}" target="_blank" rel="noopener" class="ext-link">
-              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>
-              Instagram
-            </a>
-            {% endif %}
-            {% if movie.external_ids and movie.external_ids.twitter_url %}
-            <a href="{{ movie.external_ids.twitter_url }}" target="_blank" rel="noopener" class="ext-link">
-              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-              X
-            </a>
-            {% endif %}
-          </div>
-          {% endif %}
-
-          <!-- Divider + Prev/Next buttons -->
-          <div class="divider my-4"></div>
-          <div class="flex gap-2">
-            <form method="POST" action="/previous_movie" id="prev-form-bottom" class="inline">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <button type="submit" class="nav-btn-prev" {% if previous_count == 0 %}disabled{% endif %}>
-                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-                Previous
-              </button>
-            </form>
-            <form method="POST" action="/next_movie" id="next-form-bottom" class="inline">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <button type="submit" class="nav-btn-next">
-                Discover Next
-                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-              </button>
-            </form>
-          </div>
-        </div>
+        <!-- Genres -->
+        <div class="flex flex-wrap gap-1.5" id="genre-info">{{ movie.genres }}</div>
       </div>
+    </div>
 
-      <!-- Cast -->
-      {% if movie.cast %}
-      <div class="mt-8">
-        <h2 class="section-heading-lg">Cast</h2>
-        <div class="scroll-fade"><div class="cast-strip">
-          {% for actor in movie.cast %}
-          <div class="actor-card">
-            {% if actor.image_url %}
-              <img src="{{ actor.image_url }}" alt="{{ actor.name }}" loading="lazy">
-            {% else %}
-              <div style="height:180px; display:flex; align-items:center; justify-content:center; color:var(--muted);">No image</div>
-            {% endif %}
-            <div class="actor-name">{{ actor.name }}</div>
-            <div class="character">{{ actor.character }}</div>
-          </div>
-          {% endfor %}
-        </div></div>
-      </div>
+    <!-- Tagline -->
+    {% if movie.tagline %}
+    <p class="tagline mb-4">"{{ movie.tagline }}"</p>
+    {% endif %}
+
+    <!-- Rating -->
+    <div class="rating-wrap mb-4">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="var(--color-star)" aria-hidden="true"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+      <span class="rating-score">{{ '%.1f'|format(movie.rating) }}</span>
+      <span class="rating-outof">/10</span>
+      <span class="rating-votes-mini">&middot; <span id="vote-number">{{ movie.votes }}</span> ratings</span>
+    </div>
+
+    <!-- Plot -->
+    <p class="plot mb-4">{{ movie.plot }}</p>
+
+    <!-- Actions: Trailer + External Links -->
+    <div class="action-row mb-5">
+      {% if movie.trailer %}
+      <button class="trailer-btn" id="play-button" data-video-url="{{ movie.trailer }}">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l14 8-14 8V4z"/></svg>
+        Play Trailer
+      </button>
       {% endif %}
+      {% if movie.external_ids and movie.external_ids.imdb_url %}
+      <a href="{{ movie.external_ids.imdb_url }}" target="_blank" rel="noopener" class="ext-link">IMDb</a>
+      {% endif %}
+      {% if movie.homepage %}
+      <a href="{{ movie.homepage }}" target="_blank" rel="noopener" class="ext-link">Website</a>
+      {% endif %}
+      {% if movie.external_ids and movie.external_ids.facebook_url %}
+      <a href="{{ movie.external_ids.facebook_url }}" target="_blank" rel="noopener" class="ext-link">Facebook</a>
+      {% endif %}
+      {% if movie.external_ids and movie.external_ids.instagram_url %}
+      <a href="{{ movie.external_ids.instagram_url }}" target="_blank" rel="noopener" class="ext-link">Instagram</a>
+      {% endif %}
+      {% if movie.external_ids and movie.external_ids.twitter_url %}
+      <a href="{{ movie.external_ids.twitter_url }}" target="_blank" rel="noopener" class="ext-link">X</a>
+      {% endif %}
+    </div>
 
-      <!-- Recommendations — before Crew/Keywords for discovery-first -->
-      {% if movie.recommendations %}
-      <div class="mt-8">
-        <h2 class="section-heading-lg">Recommended</h2>
-        <div class="scroll-fade"><div class="rec-strip">
+    <!-- Collection banner -->
+    {% if movie.collection %}
+    <div class="collection-banner mb-4">
+      {% if movie.collection.poster_url %}
+      <img src="{{ movie.collection.poster_url }}" alt="{{ movie.collection.name }}">
+      {% endif %}
+      <div>
+        <div class="collection-label">Part of</div>
+        <div class="collection-name">{{ movie.collection.name }}</div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Watch Providers — flat flow -->
+    {% if movie.watch_providers %}
+    <div class="watch-section mb-5">
+      <div class="watch-heading">Where to Watch</div>
+      <div class="provider-flow">
+        {% if movie.watch_providers.stream %}
+          {% for provider in movie.watch_providers.stream %}
+          <a href="{{ movie.watch_providers.justwatch_link if movie.watch_providers.justwatch_link else '#' }}" target="_blank" class="provider-logo-link" title="{{ provider.provider_name }} (Stream)">
+            <div class="provider-logo">
+              {% if provider.logo_path %}
+              <img src="{{ provider.logo_path }}" alt="{{ provider.provider_name }}">
+              {% else %}
+              <span style="display:flex;align-items:center;justify-content:center;height:100%;font-size:.55rem;padding:.15rem;text-align:center;">{{ provider.provider_name }}</span>
+              {% endif %}
+            </div>
+          </a>
+          {% endfor %}
+        {% endif %}
+        {% if movie.watch_providers.rent %}
+          {% for provider in movie.watch_providers.rent %}
+          <a href="{{ movie.watch_providers.justwatch_link if movie.watch_providers.justwatch_link else '#' }}" target="_blank" class="provider-logo-link" title="{{ provider.provider_name }} (Rent)">
+            <div class="provider-logo">
+              {% if provider.logo_path %}
+              <img src="{{ provider.logo_path }}" alt="{{ provider.provider_name }}">
+              {% else %}
+              <span style="display:flex;align-items:center;justify-content:center;height:100%;font-size:.55rem;padding:.15rem;text-align:center;">{{ provider.provider_name }}</span>
+              {% endif %}
+            </div>
+          </a>
+          {% endfor %}
+        {% endif %}
+        {% if movie.watch_providers.buy %}
+          {% for provider in movie.watch_providers.buy %}
+          <a href="{{ movie.watch_providers.justwatch_link if movie.watch_providers.justwatch_link else '#' }}" target="_blank" class="provider-logo-link" title="{{ provider.provider_name }} (Buy)">
+            <div class="provider-logo">
+              {% if provider.logo_path %}
+              <img src="{{ provider.logo_path }}" alt="{{ provider.provider_name }}">
+              {% else %}
+              <span style="display:flex;align-items:center;justify-content:center;height:100%;font-size:.55rem;padding:.15rem;text-align:center;">{{ provider.provider_name }}</span>
+              {% endif %}
+            </div>
+          </a>
+          {% endfor %}
+        {% endif %}
+        {% if movie.watch_providers.ads %}
+          {% for provider in movie.watch_providers.ads %}
+          <a href="{{ movie.watch_providers.justwatch_link if movie.watch_providers.justwatch_link else '#' }}" target="_blank" class="provider-logo-link" title="{{ provider.provider_name }} (Free)">
+            <div class="provider-logo">
+              {% if provider.logo_path %}
+              <img src="{{ provider.logo_path }}" alt="{{ provider.provider_name }}">
+              {% else %}
+              <span style="display:flex;align-items:center;justify-content:center;height:100%;font-size:.55rem;padding:.15rem;text-align:center;">{{ provider.provider_name }}</span>
+              {% endif %}
+            </div>
+          </a>
+          {% endfor %}
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Page-flip Navigation -->
+    <div class="page-nav">
+      <form method="POST" action="/previous_movie" id="prev-form-bottom" class="inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="nav-btn-prev" {% if previous_count == 0 %}disabled{% endif %}>
+          &larr; Previous
+        </button>
+      </form>
+      <form method="POST" action="/next_movie" id="next-form-bottom" class="inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="nav-btn-next">
+          Next &rarr;
+        </button>
+      </form>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Cast (text-only list) -->
+    {% if movie.cast %}
+    <div class="mt-4 mb-8">
+      <div class="section-heading">Cast</div>
+      <ul class="cast-list">
+        {% for actor in movie.cast[:8] %}
+        <li class="cast-item">
+          <span class="cast-actor">{{ actor.name }}</span>
+          <span class="cast-character">{{ actor.character }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    <!-- Crew -->
+    {% if movie.key_crew %}
+    <div class="mb-8">
+      <div class="section-heading">Crew</div>
+      <ul class="crew-list">
+        {% if movie.key_crew.writers %}
+        <li class="crew-item"><span class="crew-role">Written by</span> {{ movie.key_crew.writers | join(', ') }}</li>
+        {% endif %}
+        {% if movie.key_crew.composer %}
+        <li class="crew-item"><span class="crew-role">Music</span> {{ movie.key_crew.composer }}</li>
+        {% endif %}
+        {% if movie.key_crew.cinematographer %}
+        <li class="crew-item"><span class="crew-role">Cinematography</span> {{ movie.key_crew.cinematographer }}</li>
+        {% endif %}
+      </ul>
+    </div>
+    {% endif %}
+
+    <!-- Recommendations -->
+    {% if movie.recommendations %}
+    <div class="mb-8">
+      <div class="section-heading">Recommended</div>
+      <div class="rec-scroll-container">
+        <div class="rec-strip">
           {% for rec in movie.recommendations %}
           <div class="rec-card" title="{{ rec.title }}" tabindex="0">
             {% if rec.poster_url %}
             <img src="{{ rec.poster_url }}" alt="{{ rec.title }}" loading="lazy">
             {% else %}
-            <div style="height:220px; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:.85rem; padding:.5rem; text-align:center;">{{ rec.title }}</div>
+            <div style="height:195px; display:flex; align-items:center; justify-content:center; color:var(--color-text-muted); font-size:.75rem; padding:.5rem; text-align:center; border:1px solid var(--color-border); border-radius:var(--radius-sharp);">{{ rec.title }}</div>
             {% endif %}
             <div class="rec-info">
               <div class="rec-title">{{ rec.title }}</div>
@@ -199,192 +248,53 @@
             </div>
           </div>
           {% endfor %}
-        </div></div>
-      </div>
-      {% endif %}
-
-      <div class="movie-secondary-layout mt-8">
-        <aside class="movie-sidebar">
-          <div class="stats-container">
-            <h2 class="section-heading">Movie Details</h2>
-            <div class="space-y-3">
-              {% if movie.runtime and movie.runtime != "0 min" and movie.runtime != "Unknown" %}
-              <div class="flex">
-                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1a11 11 0 1 0 0 22 11 11 0 0 0 0-22zm1 11H7v-2h4V5h2v7z"/></svg>
-                <span>{{ movie.runtime }}</span>
-              </div>
-              {% endif %}
-              {% if movie.original_language and movie.original_language != "unknown" %}
-              <div class="flex">
-                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 4h16v2H4zm6 4h10v2H10zm0 4h8v2h-8zm0 4h6v2h-6zM4 8h4v2H4zM4 12h4v2H4zM4 16h4v2H4z"/></svg>
-                <span>{{ movie.original_language.upper() }}</span>
-              </div>
-              {% endif %}
-              {% if movie.budget and movie.budget != "Unknown" and movie.budget != "$0" %}
-              <div class="flex">
-                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1a3 3 0 0 1 3 3v1h2v2h-2v8h2v2h-2v1a3 3 0 0 1-3 3h-1a3 3 0 0 1-3-3v-1H6v-2h2V7H6V5h2V4a3 3 0 0 1 3-3h1zm-1 6v8h1a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1h-1z"/></svg>
-                <span>Budget: {{ movie.budget }}</span>
-              </div>
-              {% endif %}
-              {% if movie.revenue and movie.revenue != "Unknown" and movie.revenue != "$0" %}
-              <div class="flex">
-                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 3h2v16h16v2H3z" opacity="0.3"/><path d="M7 15l4-4 3 3 5-6 1.5 1.3-6.5 7.7-3-3-4 4z"/></svg>
-                <span>Revenue: {{ movie.revenue }}</span>
-              </div>
-              {% endif %}
-              {% if movie.production_countries and movie.production_countries != "Unknown" %}
-              <div class="flex">
-                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
-                <span>{{ movie.production_countries }}</span>
-              </div>
-              {% endif %}
-            </div>
-          </div>
-
-          {% if movie.watch_providers %}
-          <div class="stats-container watch-accent">
-            <h2 class="section-heading">Where to Watch</h2>
-            {% if movie.watch_providers.stream %}
-            <div class="provider-section">
-              <div class="provider-label">
-                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
-                Stream
-              </div>
-              <div class="provider-logos">
-                {% for provider in movie.watch_providers.stream %}
-                <a href="{{ movie.watch_providers.justwatch_link if movie.watch_providers.justwatch_link else '#' }}" target="_blank" class="provider-logo-link" title="Watch on {{ provider.provider_name }}">
-                  <div class="provider-logo">
-                    {% if provider.logo_path %}
-                    <img src="{{ provider.logo_path }}" alt="{{ provider.provider_name }}">
-                    {% else %}
-                    <span style="display:flex;align-items:center;justify-content:center;height:100%;font-size:.65rem;padding:.25rem;text-align:center;">{{ provider.provider_name }}</span>
-                    {% endif %}
-                  </div>
-                </a>
-                {% endfor %}
-              </div>
-            </div>
-            {% endif %}
-            {% if movie.watch_providers.rent %}
-            <div class="provider-section">
-              <div class="provider-label">
-                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h14v6h-2a2 2 0 1 0 0 4h2v6H5a2 2 0 0 1-2-2v-3a2 2 0 1 0 0-4V7z"/></svg>
-                Rent
-              </div>
-              <div class="provider-logos">
-                {% for provider in movie.watch_providers.rent %}
-                <a href="{{ movie.watch_providers.justwatch_link if movie.watch_providers.justwatch_link else '#' }}" target="_blank" class="provider-logo-link" title="Rent on {{ provider.provider_name }}">
-                  <div class="provider-logo">
-                    {% if provider.logo_path %}
-                    <img src="{{ provider.logo_path }}" alt="{{ provider.provider_name }}">
-                    {% else %}
-                    <span style="display:flex;align-items:center;justify-content:center;height:100%;font-size:.65rem;padding:.25rem;text-align:center;">{{ provider.provider_name }}</span>
-                    {% endif %}
-                  </div>
-                </a>
-                {% endfor %}
-              </div>
-            </div>
-            {% endif %}
-            {% if movie.watch_providers.buy %}
-            <div class="provider-section">
-              <div class="provider-label">
-                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4h-2l-1 2H1v2h2l3.6 7.59-1.35 2.45A2 2 0 0 0 7 20h12v-2H7l1.1-2h7.45a2 2 0 0 0 1.79-1.11L21 9H6.42l-1-2H7V4z"/></svg>
-                Buy
-              </div>
-              <div class="provider-logos">
-                {% for provider in movie.watch_providers.buy %}
-                <a href="{{ movie.watch_providers.justwatch_link if movie.watch_providers.justwatch_link else '#' }}" target="_blank" class="provider-logo-link" title="Buy on {{ provider.provider_name }}">
-                  <div class="provider-logo">
-                    {% if provider.logo_path %}
-                    <img src="{{ provider.logo_path }}" alt="{{ provider.provider_name }}">
-                    {% else %}
-                    <span style="display:flex;align-items:center;justify-content:center;height:100%;font-size:.65rem;padding:.25rem;text-align:center;">{{ provider.provider_name }}</span>
-                    {% endif %}
-                  </div>
-                </a>
-                {% endfor %}
-              </div>
-            </div>
-            {% endif %}
-            {% if movie.watch_providers.ads %}
-            <div class="provider-section">
-              <div class="provider-label">
-                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14zM9 8l7 4-7 4V8z"/></svg>
-                Free with Ads
-              </div>
-              <div class="provider-logos">
-                {% for provider in movie.watch_providers.ads %}
-                <a href="{{ movie.watch_providers.justwatch_link if movie.watch_providers.justwatch_link else '#' }}" target="_blank" class="provider-logo-link" title="Free on {{ provider.provider_name }}">
-                  <div class="provider-logo">
-                    {% if provider.logo_path %}
-                    <img src="{{ provider.logo_path }}" alt="{{ provider.provider_name }}">
-                    {% else %}
-                    <span style="display:flex;align-items:center;justify-content:center;height:100%;font-size:.65rem;padding:.25rem;text-align:center;">{{ provider.provider_name }}</span>
-                    {% endif %}
-                  </div>
-                </a>
-                {% endfor %}
-              </div>
-            </div>
-            {% endif %}
-            {% if movie.watch_providers.justwatch_link %}
-            <a href="{{ movie.watch_providers.justwatch_link }}" target="_blank" class="justwatch-link">
-              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M14 3h7v7h-2V6.41l-9.29 9.3-1.42-1.42 9.3-9.29H14V3z"/><path d="M5 5h7v2H7v10h10v-5h2v7H5z"/></svg>
-              View all on JustWatch
-            </a>
-            {% endif %}
-          </div>
-          {% endif %}
-        </aside>
-
-        <div class="movie-secondary-content">
-          <!-- Key Crew -->
-          {% if movie.key_crew %}
-          <div>
-            <h2 class="section-heading">Crew</h2>
-            <div class="crew-grid">
-              {% if movie.key_crew.writers %}
-              <div class="crew-item">
-                <div class="crew-role">Written by</div>
-                <div>{{ movie.key_crew.writers | join(', ') }}</div>
-              </div>
-              {% endif %}
-              {% if movie.key_crew.composer %}
-              <div class="crew-item">
-                <div class="crew-role">Music</div>
-                <div>{{ movie.key_crew.composer }}</div>
-              </div>
-              {% endif %}
-              {% if movie.key_crew.cinematographer %}
-              <div class="crew-item">
-                <div class="crew-role">Cinematography</div>
-                <div>{{ movie.key_crew.cinematographer }}</div>
-              </div>
-              {% endif %}
-            </div>
-          </div>
-          {% endif %}
-
-          <!-- Keywords -->
-          {% if movie.keywords %}
-          <div class="{% if movie.key_crew %}mt-6{% endif %}">
-            <h2 class="section-heading">Keywords</h2>
-            <div class="flex flex-wrap gap-2">
-              {% for kw in movie.keywords[:12] %}
-              <span class="keyword-chip">{{ kw }}</span>
-              {% endfor %}
-            </div>
-          </div>
-          {% endif %}
-
         </div>
       </div>
     </div>
+    {% endif %}
+
+    <!-- Keywords (collapsible) -->
+    {% if movie.keywords %}
+    <div class="mb-8">
+      <button class="keyword-toggle" aria-expanded="false" onclick="this.setAttribute('aria-expanded', this.getAttribute('aria-expanded')==='false' ? 'true' : 'false'); this.nextElementSibling.classList.toggle('open')">
+        Keywords
+        <svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>
+      </button>
+      <div class="keyword-content">
+        <div class="keyword-list">
+          {% for kw in movie.keywords[:12] %}
+          <span>{{ kw }}</span>{% if not loop.last %}<span class="keyword-sep">&middot;</span>{% endif %}
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Details Footer -->
+    <div class="divider"></div>
+    <div class="details-footer mb-10">
+      {% if movie.runtime and movie.runtime != "0 min" and movie.runtime != "Unknown" %}
+      <span>{{ movie.runtime }}</span>
+      {% endif %}
+      {% if movie.original_language and movie.original_language != "unknown" %}
+      <span>{{ movie.original_language.upper() }}</span>
+      {% endif %}
+      {% if movie.budget and movie.budget != "Unknown" and movie.budget != "$0" %}
+      <span>Budget: {{ movie.budget }}</span>
+      {% endif %}
+      {% if movie.revenue and movie.revenue != "Unknown" and movie.revenue != "$0" %}
+      <span>Revenue: {{ movie.revenue }}</span>
+      {% endif %}
+      {% if movie.production_countries and movie.production_countries != "Unknown" %}
+      <span>{{ movie.production_countries }}</span>
+      {% endif %}
+    </div>
+
   </main>
+
   <!-- JavaScript -->
   <script>
-    // Build up to 3 genre chips from CSV text already in #genre-info
+    // Build genre chips from CSV
     (function(){
       const el = document.getElementById("genre-info");
       if(!el) return;
@@ -406,7 +316,7 @@
       }
     })();
 
-    // Format votes (e.g., 245000 -> 245K, 1_200_000 -> 1.2M)
+    // Format votes
     (function(){
       const voteElements = document.querySelectorAll("#vote-number");
       voteElements.forEach(voteEl => {
@@ -445,7 +355,7 @@
             btn.setAttribute('aria-busy', 'true');
           }
           if (status) {
-            status.textContent = form.id && form.id.includes('prev') ? 'Loading previous movie…' : 'Loading next movie…';
+            status.textContent = form.id && form.id.includes('prev') ? 'Loading previous movie\u2026' : 'Loading next movie\u2026';
           }
         });
       }

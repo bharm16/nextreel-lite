@@ -128,10 +128,10 @@ class CandidateStore:
             "numVotes BETWEEN %s AND %s",
             f"sample_bucket IN ({', '.join(['%s'] * len(buckets))})",
         ]
+        params.extend(buckets)
         if language != "any":
             clauses.append("(language = %s OR language LIKE %s OR language IS NULL)")
             params.extend([language, f"%{language}%"])
-        params.extend(buckets)
 
         if excluded_tconsts:
             clauses.append(f"tconst NOT IN ({', '.join(['%s'] * len(excluded_tconsts))})")
