@@ -1,12 +1,18 @@
 {% set poster_url = movie.poster_url or '/static/img/poster-placeholder.svg' %}
+{% set backdrop_url = movie.backdrop_url or '' %}
+{% set hero_backdrop = backdrop_url if backdrop_url[:8] == '/static/' else 'https://image.tmdb.org/t/p/w1280' ~ backdrop_url if backdrop_url else '' %}
 
-  <!-- Two-column layout: poster left, content right -->
+  <!-- Two-column layout: backdrop left, content right -->
   <main class="movie-page-layout">
     <div id="movie-status" class="sr-only" role="status" aria-live="polite"></div>
 
-    <!-- Left column: poster only -->
+    <!-- Left column: backdrop image -->
     <div class="movie-poster-col">
-      <img class="poster-thumb" src="{{ poster_url }}" alt="Poster for {{ movie.title }}" fetchpriority="high" decoding="async" onerror="this.src='/static/img/poster-placeholder.svg'">
+      {% if hero_backdrop %}
+      <img class="poster-thumb" src="{{ hero_backdrop }}" alt="Scene from {{ movie.title }}" fetchpriority="high" decoding="async" onerror="this.src='{{ poster_url }}'">
+      {% else %}
+      <img class="poster-thumb" src="{{ poster_url }}" alt="Poster for {{ movie.title }}" fetchpriority="high" decoding="async">
+      {% endif %}
     </div>
 
     <!-- Right column: all content -->
