@@ -1,59 +1,35 @@
-{% set backdrop_url = movie.backdrop_url or '/static/img/backdrop-placeholder.svg' %}
-{% set hero_backdrop = backdrop_url if backdrop_url[:8] == '/static/' else 'https://image.tmdb.org/t/p/w1280' ~ backdrop_url %}
 {% set poster_url = movie.poster_url or '/static/img/poster-placeholder.svg' %}
-<!-- Hero background-image requires Jinja interpolation — kept inline -->
-<style>
-  .hero {
-    background:
-      linear-gradient(to right, var(--color-bg) 0%, transparent 30%),
-      linear-gradient(to left, var(--color-bg) 0%, transparent 30%),
-      linear-gradient(0deg, var(--color-bg) 0%, rgba(17,17,17,0.7) 40%, transparent 70%),
-      url('{{ hero_backdrop }}') center center / cover no-repeat;
-  }
-</style>
 
-  <!-- HERO / BACKDROP -->
-  <section class="hero relative">
-    <!-- Prev arrow -->
-    <form method="POST" action="/previous_movie" id="prev-form" class="inline">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button type="submit" class="arrow-btn arrow-left" {% if previous_count == 0 %}disabled{% endif %} aria-label="Previous movie">
-        <svg viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7"/></svg>
-      </button>
-    </form>
-    <!-- Next arrow -->
-    <form method="POST" action="/next_movie" id="next-form" class="inline">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button type="submit" class="arrow-btn arrow-right" aria-label="Next movie">
-        <svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>
-      </button>
-    </form>
-  </section>
-
-  <!-- CONTENT — single narrow column, editorial flow -->
-  <main class="movie-content">
+  <!-- Two-column layout: poster left, content right -->
+  <main class="movie-page-layout">
     <div id="movie-status" class="sr-only" role="status" aria-live="polite"></div>
 
-    <!-- Movie Header: poster thumb + title/meta -->
-    <div class="movie-header">
+    <!-- Left column: poster only -->
+    <div class="movie-poster-col">
       <img class="poster-thumb" src="{{ poster_url }}" alt="Poster for {{ movie.title }}" fetchpriority="high" decoding="async" onerror="this.src='/static/img/poster-placeholder.svg'">
-      <div class="movie-info">
-        <h1 class="title">{{ movie.title }} <span class="title-year">({{ movie.year }})</span></h1>
-        <div class="meta">
-          <span>Directed by {{ movie.directors }}</span>
-          {% if movie.age_rating and movie.age_rating != "Not Rated" %}
-          <span class="dot">&middot;</span>
-          <span>{{ movie.age_rating }}</span>
-          {% endif %}
-          {% if movie.runtime and movie.runtime != "0 min" and movie.runtime != "Unknown" %}
-          <span class="dot">&middot;</span>
-          <span>{{ movie.runtime }}</span>
-          {% endif %}
-        </div>
-        <!-- Genres -->
-        <div class="flex flex-wrap gap-1.5" id="genre-info">{{ movie.genres }}</div>
-      </div>
     </div>
+
+    <!-- Right column: all content -->
+    <div class="movie-content-col">
+      <!-- Movie Header: title/meta -->
+      <div class="movie-header">
+        <div class="movie-info">
+          <h1 class="title">{{ movie.title }} <span class="title-year">({{ movie.year }})</span></h1>
+          <div class="meta">
+            <span>Directed by {{ movie.directors }}</span>
+            {% if movie.age_rating and movie.age_rating != "Not Rated" %}
+            <span class="dot">&middot;</span>
+            <span>{{ movie.age_rating }}</span>
+            {% endif %}
+            {% if movie.runtime and movie.runtime != "0 min" and movie.runtime != "Unknown" %}
+            <span class="dot">&middot;</span>
+            <span>{{ movie.runtime }}</span>
+            {% endif %}
+          </div>
+          <!-- Genres -->
+          <div class="flex flex-wrap gap-1.5" id="genre-info">{{ movie.genres }}</div>
+        </div>
+      </div>
 
     <!-- Tagline -->
     {% if movie.tagline %}
@@ -61,18 +37,16 @@
     {% endif %}
 
     <!-- Rating -->
-    <div class="rating-wrap mb-4">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="var(--color-star)" aria-hidden="true"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-      <span class="rating-score">{{ '%.1f'|format(movie.rating) }}</span>
-      <span class="rating-outof">/10</span>
-      <span class="rating-votes-mini">&middot; <span id="vote-number">{{ movie.votes }}</span> ratings</span>
+    <div class="rating-wrap">
+      <span class="rating-score">{{ '%.1f'|format(movie.rating) }}</span><span class="rating-outof"> / 10</span>
+      <span class="rating-votes-mini"><span id="vote-number">{{ movie.votes }}</span> ratings</span>
     </div>
 
     <!-- Plot -->
-    <p class="plot mb-4">{{ movie.plot }}</p>
+    <p class="plot mb-6">{{ movie.plot }}</p>
 
     <!-- Actions: Trailer + External Links -->
-    <div class="action-row mb-5">
+    <div class="action-row mb-6">
       {% if movie.trailer %}
       <button class="trailer-btn" id="play-button" data-video-url="{{ movie.trailer }}">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l14 8-14 8V4z"/></svg>
@@ -157,21 +131,7 @@
     </div>
     {% endif %}
 
-    <!-- Page-flip Navigation -->
-    <div class="page-nav">
-      <form method="POST" action="/previous_movie" id="prev-form-bottom" class="inline">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit" class="nav-btn-prev" {% if previous_count == 0 %}disabled{% endif %}>
-          &larr; Previous
-        </button>
-      </form>
-      <form method="POST" action="/next_movie" id="next-form-bottom" class="inline">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit" class="nav-btn-next">
-          Next &rarr;
-        </button>
-      </form>
-    </div>
+    <!-- Page-flip navigation moved to sticky bottom bar -->
 
     <div class="divider"></div>
 
@@ -277,30 +237,47 @@
       {% endif %}
     </div>
 
+    </div><!-- /movie-content-col -->
   </main>
+
+  <!-- Sticky bottom navigation bar -->
+  <nav class="movie-nav-bar" aria-label="Movie navigation">
+    <form method="POST" action="/previous_movie" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="nav-btn-prev" {% if previous_count == 0 %}disabled{% endif %}>
+        &larr; Previous
+      </button>
+    </form>
+    <form method="POST" action="/next_movie" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="nav-btn-next">
+        Next &rarr;
+      </button>
+    </form>
+  </nav>
 
   <!-- JavaScript -->
   <script>
-    // Build genre chips from CSV
+    // Build genre text from CSV (dot-separated, no chips)
     (function(){
       const el = document.getElementById("genre-info");
       if(!el) return;
       const raw = (el.textContent || "").trim();
       const parts = raw ? raw.split(",").map(s => s.trim()).filter(Boolean) : [];
       el.innerHTML = "";
-      const max = 3;
-      for(let i=0;i<Math.min(parts.length, max);i++){
-        const chip = document.createElement("span");
-        chip.className = "genre-chip";
-        chip.textContent = parts[i];
-        el.appendChild(chip);
-      }
-      if(parts.length > max){
-        const more = document.createElement("span");
-        more.className = "genre-chip";
-        more.textContent = `+${parts.length - max} more`;
-        el.appendChild(more);
-      }
+      el.className = "meta";
+      el.style.marginBottom = "0";
+      parts.forEach(function(genre, i){
+        const span = document.createElement("span");
+        span.textContent = genre;
+        el.appendChild(span);
+        if(i < parts.length - 1){
+          const dot = document.createElement("span");
+          dot.className = "dot";
+          dot.innerHTML = "&middot;";
+          el.appendChild(dot);
+        }
+      });
     })();
 
     // Format votes

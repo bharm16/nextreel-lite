@@ -76,15 +76,15 @@
   </div>
 
   <div class="filter-drawer-footer">
-    <button type="submit" form="drawerFilterForm" id="drawerApplyBtn" class="flex-1 inline-flex items-center justify-center gap-2 rounded-full bg-accent px-5 py-2.5 text-sm font-bold uppercase tracking-wide text-white shadow hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-accent/40" aria-busy="false">
+    <button type="submit" form="drawerFilterForm" id="drawerApplyBtn" class="filter-apply-btn" aria-busy="false">
       <svg class="h-4 w-4 hidden animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10" opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
       <span>Apply Filters</span>
     </button>
-    <button type="reset" form="drawerFilterForm" id="drawerResetBtn" class="inline-flex items-center justify-center rounded-full border border-token px-4 py-2.5 text-sm font-semibold text-muted hover:bg-surface-alt focus:outline-none focus:ring-2 focus:ring-accent/30">Reset</button>
+    <button type="reset" form="drawerFilterForm" id="drawerResetBtn" class="filter-reset-btn">Reset</button>
   </div>
 </aside>
 
-<script src="{{ url_for('static', filename='js/filter-drawer.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/filter-drawer.js') }}?v={{ config.get('CSS_VERSION', '1') }}" defer></script>
 
 </body>
 </html>

@@ -1,10 +1,10 @@
 /**
- * Filter Drawer — open/close, collapsible sections, AJAX submit, persistence.
+ * Filter Drawer — open/close, accordion sections, AJAX submit, persistence.
  * Loaded on movie detail pages only (deferred).
  *
  * The shared _filter_form.html partial outputs sections with data-filter-group
- * attributes. This script wraps those groups into collapsible accordion panels
- * inside the drawer.
+ * attributes. This script wraps those groups into accordion panels
+ * inside the drawer (one section open at a time).
  */
 (function () {
   "use strict";
@@ -21,7 +21,7 @@
 
   if (!drawer || !tab || !form || !closeBtn || !backdrop) return;
 
-  // ── Build collapsible sections from data-filter-group ──
+  // ── Build accordion sections from data-filter-group ──
   var SECTION_LABELS = {
     ratings: "Ratings & Votes",
     year: "Year & Language",
@@ -46,7 +46,6 @@
     // Remove the original 2-column grid wrapper — we're going single-column
     var grid = form.querySelector(".grid");
     if (grid) {
-      // Move all children out, then remove the grid
       while (grid.firstChild) {
         form.insertBefore(grid.firstChild, grid);
       }
@@ -61,7 +60,7 @@
       col.remove();
     });
 
-    // Now wrap each group in a collapsible section
+    // Now wrap each group in an accordion section
     SECTION_ORDER.forEach(function (groupName, idx) {
       var elements = groups[groupName];
       if (!elements || elements.length === 0) return;
@@ -71,9 +70,9 @@
 
       // Create wrapper
       var wrapper = document.createElement("div");
-      wrapper.className = "mb-4";
+      wrapper.className = "mb-2";
 
-      // Toggle button
+      // Toggle button with +/- icon
       var toggle = document.createElement("button");
       toggle.type = "button";
       toggle.className = "filter-section-toggle";
@@ -81,7 +80,7 @@
       toggle.setAttribute("aria-controls", sectionId);
       toggle.innerHTML =
         "<span>" + (SECTION_LABELS[groupName] || groupName) + "</span>" +
-        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>';
+        '<span class="toggle-icon">' + (isFirst ? "−" : "+") + '</span>';
 
       // Content container
       var content = document.createElement("div");
@@ -91,7 +90,7 @@
       var inner = document.createElement("div");
       inner.className = "space-y-4 py-3";
 
-      // Move the actual filter sections into the collapsible content
+      // Move the actual filter sections into the accordion content
       elements.forEach(function (el) {
         inner.appendChild(el);
       });
@@ -100,11 +99,10 @@
       wrapper.appendChild(toggle);
       wrapper.appendChild(content);
 
-      // Insert before the errors div or at end of form
       form.appendChild(wrapper);
     });
 
-    // Move the errors div to the top of the form (before collapsible sections)
+    // Move the errors div to the top of the form
     if (errorsDiv && form.firstChild !== errorsDiv) {
       var csrf = form.querySelector('input[name="csrf_token"]');
       if (csrf && csrf.nextSibling) {
@@ -170,7 +168,7 @@
     }
   });
 
-  // ── Collapsible section toggle + persistence ─
+  // ── Accordion toggle (one-at-a-time) + persistence ──
   var SECTION_STORAGE_KEY = "filterDrawerSections";
 
   function loadSectionStates() {
@@ -193,6 +191,26 @@
     } catch (_) {}
   }
 
+  function closeAllSections() {
+    drawer.querySelectorAll(".filter-section-toggle").forEach(function (btn) {
+      var targetId = btn.getAttribute("aria-controls");
+      var target = document.getElementById(targetId);
+      if (!target) return;
+      btn.setAttribute("aria-expanded", "false");
+      btn.querySelector(".toggle-icon").textContent = "+";
+      target.classList.remove("open");
+    });
+  }
+
+  function openSection(btn) {
+    var targetId = btn.getAttribute("aria-controls");
+    var target = document.getElementById(targetId);
+    if (!target) return;
+    btn.setAttribute("aria-expanded", "true");
+    btn.querySelector(".toggle-icon").textContent = "−";
+    target.classList.add("open");
+  }
+
   function initSections() {
     var saved = loadSectionStates();
     drawer.querySelectorAll(".filter-section-toggle").forEach(function (btn) {
@@ -204,13 +222,18 @@
       if (saved && saved.hasOwnProperty(targetId)) {
         var isOpen = saved[targetId];
         btn.setAttribute("aria-expanded", String(isOpen));
+        btn.querySelector(".toggle-icon").textContent = isOpen ? "−" : "+";
         target.classList.toggle("open", isOpen);
       }
 
       btn.addEventListener("click", function () {
-        var expanded = btn.getAttribute("aria-expanded") === "true";
-        btn.setAttribute("aria-expanded", String(!expanded));
-        target.classList.toggle("open");
+        var wasExpanded = btn.getAttribute("aria-expanded") === "true";
+        // Close all sections first (accordion behavior)
+        closeAllSections();
+        // If it was closed, open it; if it was open, leave all closed
+        if (!wasExpanded) {
+          openSection(btn);
+        }
         saveSectionStates();
       });
     });
@@ -218,28 +241,27 @@
 
   initSections();
 
-  // ── Genre "Select All" (scoped to drawer form) ──
-  var drawerSelectAll = form.querySelector("#selectAll");
-  var drawerGenreGrid = form.querySelector(".genre-grid");
+  // ── Genre "Select All" / "Clear All" links ──
+  var selectAllBtn = form.querySelector("#selectAllBtn");
+  var clearAllBtn = form.querySelector("#clearAllBtn");
+  var genreToggles = form.querySelector(".genre-toggles");
 
-  function getDrawerGenreBoxes() {
-    return drawerGenreGrid
-      ? Array.from(drawerGenreGrid.querySelectorAll('input[type="checkbox"]'))
+  function getGenreBoxes() {
+    return genreToggles
+      ? Array.from(genreToggles.querySelectorAll('input[type="checkbox"]'))
       : [];
   }
 
-  function syncDrawerGenres() {
-    if (!drawerSelectAll || !drawerGenreGrid) return;
-    var boxes = getDrawerGenreBoxes();
-    drawerSelectAll.checked = boxes.length > 0 && boxes.every(function (cb) { return cb.checked; });
+  if (selectAllBtn && genreToggles) {
+    selectAllBtn.addEventListener("click", function () {
+      getGenreBoxes().forEach(function (cb) { cb.checked = true; });
+    });
   }
 
-  if (drawerSelectAll && drawerGenreGrid) {
-    drawerSelectAll.addEventListener("change", function (e) {
-      getDrawerGenreBoxes().forEach(function (cb) { cb.checked = e.target.checked; });
+  if (clearAllBtn && genreToggles) {
+    clearAllBtn.addEventListener("click", function () {
+      getGenreBoxes().forEach(function (cb) { cb.checked = false; });
     });
-    drawerGenreGrid.addEventListener("change", syncDrawerGenres);
-    syncDrawerGenres();
   }
 
   // ── Error display ──────────────────────────
@@ -324,8 +346,9 @@
   // ── Reset handler ──────────────────────────
   if (resetBtn) {
     resetBtn.addEventListener("click", function () {
+      // After form reset, re-check all genre toggles
       setTimeout(function () {
-        syncDrawerGenres();
+        getGenreBoxes().forEach(function (cb) { cb.checked = true; });
       }, 0);
     });
   }

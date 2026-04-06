@@ -20,85 +20,77 @@
     })();
   </script>
   <style>
-    :root { color-scheme: light; }
-    body { font-family: 'Poppins', system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif; }
-    .font-brand-serif { font-family: 'Merriweather', Georgia, Cambria, 'Times New Roman', Times, serif; }
+    body { font-family: var(--font-sans, 'DM Sans', system-ui, sans-serif); }
   </style>
 </head>
-<body class="bg-surface text-body antialiased">
+<body class="antialiased">
   <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:shadow">Skip to content</a>
 
   {% include 'navbar_modern.html' %}
 
-  <main id="main">
-    <section class="py-12 sm:py-16 bg-surface-alt">
-      <div class="mx-auto max-w-md px-4 sm:px-6">
-        <div class="card border-t-4" style="border-top-color: var(--color-accent)">
-          <h1 class="font-brand-serif text-2xl font-bold text-primary text-center mb-6">Log In</h1>
+  <main id="main" class="auth-page">
+    <div class="auth-form-container auth-fade-in">
+      <h1 class="auth-heading">Log In</h1>
 
-          {% if errors and errors.form %}
-          <div role="alert" class="mb-6 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm font-medium text-red-800">
-            {{ errors.form }}
-          </div>
-          {% endif %}
-
-          <form method="POST" action="/login" class="space-y-5">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-
-            <!-- Email -->
-            <div>
-              <label for="email" class="block text-sm font-medium text-primary">Email</label>
-              {% set email_error = errors.email if errors else none %}
-              <input type="email" id="email" name="email" required autocomplete="email"
-                     value="{{ form_data.email if form_data else '' }}"
-                     {% if email_error %}aria-invalid="true" aria-describedby="email_error"{% endif %}
-                     class="mt-1 w-full rounded-2xl border-2 px-4 py-2.5 text-sm shadow-sm focus:outline-none focus:ring-2 {% if email_error %}border-red-400 focus:border-red-500 focus:ring-red-200{% else %}border-token focus:border-accent focus:ring-accent/30{% endif %}">
-              {% if email_error %}
-              <p id="email_error" class="mt-2 text-sm font-medium text-red-700">{{ email_error }}</p>
-              {% endif %}
-            </div>
-
-            <!-- Password -->
-            <div>
-              <label for="password" class="block text-sm font-medium text-primary">Password</label>
-              {% set password_error = errors.password if errors else none %}
-              <input type="password" id="password" name="password" required autocomplete="current-password"
-                     {% if password_error %}aria-invalid="true" aria-describedby="password_error"{% endif %}
-                     class="mt-1 w-full rounded-2xl border-2 px-4 py-2.5 text-sm shadow-sm focus:outline-none focus:ring-2 {% if password_error %}border-red-400 focus:border-red-500 focus:ring-red-200{% else %}border-token focus:border-accent focus:ring-accent/30{% endif %}">
-              {% if password_error %}
-              <p id="password_error" class="mt-2 text-sm font-medium text-red-700">{{ password_error }}</p>
-              {% endif %}
-            </div>
-
-            <button type="submit" class="w-full inline-flex items-center justify-center gap-2 rounded-full bg-accent px-7 py-3 text-sm font-bold uppercase tracking-wide text-white shadow shadow-black/10 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-accent/40">
-              Log In
-            </button>
-          </form>
-
-          <!-- Social Sign-In -->
-          <div class="mt-6">
-            <div class="relative">
-              <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-token"></div></div>
-              <div class="relative flex justify-center text-xs"><span class="bg-surface px-3 text-body/60">or continue with</span></div>
-            </div>
-            <div class="mt-4 flex flex-col gap-3">
-              <a href="/auth/google" class="inline-flex w-full items-center justify-center gap-2 rounded-full chip px-4 py-2.5 text-sm font-semibold text-body hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-primary/30">
-                <svg class="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18A10.96 10.96 0 0 0 1 12c0 1.77.42 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
-                Sign in with Google
-              </a>
-              <a href="/auth/apple" class="inline-flex w-full items-center justify-center gap-2 rounded-full chip px-4 py-2.5 text-sm font-semibold text-body hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-primary/30">
-                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C4.24 16.7 4.89 10.5 8.7 10.3c1.26.07 2.14.72 2.88.76.94-.2 1.84-.88 2.86-.8 1.44.12 2.52.72 3.18 1.82-2.92 1.74-2.22 5.58.52 6.64-.64 1.68-1.46 3.34-3.08 5.56h.04zM12.04 10.23c-.16-2.38 1.74-4.4 3.96-4.58.3 2.76-2.46 4.82-3.96 4.58z"/></svg>
-                Sign in with Apple
-              </a>
-            </div>
-          </div>
-
-          <p class="mt-6 text-center text-sm text-body/70">
-            Don't have an account? <a href="/register" class="font-semibold text-accent hover:underline">Sign up</a>
-          </p>
-        </div>
+      <!-- Social Sign-In (primary) -->
+      <div class="flex flex-col gap-3 mb-8">
+        <a href="/auth/google" class="auth-social-btn">
+          <svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" aria-hidden="true"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18A10.96 10.96 0 0 0 1 12c0 1.77.42 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+          Sign in with Google
+        </a>
+        <a href="/auth/apple" class="auth-social-btn">
+          <svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C4.24 16.7 4.89 10.5 8.7 10.3c1.26.07 2.14.72 2.88.76.94-.2 1.84-.88 2.86-.8 1.44.12 2.52.72 3.18 1.82-2.92 1.74-2.22 5.58.52 6.64-.64 1.68-1.46 3.34-3.08 5.56h.04zM12.04 10.23c-.16-2.38 1.74-4.4 3.96-4.58.3 2.76-2.46 4.82-3.96 4.58z"/></svg>
+          Sign in with Apple
+        </a>
       </div>
-    </section>
+
+      <div class="auth-divider" role="separator">
+        <span class="auth-divider-text">or</span>
+      </div>
+
+      {% if errors and errors.form %}
+      <div role="alert" class="auth-error">
+        {{ errors.form }}
+      </div>
+      {% endif %}
+
+      <form method="POST" action="/login" class="space-y-5">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <!-- Email -->
+        <div>
+          <label for="email" class="auth-input-label">Email</label>
+          {% set email_error = errors.email if errors else none %}
+          <input type="email" id="email" name="email" required autocomplete="email"
+                 value="{{ form_data.email if form_data else '' }}"
+                 {% if email_error %}aria-invalid="true" aria-describedby="email_error"{% endif %}
+                 class="auth-input{% if email_error %} auth-input-error{% endif %}">
+          {% if email_error %}
+          <p id="email_error" class="auth-field-error">{{ email_error }}</p>
+          {% endif %}
+        </div>
+
+        <!-- Password -->
+        <div>
+          <label for="password" class="auth-input-label">Password</label>
+          {% set password_error = errors.password if errors else none %}
+          <input type="password" id="password" name="password" required autocomplete="current-password"
+                 {% if password_error %}aria-invalid="true" aria-describedby="password_error"{% endif %}
+                 class="auth-input{% if password_error %} auth-input-error{% endif %}">
+          {% if password_error %}
+          <p id="password_error" class="auth-field-error">{{ password_error }}</p>
+          {% endif %}
+        </div>
+
+        <div class="pt-2">
+          <button type="submit" class="auth-submit">Log In</button>
+        </div>
+      </form>
+
+      <div class="mt-8">
+        <a href="/register" class="auth-switch-link">Sign up</a>
+      </div>
+    </div>
   </main>
 
   {% include 'footer_modern.html' %}
