@@ -8,11 +8,7 @@ from quart import request
 
 
 def trusted_proxies() -> set[str]:
-    return {
-        proxy.strip()
-        for proxy in os.getenv("TRUSTED_PROXIES", "").split(",")
-        if proxy.strip()
-    }
+    return {proxy.strip() for proxy in os.getenv("TRUSTED_PROXIES", "").split(",") if proxy.strip()}
 
 
 def get_client_ip() -> str:

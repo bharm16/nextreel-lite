@@ -17,6 +17,7 @@ def get_tmdb_api_key() -> str:
     redeploying the application.
     """
     from infra.secrets import secrets_manager
+
     api_key = secrets_manager.get_secret("TMDB_API_KEY")
     if not api_key:
         raise RuntimeError("TMDB_API_KEY not configured. Please set the environment variable.")
@@ -120,10 +121,8 @@ class TMDbHelper:
         self._client = httpx.AsyncClient(
             timeout=httpx.Timeout(10.0, connect=3.0),
             limits=httpx.Limits(
-                max_keepalive_connections=20,
-                max_connections=50,
-                keepalive_expiry=30
-            )
+                max_keepalive_connections=20, max_connections=50, keepalive_expiry=30
+            ),
         )
 
     def _uses_bearer_auth(self) -> bool:
@@ -155,9 +154,7 @@ class TMDbHelper:
         # Circuit breaker check — fail fast when TMDb is known to be down
         if not await self._circuit_breaker.allow_request():
             logger.warning("TMDb circuit breaker OPEN — rejecting request to %s", endpoint)
-            raise httpx.RequestError(
-                f"TMDb circuit breaker open — request to {endpoint} rejected"
-            )
+            raise httpx.RequestError(f"TMDb circuit breaker open — request to {endpoint} rejected")
 
         for attempt in range(self._max_retries + 1):
             start_time = time.time()
@@ -170,7 +167,9 @@ class TMDbHelper:
                     wait = min(retry_after, 10)
                     logger.warning(
                         "TMDb rate limited (429). Retry-After: %.1fs (attempt %d/%d)",
-                        wait, attempt + 1, self._max_retries,
+                        wait,
+                        attempt + 1,
+                        self._max_retries,
                     )
                     await self._circuit_breaker.record_failure()
                     if attempt < self._max_retries:
@@ -183,7 +182,9 @@ class TMDbHelper:
                 elapsed_time = time.time() - start_time
                 logger.debug(
                     "Received response from %s in %.2f seconds. Status code: %s",
-                    url, elapsed_time, response.status_code,
+                    url,
+                    elapsed_time,
+                    response.status_code,
                 )
                 await self._circuit_breaker.record_success()
                 return response.json()
@@ -192,16 +193,21 @@ class TMDbHelper:
                 elapsed_time = time.time() - start_time
                 await self._circuit_breaker.record_failure()
                 if attempt < self._max_retries:
-                    backoff = 2 ** attempt
+                    backoff = 2**attempt
                     logger.warning(
                         "TMDb request error (attempt %d/%d): %s. Retrying in %ds",
-                        attempt + 1, self._max_retries, e, backoff,
+                        attempt + 1,
+                        self._max_retries,
+                        e,
+                        backoff,
                     )
                     await asyncio.sleep(backoff)
                     continue
                 logger.error(
                     "TMDb request failed after %d attempts: %s; Time elapsed: %.2fs",
-                    self._max_retries + 1, e, elapsed_time,
+                    self._max_retries + 1,
+                    e,
+                    elapsed_time,
                 )
                 raise
             except httpx.HTTPStatusError as e:
@@ -210,14 +216,20 @@ class TMDbHelper:
                 if e.response.status_code >= 500:
                     await self._circuit_breaker.record_failure()
                 logger.error(
-                    "HTTP error from %s: %s; Time elapsed: %.2fs", url, e, elapsed_time,
+                    "HTTP error from %s: %s; Time elapsed: %.2fs",
+                    url,
+                    e,
+                    elapsed_time,
                 )
                 raise
             except Exception as e:
                 elapsed_time = time.time() - start_time
                 await self._circuit_breaker.record_failure()
                 logger.error(
-                    "Unexpected error from %s: %s; Time elapsed: %.2fs", url, e, elapsed_time,
+                    "Unexpected error from %s: %s; Time elapsed: %.2fs",
+                    url,
+                    e,
+                    elapsed_time,
                 )
                 raise
 
@@ -296,8 +308,8 @@ class TMDbHelper:
 
             logger.debug(
                 "Found %d poster(s) and %d backdrop(s) for TMDB ID: %s",
-                len(images['posters']),
-                len(images['backdrops']),
+                len(images["posters"]),
+                len(images["backdrops"]),
                 tmdb_id,
             )
             return images
@@ -336,8 +348,8 @@ class TMDbHelper:
         if not all_backdrop_urls:
             return None
         return random.choice(all_backdrop_urls)
-    
+
     async def close(self):
         """Close the HTTP client"""
-        if hasattr(self, '_client'):
+        if hasattr(self, "_client"):
             await self._client.aclose()

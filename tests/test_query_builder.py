@@ -108,7 +108,9 @@ class TestBuildBaseQuery:
             {"use_recent": True, "language": "en"},
         ]:
             sql = MovieQueryBuilder.build_base_query(**kwargs)
-            assert sql.count("%s") == 9, f"Expected 9 placeholders for {kwargs}, got {sql.count('%s')}"
+            assert (
+                sql.count("%s") == 9
+            ), f"Expected 9 placeholders for {kwargs}, got {sql.count('%s')}"
 
     def test_any_language_omits_language_clause(self):
         """language='any' (the default) produces 7 placeholders (no language predicate)."""
@@ -118,7 +120,9 @@ class TestBuildBaseQuery:
             {"use_recent": True, "language": "any"},
         ]:
             sql = MovieQueryBuilder.build_base_query(**kwargs)
-            assert sql.count("%s") == 7, f"Expected 7 placeholders for {kwargs}, got {sql.count('%s')}"
+            assert (
+                sql.count("%s") == 7
+            ), f"Expected 7 placeholders for {kwargs}, got {sql.count('%s')}"
             assert "language" not in sql.split("WHERE")[1]
 
 
@@ -164,9 +168,9 @@ class TestBuildParameters:
         params = MovieQueryBuilder.build_parameters({})
         # Default language is "en" → 9 params
         assert len(params) == 9
-        assert params[0] == "movie"   # default title_type
-        assert params[1] == 1900      # default min_year
-        assert params[3] == 7.0       # default min_rating
+        assert params[0] == "movie"  # default title_type
+        assert params[1] == 1900  # default min_year
+        assert params[3] == 7.0  # default min_rating
 
 
 class TestBuildCountQuery:
@@ -203,15 +207,15 @@ class TestBuildGenreConditionsFulltext:
         assert "MATCH" in cond
         assert "AGAINST" in cond
         assert "IN BOOLEAN MODE" in cond
-        assert '+\"Action\"' in params[0]
+        assert '+"Action"' in params[0]
 
     def test_multiple_genres_concatenated(self):
         criteria = {"genres": ["Action", "Comedy", "Drama"]}
         cond, params = MovieQueryBuilder.build_genre_conditions_fulltext(criteria)
         genre_search = params[0]
-        assert '+\"Action\"' in genre_search
-        assert '+\"Comedy\"' in genre_search
-        assert '+\"Drama\"' in genre_search
+        assert '+"Action"' in genre_search
+        assert '+"Comedy"' in genre_search
+        assert '+"Drama"' in genre_search
 
     def test_15_plus_genres_skipped(self):
         criteria = {"genres": [f"Genre{i}" for i in range(15)]}
@@ -240,7 +244,7 @@ class TestBuildGenreConditionsFulltext:
         cond, params = MovieQueryBuilder.build_genre_conditions_fulltext(criteria)
         genre_search = params[0]
         # The double quote should be stripped
-        assert '"' not in genre_search.replace('+\"', '').replace('\"', '')
+        assert '"' not in genre_search.replace('+"', "").replace('"', "")
         # But the genre name content should be preserved (minus the quote)
         assert "SciFi" in genre_search
 

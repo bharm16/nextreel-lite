@@ -4,9 +4,9 @@ from movies.tmdb_client import TMDbHelper
 
 
 def test_get_full_image_url():
-    helper = TMDbHelper('key')
-    url = helper.get_full_image_url('/path', size='w500')
-    assert url == 'https://image.tmdb.org/t/p/w500/path'
+    helper = TMDbHelper("key")
+    url = helper.get_full_image_url("/path", size="w500")
+    assert url == "https://image.tmdb.org/t/p/w500/path"
 
 
 def test_build_request_options_uses_query_param_for_v3_api_key():
@@ -32,15 +32,17 @@ def test_build_request_options_uses_bearer_header_for_v4_token():
 
 
 async def test_get_backdrop_image_for_home():
-    helper = TMDbHelper('key')
-    with patch.object(helper, '_get', AsyncMock(return_value={'backdrops': [{'file_path': '/b.jpg'}]})):
+    helper = TMDbHelper("key")
+    with patch.object(
+        helper, "_get", AsyncMock(return_value={"backdrops": [{"file_path": "/b.jpg"}]})
+    ):
         url = await helper.get_backdrop_image_for_home(123)
-        assert url.endswith('/b.jpg')
+        assert url.endswith("/b.jpg")
 
 
 async def test_get_backdrop_for_movie():
-    helper = TMDbHelper('key')
-    helper.get_all_backdrop_images = AsyncMock(return_value=['url1', 'url2'])
-    with patch('random.choice', lambda x: x[0]):
+    helper = TMDbHelper("key")
+    helper.get_all_backdrop_images = AsyncMock(return_value=["url1", "url2"])
+    with patch("random.choice", lambda x: x[0]):
         url = await helper.get_backdrop_for_movie(123)
-        assert url == 'url1'
+        assert url == "url1"

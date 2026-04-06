@@ -35,9 +35,10 @@ def _movie_ref(movie_data: dict) -> dict:
 class MovieNavigator:
     """State-aware next/previous/filter navigation."""
 
-    def __init__(self, candidate_store, navigation_state_store):
+    def __init__(self, candidate_store, navigation_state_store, watched_store=None):
         self.candidate_store = candidate_store
         self.navigation_state_store = navigation_state_store
+        self.watched_store = watched_store
 
     def prev_stack_length(self, state) -> int:
         return len(state.prev) if state else 0
@@ -78,9 +79,20 @@ class MovieNavigator:
         if missing <= 0:
             return
 
+        excluded = self._excluded_tconsts(state)
+
+        # Merge watched movies into excluded set if user is logged in and filter is on
+        if (
+            self.watched_store
+            and getattr(state, "user_id", None)
+            and state.filters.get("exclude_watched", True)
+        ):
+            watched = await self.watched_store.watched_tconsts(state.user_id)
+            excluded |= watched
+
         refs = await self.candidate_store.fetch_candidate_refs(
             state.filters,
-            self._excluded_tconsts(state),
+            excluded,
             missing,
         )
         if refs:

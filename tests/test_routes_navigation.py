@@ -10,8 +10,7 @@ from tests.helpers import TEST_ENV
 
 
 def _make_app():
-    with patch.dict(os.environ, TEST_ENV), \
-         patch("app.MovieManager") as MockManager:
+    with patch.dict(os.environ, TEST_ENV), patch("app.MovieManager") as MockManager:
         manager = MockManager.return_value
         manager.home = AsyncMock(return_value={"default_backdrop_url": None})
         manager.next_movie = AsyncMock(return_value=None)
@@ -23,6 +22,7 @@ def _make_app():
         manager.logout = AsyncMock()
 
         from app import create_app
+
         app = create_app()
         app.config["TESTING"] = True
         return app, manager
@@ -54,7 +54,9 @@ class TestNextMovieRoute:
 
     async def test_redirects_conflict_to_home_when_no_tconst(self):
         app, manager = _make_app()
-        manager.next_movie = AsyncMock(return_value=NavigationOutcome(tconst=None, state_conflict=True))
+        manager.next_movie = AsyncMock(
+            return_value=NavigationOutcome(tconst=None, state_conflict=True)
+        )
         async with app.app_context():
             client = app.test_client()
             response = await client.post("/next_movie", headers={"X-CSRFToken": "test-csrf-token"})
@@ -82,7 +84,9 @@ class TestPreviousMovieRoute:
         manager.previous_movie = AsyncMock(return_value=NavigationOutcome(tconst="tt7654321"))
         async with app.app_context():
             client = app.test_client()
-            response = await client.post("/previous_movie", headers={"X-CSRFToken": "test-csrf-token"})
+            response = await client.post(
+                "/previous_movie", headers={"X-CSRFToken": "test-csrf-token"}
+            )
             assert response.status_code == 303
             assert response.headers["Location"].endswith("/movie/tt7654321")
 
@@ -146,6 +150,82 @@ class TestFilteredMovieRoute:
             )
             assert response.status_code == 303
             assert response.headers["Location"].endswith("/movie/tt1234567")
+
+    # ── JSON response branch tests (AJAX from filter drawer) ──
+
+    async def test_json_validation_errors_return_400(self):
+        app, manager = _make_app()
+        async with app.app_context():
+            client = app.test_client()
+            response = await client.post(
+                "/filtered_movie",
+                headers={
+                    "X-CSRFToken": "test-csrf-token",
+                    "Accept": "application/json",
+                },
+                form={"year_min": "2025", "year_max": "1990"},
+            )
+            assert response.status_code == 400
+            data = await response.get_json()
+            assert data["ok"] is False
+            assert "year_min" in data["errors"] or "year_max" in data["errors"]
+            manager.apply_filters.assert_not_awaited()
+
+    async def test_json_success_returns_redirect_url(self):
+        app, manager = _make_app()
+        manager.apply_filters = AsyncMock(
+            return_value=NavigationOutcome(tconst="tt9999999")
+        )
+        async with app.app_context():
+            client = app.test_client()
+            response = await client.post(
+                "/filtered_movie",
+                headers={
+                    "X-CSRFToken": "test-csrf-token",
+                    "Accept": "application/json",
+                },
+                form={"year_min": "2000"},
+            )
+            assert response.status_code == 200
+            data = await response.get_json()
+            assert data["ok"] is True
+            assert "/movie/tt9999999" in data["redirect"]
+
+    async def test_json_no_tconst_returns_error(self):
+        app, manager = _make_app()
+        manager.apply_filters = AsyncMock(
+            return_value=NavigationOutcome(tconst=None)
+        )
+        async with app.app_context():
+            client = app.test_client()
+            response = await client.post(
+                "/filtered_movie",
+                headers={
+                    "X-CSRFToken": "test-csrf-token",
+                    "Accept": "application/json",
+                },
+                form={"year_min": "2000"},
+            )
+            data = await response.get_json()
+            assert data["ok"] is False
+            assert "errors" in data
+
+    async def test_json_no_matches_returns_error(self):
+        app, manager = _make_app()
+        manager.apply_filters = AsyncMock(return_value=None)
+        async with app.app_context():
+            client = app.test_client()
+            response = await client.post(
+                "/filtered_movie",
+                headers={
+                    "X-CSRFToken": "test-csrf-token",
+                    "Accept": "application/json",
+                },
+                form={"year_min": "2000"},
+            )
+            data = await response.get_json()
+            assert data["ok"] is False
+            assert "form" in data["errors"]
 
 
 class TestLogoutRoute:

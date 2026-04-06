@@ -31,6 +31,7 @@ from infra.navigation_state import (
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_state(**overrides) -> NavigationState:
     now = utcnow()
     defaults = dict(
@@ -76,6 +77,7 @@ class FakeFormData:
 
 # --- clone() ---
 
+
 def test_clone_produces_equal_but_independent_copy():
     state = _make_state(
         queue=[_ref("tt1")],
@@ -119,6 +121,7 @@ def test_clone_deep_copies_mutable_fields():
 # default_filter_state()
 # ===========================================================================
 
+
 def test_default_filter_state_uses_current_year_when_none():
     filters = default_filter_state()
     assert filters["year_min"] == 1900
@@ -139,6 +142,7 @@ def test_default_filter_state_with_explicit_year():
 # ===========================================================================
 # filters_from_criteria()
 # ===========================================================================
+
 
 def test_filters_from_criteria_maps_all_keys():
     criteria = {
@@ -181,6 +185,7 @@ def test_filters_from_criteria_partial_criteria():
 # criteria_from_filters() — roundtrip
 # ===========================================================================
 
+
 def test_criteria_from_filters_roundtrip():
     original_criteria = {
         "min_year": 1990,
@@ -210,6 +215,7 @@ def test_criteria_from_filters_none_uses_defaults():
 # ===========================================================================
 # normalize_filters()
 # ===========================================================================
+
 
 def test_normalize_filters_parses_scalar_strings():
     form = FakeFormData(
@@ -265,6 +271,7 @@ def test_normalize_filters_genre_truncation():
 # _normalize_ref()
 # ===========================================================================
 
+
 def test_normalize_ref_extracts_tconst_key():
     entry = {"tconst": "tt123", "title": "Test", "slug": "test"}
     result = _normalize_ref(entry)
@@ -294,6 +301,7 @@ def test_normalize_ref_returns_none_for_missing_tconst():
 # ===========================================================================
 # _normalize_ref_list()
 # ===========================================================================
+
 
 def test_normalize_ref_list_respects_max_items():
     entries = [{"tconst": f"tt{i}", "title": f"M{i}"} for i in range(10)]
@@ -325,6 +333,7 @@ def test_normalize_ref_list_handles_none_input():
 # _normalize_seen()
 # ===========================================================================
 
+
 def test_normalize_seen_filters_non_strings():
     entries = ["tt1", 42, None, "tt2", "", "tt3"]
     result = _normalize_seen(entries)
@@ -348,6 +357,7 @@ def test_normalize_seen_handles_none():
 # ===========================================================================
 # NavigationStateStore._fresh_state()
 # ===========================================================================
+
 
 def test_fresh_state_creates_valid_state(mock_db_pool):
     store = NavigationStateStore(mock_db_pool)
@@ -382,6 +392,7 @@ def test_fresh_state_expiry_within_bounds(mock_db_pool):
 # ===========================================================================
 # NavigationStateStore._json_load()
 # ===========================================================================
+
 
 def test_json_load_returns_fallback_for_none(mock_db_pool):
     store = NavigationStateStore(mock_db_pool)
@@ -420,6 +431,7 @@ def test_json_load_returns_fallback_for_unexpected_type(mock_db_pool):
 # NavigationStateStore._row_to_state()
 # ===========================================================================
 
+
 def test_row_to_state_deserializes_json_fields(mock_db_pool):
     store = NavigationStateStore(mock_db_pool)
     now = utcnow()
@@ -427,10 +439,18 @@ def test_row_to_state_deserializes_json_fields(mock_db_pool):
         "session_id": "s1",
         "version": 3,
         "csrf_token": "csrf-tok",
-        "filters_json": json.dumps({"year_min": 2000, "year_max": 2020,
-                                     "imdb_score_min": 6.0, "imdb_score_max": 9.0,
-                                     "num_votes_min": 50000, "num_votes_max": 100000,
-                                     "language": "en", "genres_selected": ["Drama"]}),
+        "filters_json": json.dumps(
+            {
+                "year_min": 2000,
+                "year_max": 2020,
+                "imdb_score_min": 6.0,
+                "imdb_score_max": 9.0,
+                "num_votes_min": 50000,
+                "num_votes_max": 100000,
+                "language": "en",
+                "genres_selected": ["Drama"],
+            }
+        ),
         "current_tconst": "tt999",
         "queue_json": json.dumps([{"tconst": "tt1", "title": "Q1", "slug": "q1"}]),
         "prev_json": json.dumps([{"tconst": "tt2", "title": "P1", "slug": "p1"}]),
@@ -463,10 +483,16 @@ def test_row_to_state_handles_already_parsed_json(mock_db_pool):
         "session_id": "s2",
         "version": 1,
         "csrf_token": "tok",
-        "filters_json": {"year_min": 1900, "year_max": 2024,
-                         "imdb_score_min": 7.0, "imdb_score_max": 10.0,
-                         "num_votes_min": 100000, "num_votes_max": 200000,
-                         "language": "en", "genres_selected": []},
+        "filters_json": {
+            "year_min": 1900,
+            "year_max": 2024,
+            "imdb_score_min": 7.0,
+            "imdb_score_max": 10.0,
+            "num_votes_min": 100000,
+            "num_votes_max": 200000,
+            "language": "en",
+            "genres_selected": [],
+        },
         "current_tconst": None,
         "queue_json": [],
         "prev_json": [],
@@ -528,6 +554,7 @@ def test_row_to_state_loads_current_ref_json(mock_db_pool):
 # ===========================================================================
 # NavigationStateStore.save_state() — optimistic locking
 # ===========================================================================
+
 
 async def test_save_state_returns_true_on_version_match(mock_db_pool):
     mock_db_pool.execute = AsyncMock(return_value=1)
@@ -598,6 +625,7 @@ async def test_save_state_only_updates_changed_fields(mock_db_pool):
 # NavigationStateStore.mutate() — retry on conflict
 # ===========================================================================
 
+
 async def test_mutate_success_first_attempt(mock_db_pool):
     store = NavigationStateStore(mock_db_pool)
     state = _make_state()
@@ -605,32 +633,37 @@ async def test_mutate_success_first_attempt(mock_db_pool):
 
     # get_state returns the state (not expired)
     state.expires_at = now + timedelta(hours=1)
-    mock_db_pool.execute = AsyncMock(side_effect=[
-        # First call: _load_row SELECT
-        {
-            "session_id": state.session_id,
-            "version": 1,
-            "csrf_token": state.csrf_token,
-            "filters_json": json.dumps(state.filters),
-            "current_tconst": None,
-            "queue_json": "[]",
-            "prev_json": "[]",
-            "future_json": "[]",
-            "seen_json": "[]",
-            "created_at": state.created_at,
-            "last_activity_at": state.last_activity_at,
-            "expires_at": state.expires_at,
-        },
-        # Second call: save_state UPDATE returns 1 (success)
-        1,
-    ])
+    mock_db_pool.execute = AsyncMock(
+        side_effect=[
+            # First call: _load_row SELECT
+            {
+                "session_id": state.session_id,
+                "version": 1,
+                "csrf_token": state.csrf_token,
+                "filters_json": json.dumps(state.filters),
+                "current_tconst": None,
+                "queue_json": "[]",
+                "prev_json": "[]",
+                "future_json": "[]",
+                "seen_json": "[]",
+                "created_at": state.created_at,
+                "last_activity_at": state.last_activity_at,
+                "expires_at": state.expires_at,
+            },
+            # Second call: save_state UPDATE returns 1 (success)
+            1,
+        ]
+    )
 
     def mutator(s):
         s.current_tconst = "tt999"
         return "mutator-result"
 
-    with patch("infra.navigation_state.NavigationStateStore.dual_write_enabled",
-               new_callable=AsyncMock, return_value=False):
+    with patch(
+        "infra.navigation_state.NavigationStateStore.dual_write_enabled",
+        new_callable=AsyncMock,
+        return_value=False,
+    ):
         result = await store.mutate(state.session_id, mutator)
 
     assert result.conflicted is False
@@ -659,23 +692,27 @@ async def test_mutate_retries_on_conflict_then_succeeds(mock_db_pool):
         "expires_at": expires,
     }
 
-    mock_db_pool.execute = AsyncMock(side_effect=[
-        # Attempt 1: get_state -> _load_row
-        dict(row),
-        # Attempt 1: save_state -> version conflict (returns 0)
-        0,
-        # Attempt 2: get_state -> _load_row (refetch)
-        dict(row),
-        # Attempt 2: save_state -> success (returns 1)
-        1,
-    ])
+    mock_db_pool.execute = AsyncMock(
+        side_effect=[
+            # Attempt 1: get_state -> _load_row
+            dict(row),
+            # Attempt 1: save_state -> version conflict (returns 0)
+            0,
+            # Attempt 2: get_state -> _load_row (refetch)
+            dict(row),
+            # Attempt 2: save_state -> success (returns 1)
+            1,
+        ]
+    )
 
     def mutator(s):
         s.current_tconst = "tt888"
 
-    with patch("infra.navigation_state.NavigationStateStore.dual_write_enabled",
-               new_callable=AsyncMock, return_value=False), \
-         patch("infra.metrics.navigation_state_conflicts_total") as mock_metric:
+    with patch(
+        "infra.navigation_state.NavigationStateStore.dual_write_enabled",
+        new_callable=AsyncMock,
+        return_value=False,
+    ), patch("infra.metrics.navigation_state_conflicts_total") as mock_metric:
         result = await store.mutate("retry-session", mutator)
 
     assert result.conflicted is False
@@ -704,25 +741,29 @@ async def test_mutate_returns_conflicted_after_exhausting_retries(mock_db_pool):
         "expires_at": expires,
     }
 
-    mock_db_pool.execute = AsyncMock(side_effect=[
-        # Attempt 1: get_state
-        dict(row),
-        # Attempt 1: save_state -> conflict
-        0,
-        # Attempt 2: get_state
-        dict(row),
-        # Attempt 2: save_state -> conflict again
-        0,
-        # Final get_state for the return value
-        dict(row),
-    ])
+    mock_db_pool.execute = AsyncMock(
+        side_effect=[
+            # Attempt 1: get_state
+            dict(row),
+            # Attempt 1: save_state -> conflict
+            0,
+            # Attempt 2: get_state
+            dict(row),
+            # Attempt 2: save_state -> conflict again
+            0,
+            # Final get_state for the return value
+            dict(row),
+        ]
+    )
 
     def mutator(s):
         s.current_tconst = "tt777"
 
-    with patch("infra.navigation_state.NavigationStateStore.dual_write_enabled",
-               new_callable=AsyncMock, return_value=False), \
-         patch("infra.metrics.navigation_state_conflicts_total"):
+    with patch(
+        "infra.navigation_state.NavigationStateStore.dual_write_enabled",
+        new_callable=AsyncMock,
+        return_value=False,
+    ), patch("infra.metrics.navigation_state_conflicts_total"):
         result = await store.mutate("exhaust-session", mutator)
 
     assert result.conflicted is True
@@ -763,17 +804,22 @@ async def test_mutate_supports_async_mutator(mock_db_pool):
         "expires_at": expires,
     }
 
-    mock_db_pool.execute = AsyncMock(side_effect=[
-        dict(row),  # get_state
-        1,          # save_state success
-    ])
+    mock_db_pool.execute = AsyncMock(
+        side_effect=[
+            dict(row),  # get_state
+            1,  # save_state success
+        ]
+    )
 
     async def async_mutator(s):
         s.current_tconst = "tt555"
         return "async-result"
 
-    with patch("infra.navigation_state.NavigationStateStore.dual_write_enabled",
-               new_callable=AsyncMock, return_value=False):
+    with patch(
+        "infra.navigation_state.NavigationStateStore.dual_write_enabled",
+        new_callable=AsyncMock,
+        return_value=False,
+    ):
         result = await store.mutate("async-session", async_mutator)
 
     assert result.conflicted is False
@@ -790,11 +836,44 @@ async def test_mutate_uses_current_state_without_reloading(mock_db_pool):
         current.current_tconst = "tt333"
         current.current_ref = _ref("tt333", "Three", "three")
 
-    with patch("infra.navigation_state.NavigationStateStore.dual_write_enabled",
-               new_callable=AsyncMock, return_value=False):
+    with patch(
+        "infra.navigation_state.NavigationStateStore.dual_write_enabled",
+        new_callable=AsyncMock,
+        return_value=False,
+    ):
         result = await store.mutate(state.session_id, mutator, current_state=state)
 
     assert result.conflicted is False
     assert result.state.current_tconst == "tt333"
     assert result.state.current_ref == _ref("tt333", "Three", "three")
     mock_db_pool.execute.assert_awaited_once()
+
+
+# ===========================================================================
+# NavigationState.user_id field
+# ===========================================================================
+
+
+async def test_navigation_state_has_user_id_field():
+    from infra.navigation_state import NavigationState, default_filter_state
+    from infra.time_utils import utcnow
+
+    now = utcnow()
+    state = NavigationState(
+        session_id="test123",
+        version=1,
+        csrf_token="csrf",
+        filters=default_filter_state(),
+        current_tconst=None,
+        queue=[],
+        prev=[],
+        future=[],
+        seen=[],
+        created_at=now,
+        last_activity_at=now,
+        expires_at=now,
+        user_id=None,
+    )
+    assert state.user_id is None
+    state.user_id = "abc123"
+    assert state.user_id == "abc123"

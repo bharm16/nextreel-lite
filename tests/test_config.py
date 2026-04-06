@@ -13,8 +13,10 @@ class TestDatabaseConfig:
     def _reimport(self):
         """Re-import config.database after resetting the env cache."""
         from config.env import _reset_environment
+
         _reset_environment()
         import config.database as mod
+
         importlib.reload(mod)
         return mod.DatabaseConfig
 
@@ -28,10 +30,13 @@ class TestDatabaseConfig:
             assert config["host"] == "127.0.0.1"  # fallback default
 
     def test_nextreel_env_takes_precedence(self):
-        with patch.dict(os.environ, {
-            "NEXTREEL_ENV": "development",
-            "FLASK_ENV": "production",
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "NEXTREEL_ENV": "development",
+                "FLASK_ENV": "production",
+            },
+        ):
             Config = self._reimport()
             # Should be development config (no PROD_ prefix lookups)
             config = Config.get_db_config()
@@ -46,13 +51,16 @@ class TestDatabaseConfig:
             assert "host" in config
 
     def test_production_uses_prod_env_vars(self):
-        with patch.dict(os.environ, {
-            "NEXTREEL_ENV": "production",
-            "PROD_DB_HOST": "prod.db.example.com",
-            "PROD_DB_USER": "produser",
-            "PROD_DB_PASSWORD": "prodpass",
-            "PROD_DB_NAME": "proddb",
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "NEXTREEL_ENV": "production",
+                "PROD_DB_HOST": "prod.db.example.com",
+                "PROD_DB_USER": "produser",
+                "PROD_DB_PASSWORD": "prodpass",
+                "PROD_DB_NAME": "proddb",
+            },
+        ):
             Config = self._reimport()
             config = Config.get_db_config()
             assert config["host"] == "prod.db.example.com"
@@ -81,10 +89,13 @@ class TestDatabaseConfig:
             assert Config.get_ssl_cert_path() is None
 
     def test_port_from_env(self):
-        with patch.dict(os.environ, {
-            "NEXTREEL_ENV": "development",
-            "DB_PORT": "3307",
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "NEXTREEL_ENV": "development",
+                "DB_PORT": "3307",
+            },
+        ):
             Config = self._reimport()
             config = Config.get_db_config()
             assert config["port"] == 3307
@@ -95,8 +106,10 @@ class TestSessionConfig:
 
     def _reimport(self):
         from config.env import _reset_environment
+
         _reset_environment()
         import config.session as mod
+
         importlib.reload(mod)
         return mod.SessionConfig
 

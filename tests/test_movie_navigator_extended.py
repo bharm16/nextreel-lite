@@ -158,9 +158,7 @@ async def test_next_movie_uses_current_ref_without_fetch_lookup(nav_app):
 async def test_next_movie_only_refills_once_when_queue_starts_empty(nav_app):
     state = _state()
     store = NavigationStoreStub(state)
-    candidates = CandidateStoreStub(
-        refs=[{"tconst": "tt1", "title": "One", "slug": "one"}]
-    )
+    candidates = CandidateStoreStub(refs=[{"tconst": "tt1", "title": "One", "slug": "one"}])
     navigator = MovieNavigator(candidates, store)
 
     async with nav_app.app_context():
@@ -178,9 +176,7 @@ async def test_apply_filters_resets_state_and_redirects(nav_app):
     state.prev = [{"tconst": "tt8", "title": "Old", "slug": "old"}]
     state.queue = [{"tconst": "tt7", "title": "Queue", "slug": "queue"}]
     store = NavigationStoreStub(state)
-    candidates = CandidateStoreStub(
-        refs=[{"tconst": "tt5", "title": "Fresh", "slug": "fresh"}]
-    )
+    candidates = CandidateStoreStub(refs=[{"tconst": "tt5", "title": "Fresh", "slug": "fresh"}])
     navigator = MovieNavigator(candidates, store)
 
     async with nav_app.app_context():

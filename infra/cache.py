@@ -20,6 +20,7 @@ logger = get_logger(__name__)
 
 class CacheNamespace(Enum):
     """Cache namespaces for different data types."""
+
     SESSION = "session"
     MOVIE = "movie"
     USER = "user"
@@ -64,7 +65,9 @@ class SimpleCacheManager:
         return cls(redis_url=redis_url, default_ttl=default_ttl)
 
     @classmethod
-    def from_pool(cls, connection_pool: aioredis.ConnectionPool, default_ttl: int = 3600) -> "SimpleCacheManager":
+    def from_pool(
+        cls, connection_pool: aioredis.ConnectionPool, default_ttl: int = 3600
+    ) -> "SimpleCacheManager":
         """Create a cache manager sharing an existing connection pool."""
         return cls(connection_pool=connection_pool, default_ttl=default_ttl)
 

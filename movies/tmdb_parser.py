@@ -30,14 +30,20 @@ class TMDbResponseParser:
             return None
 
         providers: dict[str, Any] = {}
-        for category, key in [("stream", "flatrate"), ("rent", "rent"), ("buy", "buy"), ("ads", "ads")]:
+        for category, key in [
+            ("stream", "flatrate"),
+            ("rent", "rent"),
+            ("buy", "buy"),
+            ("ads", "ads"),
+        ]:
             if key in region_data:
                 providers[category] = [
                     {
                         "provider_name": p.get("provider_name"),
                         "logo_path": (
                             f"{self.image_base_url}w92{p.get('logo_path')}"
-                            if p.get("logo_path") else None
+                            if p.get("logo_path")
+                            else None
                         ),
                     }
                     for p in region_data[key][:4]
@@ -70,7 +76,8 @@ class TMDbResponseParser:
                 "name": m["name"],
                 "image_url": (
                     f"{self.image_base_url}w185{m['profile_path']}"
-                    if m.get("profile_path") else None
+                    if m.get("profile_path")
+                    else None
                 ),
                 "character": m.get("character", "N/A"),
             }
@@ -79,11 +86,7 @@ class TMDbResponseParser:
 
     def parse_directors(self, data: dict) -> list[str]:
         credits = data.get("credits", {})
-        return [
-            crew["name"]
-            for crew in credits.get("crew", [])
-            if crew.get("job") == "Director"
-        ]
+        return [crew["name"] for crew in credits.get("crew", []) if crew.get("job") == "Director"]
 
     def parse_key_crew(self, data: dict) -> dict:
         credits = data.get("credits", {})
@@ -123,19 +126,18 @@ class TMDbResponseParser:
         return {
             "posters": [
                 f"{self.image_base_url}original{img['file_path']}"
-                for img in posters if "file_path" in img
+                for img in posters
+                if "file_path" in img
             ],
             "backdrops": [
                 f"{self.image_base_url}original{img['file_path']}"
-                for img in backdrops if "file_path" in img
+                for img in backdrops
+                if "file_path" in img
             ],
         }
 
     def parse_keywords(self, data: dict) -> list[str]:
-        return [
-            kw["name"]
-            for kw in data.get("keywords", {}).get("keywords", [])
-        ]
+        return [kw["name"] for kw in data.get("keywords", {}).get("keywords", [])]
 
     def parse_recommendations(self, data: dict, limit: int = 10) -> list[dict]:
         return [
@@ -144,8 +146,7 @@ class TMDbResponseParser:
                 "title": m.get("title", ""),
                 "year": m.get("release_date", "")[:4] if m.get("release_date") else "",
                 "poster_url": (
-                    f"{self.image_base_url}w342{m['poster_path']}"
-                    if m.get("poster_path") else None
+                    f"{self.image_base_url}w342{m['poster_path']}" if m.get("poster_path") else None
                 ),
                 "vote_average": m.get("vote_average", 0),
             }
@@ -176,6 +177,7 @@ class TMDbResponseParser:
             "name": coll["name"],
             "poster_url": (
                 f"{self.image_base_url}w185{coll['poster_path']}"
-                if coll.get("poster_path") else None
+                if coll.get("poster_path")
+                else None
             ),
         }

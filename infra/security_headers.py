@@ -22,17 +22,17 @@ async def add_security_headers(response):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    response.headers["Permissions-Policy"] = (
-        "geolocation=(), camera=(), microphone=(), payment=(), usb=()"
-    )
+    response.headers[
+        "Permissions-Policy"
+    ] = "geolocation=(), camera=(), microphone=(), payment=(), usb=()"
     # X-XSS-Protection intentionally omitted — deprecated in modern
     # browsers and can introduce vulnerabilities in older ones.
 
     # ── Production-only headers ──────────────────────────────────────
     if get_environment() == "production":
-        response.headers["Strict-Transport-Security"] = (
-            "max-age=31536000; includeSubDomains; preload"
-        )
+        response.headers[
+            "Strict-Transport-Security"
+        ] = "max-age=31536000; includeSubDomains; preload"
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
             "script-src 'self' https://cdn.jsdelivr.net https://kit.fontawesome.com; "

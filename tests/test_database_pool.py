@@ -20,27 +20,31 @@ class TestDatabaseConnectionPool:
         if env_overrides:
             env.update(env_overrides)
 
-        with patch.dict(os.environ, env), \
-             patch("infra.pool.SecureConnectionPool") as MockSecure:
+        with patch.dict(os.environ, env), patch("infra.pool.SecureConnectionPool") as MockSecure:
             mock_instance = AsyncMock()
             mock_instance.init_pool = AsyncMock()
             mock_instance.close_pool = AsyncMock()
             mock_instance.execute_secure = AsyncMock(return_value=[{"tconst": "tt1"}])
-            mock_instance.get_pool_status = AsyncMock(return_value={
-                "pool_size": 10,
-                "free_connections": 5,
-                "circuit_breaker_state": "closed",
-            })
+            mock_instance.get_pool_status = AsyncMock(
+                return_value={
+                    "pool_size": 10,
+                    "free_connections": 5,
+                    "circuit_breaker_state": "closed",
+                }
+            )
             mock_instance.acquire = MagicMock()
             MockSecure.return_value = mock_instance
 
             from infra.pool import DatabaseConnectionPool
-            pool = DatabaseConnectionPool({
-                "host": "localhost",
-                "user": "test",
-                "password": "pass",
-                "database": "testdb",
-            })
+
+            pool = DatabaseConnectionPool(
+                {
+                    "host": "localhost",
+                    "user": "test",
+                    "password": "pass",
+                    "database": "testdb",
+                }
+            )
             return pool, mock_instance
 
     @pytest.mark.asyncio
@@ -59,9 +63,7 @@ class TestDatabaseConnectionPool:
     async def test_execute_delegates_to_secure_pool(self):
         pool, mock = self._make_pool()
         result = await pool.execute("SELECT 1", [], fetch="one")
-        mock.execute_secure.assert_awaited_once_with(
-            "SELECT 1", [], user_id=None, fetch="one"
-        )
+        mock.execute_secure.assert_awaited_once_with("SELECT 1", [], user_id=None, fetch="one")
         assert result == [{"tconst": "tt1"}]
 
     @pytest.mark.asyncio
@@ -86,24 +88,30 @@ class TestDatabaseConnectionPool:
         assert metrics["circuit_breaker_state"] == "closed"
 
     def test_ssl_enabled_in_production(self):
-        pool, _ = self._make_pool({
-            "NEXTREEL_ENV": "production",
-            "VALIDATE_SSL": "true",
-        })
+        pool, _ = self._make_pool(
+            {
+                "NEXTREEL_ENV": "production",
+                "VALIDATE_SSL": "true",
+            }
+        )
         assert pool.secure_config.validate_ssl is True
 
     def test_ssl_disabled_in_development(self):
-        pool, _ = self._make_pool({
-            "NEXTREEL_ENV": "development",
-            "VALIDATE_SSL": "false",
-        })
+        pool, _ = self._make_pool(
+            {
+                "NEXTREEL_ENV": "development",
+                "VALIDATE_SSL": "false",
+            }
+        )
         assert pool.secure_config.validate_ssl is False
 
     def test_pool_sizes_from_env(self):
-        pool, _ = self._make_pool({
-            "POOL_MIN_SIZE": "3",
-            "POOL_MAX_SIZE": "15",
-        })
+        pool, _ = self._make_pool(
+            {
+                "POOL_MIN_SIZE": "3",
+                "POOL_MAX_SIZE": "15",
+            }
+        )
         assert pool.secure_config.min_size == 3
         assert pool.secure_config.max_size == 15
 

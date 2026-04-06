@@ -21,6 +21,7 @@ from movies.candidate_store import (
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_store(mock_db_pool) -> CandidateStore:
     return CandidateStore(mock_db_pool)
 
@@ -226,7 +227,7 @@ def test_genre_clause_skips_when_fifteen_or_more_genres(mock_db_pool):
 def test_genre_clause_strips_boolean_operators(mock_db_pool):
     """Boolean mode operators (+, -, <, >, ~, *, etc.) are stripped from genre names."""
     store = _make_store(mock_db_pool)
-    clause, params = store._genre_clause({"genres": ['Sci-Fi+', '"Horror"', 'Action*']})
+    clause, params = store._genre_clause({"genres": ["Sci-Fi+", '"Horror"', "Action*"]})
 
     assert len(params) == 1
     search_string = params[0]
@@ -263,12 +264,22 @@ async def test_fetch_candidate_refs_returns_refs(mock_db_pool):
     ]
     store = _make_store(mock_db_pool)
 
-    with patch("movies.candidate_store.criteria_from_filters", return_value={
-        "min_year": 2000, "max_year": 2024, "min_rating": 7.0, "max_rating": 10.0,
-        "min_votes": 1000, "max_votes": 500000, "language": "en",
-    }):
+    with patch(
+        "movies.candidate_store.criteria_from_filters",
+        return_value={
+            "min_year": 2000,
+            "max_year": 2024,
+            "min_rating": 7.0,
+            "max_rating": 10.0,
+            "min_votes": 1000,
+            "max_votes": 500000,
+            "language": "en",
+        },
+    ):
         refs = await store.fetch_candidate_refs(
-            filters={}, excluded_tconsts=set(), limit=2,
+            filters={},
+            excluded_tconsts=set(),
+            limit=2,
         )
 
     assert len(refs) == 2
@@ -309,11 +320,16 @@ async def test_fetch_candidate_refs_handles_empty_results(mock_db_pool):
     mock_db_pool.execute.return_value = []
     store = _make_store(mock_db_pool)
 
-    with patch("movies.candidate_store.criteria_from_filters", return_value={
-        "language": "en",
-    }):
+    with patch(
+        "movies.candidate_store.criteria_from_filters",
+        return_value={
+            "language": "en",
+        },
+    ):
         refs = await store.fetch_candidate_refs(
-            filters={}, excluded_tconsts=set(), limit=5,
+            filters={},
+            excluded_tconsts=set(),
+            limit=5,
         )
 
     assert refs == []
@@ -334,11 +350,16 @@ async def test_fetch_candidate_refs_deduplicates(mock_db_pool):
     ]
     store = _make_store(mock_db_pool)
 
-    with patch("movies.candidate_store.criteria_from_filters", return_value={
-        "language": "en",
-    }):
+    with patch(
+        "movies.candidate_store.criteria_from_filters",
+        return_value={
+            "language": "en",
+        },
+    ):
         refs = await store.fetch_candidate_refs(
-            filters={}, excluded_tconsts=set(), limit=2,
+            filters={},
+            excluded_tconsts=set(),
+            limit=2,
         )
 
     tconsts = [r["tconst"] for r in refs]
@@ -348,16 +369,24 @@ async def test_fetch_candidate_refs_deduplicates(mock_db_pool):
 async def test_fetch_candidate_refs_respects_limit(mock_db_pool):
     """Returns at most `limit` results after deduplication."""
     mock_db_pool.execute.return_value = [
-        _row("tt0001"), _row("tt0002"), _row("tt0003"),
-        _row("tt0004"), _row("tt0005"),
+        _row("tt0001"),
+        _row("tt0002"),
+        _row("tt0003"),
+        _row("tt0004"),
+        _row("tt0005"),
     ]
     store = _make_store(mock_db_pool)
 
-    with patch("movies.candidate_store.criteria_from_filters", return_value={
-        "language": "en",
-    }):
+    with patch(
+        "movies.candidate_store.criteria_from_filters",
+        return_value={
+            "language": "en",
+        },
+    ):
         refs = await store.fetch_candidate_refs(
-            filters={}, excluded_tconsts=set(), limit=2,
+            filters={},
+            excluded_tconsts=set(),
+            limit=2,
         )
 
     assert len(refs) == 2
@@ -378,11 +407,16 @@ async def test_fetch_candidate_refs_escalates_bucket_steps(mock_db_pool):
     ]
     store = _make_store(mock_db_pool)
 
-    with patch("movies.candidate_store.criteria_from_filters", return_value={
-        "language": "en",
-    }):
+    with patch(
+        "movies.candidate_store.criteria_from_filters",
+        return_value={
+            "language": "en",
+        },
+    ):
         refs = await store.fetch_candidate_refs(
-            filters={}, excluded_tconsts=set(), limit=1,
+            filters={},
+            excluded_tconsts=set(),
+            limit=1,
         )
 
     assert len(refs) == 1
@@ -395,9 +429,12 @@ async def test_fetch_candidate_refs_excludes_tconsts(mock_db_pool):
     mock_db_pool.execute.return_value = [_row("tt0001")]
     store = _make_store(mock_db_pool)
 
-    with patch("movies.candidate_store.criteria_from_filters", return_value={
-        "language": "en",
-    }):
+    with patch(
+        "movies.candidate_store.criteria_from_filters",
+        return_value={
+            "language": "en",
+        },
+    ):
         await store.fetch_candidate_refs(
             filters={},
             excluded_tconsts={"tt8888", "tt9999"},
@@ -418,11 +455,17 @@ async def test_fetch_candidate_refs_includes_genre_clause(mock_db_pool):
     mock_db_pool.execute.return_value = [_row("tt0001")]
     store = _make_store(mock_db_pool)
 
-    with patch("movies.candidate_store.criteria_from_filters", return_value={
-        "language": "en", "genres": ["Action"],
-    }):
+    with patch(
+        "movies.candidate_store.criteria_from_filters",
+        return_value={
+            "language": "en",
+            "genres": ["Action"],
+        },
+    ):
         await store.fetch_candidate_refs(
-            filters={}, excluded_tconsts=set(), limit=5,
+            filters={},
+            excluded_tconsts=set(),
+            limit=5,
         )
 
     call_args = mock_db_pool.execute.call_args
@@ -465,14 +508,18 @@ def test_build_candidate_query_orders_by_shuffle_key_first(mock_db_pool):
 async def test_fetch_candidate_refs_retries_like_clause_when_fulltext_missing(mock_db_pool):
     """Retries with LIKE clauses when the movie_candidates FULLTEXT index is missing."""
     mock_db_pool.execute.side_effect = [
-        DatabaseError("(1191, \"Can't find FULLTEXT index matching the column list\")"),
+        DatabaseError('(1191, "Can\'t find FULLTEXT index matching the column list")'),
         [_row("tt0001")],
     ]
     store = _make_store(mock_db_pool)
 
-    with patch("movies.candidate_store.criteria_from_filters", return_value={
-        "language": "en", "genres": ["Action", "Comedy"],
-    }):
+    with patch(
+        "movies.candidate_store.criteria_from_filters",
+        return_value={
+            "language": "en",
+            "genres": ["Action", "Comedy"],
+        },
+    ):
         refs = await store.fetch_candidate_refs(
             filters={},
             excluded_tconsts=set(),
@@ -492,11 +539,16 @@ async def test_fetch_candidate_refs_minimum_limit_is_one(mock_db_pool):
     mock_db_pool.execute.return_value = [_row("tt0001")]
     store = _make_store(mock_db_pool)
 
-    with patch("movies.candidate_store.criteria_from_filters", return_value={
-        "language": "en",
-    }):
+    with patch(
+        "movies.candidate_store.criteria_from_filters",
+        return_value={
+            "language": "en",
+        },
+    ):
         refs = await store.fetch_candidate_refs(
-            filters={}, excluded_tconsts=set(), limit=0,
+            filters={},
+            excluded_tconsts=set(),
+            limit=0,
         )
 
     assert len(refs) == 1
@@ -509,11 +561,16 @@ async def test_fetch_candidate_refs_defaults_title_to_unknown(mock_db_pool):
     ]
     store = _make_store(mock_db_pool)
 
-    with patch("movies.candidate_store.criteria_from_filters", return_value={
-        "language": "en",
-    }):
+    with patch(
+        "movies.candidate_store.criteria_from_filters",
+        return_value={
+            "language": "en",
+        },
+    ):
         refs = await store.fetch_candidate_refs(
-            filters={}, excluded_tconsts=set(), limit=1,
+            filters={},
+            excluded_tconsts=set(),
+            limit=1,
         )
 
     assert refs[0]["title"] == "Unknown"
@@ -544,10 +601,7 @@ async def test_validate_bucket_distribution_raises_for_empty_results(mock_db_poo
 async def test_validate_bucket_distribution_raises_for_skewed_distribution(mock_db_pool):
     """Raises RuntimeError when bucket counts are outside 75%-125% of mean."""
     # Create rows where most buckets have 100 items but one has 1
-    rows = [
-        {"sample_bucket": i, "bucket_count": 100}
-        for i in range(SAMPLE_BUCKET_COUNT)
-    ]
+    rows = [{"sample_bucket": i, "bucket_count": 100} for i in range(SAMPLE_BUCKET_COUNT)]
     rows[0]["bucket_count"] = 1  # Heavily skewed bucket
     mock_db_pool.execute.return_value = rows
     store = _make_store(mock_db_pool)
@@ -558,10 +612,7 @@ async def test_validate_bucket_distribution_raises_for_skewed_distribution(mock_
 
 async def test_validate_bucket_distribution_passes_for_even_distribution(mock_db_pool):
     """Does not raise when all buckets are within tolerance."""
-    rows = [
-        {"sample_bucket": i, "bucket_count": 100}
-        for i in range(SAMPLE_BUCKET_COUNT)
-    ]
+    rows = [{"sample_bucket": i, "bucket_count": 100} for i in range(SAMPLE_BUCKET_COUNT)]
     mock_db_pool.execute.return_value = rows
     store = _make_store(mock_db_pool)
 
@@ -571,10 +622,7 @@ async def test_validate_bucket_distribution_passes_for_even_distribution(mock_db
 
 async def test_validate_bucket_distribution_accepts_both_allowed_tables(mock_db_pool):
     """Both movie_candidates and movie_candidates_next are valid."""
-    rows = [
-        {"sample_bucket": i, "bucket_count": 100}
-        for i in range(SAMPLE_BUCKET_COUNT)
-    ]
+    rows = [{"sample_bucket": i, "bucket_count": 100} for i in range(SAMPLE_BUCKET_COUNT)]
     mock_db_pool.execute.return_value = rows
     store = _make_store(mock_db_pool)
 
@@ -584,10 +632,7 @@ async def test_validate_bucket_distribution_accepts_both_allowed_tables(mock_db_
 
 async def test_validate_bucket_distribution_skew_at_upper_boundary(mock_db_pool):
     """Detects skew when a bucket is just above the 125% threshold."""
-    rows = [
-        {"sample_bucket": i, "bucket_count": 100}
-        for i in range(SAMPLE_BUCKET_COUNT)
-    ]
+    rows = [{"sample_bucket": i, "bucket_count": 100} for i in range(SAMPLE_BUCKET_COUNT)]
     # mean = 100, upper = 125. Set one to 126 to trigger.
     rows[5]["bucket_count"] = 126
     mock_db_pool.execute.return_value = rows
@@ -600,10 +645,7 @@ async def test_validate_bucket_distribution_skew_at_upper_boundary(mock_db_pool)
 async def test_validate_bucket_distribution_missing_buckets_treated_as_zero(mock_db_pool):
     """Buckets not present in query results get count=0, triggering skew."""
     # Only report half the buckets — missing ones default to 0
-    rows = [
-        {"sample_bucket": i, "bucket_count": 100}
-        for i in range(SAMPLE_BUCKET_COUNT // 2)
-    ]
+    rows = [{"sample_bucket": i, "bucket_count": 100} for i in range(SAMPLE_BUCKET_COUNT // 2)]
     mock_db_pool.execute.return_value = rows
     store = _make_store(mock_db_pool)
 

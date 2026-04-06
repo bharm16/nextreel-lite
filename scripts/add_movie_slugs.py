@@ -56,11 +56,14 @@ async def populate_slugs(db_pool, batch_size=500):
         logger.info("All movies already have slugs — nothing to do")
         return
 
-    movies = await db_pool.execute(
-        "SELECT `tconst`, `primaryTitle`, `startYear` FROM `title.basics` "
-        "WHERE `slug` IS NULL AND `titleType` = 'movie'",
-        fetch="all",
-    ) or []
+    movies = (
+        await db_pool.execute(
+            "SELECT `tconst`, `primaryTitle`, `startYear` FROM `title.basics` "
+            "WHERE `slug` IS NULL AND `titleType` = 'movie'",
+            fetch="all",
+        )
+        or []
+    )
 
     slugs = {}
     processed = 0

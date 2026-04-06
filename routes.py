@@ -6,7 +6,19 @@ import time
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from quart import Blueprint, abort, current_app, flash, g, redirect, render_template, request, session, url_for
+from quart import (
+    Blueprint,
+    abort,
+    current_app,
+    flash,
+    g,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
 
 from filter_contracts import FilterState
 from infra.metrics import user_actions_total
@@ -49,6 +61,14 @@ def _services() -> NextReelServices:
     return services
 
 
+def _safe_referrer(fallback_tconst: str) -> str:
+    """Return request.referrer only if it shares our origin; otherwise fall back."""
+    referrer = request.referrer
+    if referrer and referrer.startswith(request.host_url):
+        return referrer
+    return url_for("main.movie_detail", tconst=fallback_tconst)
+
+
 def _redirect_for_navigation_outcome(outcome: NavigationOutcome):
     if outcome.state_conflict:
         if outcome.tconst:
@@ -60,6 +80,7 @@ def _redirect_for_navigation_outcome(outcome: NavigationOutcome):
     if outcome.tconst:
         return redirect(url_for("main.movie_detail", tconst=outcome.tconst), code=303)
     abort(500, description="Navigation outcome missing target movie")
+
 
 def _legacy_session():
     if current_app.config.get("SESSION_REDIS"):
@@ -76,6 +97,19 @@ def _current_state():
 
 def _get_csrf_token() -> str:
     return _current_state().csrf_token
+
+
+def _current_user_id() -> str | None:
+    """Return the user_id from the current navigation state, or None if anonymous."""
+    state = getattr(g, "navigation_state", None)
+    return getattr(state, "user_id", None) if state else None
+
+
+def _require_login():
+    """Return a redirect to login if the user is not authenticated, else None."""
+    if not _current_user_id():
+        return redirect(url_for("main.login_page"))
+    return None
 
 
 async def _render_filters_page(
@@ -104,26 +138,105 @@ _validate_csrf_from_form = validate_csrf
 
 @bp.app_context_processor
 def inject_csrf_token():
-    return {"csrf_token": _get_csrf_token}
+    state = getattr(g, "navigation_state", None)
+    user_id = getattr(state, "user_id", None) if state else None
+    oauth_config = getattr(current_app, "oauth_config", {})
+    return {
+        "csrf_token": _get_csrf_token,
+        "current_user_id": user_id,
+        "current_filters": (getattr(state, "filters", None) or {}),
+        "current_year": datetime.now(timezone.utc).year,
+        "is_watched": getattr(g, "is_watched", False),
+        "google_enabled": oauth_config.get("google_enabled", False),
+        "apple_enabled": oauth_config.get("apple_enabled", False),
+    }
+
+
+@bp.route("/login")
+async def login_page():
+    if _current_user_id():
+        return redirect(url_for("main.home"))
+    return await render_template("login.html", errors={})
+
+
+@bp.route("/login", methods=["POST"])
+@csrf_required
+@rate_limited("login")
+async def login_submit():
+    from session.user_auth import authenticate_user
+
+    form_data = await request.form
+    email = form_data.get("email", "").strip()
+    password = form_data.get("password", "")
+
+    services = _services()
+    user_id = await authenticate_user(services.movie_manager.db_pool, email, password)
+
+    if not user_id:
+        return (
+            await render_template("login.html", errors={"form": "Invalid email or password."}),
+            401,
+        )
+
+    state = _current_state()
+    await current_app.navigation_state_store.set_user_id(state.session_id, user_id)
+    state.user_id = user_id
+    logger.info("User %s logged in, session %s", user_id, state.session_id)
+    return redirect(url_for("main.home"), code=303)
+
+
+@bp.route("/register")
+async def register_page():
+    if _current_user_id():
+        return redirect(url_for("main.home"))
+    return await render_template("register.html", errors={})
+
+
+@bp.route("/register", methods=["POST"])
+@csrf_required
+@rate_limited("register")
+async def register_submit():
+    from session.user_auth import get_user_by_email, register_user, validate_registration
+
+    form_data = await request.form
+    email = form_data.get("email", "").strip()
+    password = form_data.get("password", "")
+    confirm_password = form_data.get("confirm_password", "")
+    display_name = form_data.get("display_name", "").strip() or None
+
+    errors = validate_registration(email, password, confirm_password)
+    if errors:
+        return await render_template("register.html", errors=errors), 400
+
+    services = _services()
+    existing = await get_user_by_email(services.movie_manager.db_pool, email)
+    if existing:
+        return (
+            await render_template(
+                "register.html",
+                errors={"email": "An account with this email already exists."},
+            ),
+            400,
+        )
+
+    user_id = await register_user(services.movie_manager.db_pool, email, password, display_name)
+
+    state = _current_state()
+    await current_app.navigation_state_store.set_user_id(state.session_id, user_id)
+    state.user_id = user_id
+    logger.info("User %s registered, session %s", user_id, state.session_id)
+    return redirect(url_for("main.home"), code=303)
 
 
 @bp.route("/logout", methods=["POST"])
 @csrf_required
 async def logout():
     state = _current_state()
-    await _services().movie_manager.logout(state, legacy_session=_legacy_session())
-
+    if state.user_id:
+        await current_app.navigation_state_store.set_user_id(state.session_id, None)
+        state.user_id = None
+        logger.info("User logged out, session %s", state.session_id)
     response = redirect(url_for("main.home"), code=303)
-    response.delete_cookie(
-        current_app.config.get("NR_SESSION_COOKIE_NAME", "nr_sid"),
-        path="/",
-        domain=current_app.config.get("SESSION_COOKIE_DOMAIN"),
-    )
-    response.delete_cookie(
-        current_app.config.get("SESSION_COOKIE_NAME", "session"),
-        path="/",
-        domain=current_app.config.get("SESSION_COOKIE_DOMAIN"),
-    )
     return response
 
 
@@ -199,6 +312,12 @@ async def movie_detail(tconst):
         abort(400, "Invalid movie identifier")
 
     state = _current_state()
+    user_id = _current_user_id()
+    if user_id:
+        g.is_watched = await _services().movie_manager.watched_store.is_watched(user_id, tconst)
+    else:
+        g.is_watched = False
+
     logger.debug(
         "Fetching movie details for tconst: %s, session_id: %s. Correlation ID: %s",
         tconst,
@@ -314,6 +433,8 @@ async def filtered_movie_endpoint():
         g.correlation_id,
     )
 
+    wants_json = "application/json" in request.headers.get("Accept", "")
+
     if validation_errors:
         logger.info(
             "Rejected invalid filters for session_id: %s. Correlation ID: %s. Errors: %s",
@@ -328,6 +449,8 @@ async def filtered_movie_endpoint():
             elapsed_time,
             g.correlation_id,
         )
+        if wants_json:
+            return jsonify({"ok": False, "errors": validation_errors}), 400
         return await _render_filters_page(
             filters,
             validation_errors=validation_errors,
@@ -353,6 +476,208 @@ async def filtered_movie_endpoint():
         g.correlation_id,
     )
     if outcome is not None:
+        if wants_json:
+            if outcome.tconst:
+                return jsonify({
+                    "ok": True,
+                    "redirect": url_for("main.movie_detail", tconst=outcome.tconst),
+                })
+            return jsonify({
+                "ok": False,
+                "errors": {"form": "No movies matched your filters. Try broadening your criteria."},
+            })
         return _redirect_for_navigation_outcome(outcome)
+    if wants_json:
+        return jsonify({
+            "ok": False,
+            "errors": {"form": "No movies matched your filters. Try broadening your criteria."},
+        })
     await flash("No movies matched your filters. Try broadening your criteria.", "warning")
     return redirect(url_for("main.set_filters"))
+
+
+@bp.route("/watched")
+async def watched_list_page():
+    redirect_response = _require_login()
+    if redirect_response:
+        return redirect_response
+
+    user_id = _current_user_id()
+    services = _services()
+    page = int(request.args.get("page", 1))
+    per_page = 20
+    offset = (page - 1) * per_page
+
+    movies = await services.movie_manager.watched_store.list_watched(
+        user_id, limit=per_page, offset=offset
+    )
+    total = await services.movie_manager.watched_store.count(user_id)
+    total_pages = max(1, (total + per_page - 1) // per_page)
+
+    return await render_template(
+        "watched_list.html",
+        movies=movies,
+        page=page,
+        total_pages=total_pages,
+        total=total,
+    )
+
+
+@bp.route("/watched/add/<tconst>", methods=["POST"])
+@csrf_required
+@rate_limited("watched")
+async def add_to_watched(tconst):
+    if not _TCONST_RE.match(tconst):
+        abort(400, "Invalid movie identifier")
+    user_id = _current_user_id()
+    if not user_id:
+        abort(401, "Login required")
+
+    services = _services()
+    await services.movie_manager.watched_store.add(user_id, tconst)
+    logger.info("User %s marked %s as watched", user_id, tconst)
+
+    return redirect(_safe_referrer(tconst), code=303)
+
+
+@bp.route("/watched/remove/<tconst>", methods=["POST"])
+@csrf_required
+@rate_limited("watched")
+async def remove_from_watched(tconst):
+    if not _TCONST_RE.match(tconst):
+        abort(400, "Invalid movie identifier")
+    user_id = _current_user_id()
+    if not user_id:
+        abort(401, "Login required")
+
+    services = _services()
+    await services.movie_manager.watched_store.remove(user_id, tconst)
+    logger.info("User %s removed %s from watched", user_id, tconst)
+
+    return redirect(_safe_referrer(tconst), code=303)
+
+
+@bp.route("/auth/google")
+async def auth_google():
+    oauth_config = getattr(current_app, "oauth_config", {})
+    if not oauth_config.get("google_enabled"):
+        abort(404, "Google sign-in not configured")
+
+    import secrets as stdlib_secrets
+    from urllib.parse import urlencode
+
+    state_token = stdlib_secrets.token_urlsafe(32)
+    session["oauth_state"] = state_token
+
+    redirect_uri = "%s/auth/google/callback" % oauth_config["redirect_base"]
+    params = urlencode({
+        "client_id": oauth_config["google_client_id"],
+        "redirect_uri": redirect_uri,
+        "response_type": "code",
+        "scope": "openid email profile",
+        "state": state_token,
+    })
+    auth_url = "https://accounts.google.com/o/oauth2/v2/auth?%s" % params
+    return redirect(auth_url)
+
+
+@bp.route("/auth/google/callback")
+async def auth_google_callback():
+    import hmac as _hmac
+
+    from session.user_auth import find_or_create_oauth_user, get_user_by_email
+
+    oauth_config = getattr(current_app, "oauth_config", {})
+    if not oauth_config.get("google_enabled"):
+        abort(404)
+
+    # Validate OAuth state to prevent login CSRF
+    expected_state = session.pop("oauth_state", None)
+    received_state = request.args.get("state", "")
+    if not expected_state or not _hmac.compare_digest(expected_state, received_state):
+        logger.warning("OAuth state mismatch — possible CSRF attempt")
+        await flash("Google sign-in failed. Please try again.", "error")
+        return redirect(url_for("main.login_page"))
+
+    code = request.args.get("code")
+    if not code:
+        await flash("Google sign-in failed. Please try again.", "error")
+        return redirect(url_for("main.login_page"))
+
+    import httpx
+
+    redirect_uri = "%s/auth/google/callback" % oauth_config["redirect_base"]
+
+    async with httpx.AsyncClient() as client:
+        token_response = await client.post(
+            "https://oauth2.googleapis.com/token",
+            data={
+                "code": code,
+                "client_id": oauth_config["google_client_id"],
+                "client_secret": oauth_config["google_client_secret"],
+                "redirect_uri": redirect_uri,
+                "grant_type": "authorization_code",
+            },
+        )
+        if token_response.status_code != 200:
+            await flash("Google sign-in failed. Please try again.", "error")
+            return redirect(url_for("main.login_page"))
+
+        tokens = token_response.json()
+
+        userinfo_response = await client.get(
+            "https://www.googleapis.com/oauth2/v3/userinfo",
+            headers={"Authorization": f"Bearer {tokens['access_token']}"},
+        )
+        if userinfo_response.status_code != 200:
+            await flash("Google sign-in failed. Please try again.", "error")
+            return redirect(url_for("main.login_page"))
+
+        userinfo = userinfo_response.json()
+
+    email = userinfo.get("email")
+    oauth_sub = userinfo.get("sub")
+    display_name = userinfo.get("name")
+
+    if not email or not oauth_sub:
+        await flash("Google sign-in failed. Please try again.", "error")
+        return redirect(url_for("main.login_page"))
+
+    services = _services()
+    db_pool = services.movie_manager.db_pool
+
+    existing = await get_user_by_email(db_pool, email)
+    if existing and existing["auth_provider"] != "google":
+        provider = existing["auth_provider"]
+        await flash(
+            "An account with this email already exists. Please log in with %s." % provider,
+            "error",
+        )
+        return redirect(url_for("main.login_page"))
+
+    user_id = await find_or_create_oauth_user(
+        db_pool,
+        provider="google",
+        oauth_sub=oauth_sub,
+        email=email,
+        display_name=display_name,
+    )
+
+    state = _current_state()
+    await current_app.navigation_state_store.set_user_id(state.session_id, user_id)
+    state.user_id = user_id
+    logger.info("User %s logged in via Google, session %s", user_id, state.session_id)
+    return redirect(url_for("main.home"), code=303)
+
+
+@bp.route("/auth/apple")
+async def auth_apple():
+    oauth_config = getattr(current_app, "oauth_config", {})
+    if not oauth_config.get("apple_enabled"):
+        abort(404, "Apple sign-in not configured")
+    abort(501, "Apple sign-in coming soon")
+
+
+@bp.route("/auth/apple/callback", methods=["POST"])
+async def auth_apple_callback():
+    abort(501, "Apple sign-in coming soon")

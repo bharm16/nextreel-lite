@@ -80,6 +80,7 @@ async def purge_expired_navigation_state(ctx):
 
 
 if RedisSettings is not None:
+
     class WorkerSettings:  # pragma: no cover - config container
         functions = [
             refresh_movie_candidates,
@@ -91,6 +92,4 @@ if RedisSettings is not None:
         ]
         on_startup = startup
         on_shutdown = shutdown
-        redis_settings = RedisSettings.from_dsn(
-            os.getenv("REDIS_URL", "redis://localhost:6379")
-        )
+        redis_settings = RedisSettings.from_dsn(os.getenv("REDIS_URL", "redis://localhost:6379"))

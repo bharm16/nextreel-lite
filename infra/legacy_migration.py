@@ -139,9 +139,15 @@ class LegacyMigrationHelper:
         state.filters = raw_filters or default_filter_state()
         state.current_tconst = current_ref["tconst"] if current_ref else None
         state.current_ref = current_ref
-        state.queue = normalize_ref_list_fn(legacy_session.get(WATCH_QUEUE_KEY, []), max_items=queue_target)
-        state.prev = normalize_ref_list_fn(legacy_session.get(PREVIOUS_STACK_KEY, []), max_items=prev_max)
-        state.future = normalize_ref_list_fn(legacy_session.get(FUTURE_STACK_KEY, []), max_items=future_max)
+        state.queue = normalize_ref_list_fn(
+            legacy_session.get(WATCH_QUEUE_KEY, []), max_items=queue_target
+        )
+        state.prev = normalize_ref_list_fn(
+            legacy_session.get(PREVIOUS_STACK_KEY, []), max_items=prev_max
+        )
+        state.future = normalize_ref_list_fn(
+            legacy_session.get(FUTURE_STACK_KEY, []), max_items=future_max
+        )
         state.seen = normalize_seen_fn(legacy_session.get(SEEN_TCONSTS_KEY, []))
         return state
 

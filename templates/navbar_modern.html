@@ -14,6 +14,15 @@
   <nav class="navbar-actions hidden md:flex">
     {{ pick_movie_button(class="navbar-btn") }}
     <a href="{{ url_for('main.set_filters') }}" class="navbar-link">Filters</a>
+    {% if current_user_id %}
+    <a href="/watched" class="navbar-link">Watched</a>
+    <form method="POST" action="/logout" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="navbar-link" style="cursor:pointer; background:none; border:none; font-family:inherit;">Log Out</button>
+    </form>
+    {% else %}
+    <a href="/login" class="navbar-link">Log In</a>
+    {% endif %}
     <button id="themeToggle" class="navbar-link" style="cursor:pointer; background:none; border:none; font-family:inherit;" aria-pressed="false" aria-label="Toggle dark mode">
       <svg id="iconSun" class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.76 4.84l-1.8-1.79-1.41 1.41 1.79 1.8 1.42-1.42zM1 13h3v-2H1v2zm10 10h2v-3h-2v3zM4.96 19.78l1.41 1.41 1.8-1.79-1.42-1.42-1.79 1.8zM20 11v2h3v-2h-3zm-2.34-7.95l-1.41 1.41 1.79 1.8 1.41-1.42-1.79-1.79zM12 7a5 5 0 100 10 5 5 0 000-10zm7.04 12.78l-1.79-1.8-1.41 1.42 1.79 1.79 1.41-1.41zM13 1h-2v3h2V1z"/></svg>
       <svg id="iconMoon" class="h-4 w-4 hidden" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.74 2.15A9 9 0 1021 12.26 7 7 0 0112.74 2.15z"/></svg>
@@ -34,6 +43,15 @@
   <div style="display:flex; flex-direction:column; gap:1rem;">
     {{ pick_movie_button_block(class="navbar-btn" + " display:block; text-align:center; width:100%;") }}
     <a href="{{ url_for('main.set_filters') }}" style="display:block; text-align:center; font-size:0.85rem; color:var(--color-text-muted); text-decoration:none; padding:0.5rem;">Filters</a>
+    {% if current_user_id %}
+    <a href="/watched" style="display:block; text-align:center; font-size:0.85rem; color:var(--color-text-muted); text-decoration:none; padding:0.5rem;">Watched</a>
+    <form method="POST" action="/logout" style="display:block; text-align:center;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" style="display:block; width:100%; text-align:center; font-size:0.85rem; color:var(--color-text-muted); background:none; border:none; padding:0.5rem; cursor:pointer;">Log Out</button>
+    </form>
+    {% else %}
+    <a href="/login" style="display:block; text-align:center; font-size:0.85rem; color:var(--color-text-muted); text-decoration:none; padding:0.5rem;">Log In</a>
+    {% endif %}
     <button id="themeToggleMobile" style="display:block; text-align:center; font-size:0.85rem; color:var(--color-text-muted); background:none; border:none; padding:0.5rem; cursor:pointer;">Toggle Theme</button>
   </div>
 </div>

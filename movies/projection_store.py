@@ -267,7 +267,11 @@ class ProjectionStore:
         return True
 
     async def _upsert_ready(
-        self, tconst: str, payload: dict[str, Any], now: datetime, attempts: int,
+        self,
+        tconst: str,
+        payload: dict[str, Any],
+        now: datetime,
+        attempts: int,
     ) -> None:
         """Persist a successfully enriched projection."""
         await self.db_pool.execute(

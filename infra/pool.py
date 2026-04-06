@@ -191,9 +191,7 @@ class SecureConnectionPool:
         context.check_hostname = False
         context.verify_mode = ssl.CERT_REQUIRED
         context.minimum_version = ssl.TLSVersion.TLSv1_2
-        context.set_ciphers(
-            "ECDHE+AESGCM:ECDHE+CHACHA20:DHE+AESGCM:DHE+CHACHA20:!aNULL:!MD5:!DSS"
-        )
+        context.set_ciphers("ECDHE+AESGCM:ECDHE+CHACHA20:DHE+AESGCM:DHE+CHACHA20:!aNULL:!MD5:!DSS")
         return context
 
     async def _validate_pool(self):
@@ -263,9 +261,7 @@ class SecureConnectionPool:
                 if metadata:
                     metadata.last_used_at = datetime.now(timezone.utc)
                     metadata.query_count += 1
-                self.metrics["active_connections"] = max(
-                    0, self.metrics["active_connections"] - 1
-                )
+                self.metrics["active_connections"] = max(0, self.metrics["active_connections"] - 1)
                 self.pool.release(connection)
 
     async def execute_secure(
@@ -315,9 +311,7 @@ class SecureConnectionPool:
                     return result
         except asyncio.TimeoutError as exc:
             self.metrics["queries_failed"] += 1
-            raise RuntimeError(
-                f"Query timeout after {self.config.query_timeout}s"
-            ) from exc
+            raise RuntimeError(f"Query timeout after {self.config.query_timeout}s") from exc
         except Exception as exc:
             self.metrics["queries_failed"] += 1
             logger.error("Query execution failed: %s", exc)
@@ -380,12 +374,11 @@ class DatabaseConnectionPool:
         # Convert to secure pool config
         # Default to True in production to enforce SSL certificate validation.
         # Set VALIDATE_SSL=false explicitly in dev/test environments.
-        validate_ssl = os.getenv("VALIDATE_SSL", "true" if flask_env == "production" else "false").lower() == "true"
-        ssl_cert = (
-            DatabaseConfig.get_ssl_cert_path()
-            if validate_ssl
-            else None
+        validate_ssl = (
+            os.getenv("VALIDATE_SSL", "true" if flask_env == "production" else "false").lower()
+            == "true"
         )
+        ssl_cert = DatabaseConfig.get_ssl_cert_path() if validate_ssl else None
         self.secure_config = SecurePoolConfig(
             host=db_config["host"],
             port=db_config.get("port", 3306),
@@ -414,12 +407,16 @@ class DatabaseConnectionPool:
         """Acquire a connection — returns an async context manager."""
         return self.pool.acquire(user_id=user_id, ip_address=ip_address)
 
-    async def execute(self, query: str, params: list | tuple | None = None, fetch: str = "one", user_id: str | None = None):
+    async def execute(
+        self,
+        query: str,
+        params: list | tuple | None = None,
+        fetch: str = "one",
+        user_id: str | None = None,
+    ):
         """Execute a query"""
         try:
-            return await self.pool.execute_secure(
-                query, params, user_id=user_id, fetch=fetch
-            )
+            return await self.pool.execute_secure(query, params, user_id=user_id, fetch=fetch)
         except DatabaseError:
             raise
         except Exception as exc:

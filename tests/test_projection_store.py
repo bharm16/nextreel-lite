@@ -23,6 +23,7 @@ from movies.projection_store import (
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_store(db_pool, tmdb_helper=None):
     return ProjectionStore(db_pool, tmdb_helper=tmdb_helper)
 
@@ -64,6 +65,7 @@ def _projection_row(**overrides):
 # Constants
 # ---------------------------------------------------------------------------
 
+
 class TestConstants:
     """Verify module-level constants are defined correctly."""
 
@@ -86,6 +88,7 @@ class TestConstants:
 # ---------------------------------------------------------------------------
 # _payload_from_row
 # ---------------------------------------------------------------------------
+
 
 class TestPayloadFromRow:
     """ProjectionStore._payload_from_row() parsing and fallback logic."""
@@ -145,6 +148,7 @@ class TestPayloadFromRow:
 # build_core_payload
 # ---------------------------------------------------------------------------
 
+
 class TestBuildCorePayload:
     """ProjectionStore.build_core_payload() output shape and defaults."""
 
@@ -154,13 +158,38 @@ class TestBuildCorePayload:
         payload = store.build_core_payload(row)
 
         expected_keys = {
-            "title", "imdb_id", "tmdb_id", "slug", "genres", "directors",
-            "rating", "votes", "plot", "poster_url", "year", "cast",
-            "trailer", "backdrop_url", "original_language",
-            "spoken_languages", "age_rating", "budget", "revenue", "runtime",
-            "production_countries", "status", "tagline", "watch_providers",
-            "key_crew", "keywords", "recommendations", "external_ids",
-            "collection", "homepage", "_full", "projection_state",
+            "title",
+            "imdb_id",
+            "tmdb_id",
+            "slug",
+            "genres",
+            "directors",
+            "rating",
+            "votes",
+            "plot",
+            "poster_url",
+            "year",
+            "cast",
+            "trailer",
+            "backdrop_url",
+            "original_language",
+            "spoken_languages",
+            "age_rating",
+            "budget",
+            "revenue",
+            "runtime",
+            "production_countries",
+            "status",
+            "tagline",
+            "watch_providers",
+            "key_crew",
+            "keywords",
+            "recommendations",
+            "external_ids",
+            "collection",
+            "homepage",
+            "_full",
+            "projection_state",
         }
         assert set(payload.keys()) == expected_keys
 
@@ -229,14 +258,17 @@ class TestBuildCorePayload:
 # ensure_core_projection
 # ---------------------------------------------------------------------------
 
+
 class TestEnsureCoreProjection:
     """ProjectionStore.ensure_core_projection() DB interactions."""
 
     async def test_returns_payload_when_db_has_data(self, mock_db_pool):
-        mock_db_pool.execute = AsyncMock(side_effect=[
-            _core_db_row(),  # SELECT from title.basics
-            None,            # INSERT ... ON DUPLICATE KEY
-        ])
+        mock_db_pool.execute = AsyncMock(
+            side_effect=[
+                _core_db_row(),  # SELECT from title.basics
+                None,  # INSERT ... ON DUPLICATE KEY
+            ]
+        )
         store = _make_store(mock_db_pool)
         result = await store.ensure_core_projection("tt1234567")
 
@@ -252,10 +284,12 @@ class TestEnsureCoreProjection:
         assert result is None
 
     async def test_executes_insert_on_duplicate_key(self, mock_db_pool):
-        mock_db_pool.execute = AsyncMock(side_effect=[
-            _core_db_row(),
-            None,
-        ])
+        mock_db_pool.execute = AsyncMock(
+            side_effect=[
+                _core_db_row(),
+                None,
+            ]
+        )
         store = _make_store(mock_db_pool)
         await store.ensure_core_projection("tt1234567")
 
@@ -266,10 +300,12 @@ class TestEnsureCoreProjection:
         assert "ON DUPLICATE KEY UPDATE" in sql
 
     async def test_insert_params_contain_tconst_and_core_state(self, mock_db_pool):
-        mock_db_pool.execute = AsyncMock(side_effect=[
-            _core_db_row(tconst="tt9999999"),
-            None,
-        ])
+        mock_db_pool.execute = AsyncMock(
+            side_effect=[
+                _core_db_row(tconst="tt9999999"),
+                None,
+            ]
+        )
         store = _make_store(mock_db_pool)
         await store.ensure_core_projection("tt9999999")
 
@@ -279,10 +315,12 @@ class TestEnsureCoreProjection:
         assert params[3] == PROJECTION_CORE
 
     async def test_insert_payload_is_valid_json(self, mock_db_pool):
-        mock_db_pool.execute = AsyncMock(side_effect=[
-            _core_db_row(),
-            None,
-        ])
+        mock_db_pool.execute = AsyncMock(
+            side_effect=[
+                _core_db_row(),
+                None,
+            ]
+        )
         store = _make_store(mock_db_pool)
         await store.ensure_core_projection("tt1234567")
 
@@ -297,6 +335,7 @@ class TestEnsureCoreProjection:
 # ---------------------------------------------------------------------------
 # enrich_projection — success
 # ---------------------------------------------------------------------------
+
 
 async def test_enrich_projection_wrapper_delegates_to_coordinator(mock_db_pool):
     store = _make_store(mock_db_pool)
@@ -316,10 +355,12 @@ class TestEnrichProjectionSuccess:
 
     async def test_calls_movie_get_movie_data(self, mock_db_pool):
         enriched = {"title": "Enriched", "tmdb_id": 99, "_full": True}
-        mock_db_pool.execute = AsyncMock(side_effect=[
-            _projection_row(),  # _select_row
-            None,               # INSERT for ready state
-        ])
+        mock_db_pool.execute = AsyncMock(
+            side_effect=[
+                _projection_row(),  # _select_row
+                None,  # INSERT for ready state
+            ]
+        )
         with patch("movies.projection_enrichment.Movie") as MockMovie:
             mock_movie = MockMovie.return_value
             mock_movie.get_movie_data = AsyncMock(return_value=enriched)
@@ -333,10 +374,12 @@ class TestEnrichProjectionSuccess:
 
     async def test_saves_with_ready_state(self, mock_db_pool):
         enriched = {"title": "Enriched", "tmdb_id": 99}
-        mock_db_pool.execute = AsyncMock(side_effect=[
-            _projection_row(),
-            None,
-        ])
+        mock_db_pool.execute = AsyncMock(
+            side_effect=[
+                _projection_row(),
+                None,
+            ]
+        )
         with patch("movies.projection_enrichment.Movie") as MockMovie:
             MockMovie.return_value.get_movie_data = AsyncMock(return_value=enriched)
             store = _make_store(mock_db_pool)
@@ -349,10 +392,12 @@ class TestEnrichProjectionSuccess:
 
     async def test_stale_after_is_now_plus_seven_days(self, mock_db_pool):
         enriched = {"title": "X", "tmdb_id": 1}
-        mock_db_pool.execute = AsyncMock(side_effect=[
-            _projection_row(),
-            None,
-        ])
+        mock_db_pool.execute = AsyncMock(
+            side_effect=[
+                _projection_row(),
+                None,
+            ]
+        )
         with patch("movies.projection_enrichment.Movie") as MockMovie:
             MockMovie.return_value.get_movie_data = AsyncMock(return_value=enriched)
             store = _make_store(mock_db_pool)
@@ -365,10 +410,12 @@ class TestEnrichProjectionSuccess:
         assert stale_after - enriched_at == STALE_AFTER
 
     async def test_increments_attempt_count(self, mock_db_pool):
-        mock_db_pool.execute = AsyncMock(side_effect=[
-            _projection_row(attempt_count=3),
-            None,
-        ])
+        mock_db_pool.execute = AsyncMock(
+            side_effect=[
+                _projection_row(attempt_count=3),
+                None,
+            ]
+        )
         with patch("movies.projection_enrichment.Movie") as MockMovie:
             MockMovie.return_value.get_movie_data = AsyncMock(return_value={"title": "X"})
             store = _make_store(mock_db_pool)
@@ -380,10 +427,12 @@ class TestEnrichProjectionSuccess:
         assert params[7] == 4
 
     async def test_first_attempt_when_no_existing_row(self, mock_db_pool):
-        mock_db_pool.execute = AsyncMock(side_effect=[
-            None,   # _select_row returns None
-            None,   # INSERT
-        ])
+        mock_db_pool.execute = AsyncMock(
+            side_effect=[
+                None,  # _select_row returns None
+                None,  # INSERT
+            ]
+        )
         with patch("movies.projection_enrichment.Movie") as MockMovie:
             MockMovie.return_value.get_movie_data = AsyncMock(return_value={"title": "X"})
             store = _make_store(mock_db_pool)
@@ -398,20 +447,21 @@ class TestEnrichProjectionSuccess:
 # enrich_projection — failure
 # ---------------------------------------------------------------------------
 
+
 class TestEnrichProjectionFailure:
     """enrich_projection() error path — falls back to core projection."""
 
     async def test_falls_back_to_core_on_exception(self, mock_db_pool):
-        mock_db_pool.execute = AsyncMock(side_effect=[
-            _projection_row(),   # _select_row
-            _core_db_row(),      # ensure_core_projection SELECT
-            None,                # ensure_core_projection INSERT
-            None,                # failure INSERT
-        ])
+        mock_db_pool.execute = AsyncMock(
+            side_effect=[
+                _projection_row(),  # _select_row
+                _core_db_row(),  # ensure_core_projection SELECT
+                None,  # ensure_core_projection INSERT
+                None,  # failure INSERT
+            ]
+        )
         with patch("movies.projection_enrichment.Movie") as MockMovie:
-            MockMovie.return_value.get_movie_data = AsyncMock(
-                side_effect=RuntimeError("TMDb down")
-            )
+            MockMovie.return_value.get_movie_data = AsyncMock(side_effect=RuntimeError("TMDb down"))
             store = _make_store(mock_db_pool)
             result = await store.enrich_projection("tt1234567")
 
@@ -419,16 +469,16 @@ class TestEnrichProjectionFailure:
         assert result["projection_state"] == PROJECTION_CORE
 
     async def test_saves_failed_state_with_error_message(self, mock_db_pool):
-        mock_db_pool.execute = AsyncMock(side_effect=[
-            _projection_row(),
-            _core_db_row(),
-            None,
-            None,
-        ])
+        mock_db_pool.execute = AsyncMock(
+            side_effect=[
+                _projection_row(),
+                _core_db_row(),
+                None,
+                None,
+            ]
+        )
         with patch("movies.projection_enrichment.Movie") as MockMovie:
-            MockMovie.return_value.get_movie_data = AsyncMock(
-                side_effect=ValueError("bad data")
-            )
+            MockMovie.return_value.get_movie_data = AsyncMock(side_effect=ValueError("bad data"))
             store = _make_store(mock_db_pool)
             await store.enrich_projection("tt1234567")
 
@@ -440,12 +490,14 @@ class TestEnrichProjectionFailure:
 
     async def test_null_payload_raises_and_falls_back(self, mock_db_pool):
         """get_movie_data returning None triggers RuntimeError internally."""
-        mock_db_pool.execute = AsyncMock(side_effect=[
-            _projection_row(),
-            _core_db_row(),
-            None,
-            None,
-        ])
+        mock_db_pool.execute = AsyncMock(
+            side_effect=[
+                _projection_row(),
+                _core_db_row(),
+                None,
+                None,
+            ]
+        )
         with patch("movies.projection_enrichment.Movie") as MockMovie:
             MockMovie.return_value.get_movie_data = AsyncMock(return_value=None)
             store = _make_store(mock_db_pool)
@@ -461,6 +513,7 @@ class TestEnrichProjectionFailure:
 # ---------------------------------------------------------------------------
 # requeue_stale_projections
 # ---------------------------------------------------------------------------
+
 
 class TestRequeueStaleProjections:
     """ProjectionStore.requeue_stale_projections() row-count logic."""
@@ -523,10 +576,12 @@ class TestFetchRenderablePayload:
         enqueue.assert_not_awaited()
 
     async def test_stale_payload_enqueues_and_returns_existing_payload(self, mock_db_pool):
-        mock_db_pool.execute = AsyncMock(side_effect=[
-            _projection_row(projection_state=PROJECTION_STALE),
-            None,
-        ])
+        mock_db_pool.execute = AsyncMock(
+            side_effect=[
+                _projection_row(projection_state=PROJECTION_STALE),
+                None,
+            ]
+        )
         enqueue = AsyncMock(return_value=object())
         store = ProjectionStore(mock_db_pool, enqueue_fn=enqueue)
 
@@ -536,13 +591,20 @@ class TestFetchRenderablePayload:
         enqueue.assert_awaited_once_with("enrich_projection", "tt1234567", 42)
 
     async def test_core_payload_enriches_inline_before_returning(self, mock_db_pool):
-        enriched = {"title": "Enriched Movie", "tmdb_id": 42, "projection_state": "ready", "_full": True}
-        mock_db_pool.execute = AsyncMock(side_effect=[
-            _projection_row(projection_state=PROJECTION_CORE),
-            # enrich_projection calls: _select_row, _upsert_ready
-            _projection_row(projection_state=PROJECTION_CORE),
-            None,
-        ])
+        enriched = {
+            "title": "Enriched Movie",
+            "tmdb_id": 42,
+            "projection_state": "ready",
+            "_full": True,
+        }
+        mock_db_pool.execute = AsyncMock(
+            side_effect=[
+                _projection_row(projection_state=PROJECTION_CORE),
+                # enrich_projection calls: _select_row, _upsert_ready
+                _projection_row(projection_state=PROJECTION_CORE),
+                None,
+            ]
+        )
         store = ProjectionStore(mock_db_pool, tmdb_helper=MagicMock())
         store.coordinator.enrich_projection = AsyncMock(return_value=enriched)
 
@@ -553,7 +615,12 @@ class TestFetchRenderablePayload:
         store.coordinator.enrich_projection.assert_awaited_once_with("tt1234567", known_tmdb_id=42)
 
     async def test_cold_miss_enriches_inline_before_returning(self, mock_db_pool):
-        enriched = {"title": "Enriched Movie", "tmdb_id": 99, "projection_state": "ready", "_full": True}
+        enriched = {
+            "title": "Enriched Movie",
+            "tmdb_id": 99,
+            "projection_state": "ready",
+            "_full": True,
+        }
         mock_db_pool.execute = AsyncMock(return_value=None)
         store = ProjectionStore(mock_db_pool, tmdb_helper=MagicMock())
         store.coordinator.enrich_projection = AsyncMock(return_value=enriched)
@@ -562,7 +629,9 @@ class TestFetchRenderablePayload:
 
         assert payload["title"] == "Enriched Movie"
         assert payload["_full"] is True
-        store.coordinator.enrich_projection.assert_awaited_once_with("tt1234567", known_tmdb_id=None)
+        store.coordinator.enrich_projection.assert_awaited_once_with(
+            "tt1234567", known_tmdb_id=None
+        )
 
     async def test_local_enrichment_is_deduped_per_tconst(self, mock_db_pool):
         store = ProjectionStore(mock_db_pool, tmdb_helper=MagicMock())

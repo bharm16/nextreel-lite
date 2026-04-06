@@ -1,0 +1,115 @@
+<h2>Filter Drawer Layout</h2>
+<p class="subtitle">Right-side slide-out with collapsible filter sections and edge tab trigger</p>
+
+<div class="split">
+  <!-- Left: Movie page with edge tab -->
+  <div class="mockup">
+    <div class="mockup-header">Movie Page (drawer closed)</div>
+    <div class="mockup-body" style="position:relative;min-height:400px;background:#111;color:#e8e6e3;overflow:hidden;">
+      <!-- Navbar -->
+      <div style="display:flex;justify-content:space-between;padding:12px 16px;font-size:12px;opacity:0.7;">
+        <span>nextreel</span>
+        <span>Pick a Movie &nbsp; Filters &nbsp; Login</span>
+      </div>
+      <!-- Hero area -->
+      <div style="background:linear-gradient(135deg,#1a1a2e,#16213e);padding:40px 20px;text-align:center;">
+        <div style="font-size:10px;opacity:0.5;">&#9664; prev</div>
+        <div style="font-size:18px;font-weight:bold;margin:16px 0;">The Shawshank Redemption</div>
+        <div style="font-size:11px;opacity:0.6;">1994 &bull; Drama &bull; 9.3 &#9733;</div>
+        <div style="font-size:10px;opacity:0.5;margin-top:16px;">next &#9654;</div>
+      </div>
+      <!-- Content -->
+      <div style="padding:16px;font-size:11px;opacity:0.5;">
+        <div>Plot summary...</div>
+        <div style="margin-top:8px;">Cast, crew, details...</div>
+      </div>
+      <!-- Edge Tab -->
+      <div style="position:absolute;right:0;top:50%;transform:translateY(-50%);width:24px;height:72px;background:#b0654f;border-radius:6px 0 0 6px;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:-2px 0 8px rgba(0,0,0,0.3);">
+        <span style="writing-mode:vertical-rl;text-orientation:mixed;color:white;font-size:9px;font-weight:600;letter-spacing:1px;">FILTERS</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Drawer open -->
+  <div class="mockup">
+    <div class="mockup-header">Movie Page (drawer open)</div>
+    <div class="mockup-body" style="position:relative;min-height:400px;background:#111;color:#e8e6e3;overflow:hidden;display:flex;">
+      <!-- Dimmed movie content -->
+      <div style="flex:1;opacity:0.3;padding:16px;">
+        <div style="font-size:12px;opacity:0.7;margin-bottom:12px;">nextreel</div>
+        <div style="background:linear-gradient(135deg,#1a1a2e,#16213e);padding:24px;text-align:center;border-radius:8px;">
+          <div style="font-size:14px;font-weight:bold;">The Shawshank Redemption</div>
+          <div style="font-size:10px;opacity:0.6;margin-top:4px;">1994 &bull; Drama</div>
+        </div>
+      </div>
+      <!-- Drawer panel -->
+      <div style="width:55%;background:#1a1a1a;border-left:1px solid #2a2a2a;padding:16px;overflow-y:auto;font-size:11px;">
+        <!-- Header -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <span style="font-size:14px;font-weight:bold;">Filters</span>
+          <div style="width:24px;height:24px;border-radius:50%;background:#222;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;">&times;</div>
+        </div>
+
+        <!-- Section: Ratings -->
+        <div style="margin-bottom:12px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #2a2a2a;cursor:pointer;">
+            <span style="font-weight:600;font-size:11px;">Ratings &amp; Votes</span>
+            <span style="font-size:10px;opacity:0.5;">&#9660;</span>
+          </div>
+          <div style="padding:8px 0;">
+            <div style="margin-bottom:8px;">
+              <div style="font-size:9px;opacity:0.5;margin-bottom:3px;">IMDb Score</div>
+              <div style="display:flex;gap:6px;">
+                <div style="flex:1;background:#222;border:1px solid #333;border-radius:6px;padding:4px 6px;font-size:10px;">7.0</div>
+                <span style="opacity:0.3;font-size:10px;line-height:24px;">&ndash;</span>
+                <div style="flex:1;background:#222;border:1px solid #333;border-radius:6px;padding:4px 6px;font-size:10px;">10.0</div>
+              </div>
+            </div>
+            <div>
+              <div style="font-size:9px;opacity:0.5;margin-bottom:3px;">Vote Count</div>
+              <div style="display:flex;gap:6px;">
+                <div style="flex:1;background:#222;border:1px solid #333;border-radius:6px;padding:4px 6px;font-size:10px;">100k</div>
+                <span style="opacity:0.3;font-size:10px;line-height:24px;">&ndash;</span>
+                <div style="flex:1;background:#222;border:1px solid #333;border-radius:6px;padding:4px 6px;font-size:10px;">200k</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section: Year & Language (collapsed) -->
+        <div style="margin-bottom:12px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #2a2a2a;cursor:pointer;">
+            <span style="font-weight:600;font-size:11px;">Year &amp; Language</span>
+            <span style="font-size:10px;opacity:0.5;">&#9654;</span>
+          </div>
+        </div>
+
+        <!-- Section: Genres (collapsed) -->
+        <div style="margin-bottom:12px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #2a2a2a;cursor:pointer;">
+            <span style="font-weight:600;font-size:11px;">Genres</span>
+            <span style="font-size:10px;opacity:0.5;">&#9654;</span>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div style="display:flex;gap:8px;margin-top:16px;">
+          <button style="flex:1;background:#b0654f;color:white;border:none;padding:8px;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;">Apply Filters</button>
+          <button style="background:#222;color:#888;border:1px solid #333;padding:8px 12px;border-radius:8px;font-size:11px;cursor:pointer;">Reset</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px;">
+  <h3>Key Details</h3>
+  <ul style="font-size:14px;line-height:1.8;">
+    <li><strong>Edge tab</strong> — vertically centered on right edge, accent color (#b0654f), always visible when drawer closed</li>
+    <li><strong>Drawer width</strong> — ~320px on desktop, full-width on mobile</li>
+    <li><strong>Backdrop</strong> — semi-transparent overlay dims movie content when drawer is open</li>
+    <li><strong>Collapsible sections</strong> — Ratings &amp; Votes, Year &amp; Language, Genres. Click header to expand/collapse</li>
+    <li><strong>Close button</strong> — X in top-right corner, also closes on backdrop click or Escape key</li>
+    <li><strong>Apply</strong> — fetches new movie, drawer stays open for iteration</li>
+  </ul>
+</div>

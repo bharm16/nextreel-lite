@@ -42,7 +42,9 @@ def _write_matching_state(module) -> None:
     state = {
         "python_hash": module._hash_files([module.REQ_FILE]),
         "node_hash": module._hash_files([module.PACKAGE_JSON, module.PACKAGE_LOCK]),
-        "css_hash": module._hash_files([module.CSS_INPUT, module.CSS_TOKENS, module.TAILWIND_CONFIG]),
+        "css_hash": module._hash_files(
+            [module.CSS_INPUT, module.CSS_TOKENS, module.TAILWIND_CONFIG]
+        ),
     }
     module.BOOTSTRAP_STATE.write_text(json.dumps(state))
 
@@ -58,7 +60,9 @@ def test_bootstrap_noops_when_inputs_are_unchanged(tmp_path, monkeypatch):
     commands: list[list[str]] = []
     monkeypatch.setattr(module, "_parse_args", lambda: argparse.Namespace(force=False))
     monkeypatch.setattr(module, "_run", lambda cmd, cwd=None: commands.append(cmd))
-    monkeypatch.setattr(module.shutil, "which", lambda name: "/usr/bin/npm" if name == "npm" else None)
+    monkeypatch.setattr(
+        module.shutil, "which", lambda name: "/usr/bin/npm" if name == "npm" else None
+    )
 
     previous_cwd = Path.cwd()
     try:
@@ -81,7 +85,9 @@ def test_bootstrap_rebuilds_css_when_css_inputs_change(tmp_path, monkeypatch):
     commands: list[list[str]] = []
     monkeypatch.setattr(module, "_parse_args", lambda: argparse.Namespace(force=False))
     monkeypatch.setattr(module, "_run", lambda cmd, cwd=None: commands.append(cmd))
-    monkeypatch.setattr(module.shutil, "which", lambda name: "/usr/bin/npm" if name == "npm" else None)
+    monkeypatch.setattr(
+        module.shutil, "which", lambda name: "/usr/bin/npm" if name == "npm" else None
+    )
 
     previous_cwd = Path.cwd()
     try:
@@ -103,7 +109,9 @@ def test_bootstrap_force_reruns_dependency_and_css_steps(tmp_path, monkeypatch):
     commands: list[list[str]] = []
     monkeypatch.setattr(module, "_parse_args", lambda: argparse.Namespace(force=True))
     monkeypatch.setattr(module, "_run", lambda cmd, cwd=None: commands.append(cmd))
-    monkeypatch.setattr(module.shutil, "which", lambda name: "/usr/bin/npm" if name == "npm" else None)
+    monkeypatch.setattr(
+        module.shutil, "which", lambda name: "/usr/bin/npm" if name == "npm" else None
+    )
 
     previous_cwd = Path.cwd()
     try:

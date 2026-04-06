@@ -1,0 +1,26 @@
+<h2>Which side should the filter drawer slide in from?</h2>
+<p class="subtitle">Consider: your movie pages have prev/next arrows on the left and right edges of the hero area</p>
+
+<div class="options">
+  <div class="option" data-choice="right" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Right Side (Recommended)</h3>
+      <p>Most common pattern for settings/filter panels. Keeps the main content visible on the left. Doesn't conflict with left-side navigation arrows.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="left" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Left Side</h3>
+      <p>Less common for filters but used by some streaming apps. Would overlap with the previous-movie navigation arrow area.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="bottom" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Bottom Sheet</h3>
+      <p>Mobile-first pattern (like iOS/Android). Slides up from the bottom. More natural on touch devices but less conventional on desktop.</p>
+    </div>
+  </div>
+</div>

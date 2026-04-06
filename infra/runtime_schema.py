@@ -71,6 +71,29 @@ _RUNTIME_SCHEMA_STATEMENTS = (
         FULLTEXT KEY ftx_movie_candidates_genres (genres)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
+    """
+    CREATE TABLE IF NOT EXISTS users (
+        user_id       CHAR(32) PRIMARY KEY,
+        email         VARCHAR(255) NOT NULL,
+        password_hash VARCHAR(255) NULL,
+        display_name  VARCHAR(100) NULL,
+        auth_provider VARCHAR(20) NOT NULL DEFAULT 'email',
+        oauth_sub     VARCHAR(255) NULL,
+        created_at    DATETIME(6) NOT NULL,
+        updated_at    DATETIME(6) NOT NULL,
+        UNIQUE KEY idx_users_email (email),
+        UNIQUE KEY idx_users_oauth (auth_provider, oauth_sub)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS user_watched_movies (
+        user_id    CHAR(32) NOT NULL,
+        tconst     VARCHAR(16) NOT NULL,
+        watched_at DATETIME(6) NOT NULL,
+        PRIMARY KEY (user_id, tconst),
+        KEY idx_watched_user_date (user_id, watched_at DESC)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """,
 )
 
 
@@ -81,6 +104,7 @@ async def ensure_runtime_schema(db_pool) -> None:
     await ensure_user_navigation_current_ref_column(db_pool)
     await ensure_movie_candidates_shuffle_key(db_pool)
     await ensure_movie_candidates_refreshed_at_index(db_pool)
+    await ensure_user_navigation_user_id_column(db_pool)
     logger.info("Runtime schema ensured")
 
 
@@ -108,6 +132,33 @@ async def ensure_user_navigation_current_ref_column(db_pool) -> None:
         fetch="none",
     )
     logger.info("Added user_navigation_state.current_ref_json")
+
+
+async def ensure_user_navigation_user_id_column(db_pool) -> None:
+    """Add the additive user_id column to link sessions to user accounts."""
+    present = await db_pool.execute(
+        """
+        SELECT 1 AS present
+        FROM information_schema.columns
+        WHERE table_schema = DATABASE()
+          AND table_name = 'user_navigation_state'
+          AND column_name = 'user_id'
+        LIMIT 1
+        """,
+        fetch="one",
+    )
+    if present:
+        return
+
+    await db_pool.execute(
+        """
+        ALTER TABLE user_navigation_state
+        ADD COLUMN user_id CHAR(32) NULL AFTER session_id,
+        ADD KEY idx_nav_user_id (user_id)
+        """,
+        fetch="none",
+    )
+    logger.info("Added user_navigation_state.user_id")
 
 
 async def ensure_movie_candidates_shuffle_key(db_pool) -> None:

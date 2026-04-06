@@ -1,0 +1,157 @@
+{# Shared filter form fields — included by set_filters.html and the filter drawer in movie.html.
+   Expects: current_filters (dict), current_year (int), validation_errors (dict, default {}),
+            current_user_id (optional), genres_notice (optional string).
+   Does NOT include: <form> tag, CSRF input, submit/reset buttons. #}
+{% set validation_errors = validation_errors or {} %}
+<div class="grid grid-cols-1 gap-8 md:grid-cols-2">
+  <!-- Left column -->
+  <div class="space-y-8">
+    <!-- Score Range -->
+    <section data-filter-group="ratings" aria-labelledby="score-heading" class="space-y-3">
+      <h2 id="score-heading" class="flex items-center text-lg font-semibold text-primary">
+        <svg class="mr-2 h-5 w-5 text-accent" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+        IMDb Score Range
+      </h2>
+      <div>
+        <label for="imdb_score_min" class="block text-sm font-medium">Min Score</label>
+        {% set imdb_score_min_error = validation_errors.get('imdb_score_min') %}
+        <input type="number" id="imdb_score_min" name="imdb_score_min" min="1" max="10" step="0.1" value="{{ current_filters.get('imdb_score_min', 7.0) }}" {% if imdb_score_min_error %}aria-invalid="true" aria-describedby="imdb_score_min_error"{% endif %} class="mt-1 w-full rounded-2xl border-2 px-4 py-2.5 text-sm shadow-sm focus:outline-none focus:ring-2 {% if imdb_score_min_error %}border-red-400 focus:border-red-500 focus:ring-red-200{% else %}border-token focus:border-accent focus:ring-accent/30{% endif %}">
+        {% if imdb_score_min_error %}
+        <p id="imdb_score_min_error" class="mt-2 text-sm font-medium text-red-700">{{ imdb_score_min_error }}</p>
+        {% endif %}
+      </div>
+      <div>
+        <label for="imdb_score_max" class="block text-sm font-medium">Max Score</label>
+        {% set imdb_score_max_error = validation_errors.get('imdb_score_max') %}
+        <input type="number" id="imdb_score_max" name="imdb_score_max" min="1" max="10" step="0.1" value="{{ current_filters.get('imdb_score_max', 10.0) }}" {% if imdb_score_max_error %}aria-invalid="true" aria-describedby="imdb_score_max_error"{% endif %} class="mt-1 w-full rounded-2xl border-2 px-4 py-2.5 text-sm shadow-sm focus:outline-none focus:ring-2 {% if imdb_score_max_error %}border-red-400 focus:border-red-500 focus:ring-red-200{% else %}border-token focus:border-accent focus:ring-accent/30{% endif %}">
+        {% if imdb_score_max_error %}
+        <p id="imdb_score_max_error" class="mt-2 text-sm font-medium text-red-700">{{ imdb_score_max_error }}</p>
+        {% endif %}
+      </div>
+    </section>
+
+    <!-- Vote Range -->
+    <section data-filter-group="ratings" aria-labelledby="votes-heading" class="space-y-3">
+      <h2 id="votes-heading" class="flex items-center text-lg font-semibold text-primary">
+        <svg class="mr-2 h-5 w-5 text-accent" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 12c2.21 0 4-1.79 4-4S14.21 4 12 4 8 5.79 8 8s1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+        Vote Count Range
+      </h2>
+      <div>
+        <label for="num_votes_min" class="block text-sm font-medium">Min Votes</label>
+        {% set num_votes_min_error = validation_errors.get('num_votes_min') %}
+        <input type="number" id="num_votes_min" name="num_votes_min" min="0" value="{{ current_filters.get('num_votes_min', 100000) }}" {% if num_votes_min_error %}aria-invalid="true" aria-describedby="num_votes_min_error"{% endif %} class="mt-1 w-full rounded-2xl border-2 px-4 py-2.5 text-sm shadow-sm focus:outline-none focus:ring-2 {% if num_votes_min_error %}border-red-400 focus:border-red-500 focus:ring-red-200{% else %}border-token focus:border-accent focus:ring-accent/30{% endif %}">
+        {% if num_votes_min_error %}
+        <p id="num_votes_min_error" class="mt-2 text-sm font-medium text-red-700">{{ num_votes_min_error }}</p>
+        {% endif %}
+      </div>
+      <div>
+        <label for="num_votes_max" class="block text-sm font-medium">Max Votes</label>
+        {% set num_votes_max_error = validation_errors.get('num_votes_max') %}
+        <input type="number" id="num_votes_max" name="num_votes_max" min="1" max="2000000" value="{{ current_filters.get('num_votes_max', 200000) }}" {% if num_votes_max_error %}aria-invalid="true" aria-describedby="num_votes_max_error"{% endif %} class="mt-1 w-full rounded-2xl border-2 px-4 py-2.5 text-sm shadow-sm focus:outline-none focus:ring-2 {% if num_votes_max_error %}border-red-400 focus:border-red-500 focus:ring-red-200{% else %}border-token focus:border-accent focus:ring-accent/30{% endif %}">
+        {% if num_votes_max_error %}
+        <p id="num_votes_max_error" class="mt-2 text-sm font-medium text-red-700">{{ num_votes_max_error }}</p>
+        {% endif %}
+      </div>
+    </section>
+  </div>
+
+  <!-- Right column -->
+  <div class="space-y-8">
+    <!-- Year Range -->
+    <section data-filter-group="year" aria-labelledby="year-heading" class="space-y-3">
+      <h2 id="year-heading" class="flex items-center text-lg font-semibold text-primary">
+        <svg class="mr-2 h-5 w-5 text-accent" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19 4h-1V2h-2v2H8V2H6v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 16H5V10h14v10z"/></svg>
+        Release Year Range
+      </h2>
+      <div>
+        <label for="year_min" class="block text-sm font-medium">Earliest</label>
+        {% set year_min_error = validation_errors.get('year_min') %}
+        <input type="number" id="year_min" name="year_min" min="1900" value="{{ current_filters.get('year_min', 1900) }}" {% if year_min_error %}aria-invalid="true" aria-describedby="year_min_error"{% endif %} class="mt-1 w-full rounded-2xl border-2 px-4 py-2.5 text-sm shadow-sm focus:outline-none focus:ring-2 {% if year_min_error %}border-red-400 focus:border-red-500 focus:ring-red-200{% else %}border-token focus:border-accent focus:ring-accent/30{% endif %}">
+        {% if year_min_error %}
+        <p id="year_min_error" class="mt-2 text-sm font-medium text-red-700">{{ year_min_error }}</p>
+        {% endif %}
+      </div>
+      <div>
+        <label for="year_max" class="block text-sm font-medium">Latest</label>
+        {% set year_max_error = validation_errors.get('year_max') %}
+        <input type="number" id="year_max" name="year_max" value="{{ current_filters.get('year_max', current_year) }}" {% if year_max_error %}aria-invalid="true" aria-describedby="year_max_error"{% endif %} class="mt-1 w-full rounded-2xl border-2 px-4 py-2.5 text-sm shadow-sm focus:outline-none focus:ring-2 {% if year_max_error %}border-red-400 focus:border-red-500 focus:ring-red-200{% else %}border-token focus:border-accent focus:ring-accent/30{% endif %}">
+        {% if year_max_error %}
+        <p id="year_max_error" class="mt-2 text-sm font-medium text-red-700">{{ year_max_error }}</p>
+        {% endif %}
+      </div>
+    </section>
+
+    <!-- Language Selection -->
+    <section data-filter-group="year" aria-labelledby="language-heading" class="space-y-3">
+      <h2 id="language-heading" class="flex items-center text-lg font-semibold text-primary">
+        <svg class="mr-2 h-5 w-5 text-accent" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M12.87 15.07l-2.54-2.51.03-.03c1.74-1.94 2.98-4.17 3.71-6.53H17V4h-7V2H8v2H1v1.99h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/>
+        </svg>
+        Language
+      </h2>
+      <div>
+        <label for="language" class="block text-sm font-medium">Select Language</label>
+        <select id="language" name="language" class="mt-1 w-full rounded-2xl border-2 border-token px-4 py-2.5 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30">
+          <option value="any" {% if current_filters.get('language', 'en') == 'any' %}selected{% endif %}>Any Language</option>
+          <option value="en" {% if current_filters.get('language', 'en') == 'en' %}selected{% endif %}>English</option>
+          <option value="es" {% if current_filters.get('language') == 'es' %}selected{% endif %}>Spanish</option>
+          <option value="fr" {% if current_filters.get('language') == 'fr' %}selected{% endif %}>French</option>
+          <option value="de" {% if current_filters.get('language') == 'de' %}selected{% endif %}>German</option>
+          <option value="it" {% if current_filters.get('language') == 'it' %}selected{% endif %}>Italian</option>
+          <option value="pt" {% if current_filters.get('language') == 'pt' %}selected{% endif %}>Portuguese</option>
+          <option value="ru" {% if current_filters.get('language') == 'ru' %}selected{% endif %}>Russian</option>
+          <option value="ja" {% if current_filters.get('language') == 'ja' %}selected{% endif %}>Japanese</option>
+          <option value="ko" {% if current_filters.get('language') == 'ko' %}selected{% endif %}>Korean</option>
+          <option value="zh" {% if current_filters.get('language') == 'zh' %}selected{% endif %}>Chinese</option>
+          <option value="hi" {% if current_filters.get('language') == 'hi' %}selected{% endif %}>Hindi</option>
+          <option value="ar" {% if current_filters.get('language') == 'ar' %}selected{% endif %}>Arabic</option>
+          <option value="tr" {% if current_filters.get('language') == 'tr' %}selected{% endif %}>Turkish</option>
+          <option value="nl" {% if current_filters.get('language') == 'nl' %}selected{% endif %}>Dutch</option>
+          <option value="sv" {% if current_filters.get('language') == 'sv' %}selected{% endif %}>Swedish</option>
+          <option value="pl" {% if current_filters.get('language') == 'pl' %}selected{% endif %}>Polish</option>
+        </select>
+      </div>
+    </section>
+
+    {% if current_user_id %}
+    <!-- Exclude Watched -->
+    <section data-filter-group="watched" class="space-y-2">
+      <input type="hidden" name="exclude_watched" value="off">
+      <div class="flex items-center gap-3">
+        <input type="checkbox" id="excludeWatched" name="exclude_watched"
+               value="on"
+               {% if current_filters.get('exclude_watched', true) %}checked{% endif %}
+               class="h-4 w-4 rounded border-token text-accent focus:ring-accent" />
+        <label for="excludeWatched" class="text-sm font-medium text-primary">
+          Exclude movies I've watched
+        </label>
+      </div>
+    </section>
+    {% endif %}
+
+    <!-- Genres -->
+    <section data-filter-group="genres" aria-labelledby="genres-heading" class="space-y-3">
+      <h2 id="genres-heading" class="flex items-center text-lg font-semibold text-primary">
+        <svg class="mr-2 h-5 w-5 text-accent" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20 2H8c-1.1 0-2 .9-2 2v2H4c-1.1 0-2 .9-2 2v10a2 2 0 0 0 2 2h12c1.1 0 2-.9 2-2v-2h2c1.1 0 2-.9 2-2V4a2 2 0 0 0-2-2zm-4 16H4V8h12v10zm4-4h-2V4h2v10z"/></svg>
+        Select Genres
+      </h2>
+      <div class="flex items-center gap-2 text-sm font-medium">
+        <input type="checkbox" id="selectAll" checked class="h-4 w-4 rounded border-token text-accent focus:ring-accent" />
+        <label for="selectAll">Select All</label>
+      </div>
+      <p id="genres-helper" class="hidden text-sm text-body/80" aria-live="polite">No genres selected. Nextreel will use all genres.</p>
+      {% if genres_notice %}
+      <p class="rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-800">{{ genres_notice }}</p>
+      {% endif %}
+      <div class="genre-grid mt-2 flex flex-wrap gap-2">
+        {% set genres = ['Action','Adventure','Animation','Biography','Comedy','Crime','Documentary','Drama','Fantasy','Horror','Musical','Sci-Fi','Sport','Thriller','War','Western'] %}
+        {% for g in genres %}
+        <label class="relative">
+          <input type="checkbox" name="genres[]" value="{{ g }}" {% if current_filters.get('genres_selected', [])|length == 0 or g in current_filters.get('genres_selected', []) %}checked{% endif %} class="peer sr-only" />
+          <span class="inline-block select-none rounded-full border-2 border-token bg-surface-alt px-4 py-2 text-xs font-semibold text-body transition peer-checked:border-accent peer-checked:bg-accent peer-checked:text-white">{{ g }}</span>
+        </label>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+</div>

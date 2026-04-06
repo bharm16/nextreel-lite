@@ -31,6 +31,7 @@ _active_backend = "memory"
 
 # ── Public API ────────────────────────────────────────────────────
 
+
 async def check_rate_limit(endpoint_key: str) -> bool:
     """Rate limit using Redis pipeline (atomic INCR + EXPIRE).
 
@@ -87,10 +88,7 @@ async def check_rate_limit_memory(endpoint_key: str) -> bool:
 
         # Evict stale keys to prevent unbounded memory growth
         if len(_rate_limit_store) > _RATE_LIMIT_MAX_KEYS:
-            stale_keys = [
-                k for k, v in _rate_limit_store.items()
-                if not v or v[-1] < cutoff
-            ]
+            stale_keys = [k for k, v in _rate_limit_store.items() if not v or v[-1] < cutoff]
             for k in stale_keys:
                 _rate_limit_store.pop(k, None)
 

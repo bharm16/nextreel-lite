@@ -157,3 +157,63 @@ def test_validate_filters_allows_empty_genres_as_all_genres():
     )
 
     assert errors == {}
+
+
+async def test_normalize_filters_reads_exclude_watched():
+    from unittest.mock import MagicMock
+    from infra.filter_normalizer import normalize_filters
+
+    form_data = MagicMock()
+    form_data.get = lambda key, default=None: {"exclude_watched": "on"}.get(key, default)
+    form_data.getlist = lambda key: {"exclude_watched": ["on"], "genres[]": []}.get(key, [])
+    filters = normalize_filters(form_data)
+    assert filters.get("exclude_watched") is True
+
+
+async def test_normalize_filters_exclude_watched_absent_defaults_true():
+    from unittest.mock import MagicMock
+    from infra.filter_normalizer import normalize_filters
+
+    form_data = MagicMock()
+    form_data.get = lambda key, default=None: None
+    form_data.getlist = lambda key: {"genres[]": []}.get(key, [])
+    filters = normalize_filters(form_data)
+    assert filters.get("exclude_watched") is True
+
+
+async def test_normalize_filters_exclude_watched_hidden_plus_checkbox():
+    """When both hidden 'off' and checkbox 'on' are submitted, 'on' wins."""
+    from unittest.mock import MagicMock
+    from infra.filter_normalizer import normalize_filters
+
+    form_data = MagicMock()
+    form_data.get = lambda key, default=None: {"exclude_watched": "off"}.get(key, default)
+    form_data.getlist = lambda key: {
+        "exclude_watched": ["off", "on"],
+        "genres[]": [],
+    }.get(key, [])
+    filters = normalize_filters(form_data)
+    assert filters.get("exclude_watched") is True
+
+
+async def test_normalize_filters_exclude_watched_off_only():
+    """When only hidden 'off' is submitted (checkbox unchecked), result is False."""
+    from unittest.mock import MagicMock
+    from infra.filter_normalizer import normalize_filters
+
+    form_data = MagicMock()
+    form_data.get = lambda key, default=None: {"exclude_watched": "off"}.get(key, default)
+    form_data.getlist = lambda key: {
+        "exclude_watched": ["off"],
+        "genres[]": [],
+    }.get(key, [])
+    filters = normalize_filters(form_data)
+    assert filters.get("exclude_watched") is False
+
+
+async def test_default_filter_state_includes_exclude_watched():
+    from infra.filter_normalizer import default_filter_state
+
+    filters = default_filter_state()
+    assert "exclude_watched" in filters
+    assert filters["exclude_watched"] is True

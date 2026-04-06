@@ -52,7 +52,39 @@
 <!-- Main Content - movie_card.html uses Bootstrap's container-lg -->
 {% include 'movie_card.html' %}
 
-<!-- Bootstrap JS removed - using Tailwind instead -->
+<!-- ── Filter Drawer ──────────────────────── -->
+<button class="filter-drawer-tab" id="filterDrawerTab" aria-controls="filterDrawer" aria-expanded="false" aria-label="Open filters">FILTERS</button>
+
+<div class="filter-drawer-backdrop" id="filterDrawerBackdrop"></div>
+
+<aside id="filterDrawer" class="filter-drawer" role="dialog" aria-label="Movie filters" aria-modal="true">
+  <div class="filter-drawer-header">
+    <h2>Filters</h2>
+    <button class="filter-drawer-close" id="filterDrawerClose" aria-label="Close filters">&times;</button>
+  </div>
+
+  <div class="filter-drawer-body">
+    <form id="drawerFilterForm" action="/filtered_movie" method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div id="drawer-filter-errors" role="alert" aria-live="polite"></div>
+
+      {# Include the shared partial — the JS in filter-drawer.js wraps
+         sections with data-filter-group into collapsible groups #}
+      {% include '_filter_form.html' %}
+    </form>
+  </div>
+
+  <div class="filter-drawer-footer">
+    <button type="submit" form="drawerFilterForm" id="drawerApplyBtn" class="flex-1 inline-flex items-center justify-center gap-2 rounded-full bg-accent px-5 py-2.5 text-sm font-bold uppercase tracking-wide text-white shadow hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-accent/40" aria-busy="false">
+      <svg class="h-4 w-4 hidden animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10" opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
+      <span>Apply Filters</span>
+    </button>
+    <button type="reset" form="drawerFilterForm" id="drawerResetBtn" class="inline-flex items-center justify-center rounded-full border border-token px-4 py-2.5 text-sm font-semibold text-muted hover:bg-surface-alt focus:outline-none focus:ring-2 focus:ring-accent/30">Reset</button>
+  </div>
+</aside>
+
+<script src="{{ url_for('static', filename='js/filter-drawer.js') }}" defer></script>
 
 </body>
 </html>

@@ -13,6 +13,7 @@ from infra.runtime_schema import ensure_runtime_schema
 from movies.candidate_store import CandidateStore
 from movies.projection_store import ProjectionStore
 from movies.tmdb_client import TMDbHelper
+from movies.watched_store import WatchedStore
 from movie_navigator import MovieNavigator, NavigationOutcome
 from movie_renderer import MovieRenderer
 from settings import Config
@@ -37,6 +38,7 @@ class MovieManager:
         self.navigation_state_store = None
         self._navigator: MovieNavigator | None = None
         self._renderer = MovieRenderer(self.projection_store)
+        self.watched_store = WatchedStore(self.db_pool)
 
     async def start(self) -> None:
         logger.info("Starting MovieManager")
@@ -46,7 +48,11 @@ class MovieManager:
         from infra.navigation_state import NavigationStateStore
 
         self.navigation_state_store = NavigationStateStore(self.db_pool)
-        self._navigator = MovieNavigator(self.candidate_store, self.navigation_state_store)
+        self._navigator = MovieNavigator(
+            self.candidate_store,
+            self.navigation_state_store,
+            watched_store=self.watched_store,
+        )
 
     async def close(self) -> None:
         try:
@@ -92,14 +98,10 @@ class MovieManager:
         return {"default_backdrop_url": self.default_backdrop_url}
 
     async def set_default_backdrop(self) -> None:
-        image_data = await self.tmdb_helper.get_images_by_tmdb_id(
-            self.default_movie_tmdb_id
-        )
+        image_data = await self.tmdb_helper.get_images_by_tmdb_id(self.default_movie_tmdb_id)
         backdrops = image_data["backdrops"]
         if backdrops:
-            self.default_backdrop_url = self.tmdb_helper.get_full_image_url(
-                backdrops[0]
-            )
+            self.default_backdrop_url = self.tmdb_helper.get_full_image_url(backdrops[0])
         else:
             self.default_backdrop_url = None
 
@@ -109,7 +111,9 @@ class MovieManager:
         tconst: str,
         template_name: str = "movie.html",
     ) -> str | tuple[str, int]:
-        previous_count = self._navigator.prev_stack_length(state) if self._navigator and state else 0
+        previous_count = (
+            self._navigator.prev_stack_length(state) if self._navigator and state else 0
+        )
         return await self._renderer.render_movie_by_tconst(
             tconst,
             previous_count=previous_count,

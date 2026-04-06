@@ -84,6 +84,20 @@
     .home-brand:hover { color: rgba(255,255,255,0.9); }
 
     /* Theme toggle */
+    .home-login-link {
+      position: absolute;
+      top: 1.65rem; right: 4.5rem;
+      z-index: 10;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: rgba(255,255,255,0.5);
+      text-decoration: none;
+      letter-spacing: 0.01em;
+      text-shadow: 0 1px 8px rgba(0,0,0,0.4);
+      transition: color 200ms;
+    }
+    .home-login-link:hover { color: rgba(255,255,255,0.9); }
+
     .home-theme-toggle {
       position: absolute;
       top: 1.5rem; right: 2rem;
@@ -151,6 +165,7 @@
 
     @media (max-width: 640px) {
       .home-brand { top: 1rem; left: 1.25rem; font-size: 0.85rem; }
+      .home-login-link { top: 1.15rem; right: 3.5rem; font-size: 0.75rem; }
       .home-theme-toggle { top: 1rem; right: 1.25rem; }
       .home-content { padding: 1.5rem; }
     }
@@ -166,7 +181,12 @@
     <!-- Brand — top left -->
     <a class="home-brand" href="/">Nextreel</a>
 
-    <!-- Theme toggle — top right -->
+    <!-- Auth + Theme toggle — top right -->
+    {% if not current_user_id %}
+    <a href="{{ url_for('main.login_page') }}" class="home-login-link">Log In</a>
+    {% else %}
+    <a href="{{ url_for('main.watched_list_page') }}" class="home-login-link">My Watched List</a>
+    {% endif %}
     <button class="home-theme-toggle" id="themeToggle" aria-pressed="false" aria-label="Toggle dark mode">
       <svg id="iconSun" viewBox="0 0 24 24" fill="currentColor"><path d="M6.76 4.84l-1.8-1.79-1.41 1.41 1.79 1.8 1.42-1.42zM1 13h3v-2H1v2zm10 10h2v-3h-2v3zM4.96 19.78l1.41 1.41 1.8-1.79-1.42-1.42-1.79 1.8zM20 11v2h3v-2h-3zm-2.34-7.95l-1.41 1.41 1.79 1.8 1.41-1.42-1.79-1.79zM12 7a5 5 0 100 10 5 5 0 000-10zm7.04 12.78l-1.79-1.8-1.41 1.42 1.79 1.79 1.41-1.41zM13 1h-2v3h2V1z"/></svg>
       <svg id="iconMoon" class="hidden" viewBox="0 0 24 24" fill="currentColor"><path d="M12.74 2.15A9 9 0 1021 12.26 7 7 0 0112.74 2.15z"/></svg>

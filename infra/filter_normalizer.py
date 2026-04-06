@@ -31,6 +31,7 @@ def default_filter_state(current_year: int | None = None) -> FilterState:
         "num_votes_max": 200000,
         "language": "en",
         "genres_selected": [],
+        "exclude_watched": True,
     }
 
 
@@ -111,6 +112,18 @@ def normalize_filters(form_data) -> FilterState:
         for genre in raw_genres
         if isinstance(genre, str) and genre in VALID_GENRES
     ]
+
+    # exclude_watched checkbox: hidden input sends "off", checkbox sends "on".
+    # When both are present (checkbox checked), "on" must win regardless of
+    # MultiDict ordering — so check the full list of submitted values.
+    exclude_watched_values = form_data.getlist("exclude_watched")
+    if "on" in exclude_watched_values:
+        filters["exclude_watched"] = True
+    elif "off" in exclude_watched_values:
+        filters["exclude_watched"] = False
+    else:
+        filters["exclude_watched"] = True
+
     return filters
 
 

@@ -78,6 +78,7 @@ def pick_movie(page):
 # Workflow tests — real app, real DB, real browser
 # ---------------------------------------------------------------------------
 
+
 def test_01_home_page_loads(page):
     """Home page renders with hero, Pick a Movie, Set Filters."""
     page.goto(BASE_URL)
@@ -175,8 +176,7 @@ def test_04_next_movie_navigation(page):
         unique = len(set(urls))
         assert unique >= 2, f"Expected different movies, got {urls}"
 
-        record("Next movie navigation (3 movies)", True,
-               f"{unique} unique movies", s)
+        record("Next movie navigation (3 movies)", True, f"{unique} unique movies", s)
     except Exception as e:
         record("Next movie navigation", False, str(e), snap(page, "04_nav_fail"))
 
@@ -344,14 +344,16 @@ def test_10_csrf_enforcement(page):
 
     for ep in endpoints:
         try:
-            status = page.evaluate(f"""async () => {{
+            status = page.evaluate(
+                f"""async () => {{
                 const resp = await fetch('{ep}', {{
                     method: 'POST',
                     headers: {{'Content-Type': 'application/x-www-form-urlencoded'}},
                     body: ''
                 }});
                 return resp.status;
-            }}""")
+            }}"""
+            )
             if status == 403:
                 details.append(f"{ep}=403")
             else:
@@ -508,7 +510,8 @@ def test_19_logout(page):
 
     try:
         csrf = page.locator("input[name='csrf_token']").first.get_attribute("value")
-        result = page.evaluate(f"""async () => {{
+        result = page.evaluate(
+            f"""async () => {{
             const resp = await fetch('/logout', {{
                 method: 'POST',
                 headers: {{'Content-Type': 'application/x-www-form-urlencoded'}},
@@ -516,7 +519,8 @@ def test_19_logout(page):
                 redirect: 'follow'
             }});
             return {{status: resp.status, url: resp.url}};
-        }}""")
+        }}"""
+        )
         record("Logout workflow", True, f"status={result['status']}")
     except Exception as e:
         record("Logout workflow", False, str(e))
@@ -560,8 +564,7 @@ def test_20_full_browse_workflow(page):
             page.wait_for_load_state("networkidle")
 
         s = snap(page, "20_s4_home")
-        record("Full browse: Home→Pick→Next→Prev→Home", True,
-               f"m1={movie1}, m2={movie2}", s)
+        record("Full browse: Home→Pick→Next→Prev→Home", True, f"m1={movie1}, m2={movie2}", s)
     except Exception as e:
         record("Full browse workflow", False, str(e), snap(page, "20_fail"))
 
@@ -621,8 +624,7 @@ def test_22_direct_movie_by_tconst(page):
 
         # 200 if movie exists and enrichment works, 500 if SQL/TMDb issue
         body = page.inner_text("body")
-        record("Direct movie by tconst", True,
-               f"status={response.status}, {len(body)} chars", s)
+        record("Direct movie by tconst", True, f"status={response.status}, {len(body)} chars", s)
     except Exception as e:
         record("Direct movie by tconst", False, str(e))
 
@@ -642,6 +644,7 @@ def test_23_health_endpoint(page):
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+
 
 def main():
     headed = "--headed" in sys.argv

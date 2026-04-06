@@ -91,11 +91,11 @@ from tests.helpers import TEST_ENV
 
 class TestHealthEndpoint:
     async def test_health_returns_200(self):
-        with patch.dict(os.environ, TEST_ENV), \
-             patch("app.MovieManager") as MockManager:
+        with patch.dict(os.environ, TEST_ENV), patch("app.MovieManager") as MockManager:
             MockManager.return_value.home = AsyncMock(return_value="ok")
 
             from app import create_app
+
             app = create_app()
             app.config["TESTING"] = True
 
@@ -111,11 +111,13 @@ class TestOpsAuth:
     """Ops endpoints should require Bearer token when OPS_AUTH_TOKEN is set."""
 
     async def test_metrics_unauthorized_without_token(self):
-        with patch("app.MovieManager") as MockManager, \
-             patch.dict(os.environ, {**TEST_ENV, "OPS_AUTH_TOKEN": "secret-token"}):
+        with patch("app.MovieManager") as MockManager, patch.dict(
+            os.environ, {**TEST_ENV, "OPS_AUTH_TOKEN": "secret-token"}
+        ):
             MockManager.return_value.home = AsyncMock(return_value={"default_backdrop_url": None})
 
             from app import create_app
+
             app = create_app()
             app.config["TESTING"] = True
 
@@ -125,11 +127,13 @@ class TestOpsAuth:
                 assert response.status_code == 401
 
     async def test_metrics_authorized_with_correct_token(self):
-        with patch("app.MovieManager") as MockManager, \
-             patch.dict(os.environ, {**TEST_ENV, "OPS_AUTH_TOKEN": "secret-token"}):
+        with patch("app.MovieManager") as MockManager, patch.dict(
+            os.environ, {**TEST_ENV, "OPS_AUTH_TOKEN": "secret-token"}
+        ):
             MockManager.return_value.home = AsyncMock(return_value={"default_backdrop_url": None})
 
             from app import create_app
+
             app = create_app()
             app.config["TESTING"] = True
 
@@ -142,8 +146,9 @@ class TestOpsAuth:
                 assert response.status_code == 200
 
     async def test_ready_reports_component_status(self):
-        with patch("app.MovieManager") as MockManager, \
-             patch.dict(os.environ, {**TEST_ENV, "OPS_AUTH_TOKEN": "secret-token"}):
+        with patch("app.MovieManager") as MockManager, patch.dict(
+            os.environ, {**TEST_ENV, "OPS_AUTH_TOKEN": "secret-token"}
+        ):
             manager = MockManager.return_value
             manager.home = AsyncMock(return_value={"default_backdrop_url": None})
             manager.db_pool.get_metrics = AsyncMock(
@@ -159,6 +164,7 @@ class TestOpsAuth:
             manager.projection_store.ready_check = AsyncMock(return_value=True)
 
             from app import create_app
+
             app = create_app()
             app.config["TESTING"] = True
             app.navigation_state_store = AsyncMock()
@@ -190,30 +196,28 @@ class TestCSRFValidation:
     """CSRF token must match between session and form/header."""
 
     async def test_post_without_csrf_returns_403(self):
-        with patch.dict(os.environ, TEST_ENV), \
-             patch("app.MovieManager") as MockManager:
+        with patch.dict(os.environ, TEST_ENV), patch("app.MovieManager") as MockManager:
             manager = MockManager.return_value
             manager.filtered_movie = AsyncMock(return_value="ok")
 
             from app import create_app
+
             app = create_app()
             app.config["TESTING"] = True
 
             async with app.app_context():
                 client = app.test_client()
-                response = await client.post(
-                    "/filtered_movie", data={"year_min": "2000"}
-                )
+                response = await client.post("/filtered_movie", data={"year_min": "2000"})
                 assert response.status_code == 403
 
     async def test_get_next_movie_rejected_as_post_only(self):
         """GET to /next_movie returns 405 — route is POST-only."""
-        with patch.dict(os.environ, TEST_ENV), \
-             patch("app.MovieManager") as MockManager:
+        with patch.dict(os.environ, TEST_ENV), patch("app.MovieManager") as MockManager:
             manager = MockManager.return_value
             manager.next_movie = AsyncMock(return_value="next")
 
             from app import create_app
+
             app = create_app()
             app.config["TESTING"] = True
 

@@ -62,15 +62,9 @@ class Movie:
         ratings_data = {
             "tconst": result.get("tconst") or tconst,
             "averageRating": (
-                result["averageRating"]
-                if result.get("averageRating") is not None
-                else "N/A"
+                result["averageRating"] if result.get("averageRating") is not None else "N/A"
             ),
-            "numVotes": (
-                result["numVotes"]
-                if result.get("numVotes") is not None
-                else "N/A"
-            ),
+            "numVotes": (result["numVotes"] if result.get("numVotes") is not None else "N/A"),
         }
 
         query_time = time.time() - start_time
@@ -144,9 +138,7 @@ class Movie:
                 "imdb_id": self.tconst,
                 "tmdb_id": tmdb_id,
                 "slug": self.slug,
-                "genres": ", ".join(
-                    [genre["name"] for genre in full_data.get("genres", [])]
-                ),
+                "genres": ", ".join([genre["name"] for genre in full_data.get("genres", [])]),
                 "directors": ", ".join(directors),
                 "rating": rating,
                 "votes": votes,
@@ -172,9 +164,7 @@ class Movie:
                 "budget": budget_formatted,
                 "revenue": revenue_formatted,
                 "runtime": (
-                    f"{full_data.get('runtime', 0)} min"
-                    if full_data.get("runtime")
-                    else "Unknown"
+                    f"{full_data.get('runtime', 0)} min" if full_data.get("runtime") else "Unknown"
                 ),
                 "production_countries": ", ".join(country_names) if country_names else "Unknown",
                 "status": full_data.get("status", "Unknown"),
@@ -191,9 +181,7 @@ class Movie:
             }
 
             method_time = time.time() - start_time
-            logger.info(
-                "Completed get_movie_data for %s in %.2f seconds", self.tconst, method_time
-            )
+            logger.info("Completed get_movie_data for %s in %.2f seconds", self.tconst, method_time)
 
             return self.movie_data
 

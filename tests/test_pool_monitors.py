@@ -9,6 +9,7 @@ from infra.pool_monitors import PoolCircuitBreaker, SlowQueryLogger
 
 # ── PoolCircuitBreaker ───────────────────────────────────────────────
 
+
 async def test_circuit_breaker_starts_closed():
     cb = PoolCircuitBreaker(threshold=3)
     assert cb.state == "closed"
@@ -52,6 +53,7 @@ async def test_circuit_breaker_reset():
 
 
 # ── SlowQueryLogger ─────────────────────────────────────────────────
+
 
 async def test_slow_query_logger_skips_non_select():
     # Should not raise — silently skips non-SELECT

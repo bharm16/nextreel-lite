@@ -14,12 +14,34 @@ logger = get_logger(__name__)
 # ── Allow-lists ───────────────────────────────────────────────────
 
 # Valid IMDb genre names — used as an allow-list for genre filtering.
-VALID_GENRES = frozenset({
-    "Action", "Adventure", "Animation", "Biography", "Comedy", "Crime",
-    "Documentary", "Drama", "Family", "Fantasy", "Film-Noir", "History",
-    "Horror", "Music", "Musical", "Mystery", "News", "Romance",
-    "Sci-Fi", "Short", "Sport", "Thriller", "War", "Western",
-})
+VALID_GENRES = frozenset(
+    {
+        "Action",
+        "Adventure",
+        "Animation",
+        "Biography",
+        "Comedy",
+        "Crime",
+        "Documentary",
+        "Drama",
+        "Family",
+        "Fantasy",
+        "Film-Noir",
+        "History",
+        "Horror",
+        "Music",
+        "Musical",
+        "Mystery",
+        "News",
+        "Romance",
+        "Sci-Fi",
+        "Short",
+        "Sport",
+        "Thriller",
+        "War",
+        "Western",
+    }
+)
 
 # Regex for valid ISO 639-1 language codes (2-3 lowercase letters) plus "any".
 _LANG_RE = re.compile(r"^[a-z]{2,3}$")
@@ -76,40 +98,40 @@ def extract_movie_filter_criteria(form_data):
     criteria = {}
 
     # Year range — clamp to sensible bounds
-    min_year = _safe_int(form_data.get('year_min'), min_val=1888, max_val=2100)
-    max_year = _safe_int(form_data.get('year_max'), min_val=1888, max_val=2100)
+    min_year = _safe_int(form_data.get("year_min"), min_val=1888, max_val=2100)
+    max_year = _safe_int(form_data.get("year_max"), min_val=1888, max_val=2100)
     if min_year is not None:
-        criteria['min_year'] = min_year
+        criteria["min_year"] = min_year
     if max_year is not None:
-        criteria['max_year'] = max_year
+        criteria["max_year"] = max_year
 
     # IMDb score — 0.0 to 10.0
-    min_rating = _safe_float(form_data.get('imdb_score_min'), min_val=0.0, max_val=10.0)
-    max_rating = _safe_float(form_data.get('imdb_score_max'), min_val=0.0, max_val=10.0)
+    min_rating = _safe_float(form_data.get("imdb_score_min"), min_val=0.0, max_val=10.0)
+    max_rating = _safe_float(form_data.get("imdb_score_max"), min_val=0.0, max_val=10.0)
     if min_rating is not None:
-        criteria['min_rating'] = min_rating
+        criteria["min_rating"] = min_rating
     if max_rating is not None:
-        criteria['max_rating'] = max_rating
+        criteria["max_rating"] = max_rating
 
     # Vote counts — non-negative
-    min_votes = _safe_int(form_data.get('num_votes_min'), min_val=0)
-    max_votes = _safe_int(form_data.get('num_votes_max'), min_val=0)
+    min_votes = _safe_int(form_data.get("num_votes_min"), min_val=0)
+    max_votes = _safe_int(form_data.get("num_votes_max"), min_val=0)
     if min_votes is not None:
-        criteria['min_votes'] = min_votes
+        criteria["min_votes"] = min_votes
     if max_votes is not None:
-        criteria['max_votes'] = max_votes
+        criteria["max_votes"] = max_votes
 
     # Genres — validate against allow-list to prevent LIKE wildcard injection
-    raw_genres = form_data.getlist('genres[]')
+    raw_genres = form_data.getlist("genres[]")
     genres = [g for g in raw_genres if g and isinstance(g, str) and g in VALID_GENRES]
     if genres:
-        criteria['genres'] = genres
+        criteria["genres"] = genres
 
     # Language — validate against ISO 639-1 pattern or "any"
-    language = form_data.get('language', 'en')
+    language = form_data.get("language", "en")
     if not isinstance(language, str) or (language != "any" and not _LANG_RE.match(language)):
-        language = 'en'
-    criteria['language'] = language
+        language = "en"
+    criteria["language"] = language
     logger.debug("Language filter set to: %s", language)
 
     return criteria

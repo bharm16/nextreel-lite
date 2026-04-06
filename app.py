@@ -14,6 +14,7 @@ from uuid import uuid4
 # this block is a no-op there.
 if not os.environ.get("NEXTREEL_ENV") and not os.environ.get("FLASK_ENV"):
     from scripts.local_env_setup import setup_local_environment
+
     setup_local_environment()
 # -------------------------------------------------------------------------
 
@@ -53,6 +54,7 @@ class FixedQuart(Quart):
     default_config = dict(Quart.default_config)
     default_config.setdefault("PROVIDE_AUTOMATIC_OPTIONS", True)
 
+
 logger = get_logger(__name__)
 
 _SKIP_PATHS = ("/static", "/favicon.ico", "/health", "/ready", "/metrics")
@@ -88,6 +90,8 @@ def _build_test_navigation_state() -> NavigationState:
         last_activity_at=now,
         expires_at=now,
     )
+
+
 async def _setup_redis(app):
     """Initialize Redis runtime dependencies (session, cache, ARQ)."""
     redis_url = _redis_url()
@@ -185,8 +189,11 @@ def _init_core(app):
 
     # CSS cache-busting: use output.css mtime as version query param
     import os as _os
+
     css_path = _os.path.join(app.root_path, "static", "css", "output.css")
-    app.config["CSS_VERSION"] = str(int(_os.path.getmtime(css_path))) if _os.path.exists(css_path) else "1"
+    app.config["CSS_VERSION"] = (
+        str(int(_os.path.getmtime(css_path))) if _os.path.exists(css_path) else "1"
+    )
 
     movie_manager = MovieManager(settings.Config.get_db_config())
     app.movie_manager = movie_manager
@@ -201,6 +208,28 @@ def _init_core(app):
     app.background_tasks = set()
     app.config["SESSION_REDIS"] = None
     return movie_manager
+
+
+def _init_oauth(app):
+    """Phase 1b: OAuth client setup (optional — skipped if no credentials configured)."""
+    import os as _os
+
+    google_client_id = _os.getenv("GOOGLE_CLIENT_ID")
+    google_client_secret = _os.getenv("GOOGLE_CLIENT_SECRET")
+    apple_client_id = _os.getenv("APPLE_CLIENT_ID")
+    redirect_base = _os.getenv("OAUTH_REDIRECT_BASE_URL", "http://127.0.0.1:5000")
+
+    app.oauth_config = {
+        "google_enabled": bool(google_client_id and google_client_secret),
+        "apple_enabled": bool(apple_client_id),
+        "google_client_id": google_client_id,
+        "google_client_secret": google_client_secret,
+        "apple_client_id": apple_client_id,
+        "apple_team_id": _os.getenv("APPLE_TEAM_ID"),
+        "apple_key_id": _os.getenv("APPLE_KEY_ID"),
+        "apple_private_key": _os.getenv("APPLE_PRIVATE_KEY"),
+        "redirect_base": redirect_base,
+    }
 
 
 def _init_metrics(app, movie_manager):
@@ -240,6 +269,7 @@ def create_app():
 
     app = FixedQuart(__name__)
     movie_manager = _init_core(app)
+    _init_oauth(app)
     metrics_collector = _init_metrics(app, movie_manager)
     ensure_movie_manager_started = _make_manager_starter(app, movie_manager)
 
@@ -298,7 +328,9 @@ def create_app():
                 legacy_session=legacy_session,
             )
             g.navigation_state = state
-            g.set_nr_sid_cookie = needs_cookie or request.cookies.get(SESSION_COOKIE_NAME) != state.session_id
+            g.set_nr_sid_cookie = (
+                needs_cookie or request.cookies.get(SESSION_COOKIE_NAME) != state.session_id
+            )
         except (asyncio.CancelledError, SystemExit, KeyboardInterrupt):
             raise
         except Exception as exc:

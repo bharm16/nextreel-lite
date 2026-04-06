@@ -13,11 +13,13 @@ from infra.metrics import MetricsCollector
 def collector():
     """MetricsCollector with mocked dependencies."""
     mock_pool = AsyncMock()
-    mock_pool.get_metrics = AsyncMock(return_value={
-        "pool_size": 10,
-        "free_connections": 5,
-        "circuit_breaker_state": "closed",
-    })
+    mock_pool.get_metrics = AsyncMock(
+        return_value={
+            "pool_size": 10,
+            "free_connections": 5,
+            "circuit_breaker_state": "closed",
+        }
+    )
     mc = MetricsCollector(db_pool=mock_pool, movie_manager=None)
     return mc
 
@@ -150,7 +152,8 @@ class TestStaleUserEviction:
         # Run eviction inline (same logic as _collect_metrics)
         now = time.time()
         stale = [
-            uid for uid, ts in collector._active_users.items()
+            uid
+            for uid, ts in collector._active_users.items()
             if now - ts > collector._active_user_timeout
         ]
         for uid in stale:

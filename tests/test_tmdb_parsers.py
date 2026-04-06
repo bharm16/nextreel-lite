@@ -39,26 +39,59 @@ def _sample_combined_response():
             "backdrop_path": "/coll_back.jpg",
         },
         "production_companies": [
-            {"id": 508, "name": "Regency Enterprises", "logo_path": "/logo.png", "origin_country": "US"}
+            {
+                "id": 508,
+                "name": "Regency Enterprises",
+                "logo_path": "/logo.png",
+                "origin_country": "US",
+            }
         ],
         "credits": {
             "cast": [
-                {"name": "Brad Pitt", "character": "Tyler Durden", "profile_path": "/brad.jpg", "order": 0},
-                {"name": "Edward Norton", "character": "Narrator", "profile_path": "/ed.jpg", "order": 1},
-                {"name": "Helena Bonham Carter", "character": "Marla Singer", "profile_path": None, "order": 2},
+                {
+                    "name": "Brad Pitt",
+                    "character": "Tyler Durden",
+                    "profile_path": "/brad.jpg",
+                    "order": 0,
+                },
+                {
+                    "name": "Edward Norton",
+                    "character": "Narrator",
+                    "profile_path": "/ed.jpg",
+                    "order": 1,
+                },
+                {
+                    "name": "Helena Bonham Carter",
+                    "character": "Marla Singer",
+                    "profile_path": None,
+                    "order": 2,
+                },
             ],
             "crew": [
                 {"name": "David Fincher", "job": "Director", "department": "Directing"},
                 {"name": "Jim Uhls", "job": "Screenplay", "department": "Writing"},
                 {"name": "Chuck Palahniuk", "job": "Writer", "department": "Writing"},
-                {"name": "The Dust Brothers", "job": "Original Music Composer", "department": "Sound"},
-                {"name": "Jeff Cronenweth", "job": "Director of Photography", "department": "Camera"},
+                {
+                    "name": "The Dust Brothers",
+                    "job": "Original Music Composer",
+                    "department": "Sound",
+                },
+                {
+                    "name": "Jeff Cronenweth",
+                    "job": "Director of Photography",
+                    "department": "Camera",
+                },
                 {"name": "James Haygood", "job": "Editor", "department": "Editing"},
             ],
         },
         "videos": {
             "results": [
-                {"site": "YouTube", "type": "Trailer", "key": "SUXWAEX2jlg", "name": "Official Trailer"},
+                {
+                    "site": "YouTube",
+                    "type": "Trailer",
+                    "key": "SUXWAEX2jlg",
+                    "name": "Official Trailer",
+                },
                 {"site": "YouTube", "type": "Teaser", "key": "abc123", "name": "Teaser"},
             ]
         },

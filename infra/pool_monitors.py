@@ -115,9 +115,7 @@ class PoolHealthMonitor:
                 free_size = pool.freesize
                 self._pool.metrics["idle_connections"] = free_size
 
-                usage_percent = (
-                    (pool_size - free_size) / pool_size * 100 if pool_size > 0 else 0
-                )
+                usage_percent = (pool_size - free_size) / pool_size * 100 if pool_size > 0 else 0
                 if usage_percent > 90:
                     self._pool.state = PoolState.CRITICAL
                     continue  # Don't consume a scarce connection for probing

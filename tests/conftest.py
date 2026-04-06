@@ -7,10 +7,10 @@ import pytest
 from quart import Quart
 
 
-
 # ---------------------------------------------------------------------------
 # Quart test app
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def app():
@@ -24,6 +24,7 @@ def app():
 # ---------------------------------------------------------------------------
 # Mock Redis client
 # ---------------------------------------------------------------------------
+
 
 class FakeRedis:
     """In-memory fake that mirrors the subset of aioredis.Redis we use."""
@@ -73,6 +74,7 @@ def fake_redis():
 # Cache stub (for movie navigator tests)
 # ---------------------------------------------------------------------------
 
+
 class CacheStub:
     """Simple cache stub that returns a fixed payload on get()."""
 
@@ -101,18 +103,21 @@ def cache_stub():
 # Mock DB pool
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def mock_db_pool():
     pool = AsyncMock()
     pool.execute = AsyncMock(return_value=[])
-    pool.get_metrics = AsyncMock(return_value={
-        "pool_size": 10,
-        "free_connections": 5,
-        "circuit_breaker_state": "closed",
-        "queries_executed": 100,
-        "queries_failed": 0,
-        "avg_query_time_ms": 12.5,
-    })
+    pool.get_metrics = AsyncMock(
+        return_value={
+            "pool_size": 10,
+            "free_connections": 5,
+            "circuit_breaker_state": "closed",
+            "queries_executed": 100,
+            "queries_failed": 0,
+            "avg_query_time_ms": 12.5,
+        }
+    )
     pool.init_pool = AsyncMock()
     pool.close_pool = AsyncMock()
     return pool

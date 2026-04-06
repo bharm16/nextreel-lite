@@ -25,7 +25,9 @@ def _criteria_cache_key(criteria: dict[str, Any]) -> str:
 # Columns needed by downstream consumers (MovieNavigator only reads ``tconst``
 # from the result rows, but the integration test in test_filter_backend.py
 # asserts on startYear / averageRating / numVotes / titleType / language).
-_CACHE_COLUMNS = "tconst, primaryTitle, startYear, genres, language, titleType, slug, averageRating, numVotes"
+_CACHE_COLUMNS = (
+    "tconst, primaryTitle, startYear, genres, language, titleType, slug, averageRating, numVotes"
+)
 
 # Base WHERE clause template — shared by all three table paths.  The
 # language predicate is appended dynamically by ``_where_clause`` so that
@@ -120,8 +122,7 @@ class MovieQueryBuilder:
                 "SELECT tb.tconst, tb.primaryTitle, tb.startYear, tb.genres, "
                 "tb.language, tb.titleType, tb.slug, tr.averageRating, tr.numVotes "
                 "FROM `title.basics` tb "
-                "JOIN `title.ratings` tr ON tb.tconst = tr.tconst "
-                + where
+                "JOIN `title.ratings` tr ON tb.tconst = tr.tconst " + where
             )
 
     @staticmethod
@@ -165,8 +166,7 @@ class MovieQueryBuilder:
             return (
                 "SELECT COUNT(*) "
                 "FROM `title.basics` tb "
-                "JOIN `title.ratings` tr ON tb.tconst = tr.tconst "
-                + where
+                "JOIN `title.ratings` tr ON tb.tconst = tr.tconst " + where
             )
 
     @staticmethod
@@ -178,7 +178,9 @@ class MovieQueryBuilder:
 
         # If 15+ genres selected, it's essentially "any genre" - skip the filter entirely
         if len(genres) >= 15:
-            logger.info("%d genres selected (15+), skipping genre filter for performance", len(genres))
+            logger.info(
+                "%d genres selected (15+), skipping genre filter for performance", len(genres)
+            )
             return "", []
 
         # Use FULLTEXT search for better performance
@@ -190,9 +192,7 @@ class MovieQueryBuilder:
         # Build FULLTEXT search query — strip boolean-mode operators to
         # prevent injection via crafted genre names.
         _ft_unsafe = str.maketrans("", "", '+-<>()~*"@')
-        genre_search = " ".join(
-            [f'+"{genre.translate(_ft_unsafe)}"' for genre in genres]
-        )
+        genre_search = " ".join([f'+"{genre.translate(_ft_unsafe)}"' for genre in genres])
         condition = f" AND MATCH({table_alias}genres) AGAINST(%s IN BOOLEAN MODE)"
         return condition, [genre_search]
 
@@ -202,14 +202,18 @@ class MovieQueryBuilder:
         return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
     @staticmethod
-    def build_genre_conditions(criteria: dict[str, Any], parameters: list[Any], use_cache: bool = False) -> list[str]:
+    def build_genre_conditions(
+        criteria: dict[str, Any], parameters: list[Any], use_cache: bool = False
+    ) -> list[str]:
         """Fallback to LIKE queries if FULLTEXT is not available."""
         genre_conditions: list[str] = []
         genres = criteria.get("genres")
         if genres:
             # If 15+ genres selected, it's essentially "any genre" - skip the filter entirely
             if len(genres) >= 15:
-                logger.info("%d genres selected (15+), skipping genre filter for performance", len(genres))
+                logger.info(
+                    "%d genres selected (15+), skipping genre filter for performance", len(genres)
+                )
                 return []
 
             if use_cache:
@@ -248,9 +252,7 @@ class ImdbRandomMovieFetcher(MovieFetcher):
         if not self._cache:
             return
         try:
-            await self._cache.set(
-                CacheNamespace.TEMP, cache_key, count, ttl=self._COUNT_CACHE_TTL
-            )
+            await self._cache.set(CacheNamespace.TEMP, cache_key, count, ttl=self._COUNT_CACHE_TTL)
         except Exception:
             logger.warning("Cache write failed for %s", cache_key, exc_info=True)
 
@@ -288,7 +290,9 @@ class ImdbRandomMovieFetcher(MovieFetcher):
             return await fn(*args, **kwargs)
         except DatabaseError as e:
             if self.use_fulltext and "FULLTEXT" in str(e):
-                logger.warning("FULLTEXT search failed, falling back to LIKE queries for this request")
+                logger.warning(
+                    "FULLTEXT search failed, falling back to LIKE queries for this request"
+                )
                 self.use_fulltext = False
                 try:
                     return await fn(*args, **kwargs)
@@ -341,8 +345,12 @@ class ImdbRandomMovieFetcher(MovieFetcher):
         return await self._safe_fetch(self._fetch_random_movies_impl, criteria, limit)
 
     async def _count_qualifying_rows(
-        self, criteria: dict[str, Any], parameters: list[Any],
-        use_cache: bool, use_recent: bool, lang: str,
+        self,
+        criteria: dict[str, Any],
+        parameters: list[Any],
+        use_cache: bool,
+        use_recent: bool,
+        lang: str,
     ) -> int:
         """Count rows matching criteria, using Redis cache with 5-min TTL."""
         cache_key = _criteria_cache_key(criteria)

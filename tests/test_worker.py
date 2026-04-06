@@ -156,11 +156,13 @@ async def test_validate_referential_integrity_with_issues():
     from worker import validate_referential_integrity
 
     mock_pool = AsyncMock()
-    mock_pool.execute = AsyncMock(side_effect=[
-        {"orphans": 3},
-        {"orphans": 0},
-        {"orphans": 1},
-    ])
+    mock_pool.execute = AsyncMock(
+        side_effect=[
+            {"orphans": 3},
+            {"orphans": 0},
+            {"orphans": 1},
+        ]
+    )
     ctx = {"db_pool": mock_pool}
 
     checks = [("c1", "Q1"), ("c2", "Q2"), ("c3", "Q3")]

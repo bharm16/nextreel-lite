@@ -21,6 +21,9 @@ httpx==0.28.1                    # Modern async HTTP client
 # Security & Authentication
 # ------------------------
 cryptography==46.0.5             # Cryptographic primitives for security features
+authlib>=1.3.0                   # OAuth 2.0 client for Google/Apple Sign-In
+bcrypt>=4.0.0                    # Password hashing
+email-validator>=2.0.0           # Email format validation
 
 # Configuration & Environment
 # --------------------------

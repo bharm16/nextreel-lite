@@ -11,6 +11,7 @@ def _parser():
 
 # ── parse_cast ───────────────────────────────────────────────────────
 
+
 def test_parse_cast_extracts_names_and_images():
     data = {
         "credits": {
@@ -39,6 +40,7 @@ def test_parse_cast_empty_credits():
 
 # ── parse_directors ──────────────────────────────────────────────────
 
+
 def test_parse_directors():
     data = {
         "credits": {
@@ -57,6 +59,7 @@ def test_parse_directors_empty():
 
 # ── parse_trailer ────────────────────────────────────────────────────
 
+
 def test_parse_trailer_finds_youtube():
     data = {
         "videos": {
@@ -74,6 +77,7 @@ def test_parse_trailer_none_when_missing():
 
 
 # ── parse_age_rating ─────────────────────────────────────────────────
+
 
 def test_parse_age_rating_prefers_us():
     data = {
@@ -110,6 +114,7 @@ def test_parse_age_rating_not_rated():
 
 # ── parse_images ─────────────────────────────────────────────────────
 
+
 def test_parse_images():
     data = {
         "images": {
@@ -125,6 +130,7 @@ def test_parse_images():
 
 # ── parse_keywords ───────────────────────────────────────────────────
 
+
 def test_parse_keywords():
     data = {"keywords": {"keywords": [{"name": "sci-fi"}, {"name": "robots"}]}}
     assert _parser().parse_keywords(data) == ["sci-fi", "robots"]
@@ -132,11 +138,18 @@ def test_parse_keywords():
 
 # ── parse_recommendations ────────────────────────────────────────────
 
+
 def test_parse_recommendations():
     data = {
         "recommendations": {
             "results": [
-                {"id": 1, "title": "Rec1", "release_date": "2020-05-01", "poster_path": "/r.jpg", "vote_average": 8.0},
+                {
+                    "id": 1,
+                    "title": "Rec1",
+                    "release_date": "2020-05-01",
+                    "poster_path": "/r.jpg",
+                    "vote_average": 8.0,
+                },
             ]
         }
     }
@@ -148,6 +161,7 @@ def test_parse_recommendations():
 
 # ── parse_external_ids ───────────────────────────────────────────────
 
+
 def test_parse_external_ids():
     data = {"external_ids": {"imdb_id": "tt1234567", "twitter_id": "movie"}}
     result = _parser().parse_external_ids(data)
@@ -157,6 +171,7 @@ def test_parse_external_ids():
 
 
 # ── parse_collection ─────────────────────────────────────────────────
+
 
 def test_parse_collection():
     data = {"belongs_to_collection": {"id": 42, "name": "Saga", "poster_path": "/c.jpg"}}
@@ -170,6 +185,7 @@ def test_parse_collection_none():
 
 
 # ── parse_watch_providers ────────────────────────────────────────────
+
 
 def test_parse_watch_providers():
     data = {
@@ -193,6 +209,7 @@ def test_parse_watch_providers_missing_region():
 
 
 # ── parse_key_crew ───────────────────────────────────────────────────
+
 
 def test_parse_key_crew():
     data = {

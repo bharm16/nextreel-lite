@@ -67,10 +67,13 @@ class TestGetSecret:
 
 class TestValidateAllSecrets:
     def test_all_present_returns_true(self, sm):
-        with patch.dict(os.environ, {
-            "TMDB_API_KEY": "1234567890abcdef",
-            "FLASK_SECRET_KEY": "abcdef1234567890",
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "TMDB_API_KEY": "1234567890abcdef",
+                "FLASK_SECRET_KEY": "abcdef1234567890",
+            },
+        ):
             assert sm.validate_all_secrets() is True
             assert sm.is_validated() is True
 
@@ -95,26 +98,29 @@ class TestValidateAllSecrets:
 
 class TestMasking:
     def test_long_secret_shows_first_and_last_four(self, sm):
-        with patch.dict(os.environ, {
-            "TMDB_API_KEY": "abcdefghijklmnop",
-            "FLASK_SECRET_KEY": "1234567890abcdef",
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "TMDB_API_KEY": "abcdefghijklmnop",
+                "FLASK_SECRET_KEY": "1234567890abcdef",
+            },
+        ):
             # validate_all_secrets logs masked values — we can test the
             # masking logic directly
             value = "abcdefghijklmnop"
-            masked = value[:4] + '*' * max(len(value) - 8, 4) + value[-4:]
+            masked = value[:4] + "*" * max(len(value) - 8, 4) + value[-4:]
             assert masked.startswith("abcd")
             assert masked.endswith("mnop")
             assert "efghijkl" not in masked
 
     def test_short_secret_fully_masked(self):
         value = "short"
-        masked = value[:4] + '*' * max(len(value) - 8, 4) + value[-4:] if len(value) > 8 else '***'
-        assert masked == '***'
+        masked = value[:4] + "*" * max(len(value) - 8, 4) + value[-4:] if len(value) > 8 else "***"
+        assert masked == "***"
 
     def test_exactly_nine_chars(self):
         value = "123456789"
-        masked = value[:4] + '*' * max(len(value) - 8, 4) + value[-4:]
+        masked = value[:4] + "*" * max(len(value) - 8, 4) + value[-4:]
         assert masked.startswith("1234")
         assert masked.endswith("6789")
         # 9 - 8 = 1, but max(1, 4) = 4

@@ -103,6 +103,7 @@ class NavigationState:
     last_activity_at: datetime
     expires_at: datetime
     current_ref: dict[str, Any] | None = None
+    user_id: str | None = None
 
     def clone(self) -> "NavigationState":
         return NavigationState(
@@ -119,6 +120,7 @@ class NavigationState:
             last_activity_at=self.last_activity_at,
             expires_at=self.expires_at,
             current_ref=copy.deepcopy(self.current_ref),
+            user_id=self.user_id,
         )
 
 
@@ -134,6 +136,7 @@ class NavigationStateStore:
         self.db_pool = db_pool
         # Migration helper — can be removed once dual-write window closes.
         from infra.legacy_migration import LegacyMigrationHelper
+
         self.migration = LegacyMigrationHelper(db_pool)
 
     async def dual_write_enabled(self) -> bool:
@@ -164,7 +167,9 @@ class NavigationStateStore:
             current_ref=None,
         )
 
-    def _state_from_legacy(self, session_id: str, legacy_session: MutableMapping[str, Any]) -> NavigationState:
+    def _state_from_legacy(
+        self, session_id: str, legacy_session: MutableMapping[str, Any]
+    ) -> NavigationState:
         return self.migration.state_from_legacy(
             legacy_session,
             fresh_state_fn=self._fresh_state,
@@ -182,7 +187,7 @@ class NavigationStateStore:
             """
             SELECT session_id, version, csrf_token, filters_json, current_tconst, current_ref_json,
                    queue_json, prev_json, future_json, seen_json,
-                   created_at, last_activity_at, expires_at
+                   created_at, last_activity_at, expires_at, user_id
             FROM user_navigation_state
             WHERE session_id = %s
             """,
@@ -214,14 +219,21 @@ class NavigationStateStore:
             csrf_token=row["csrf_token"],
             filters=filters if isinstance(filters, dict) else default_filter_state(),
             current_tconst=row.get("current_tconst"),
-            queue=_normalize_ref_list(self._json_load(row.get("queue_json"), []), max_items=QUEUE_TARGET),
-            prev=_normalize_ref_list(self._json_load(row.get("prev_json"), []), max_items=PREV_STACK_MAX),
-            future=_normalize_ref_list(self._json_load(row.get("future_json"), []), max_items=FUTURE_STACK_MAX),
+            queue=_normalize_ref_list(
+                self._json_load(row.get("queue_json"), []), max_items=QUEUE_TARGET
+            ),
+            prev=_normalize_ref_list(
+                self._json_load(row.get("prev_json"), []), max_items=PREV_STACK_MAX
+            ),
+            future=_normalize_ref_list(
+                self._json_load(row.get("future_json"), []), max_items=FUTURE_STACK_MAX
+            ),
             seen=_normalize_seen(self._json_load(row.get("seen_json"), [])),
             created_at=row["created_at"],
             last_activity_at=row["last_activity_at"],
             expires_at=row["expires_at"],
             current_ref=current_ref,
+            user_id=row.get("user_id"),
         )
 
     @staticmethod
@@ -255,14 +267,15 @@ class NavigationStateStore:
         await self.db_pool.execute(
             """
             INSERT INTO user_navigation_state (
-                session_id, version, csrf_token, filters_json, current_tconst, current_ref_json,
+                session_id, user_id, version, csrf_token, filters_json, current_tconst, current_ref_json,
                 queue_json, prev_json, future_json, seen_json,
                 created_at, last_activity_at, expires_at
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
             [
                 state.session_id,
+                state.user_id,
                 state.version,
                 serialized["csrf_token"],
                 serialized["filters_json"],
@@ -309,12 +322,16 @@ class NavigationStateStore:
                 return await self._touch_if_needed(state), False
 
         dual_write = await self.dual_write_enabled()
-        if dual_write and legacy_session and (
-            legacy_session.get(CURRENT_MOVIE_KEY)
-            or legacy_session.get(WATCH_QUEUE_KEY)
-            or legacy_session.get(PREVIOUS_STACK_KEY)
-            or legacy_session.get(FUTURE_STACK_KEY)
-            or legacy_session.get(CRITERIA_KEY)
+        if (
+            dual_write
+            and legacy_session
+            and (
+                legacy_session.get(CURRENT_MOVIE_KEY)
+                or legacy_session.get(WATCH_QUEUE_KEY)
+                or legacy_session.get(PREVIOUS_STACK_KEY)
+                or legacy_session.get(FUTURE_STACK_KEY)
+                or legacy_session.get(CRITERIA_KEY)
+            )
         ):
             state = self._state_from_legacy(uuid.uuid4().hex, legacy_session)
             await self._insert_state(state)
@@ -355,9 +372,7 @@ class NavigationStateStore:
         next_version = expected_version + 1
         current_values = self._serialized_state_fields(state)
         previous_values = (
-            self._serialized_state_fields(previous_state)
-            if previous_state is not None
-            else None
+            self._serialized_state_fields(previous_state) if previous_state is not None else None
         )
 
         assignments = ["version = %s"]
@@ -376,7 +391,9 @@ class NavigationStateStore:
                 assignments.append(f"{field} = %s")
                 params.append(current_values[field])
         assignments.extend(["last_activity_at = %s", "expires_at = %s"])
-        params.extend([state.last_activity_at, state.expires_at, state.session_id, expected_version])
+        params.extend(
+            [state.last_activity_at, state.expires_at, state.session_id, expected_version]
+        )
         updated = await self.db_pool.execute(
             f"""
             UPDATE user_navigation_state
@@ -391,7 +408,9 @@ class NavigationStateStore:
         state.version = next_version
         return True
 
-    def _write_legacy_session(self, state: NavigationState, legacy_session: MutableMapping[str, Any]) -> None:
+    def _write_legacy_session(
+        self, state: NavigationState, legacy_session: MutableMapping[str, Any]
+    ) -> None:
         self.migration.write_legacy_session(state, legacy_session, criteria_from_filters)
 
     async def mutate(
@@ -404,7 +423,11 @@ class NavigationStateStore:
         from infra.metrics import navigation_state_conflicts_total
 
         for _ in range(2):
-            current = current_state.clone() if current_state is not None else await self.get_state(session_id)
+            current = (
+                current_state.clone()
+                if current_state is not None
+                else await self.get_state(session_id)
+            )
             if not current:
                 return MutationResult(state=None, conflicted=True)
 
@@ -427,7 +450,21 @@ class NavigationStateStore:
 
         return MutationResult(state=await self.get_state(session_id), conflicted=True)
 
-    async def delete_state(self, session_id: str, legacy_session: MutableMapping[str, Any] | None = None) -> None:
+    async def set_user_id(self, session_id: str, user_id: str | None) -> None:
+        """Link or unlink a user account to/from a session."""
+        await self.db_pool.execute(
+            """
+            UPDATE user_navigation_state
+            SET user_id = %s, last_activity_at = %s
+            WHERE session_id = %s
+            """,
+            [user_id, utcnow(), session_id],
+            fetch="none",
+        )
+
+    async def delete_state(
+        self, session_id: str, legacy_session: MutableMapping[str, Any] | None = None
+    ) -> None:
         await self.db_pool.execute(
             "DELETE FROM user_navigation_state WHERE session_id = %s",
             [session_id],

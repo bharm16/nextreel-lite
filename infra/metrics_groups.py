@@ -19,13 +19,16 @@ from config.env import get_environment
 # ── Application info ─────────────────────────────────────────────────
 
 app_info = Info("nextreel_app_info", "Application information")
-app_info.info({
-    "version": os.getenv("APP_VERSION", "1.0.0"),
-    "environment": get_environment(),
-})
+app_info.info(
+    {
+        "version": os.getenv("APP_VERSION", "1.0.0"),
+        "environment": get_environment(),
+    }
+)
 
 
 # ── HTTP ─────────────────────────────────────────────────────────────
+
 
 @dataclass(frozen=True)
 class HTTPMetrics:
@@ -55,6 +58,7 @@ http = HTTPMetrics(
 
 # ── Database ─────────────────────────────────────────────────────────
 
+
 @dataclass(frozen=True)
 class DatabaseMetrics:
     connections_active: Gauge
@@ -70,7 +74,9 @@ database = DatabaseMetrics(
     connections_active=Gauge("nextreel_db_connections_active", "Active database connections"),
     connections_idle=Gauge("nextreel_db_connections_idle", "Idle database connections"),
     connections_total=Gauge("nextreel_db_connections_total", "Total database connections in pool"),
-    queries_total=Counter("nextreel_db_queries_total", "Total database queries", ["query_type", "table", "status"]),
+    queries_total=Counter(
+        "nextreel_db_queries_total", "Total database queries", ["query_type", "table", "status"]
+    ),
     query_duration_seconds=Histogram(
         "nextreel_db_query_duration_seconds",
         "Database query duration in seconds",
@@ -81,11 +87,14 @@ database = DatabaseMetrics(
         "nextreel_db_circuit_breaker_state",
         "Database circuit breaker state (0=closed, 1=open, 2=half-open)",
     ),
-    connection_errors_total=Counter("nextreel_db_connection_errors_total", "Total database connection errors"),
+    connection_errors_total=Counter(
+        "nextreel_db_connection_errors_total", "Total database connection errors"
+    ),
 )
 
 
 # ── Movie & recommendations ──────────────────────────────────────────
+
 
 @dataclass(frozen=True)
 class MovieMetrics:
@@ -100,12 +109,17 @@ movie = MovieMetrics(
         "Total movie recommendations served",
         ["recommendation_type"],
     ),
-    fetches_total=Counter("nextreel_movie_fetches_total", "Total movie data fetches", ["source", "status"]),
-    filters_applied_total=Counter("nextreel_movie_filters_applied_total", "Total movie filters applied", ["filter_type"]),
+    fetches_total=Counter(
+        "nextreel_movie_fetches_total", "Total movie data fetches", ["source", "status"]
+    ),
+    filters_applied_total=Counter(
+        "nextreel_movie_filters_applied_total", "Total movie filters applied", ["filter_type"]
+    ),
 )
 
 
 # ── TMDb API ─────────────────────────────────────────────────────────
+
 
 @dataclass(frozen=True)
 class TMDbMetrics:
@@ -115,13 +129,20 @@ class TMDbMetrics:
 
 
 tmdb = TMDbMetrics(
-    api_calls_total=Counter("nextreel_tmdb_api_calls_total", "Total TMDB API calls", ["endpoint", "status_code"]),
-    api_duration_seconds=Histogram("nextreel_tmdb_api_duration_seconds", "TMDB API call duration in seconds", ["endpoint"]),
-    rate_limit_remaining=Gauge("nextreel_tmdb_rate_limit_remaining", "Remaining TMDB API rate limit"),
+    api_calls_total=Counter(
+        "nextreel_tmdb_api_calls_total", "Total TMDB API calls", ["endpoint", "status_code"]
+    ),
+    api_duration_seconds=Histogram(
+        "nextreel_tmdb_api_duration_seconds", "TMDB API call duration in seconds", ["endpoint"]
+    ),
+    rate_limit_remaining=Gauge(
+        "nextreel_tmdb_rate_limit_remaining", "Remaining TMDB API rate limit"
+    ),
 )
 
 
 # ── User & session ───────────────────────────────────────────────────
+
 
 @dataclass(frozen=True)
 class UserMetrics:
@@ -135,11 +156,14 @@ user = UserMetrics(
     active_users=Gauge("nextreel_active_users", "Currently active users"),
     sessions_total=Counter("nextreel_user_sessions_total", "Total user sessions created"),
     actions_total=Counter("nextreel_user_actions_total", "Total user actions", ["action_type"]),
-    session_duration_seconds=Histogram("nextreel_session_duration_seconds", "User session duration in seconds"),
+    session_duration_seconds=Histogram(
+        "nextreel_session_duration_seconds", "User session duration in seconds"
+    ),
 )
 
 
 # ── Cache ────────────────────────────────────────────────────────────
+
 
 @dataclass(frozen=True)
 class CacheMetrics:
@@ -166,6 +190,7 @@ cache = CacheMetrics(
 
 
 # ── Error / operational ──────────────────────────────────────────────
+
 
 @dataclass(frozen=True)
 class ErrorMetrics:

@@ -4,7 +4,7 @@ from quart import request, g
 from logging_config import get_logger
 
 # Only allow safe characters in correlation IDs to prevent log injection
-_SAFE_CORRELATION_RE = re.compile(r'^[\w\-\.]{1,128}$')
+_SAFE_CORRELATION_RE = re.compile(r"^[\w\-\.]{1,128}$")
 
 logger = get_logger(__name__)
 
