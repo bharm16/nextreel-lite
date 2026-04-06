@@ -45,21 +45,21 @@
         <h1 class="watched-title">Watched</h1>
         <hr class="watched-hairline" />
         <dl class="watched-stats">
-          <div class="watched-stat">
-            <dd class="watched-stat-num">{{ stats.total }}</dd>
+          <div class="watched-stat" role="group">
             <dt class="watched-stat-label">Films</dt>
+            <dd class="watched-stat-num">{{ stats.total }}</dd>
           </div>
-          <div class="watched-stat">
-            <dd class="watched-stat-num">{{ stats.this_month }}</dd>
+          <div class="watched-stat" role="group">
             <dt class="watched-stat-label">This Month</dt>
+            <dd class="watched-stat-num">{{ stats.this_month }}</dd>
           </div>
-          <div class="watched-stat">
-            <dd class="watched-stat-num">{{ stats.avg_year if stats.avg_year else '—' }}</dd>
+          <div class="watched-stat" role="group">
             <dt class="watched-stat-label">Avg Year</dt>
+            <dd class="watched-stat-num">{{ stats.avg_year if stats.avg_year else '—' }}</dd>
           </div>
-          <div class="watched-stat">
-            <dd class="watched-stat-num">{{ stats.top_decade if stats.top_decade else '—' }}</dd>
+          <div class="watched-stat" role="group">
             <dt class="watched-stat-label">Top Decade</dt>
+            <dd class="watched-stat-num">{{ stats.top_decade if stats.top_decade else '—' }}</dd>
           </div>
         </dl>
       </header>
@@ -176,11 +176,17 @@
         countEl.textContent = visible + ' of ' + total;
       }
 
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
       function applySort() {
-        grid.style.opacity = '0.4';
+        if (!reducedMotion) {
+          grid.style.opacity = '0.4';
+        }
         const sorted = allCards.slice().sort(currentSorter());
         sorted.forEach(function (card) { grid.appendChild(card); });
-        setTimeout(function () { grid.style.opacity = '1'; }, 150);
+        if (!reducedMotion) {
+          setTimeout(function () { grid.style.opacity = '1'; }, 150);
+        }
       }
 
       let searchTimer = null;

@@ -1136,7 +1136,10 @@
     padding: 0;
     flex-wrap: wrap;
   }
-  .watched-stat { display: block; }
+  .watched-stat {
+    display: flex;
+    flex-direction: column-reverse;
+  }
   .watched-stat-num {
     font-family: var(--font-serif);
     font-size: 1.75rem;
@@ -1404,6 +1407,18 @@
       gap: 1rem;
     }
     .watched-search-wrap { width: 60%; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .watched-grid,
+    .watched-poster,
+    .watched-card,
+    .watched-card-overlay,
+    .watched-remove,
+    .watched-search {
+      transition: none !important;
+      animation: none !important;
+    }
   }
 
   /* Fade-in animation */
