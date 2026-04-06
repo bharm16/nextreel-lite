@@ -1,14 +1,14 @@
-{% from "macros.html" import pick_movie_button, pick_movie_button_block with context %}
+{% from "macros.html" import pick_movie_button with context %}
 <!DOCTYPE html>
 <html lang="en" class="scroll-smooth">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Watched List – Nextreel</title>
-  <meta name="description" content="Your watched movies on Nextreel." />
+  <title>Watched – Nextreel</title>
+  <meta name="description" content="Your watched films on Nextreel." />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/output.css') }}">
+  <link href="https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,300;0,400;0,700;1,400&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/output.css') }}?v={{ config.get('CSS_VERSION', '1') }}">
   <script>
     (() => {
       try {
@@ -20,116 +20,226 @@
     })();
   </script>
   <style>
-    :root { color-scheme: light; }
-    body { font-family: 'Poppins', system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif; }
-    .font-brand-serif { font-family: 'Merriweather', Georgia, Cambria, 'Times New Roman', Times, serif; }
+    body { font-family: var(--font-sans, 'DM Sans', system-ui, sans-serif); background: var(--color-bg); color: var(--color-text); }
   </style>
 </head>
-<body class="bg-surface text-body antialiased">
+<body class="antialiased">
   <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:shadow">Skip to content</a>
 
   {% include 'navbar_modern.html' %}
 
-  <!-- Hero -->
-  <section class="relative isolate">
-    <div class="absolute inset-0 -z-10 bg-gradient-to-br from-primary via-primary/90 to-slate-900"></div>
-    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-      <div class="flex min-h-[30vh] items-center justify-center py-12 text-center">
-        <div class="max-w-3xl text-white">
-          <h1 class="font-brand-serif text-3xl sm:text-4xl font-extrabold tracking-tight">Watched List</h1>
-          <p class="mt-3 text-sm/7 sm:text-base/7 opacity-90">
-            {% if total > 0 %}
-            You've watched {{ total }} movie{{ 's' if total != 1 else '' }}.
-            {% else %}
-            Track the movies you've seen.
-            {% endif %}
-          </p>
-        </div>
-      </div>
-    </div>
-  </section>
-
   <main id="main">
-    <section class="py-12 sm:py-16 bg-surface-alt">
-      <div class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
-
-        {% if movies|length == 0 %}
-        <!-- Empty state -->
-        <div class="card text-center py-12">
-          <svg class="mx-auto h-12 w-12 text-body/30 mb-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-            <path d="M15 10l-4 4m0-4l4 4m6-4a9 9 0 11-18 0 9 9 0 0118 0z"/>
-          </svg>
-          <p class="text-lg font-semibold text-primary mb-2">No watched movies yet</p>
-          <p class="text-sm text-body/70 mb-6">You haven't marked any movies as watched yet.</p>
-          {{ pick_movie_button(class="inline-flex items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-white shadow hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-accent/40") }}
-        </div>
-        {% else %}
-
-        <!-- Movie grid -->
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {% for movie in movies %}
-          <div class="card flex flex-col justify-between">
-            <div>
-              <h2 class="text-base font-semibold text-primary">
-                {% if movie.slug %}
-                <a href="/movie/{{ movie.slug }}" class="hover:text-accent">{{ movie.primaryTitle }}</a>
-                {% else %}
-                {{ movie.primaryTitle }}
-                {% endif %}
-              </h2>
-              {% if movie.startYear %}
-              <p class="text-sm text-body/60 mt-1">{{ movie.startYear }}</p>
-              {% endif %}
-              {% if movie.watched_at %}
-              <p class="text-xs text-body/50 mt-2">
-                Watched {{ movie.watched_at.strftime('%b %d, %Y') if movie.watched_at.strftime else movie.watched_at }}
-              </p>
-              {% endif %}
-            </div>
-            <div class="mt-4">
-              <form method="POST" action="/watched/remove/{{ movie.tconst }}" class="inline">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" class="inline-flex items-center gap-1.5 rounded-full chip px-4 py-2 text-xs font-semibold text-body hover:opacity-80">
-                  <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
-                  Remove
-                </button>
-              </form>
-            </div>
-          </div>
-          {% endfor %}
-        </div>
-
-        <!-- Pagination -->
-        {% if total_pages > 1 %}
-        <nav class="mt-10 flex items-center justify-center gap-4" aria-label="Pagination">
-          {% if page > 1 %}
-          <a href="?page={{ page - 1 }}" class="inline-flex items-center gap-1 rounded-full chip px-4 py-2 text-sm font-semibold text-body hover:opacity-80">
-            &larr; Previous
-          </a>
-          {% else %}
-          <span class="inline-flex items-center gap-1 rounded-full chip px-4 py-2 text-sm font-semibold text-body/40 cursor-not-allowed">
-            &larr; Previous
-          </span>
-          {% endif %}
-
-          <span class="text-sm text-body/70">Page {{ page }} of {{ total_pages }}</span>
-
-          {% if page < total_pages %}
-          <a href="?page={{ page + 1 }}" class="inline-flex items-center gap-1 rounded-full chip px-4 py-2 text-sm font-semibold text-body hover:opacity-80">
-            Next &rarr;
-          </a>
-          {% else %}
-          <span class="inline-flex items-center gap-1 rounded-full chip px-4 py-2 text-sm font-semibold text-body/40 cursor-not-allowed">
-            Next &rarr;
-          </span>
-          {% endif %}
-        </nav>
-        {% endif %}
-
-        {% endif %}
+    {% if movies|length == 0 %}
+      <header class="watched-header">
+        <h1 class="watched-title">Watched</h1>
+        <hr class="watched-hairline" />
+      </header>
+      <div class="watched-empty">
+        <blockquote class="watched-empty-quote">&ldquo;A film unseen is a door unopened.&rdquo;</blockquote>
+        <hr class="watched-empty-rule" />
+        <p class="watched-empty-line">Your watched list is empty.</p>
+        <a href="/" class="auth-submit watched-empty-cta">Pick a film</a>
       </div>
-    </section>
+    {% else %}
+      <header class="watched-header">
+        <h1 class="watched-title">Watched</h1>
+        <hr class="watched-hairline" />
+        <dl class="watched-stats">
+          <div class="watched-stat">
+            <dd class="watched-stat-num">{{ stats.total }}</dd>
+            <dt class="watched-stat-label">Films</dt>
+          </div>
+          <div class="watched-stat">
+            <dd class="watched-stat-num">{{ stats.this_month }}</dd>
+            <dt class="watched-stat-label">This Month</dt>
+          </div>
+          <div class="watched-stat">
+            <dd class="watched-stat-num">{{ stats.avg_year if stats.avg_year else '—' }}</dd>
+            <dt class="watched-stat-label">Avg Year</dt>
+          </div>
+          <div class="watched-stat">
+            <dd class="watched-stat-num">{{ stats.top_decade if stats.top_decade else '—' }}</dd>
+            <dt class="watched-stat-label">Top Decade</dt>
+          </div>
+        </dl>
+      </header>
+
+      <div class="watched-toolbar">
+        <div class="watched-search-wrap">
+          <svg class="watched-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input
+            type="search"
+            id="watched-search"
+            class="watched-search"
+            placeholder="Search films..."
+            aria-label="Search watched films"
+            autocomplete="off"
+          />
+        </div>
+        <div class="watched-toolbar-right">
+          <span class="watched-count" id="watched-count">{{ stats.total }} of {{ stats.total }}</span>
+          <select id="watched-sort" class="watched-sort" aria-label="Sort watched films">
+            <option value="recent">Recent</option>
+            <option value="oldest">Oldest first</option>
+            <option value="year_desc">Year ↓</option>
+            <option value="year_asc">Year ↑</option>
+            <option value="rating_desc">Rating ↓</option>
+            <option value="title_asc">Title A–Z</option>
+          </select>
+        </div>
+      </div>
+
+      <section class="watched-grid auth-fade-in" id="watched-grid">
+        {% for movie in movies %}
+          {% set href = '/movie/' ~ movie.slug if movie.slug else '/movie/' ~ movie.tconst %}
+          <a
+            class="watched-card"
+            href="{{ href }}"
+            data-tconst="{{ movie.tconst }}"
+            data-title="{{ movie.title }}"
+            data-year="{{ movie.year if movie.year else '' }}"
+            data-rating="{{ movie.tmdb_rating }}"
+            data-watched="{{ movie.watched_at }}"
+            data-search="{{ movie.title|lower }}"
+          >
+            <img
+              class="watched-poster"
+              src="{{ movie.poster_url }}"
+              alt="{{ movie.title }}{% if movie.year %} ({{ movie.year }}){% endif %} poster"
+              loading="{{ 'eager' if loop.index0 < 6 else 'lazy' }}"
+            />
+            <div class="watched-card-overlay" aria-hidden="true">
+              <div class="watched-card-meta">
+                <div class="watched-card-title">{{ movie.title }}</div>
+                {% if movie.year %}<div class="watched-card-year">{{ movie.year }}</div>{% endif %}
+              </div>
+            </div>
+            <button
+              type="button"
+              class="watched-remove"
+              data-tconst="{{ movie.tconst }}"
+              aria-label="Remove {{ movie.title }} from watched"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                <path d="M18 6L6 18M6 6l12 12"/>
+              </svg>
+            </button>
+          </a>
+        {% endfor %}
+      </section>
+    {% endif %}
   </main>
+
+  <script>
+    (function () {
+      const grid = document.getElementById('watched-grid');
+      if (!grid) return;
+      const searchInput = document.getElementById('watched-search');
+      const sortSelect = document.getElementById('watched-sort');
+      const countEl = document.getElementById('watched-count');
+      const csrfToken = "{{ csrf_token() }}";
+
+      const allCards = Array.from(grid.querySelectorAll('.watched-card'));
+      const total = allCards.length;
+
+      function currentSorter() {
+        const v = sortSelect.value;
+        return function (a, b) {
+          switch (v) {
+            case 'oldest':
+              return (a.dataset.watched || '').localeCompare(b.dataset.watched || '');
+            case 'year_desc':
+              return (parseInt(b.dataset.year, 10) || 0) - (parseInt(a.dataset.year, 10) || 0);
+            case 'year_asc':
+              return (parseInt(a.dataset.year, 10) || 9999) - (parseInt(b.dataset.year, 10) || 9999);
+            case 'rating_desc':
+              return (parseFloat(b.dataset.rating) || 0) - (parseFloat(a.dataset.rating) || 0);
+            case 'title_asc':
+              return (a.dataset.title || '').localeCompare(b.dataset.title || '');
+            case 'recent':
+            default:
+              return (b.dataset.watched || '').localeCompare(a.dataset.watched || '');
+          }
+        };
+      }
+
+      function applyFilter() {
+        const q = (searchInput.value || '').trim().toLowerCase();
+        let visible = 0;
+        allCards.forEach(function (card) {
+          const match = !q || (card.dataset.search || '').indexOf(q) !== -1;
+          card.style.display = match ? '' : 'none';
+          if (match) visible++;
+        });
+        countEl.textContent = visible + ' of ' + total;
+      }
+
+      function applySort() {
+        grid.style.opacity = '0.4';
+        const sorted = allCards.slice().sort(currentSorter());
+        sorted.forEach(function (card) { grid.appendChild(card); });
+        setTimeout(function () { grid.style.opacity = '1'; }, 150);
+      }
+
+      let searchTimer = null;
+      searchInput.addEventListener('input', function () {
+        if (searchTimer) clearTimeout(searchTimer);
+        searchTimer = setTimeout(applyFilter, 100);
+      });
+
+      sortSelect.addEventListener('change', applySort);
+
+      grid.addEventListener('click', function (e) {
+        const btn = e.target.closest('.watched-remove');
+        if (!btn) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (btn.dataset.confirming === '1') {
+          const card = btn.closest('.watched-card');
+          const tconst = btn.dataset.tconst;
+          card.style.transition = 'opacity 200ms ease, transform 200ms ease';
+          card.style.opacity = '0';
+          card.style.transform = 'scale(0.95)';
+          fetch('/watched/remove/' + encodeURIComponent(tconst), {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrfToken, 'Accept': 'application/json' },
+            credentials: 'same-origin',
+          }).then(function (resp) {
+            if (!resp.ok && resp.status !== 303) {
+              card.style.opacity = '1';
+              card.style.transform = '';
+              btn.dataset.confirming = '0';
+              btn.classList.remove('is-confirming');
+              return;
+            }
+            setTimeout(function () {
+              const idx = allCards.indexOf(card);
+              if (idx >= 0) allCards.splice(idx, 1);
+              card.remove();
+              applyFilter();
+            }, 200);
+          }).catch(function () {
+            card.style.opacity = '1';
+            card.style.transform = '';
+            btn.dataset.confirming = '0';
+            btn.classList.remove('is-confirming');
+          });
+        } else {
+          btn.dataset.confirming = '1';
+          btn.classList.add('is-confirming');
+          setTimeout(function () {
+            if (btn.dataset.confirming === '1') {
+              btn.dataset.confirming = '0';
+              btn.classList.remove('is-confirming');
+            }
+          }, 3000);
+        }
+      });
+    })();
+  </script>
 
   {% include 'footer_modern.html' %}
 </body>

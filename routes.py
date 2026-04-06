@@ -1,6 +1,7 @@
 """Application route handlers."""
 
 from dataclasses import dataclass
+import json
 import re
 import time
 from datetime import datetime, timezone
@@ -504,21 +505,83 @@ async def watched_list_page():
 
     user_id = _current_user_id()
     services = _services()
-    page = int(request.args.get("page", 1))
-    per_page = 20
-    offset = (page - 1) * per_page
 
-    movies = await services.movie_manager.watched_store.list_watched(
-        user_id, limit=per_page, offset=offset
-    )
-    total = await services.movie_manager.watched_store.count(user_id)
-    total_pages = max(1, (total + per_page - 1) // per_page)
+    raw_rows = await services.movie_manager.watched_store.list_all_watched(user_id)
+
+    movies: list[dict] = []
+    year_values: list[int] = []
+    this_month_count = 0
+    now = datetime.utcnow()
+    current_year = now.year
+    current_month = now.month
+
+    for row in raw_rows:
+        payload = row.get("payload_json")
+        if isinstance(payload, str):
+            try:
+                payload = json.loads(payload)
+            except (TypeError, ValueError):
+                payload = {}
+        if not isinstance(payload, dict):
+            payload = {}
+
+        tconst = row.get("tconst")
+        title = payload.get("title") or row.get("primaryTitle") or "Untitled"
+        slug = payload.get("slug") or row.get("slug")
+
+        year_raw = payload.get("year") or row.get("startYear")
+        try:
+            year_int = int(str(year_raw)[:4]) if year_raw else None
+        except (TypeError, ValueError):
+            year_int = None
+        if year_int:
+            year_values.append(year_int)
+
+        try:
+            tmdb_rating = float(payload.get("rating") or 0)
+        except (TypeError, ValueError):
+            tmdb_rating = 0.0
+
+        poster_url = payload.get("poster_url") or "/static/img/poster-placeholder.svg"
+
+        watched_at = row.get("watched_at")
+        watched_iso = watched_at.isoformat() if hasattr(watched_at, "isoformat") else str(watched_at or "")
+        if hasattr(watched_at, "year") and watched_at.year == current_year and watched_at.month == current_month:
+            this_month_count += 1
+
+        movies.append({
+            "tconst": tconst,
+            "slug": slug,
+            "title": title,
+            "year": year_int,
+            "poster_url": poster_url,
+            "tmdb_rating": tmdb_rating,
+            "watched_at": watched_iso,
+        })
+
+    total = len(movies)
+    avg_year = int(round(sum(year_values) / len(year_values))) if year_values else None
+    if year_values:
+        decade_counts: dict[int, int] = {}
+        for y in year_values:
+            d = (y // 10) * 10
+            decade_counts[d] = decade_counts.get(d, 0) + 1
+        top_decade_year = max(decade_counts.items(), key=lambda kv: kv[1])[0]
+        top_decade = "%ds" % top_decade_year
+    else:
+        top_decade = None
+
+    stats = {
+        "total": total,
+        "this_month": this_month_count,
+        "avg_year": avg_year,
+        "top_decade": top_decade,
+    }
 
     return await render_template(
         "watched_list.html",
         movies=movies,
-        page=page,
-        total_pages=total_pages,
+        stats=stats,
         total=total,
     )
 

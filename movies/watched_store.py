@@ -72,14 +72,34 @@ class WatchedStore:
         rows = await self.db_pool.execute(
             """
             SELECT w.tconst, w.watched_at,
-                   c.primaryTitle, c.startYear, c.genres, c.slug
+                   c.primaryTitle, c.startYear, c.genres, c.slug,
+                   p.payload_json
             FROM user_watched_movies w
             LEFT JOIN movie_candidates c ON w.tconst = c.tconst
+            LEFT JOIN movie_projection p ON w.tconst = p.tconst
             WHERE w.user_id = %s
             ORDER BY w.watched_at DESC
             LIMIT %s OFFSET %s
             """,
             [user_id, limit, offset],
+            fetch="all",
+        )
+        return rows if rows else []
+
+    async def list_all_watched(self, user_id: str) -> list[dict[str, Any]]:
+        """Return all watched movies for a user, ordered by most recently watched."""
+        rows = await self.db_pool.execute(
+            """
+            SELECT w.tconst, w.watched_at,
+                   c.primaryTitle, c.startYear, c.genres, c.slug,
+                   p.payload_json
+            FROM user_watched_movies w
+            LEFT JOIN movie_candidates c ON w.tconst = c.tconst
+            LEFT JOIN movie_projection p ON w.tconst = p.tconst
+            WHERE w.user_id = %s
+            ORDER BY w.watched_at DESC
+            """,
+            [user_id],
             fetch="all",
         )
         return rows if rows else []
