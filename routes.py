@@ -511,7 +511,7 @@ async def watched_list_page():
     movies: list[dict] = []
     year_values: list[int] = []
     this_month_count = 0
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     current_year = now.year
     current_month = now.month
 
@@ -526,6 +526,8 @@ async def watched_list_page():
             payload = {}
 
         tconst = row.get("tconst")
+        if not tconst:
+            continue
         title = payload.get("title") or row.get("primaryTitle") or "Untitled"
         slug = payload.get("slug") or row.get("slug")
 
@@ -566,7 +568,7 @@ async def watched_list_page():
         for y in year_values:
             d = (y // 10) * 10
             decade_counts[d] = decade_counts.get(d, 0) + 1
-        top_decade_year = max(decade_counts.items(), key=lambda kv: kv[1])[0]
+        top_decade_year = max(decade_counts.items(), key=lambda kv: (kv[1], kv[0]))[0]
         top_decade = "%ds" % top_decade_year
     else:
         top_decade = None

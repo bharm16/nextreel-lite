@@ -86,7 +86,9 @@ class WatchedStore:
         )
         return rows if rows else []
 
-    async def list_all_watched(self, user_id: str) -> list[dict[str, Any]]:
+    async def list_all_watched(
+        self, user_id: str, limit: int = 5000
+    ) -> list[dict[str, Any]]:
         """Return all watched movies for a user, ordered by most recently watched."""
         rows = await self.db_pool.execute(
             """
@@ -98,8 +100,9 @@ class WatchedStore:
             LEFT JOIN movie_projection p ON w.tconst = p.tconst
             WHERE w.user_id = %s
             ORDER BY w.watched_at DESC
+            LIMIT %s
             """,
-            [user_id],
+            [user_id, limit],
             fetch="all",
         )
         return rows if rows else []

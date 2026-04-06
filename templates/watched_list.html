@@ -79,7 +79,8 @@
           />
         </div>
         <div class="watched-toolbar-right">
-          <span class="watched-count" id="watched-count">{{ stats.total }} of {{ stats.total }}</span>
+          <span class="watched-count" id="watched-count" aria-live="polite">{{ stats.total }} of {{ stats.total }}</span>
+          <div id="watched-toast" class="watched-toast" role="alert" aria-live="assertive" hidden></div>
           <select id="watched-sort" class="watched-sort" aria-label="Sort watched films">
             <option value="recent">Recent</option>
             <option value="oldest">Oldest first</option>
@@ -94,28 +95,29 @@
       <section class="watched-grid auth-fade-in" id="watched-grid">
         {% for movie in movies %}
           {% set href = '/movie/' ~ movie.slug if movie.slug else '/movie/' ~ movie.tconst %}
-          <a
+          <div
             class="watched-card"
-            href="{{ href }}"
             data-tconst="{{ movie.tconst }}"
             data-title="{{ movie.title }}"
             data-year="{{ movie.year if movie.year else '' }}"
             data-rating="{{ movie.tmdb_rating }}"
             data-watched="{{ movie.watched_at }}"
-            data-search="{{ movie.title|lower }}"
+            data-search="{{ movie.title|lower }} {{ movie.year or '' }}"
           >
-            <img
-              class="watched-poster"
-              src="{{ movie.poster_url }}"
-              alt="{{ movie.title }}{% if movie.year %} ({{ movie.year }}){% endif %} poster"
-              loading="{{ 'eager' if loop.index0 < 6 else 'lazy' }}"
-            />
-            <div class="watched-card-overlay" aria-hidden="true">
-              <div class="watched-card-meta">
-                <div class="watched-card-title">{{ movie.title }}</div>
-                {% if movie.year %}<div class="watched-card-year">{{ movie.year }}</div>{% endif %}
+            <a class="watched-poster-link" href="{{ href }}">
+              <img
+                class="watched-poster"
+                src="{{ movie.poster_url }}"
+                alt="{{ movie.title }}{% if movie.year %} ({{ movie.year }}){% endif %} poster"
+                loading="{{ 'eager' if loop.index0 < 6 else 'lazy' }}"
+              />
+              <div class="watched-card-overlay" aria-hidden="true">
+                <div class="watched-card-meta">
+                  <div class="watched-card-title">{{ movie.title }}</div>
+                  {% if movie.year %}<div class="watched-card-year">{{ movie.year }}</div>{% endif %}
+                </div>
               </div>
-            </div>
+            </a>
             <button
               type="button"
               class="watched-remove"
@@ -126,7 +128,7 @@
                 <path d="M18 6L6 18M6 6l12 12"/>
               </svg>
             </button>
-          </a>
+          </div>
         {% endfor %}
       </section>
     {% endif %}
@@ -197,11 +199,22 @@
 
       sortSelect.addEventListener('change', applySort);
 
+      const toastEl = document.getElementById('watched-toast');
+      let toastTimer = null;
+      function showToast(message) {
+        if (!toastEl) return;
+        toastEl.textContent = message;
+        toastEl.hidden = false;
+        if (toastTimer) clearTimeout(toastTimer);
+        toastTimer = setTimeout(function () {
+          toastEl.hidden = true;
+        }, 4000);
+      }
+
       grid.addEventListener('click', function (e) {
         const btn = e.target.closest('.watched-remove');
         if (!btn) return;
         e.preventDefault();
-        e.stopPropagation();
 
         if (btn.dataset.confirming === '1') {
           const card = btn.closest('.watched-card');
@@ -219,6 +232,7 @@
               card.style.transform = '';
               btn.dataset.confirming = '0';
               btn.classList.remove('is-confirming');
+              showToast("Couldn't remove. Try again.");
               return;
             }
             setTimeout(function () {
@@ -227,11 +241,13 @@
               card.remove();
               applyFilter();
             }, 200);
-          }).catch(function () {
+          }).catch(function (err) {
+            console.error('Failed to remove watched film:', err);
             card.style.opacity = '1';
             card.style.transform = '';
             btn.dataset.confirming = '0';
             btn.classList.remove('is-confirming');
+            showToast("Couldn't remove. Try again.");
           });
         } else {
           btn.dataset.confirming = '1';
