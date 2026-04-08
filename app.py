@@ -125,6 +125,10 @@ async def _setup_redis(app):
             )
             app.secure_cache = app.redis_cache
             await app.redis_cache.initialize()
+            try:
+                app.movie_manager.attach_cache(app.redis_cache)
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.warning("Failed to attach cache to movie_manager: %s", exc)
         except Exception as exc:
             logger.warning("Redis cache initialization failed: %s", exc)
             app.redis_cache = None

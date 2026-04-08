@@ -7,9 +7,10 @@ available movie data.  It provides the same API surface so existing callers
 See ADR-001-ARCHITECTURE-AUDIT.md, Finding 3.1.
 """
 
+import asyncio
 import json
 from enum import Enum
-from typing import Any, Optional, Union
+from typing import Any, Awaitable, Callable, Optional, Union
 
 import redis.asyncio as aioredis
 
@@ -58,6 +59,11 @@ class SimpleCacheManager:
         self._owns_connection = False  # True when we created our own connection
         self._redis: Optional[aioredis.Redis] = redis_client
         self._verify_connection = verify_connection
+        # In-process single-flight: collapses concurrent loaders for the same
+        # key onto a single backing fetch (defends against thundering herd
+        # when a hot key expires under load).
+        self._inflight: dict[str, asyncio.Future] = {}
+        self._inflight_lock = asyncio.Lock()
 
     @classmethod
     def from_url(cls, redis_url: str, default_ttl: int = 3600) -> "SimpleCacheManager":
@@ -175,6 +181,54 @@ class SimpleCacheManager:
             )
         except Exception as e:
             logger.debug("Cache set failed for %s:%s — %s", namespace.value, key, e)
+
+    async def get_or_load(
+        self,
+        namespace: CacheNamespace,
+        key: str,
+        loader: Callable[[], Awaitable[Any]],
+        ttl: Optional[int] = None,
+    ) -> Any:
+        """Single-flight cache lookup.
+
+        On a cache hit, returns immediately. On a miss, only the *first*
+        concurrent caller invokes ``loader()``; the rest await its result.
+        Prevents thundering-herd backend calls when a hot key expires.
+        """
+        cached = await self.get(namespace, key)
+        if cached is not None:
+            return cached
+
+        flight_key = self._make_key(namespace, key)
+        async with self._inflight_lock:
+            future = self._inflight.get(flight_key)
+            if future is None:
+                future = asyncio.get_event_loop().create_future()
+                self._inflight[flight_key] = future
+                owns = True
+            else:
+                owns = False
+
+        if not owns:
+            return await future
+
+        try:
+            cached = await self.get(namespace, key)
+            if cached is not None:
+                future.set_result(cached)
+                return cached
+            value = await loader()
+            if value is not None:
+                await self.set(namespace, key, value, ttl=ttl)
+            future.set_result(value)
+            return value
+        except Exception as exc:
+            if not future.done():
+                future.set_exception(exc)
+            raise
+        finally:
+            async with self._inflight_lock:
+                self._inflight.pop(flight_key, None)
 
     async def delete(self, namespace: CacheNamespace, key: str) -> None:
         """Delete a cached key."""

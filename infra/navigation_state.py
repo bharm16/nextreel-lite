@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-import copy
+import asyncio
 import inspect
 import json
 import os
+import random
 import secrets
 import uuid
 from dataclasses import dataclass
@@ -106,20 +107,24 @@ class NavigationState:
     user_id: str | None = None
 
     def clone(self) -> "NavigationState":
+        # Shallow clone: filter values are immutable scalars/lists; queue/prev/future
+        # entries are dicts that callers treat as immutable refs (rebuilt, never
+        # mutated in place), so copying the outer containers is sufficient and
+        # avoids the GC cost of deepcopy on every mutate().
         return NavigationState(
             session_id=self.session_id,
             version=self.version,
             csrf_token=self.csrf_token,
-            filters=copy.deepcopy(self.filters),
+            filters=dict(self.filters) if isinstance(self.filters, dict) else self.filters,
             current_tconst=self.current_tconst,
-            queue=copy.deepcopy(self.queue),
-            prev=copy.deepcopy(self.prev),
-            future=copy.deepcopy(self.future),
+            queue=[dict(item) for item in self.queue],
+            prev=[dict(item) for item in self.prev],
+            future=[dict(item) for item in self.future],
             seen=list(self.seen),
             created_at=self.created_at,
             last_activity_at=self.last_activity_at,
             expires_at=self.expires_at,
-            current_ref=copy.deepcopy(self.current_ref),
+            current_ref=dict(self.current_ref) if self.current_ref else None,
             user_id=self.user_id,
         )
 
@@ -422,7 +427,8 @@ class NavigationStateStore:
     ) -> MutationResult:
         from infra.metrics import navigation_state_conflicts_total
 
-        for _ in range(2):
+        max_attempts = 5
+        for attempt in range(max_attempts):
             current = (
                 current_state.clone()
                 if current_state is not None
@@ -447,6 +453,11 @@ class NavigationStateStore:
 
             navigation_state_conflicts_total.inc()
             current_state = None
+            # Exponential backoff + jitter on conflict to avoid retry storms
+            # under per-session contention (rapid double-clicks, browser retries).
+            if attempt < max_attempts - 1:
+                backoff_ms = (10 * (2 ** attempt)) + random.randint(0, 10)
+                await asyncio.sleep(backoff_ms / 1000.0)
 
         return MutationResult(state=await self.get_state(session_id), conflicted=True)
 

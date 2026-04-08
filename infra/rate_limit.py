@@ -6,6 +6,7 @@ independently of route definitions.
 
 import asyncio
 import time
+from collections import OrderedDict
 
 from quart import current_app
 
@@ -21,8 +22,11 @@ RATE_LIMIT_MAX = 30  # requests per window
 
 # In-memory fallback (single-instance only).
 # Cap at 1024 keys to prevent unbounded memory growth from unique IPs.
+# Backed by an OrderedDict so we can evict the LRU entry when the cap is hit
+# even when every entry has fresh activity (the previous "stale only" eviction
+# leaked under sustained traffic from >1024 distinct IPs).
 _RATE_LIMIT_MAX_KEYS = 1024
-_rate_limit_store: dict[str, list[float]] = {}
+_rate_limit_store: "OrderedDict[str, list[float]]" = OrderedDict()
 _rate_limit_lock = asyncio.Lock()
 
 
@@ -79,18 +83,26 @@ async def check_rate_limit_memory(endpoint_key: str) -> bool:
     now = time.time()
 
     async with _rate_limit_lock:
-        timestamps = _rate_limit_store.setdefault(key, [])
+        if key in _rate_limit_store:
+            timestamps = _rate_limit_store[key]
+            _rate_limit_store.move_to_end(key)
+        else:
+            timestamps = []
+            _rate_limit_store[key] = timestamps
         cutoff = now - RATE_LIMIT_WINDOW
         timestamps[:] = [t for t in timestamps if t > cutoff]
         if len(timestamps) >= RATE_LIMIT_MAX:
             return False
         timestamps.append(now)
 
-        # Evict stale keys to prevent unbounded memory growth
+        # Evict expired entries first, then fall back to LRU eviction so we
+        # never grow unbounded even when all entries are "fresh".
         if len(_rate_limit_store) > _RATE_LIMIT_MAX_KEYS:
             stale_keys = [k for k, v in _rate_limit_store.items() if not v or v[-1] < cutoff]
             for k in stale_keys:
                 _rate_limit_store.pop(k, None)
+            while len(_rate_limit_store) > _RATE_LIMIT_MAX_KEYS:
+                _rate_limit_store.popitem(last=False)
 
     return True
 

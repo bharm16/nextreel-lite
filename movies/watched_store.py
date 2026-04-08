@@ -9,12 +9,29 @@ from logging_config import get_logger
 
 logger = get_logger(__name__)
 
+# Short TTL: stale-ok for the navigation hot path; invalidated on add/remove.
+_WATCHED_CACHE_TTL = 300
+
 
 class WatchedStore:
     """Data access layer for user watched-movie tracking."""
 
-    def __init__(self, db_pool):
+    def __init__(self, db_pool, cache=None):
         self.db_pool = db_pool
+        self._cache = cache
+
+    def _cache_key(self, user_id: str) -> str:
+        return f"watched_tconsts:{user_id}"
+
+    async def _invalidate_cache(self, user_id: str) -> None:
+        if not self._cache:
+            return
+        try:
+            from infra.cache import CacheNamespace
+
+            await self._cache.delete(CacheNamespace.USER, self._cache_key(user_id))
+        except Exception:  # pragma: no cover - defensive
+            logger.debug("Watched cache invalidation failed for %s", user_id, exc_info=True)
 
     async def add(self, user_id: str, tconst: str) -> None:
         """Mark a movie as watched (idempotent)."""
@@ -27,6 +44,7 @@ class WatchedStore:
             [user_id, tconst, utcnow()],
             fetch="none",
         )
+        await self._invalidate_cache(user_id)
 
     async def remove(self, user_id: str, tconst: str) -> None:
         """Remove a movie from the watched list."""
@@ -35,6 +53,7 @@ class WatchedStore:
             [user_id, tconst],
             fetch="none",
         )
+        await self._invalidate_cache(user_id)
 
     async def is_watched(self, user_id: str, tconst: str) -> bool:
         """Check if a specific movie is in the user's watched list."""
@@ -46,15 +65,43 @@ class WatchedStore:
         return row is not None
 
     async def watched_tconsts(self, user_id: str) -> set[str]:
-        """Return the set of all watched tconsts for a user."""
+        """Return the set of all watched tconsts for a user.
+
+        Cached in Redis under ``user:watched_tconsts:{user_id}`` with a 5-minute
+        TTL. Invalidated on add()/remove(). Falls back to a direct DB read when
+        no cache is configured or Redis is unavailable.
+        """
+        if self._cache:
+            try:
+                from infra.cache import CacheNamespace
+
+                cached = await self._cache.get(CacheNamespace.USER, self._cache_key(user_id))
+                if cached is not None:
+                    return set(cached)
+            except Exception:  # pragma: no cover - defensive
+                logger.debug("Watched cache read failed for %s", user_id, exc_info=True)
+
         rows = await self.db_pool.execute(
             "SELECT tconst FROM user_watched_movies WHERE user_id = %s",
             [user_id],
             fetch="all",
         )
-        if not rows:
-            return set()
-        return {row["tconst"] for row in rows}
+        tconsts = {row["tconst"] for row in rows} if rows else set()
+
+        if self._cache:
+            try:
+                from infra.cache import CacheNamespace
+
+                await self._cache.set(
+                    CacheNamespace.USER,
+                    self._cache_key(user_id),
+                    list(tconsts),
+                    ttl=_WATCHED_CACHE_TTL,
+                )
+            except Exception:  # pragma: no cover - defensive
+                logger.debug("Watched cache write failed for %s", user_id, exc_info=True)
+
+        return tconsts
 
     async def count(self, user_id: str) -> int:
         """Return the count of watched movies for a user."""
@@ -89,5 +136,9 @@ class WatchedStore:
     async def list_all_watched(
         self, user_id: str, limit: int = 5000
     ) -> list[dict[str, Any]]:
-        """Return all watched movies for a user, ordered by most recently watched."""
+        """Return all watched movies for a user, ordered by most recently watched.
+
+        Prefer ``list_watched(limit=, offset=)`` for paginated views; this method
+        is retained for callers that genuinely need the full list.
+        """
         return await self.list_watched(user_id, limit=limit, offset=0)

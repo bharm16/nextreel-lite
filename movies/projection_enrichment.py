@@ -19,17 +19,26 @@ logger = get_logger(__name__)
 class ProjectionEnrichmentCoordinator:
     """Owns enrichment orchestration outside the persistence layer."""
 
+    # Cap concurrent in-process enrichment coroutines so a burst of cache
+    # misses (e.g. a filter change touching many stale projections) cannot
+    # exhaust the DB pool or trip the TMDb circuit breaker.
+    LOCAL_ENRICHMENT_CONCURRENCY = 20
+
     def __init__(
         self,
         store: "ProjectionStore",
         tmdb_helper=None,
         enqueue_fn=None,
+        local_concurrency: int | None = None,
     ) -> None:
         self.store = store
         self.tmdb_helper = tmdb_helper
         self.enqueue_fn = enqueue_fn
         self._local_enrichment_tconsts: set[str] = set()
         self._local_enrichment_tasks: set[asyncio.Task] = set()
+        self._local_enrichment_semaphore = asyncio.Semaphore(
+            local_concurrency or self.LOCAL_ENRICHMENT_CONCURRENCY
+        )
 
     async def maybe_enqueue(
         self,
@@ -69,7 +78,8 @@ class ProjectionEnrichmentCoordinator:
 
         async def _run() -> None:
             try:
-                await self.enrich_projection(tconst, known_tmdb_id=tmdb_id)
+                async with self._local_enrichment_semaphore:
+                    await self.enrich_projection(tconst, known_tmdb_id=tmdb_id)
             except Exception as exc:  # pragma: no cover - defensive logging
                 logger.warning("Local enrichment failed for %s: %s", tconst, exc)
             finally:

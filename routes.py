@@ -506,7 +506,24 @@ async def watched_list_page():
     user_id = _current_user_id()
     services = _services()
 
-    raw_rows = await services.movie_manager.watched_store.list_all_watched(user_id)
+    # Pagination — keeps the page bounded even for power users with thousands
+    # of watched titles. Stats below are page-local; ``total`` reflects the
+    # full row count via WatchedStore.count().
+    try:
+        page = max(1, int(request.args.get("page", 1)))
+    except (TypeError, ValueError):
+        page = 1
+    try:
+        per_page = int(request.args.get("per_page", 60))
+    except (TypeError, ValueError):
+        per_page = 60
+    per_page = max(1, min(per_page, 200))
+    offset = (page - 1) * per_page
+
+    raw_rows = await services.movie_manager.watched_store.list_watched(
+        user_id, limit=per_page, offset=offset
+    )
+    total_count = await services.movie_manager.watched_store.count(user_id)
 
     movies: list[dict] = []
     year_values: list[int] = []
@@ -561,7 +578,7 @@ async def watched_list_page():
             "watched_at": watched_iso,
         })
 
-    total = len(movies)
+    total = total_count
     avg_year = int(round(sum(year_values) / len(year_values))) if year_values else None
     if year_values:
         decade_counts: dict[int, int] = {}
@@ -581,11 +598,21 @@ async def watched_list_page():
         "top_decade": top_decade,
     }
 
+    total_pages = max(1, (total_count + per_page - 1) // per_page)
+    pagination = {
+        "page": page,
+        "per_page": per_page,
+        "total_pages": total_pages,
+        "has_prev": page > 1,
+        "has_next": page < total_pages,
+    }
+
     return await render_template(
         "watched_list.html",
         movies=movies,
         stats=stats,
         total=total,
+        pagination=pagination,
     )
 
 

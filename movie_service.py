@@ -40,6 +40,15 @@ class MovieManager:
         self._renderer = MovieRenderer(self.projection_store)
         self.watched_store = WatchedStore(self.db_pool)
 
+    def attach_cache(self, cache) -> None:
+        """Wire a Redis cache into stores that benefit from it.
+
+        Called by ``app.py`` after ``SimpleCacheManager`` initializes so that
+        the watched-list hot path can avoid full table scans on every nav.
+        """
+        if cache is not None:
+            self.watched_store._cache = cache
+
     async def start(self) -> None:
         logger.info("Starting MovieManager")
         await self.db_pool.init_pool()

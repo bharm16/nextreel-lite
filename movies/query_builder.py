@@ -16,10 +16,42 @@ from .interfaces import MovieFetcher
 logger = get_logger(__name__)
 
 
-def _criteria_cache_key(criteria: dict[str, Any]) -> str:
-    """Build a deterministic cache key from filter criteria."""
+_COUNT_GENERATION_KEY = "count_generation"
+
+
+def _criteria_cache_key(criteria: dict[str, Any], generation: int = 0) -> str:
+    """Build a deterministic cache key from filter criteria.
+
+    The ``generation`` value is bumped by ``bump_count_cache_generation`` after
+    ``refresh_movie_candidates`` runs so stale counts can never overshoot the
+    new row count and return empty result sets to ``/next_movie``.
+    """
     blob = json.dumps(criteria, sort_keys=True, default=str).encode()
-    return "count:" + hashlib.sha256(blob).hexdigest()[:16]
+    return f"count:{generation}:" + hashlib.sha256(blob).hexdigest()[:16]
+
+
+async def bump_count_cache_generation(cache) -> int:
+    """Increment the count-cache generation, invalidating all stored counts."""
+    if cache is None:
+        return 0
+    try:
+        current = await cache.get(CacheNamespace.TEMP, _COUNT_GENERATION_KEY)
+        next_gen = (int(current) if current is not None else 0) + 1
+        await cache.set(CacheNamespace.TEMP, _COUNT_GENERATION_KEY, next_gen, ttl=86400 * 7)
+        return next_gen
+    except Exception:
+        logger.warning("Failed to bump count cache generation", exc_info=True)
+        return 0
+
+
+async def _current_count_generation(cache) -> int:
+    if cache is None:
+        return 0
+    try:
+        current = await cache.get(CacheNamespace.TEMP, _COUNT_GENERATION_KEY)
+        return int(current) if current is not None else 0
+    except Exception:
+        return 0
 
 
 # Columns needed by downstream consumers (MovieNavigator only reads ``tconst``
@@ -353,7 +385,8 @@ class ImdbRandomMovieFetcher(MovieFetcher):
         lang: str,
     ) -> int:
         """Count rows matching criteria, using Redis cache with 5-min TTL."""
-        cache_key = _criteria_cache_key(criteria)
+        generation = await _current_count_generation(self._cache)
+        cache_key = _criteria_cache_key(criteria, generation)
         total_rows = await self._get_cached_count(cache_key)
         if total_rows is not None:
             return total_rows

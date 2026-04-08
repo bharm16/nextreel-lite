@@ -741,17 +741,14 @@ async def test_mutate_returns_conflicted_after_exhausting_retries(mock_db_pool):
         "expires_at": expires,
     }
 
+    # 5 attempts × (get_state + save_state) + final get_state for return value
     mock_db_pool.execute = AsyncMock(
         side_effect=[
-            # Attempt 1: get_state
-            dict(row),
-            # Attempt 1: save_state -> conflict
-            0,
-            # Attempt 2: get_state
-            dict(row),
-            # Attempt 2: save_state -> conflict again
-            0,
-            # Final get_state for the return value
+            dict(row), 0,
+            dict(row), 0,
+            dict(row), 0,
+            dict(row), 0,
+            dict(row), 0,
             dict(row),
         ]
     )

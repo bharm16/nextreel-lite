@@ -10,6 +10,7 @@ continue to work.
 
 import time
 import asyncio
+from collections import OrderedDict
 from typing import Optional
 from prometheus_client import generate_latest, REGISTRY
 from quart import Response, request, g
@@ -77,7 +78,10 @@ class MetricsCollector:
         self.db_pool = db_pool
         self.movie_manager = movie_manager
         self._collection_task: Optional[asyncio.Task] = None
-        self._active_users: dict = {}  # user_id -> last_seen_timestamp
+        # OrderedDict so we can LRU-evict the oldest entries when bursty
+        # unique users push us past _max_tracked_users (the prior age-only
+        # eviction leaked memory under sustained traffic).
+        self._active_users: "OrderedDict[str, float]" = OrderedDict()
         self._active_user_timeout = 1800  # 30 minutes
         self._max_tracked_users = 10000  # Cap to prevent unbounded growth
         self.logger = get_logger(__name__)
@@ -161,14 +165,17 @@ class MetricsCollector:
 
     def track_user_activity(self, user_id: str):
         """Track user activity with timestamp for expiry."""
+        if user_id in self._active_users:
+            self._active_users.move_to_end(user_id)
         self._active_users[user_id] = time.time()
-        # Evict oldest entries if we exceed the cap
+        # Drop expired entries first, then LRU-evict to enforce the hard cap.
         if len(self._active_users) > self._max_tracked_users:
             cutoff = time.time() - self._active_user_timeout
-            snapshot = dict(self._active_users)
-            stale = [uid for uid, ts in snapshot.items() if ts < cutoff]
+            stale = [uid for uid, ts in list(self._active_users.items()) if ts < cutoff]
             for uid in stale:
                 self._active_users.pop(uid, None)
+            while len(self._active_users) > self._max_tracked_users:
+                self._active_users.popitem(last=False)
 
     def track_user_action(self, action_type: str):
         """Track user actions"""

@@ -26,6 +26,23 @@ async def startup(ctx):
     ctx["candidate_store"] = CandidateStore(db_pool)
     ctx["projection_store"] = ProjectionStore(db_pool)
     ctx["projection_coordinator"] = ctx["projection_store"].coordinator
+
+    # Optional Redis cache for cross-job invalidation (e.g. count-cache
+    # generation bump after refresh_movie_candidates).
+    try:
+        redis_url = os.getenv("REDIS_URL")
+        if redis_url:
+            from infra.cache import SimpleCacheManager
+
+            cache = SimpleCacheManager.from_url(redis_url)
+            await cache.initialize()
+            ctx["redis_cache"] = cache
+        else:
+            ctx["redis_cache"] = None
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning("Worker Redis cache unavailable: %s", exc)
+        ctx["redis_cache"] = None
+
     logger.info("Worker context initialized")
 
 
@@ -33,6 +50,12 @@ async def shutdown(ctx):
     projection_store = ctx.get("projection_store")
     if projection_store and getattr(projection_store, "coordinator", None):
         await projection_store.coordinator.aclose()
+    cache = ctx.get("redis_cache")
+    if cache is not None:
+        try:
+            await cache.close()
+        except Exception:  # pragma: no cover - defensive
+            pass
     db_pool = ctx.get("db_pool")
     if db_pool:
         await db_pool.close_pool()
@@ -40,6 +63,17 @@ async def shutdown(ctx):
 
 async def refresh_movie_candidates(ctx):
     await ctx["candidate_store"].refresh_movie_candidates()
+    # Invalidate the cached qualifying-row counts used by MovieQueryBuilder's
+    # random-offset strategy. Stale counts after a refresh can produce empty
+    # result sets when the random offset overshoots the new row count.
+    cache = ctx.get("redis_cache")
+    if cache is not None:
+        try:
+            from movies.query_builder import bump_count_cache_generation
+
+            await bump_count_cache_generation(cache)
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning("Failed to bump count cache generation after refresh: %s", exc)
 
 
 async def ensure_core_projection(ctx, tconst: str):

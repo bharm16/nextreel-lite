@@ -55,7 +55,13 @@ class TestTrackUserActivity:
         assert "new-user" in collector._active_users
         assert len(collector._active_users) <= collector._max_tracked_users + 1
 
-    def test_does_not_evict_recent_users(self, collector):
+    def test_lru_evicts_oldest_when_over_cap(self, collector):
+        """Hard cap is enforced via LRU eviction even when all entries are recent.
+
+        The previous behavior leaked memory under sustained traffic from
+        unique users; the new contract is that ``_max_tracked_users`` is a
+        hard ceiling and the least-recently-touched entries are dropped.
+        """
         collector._max_tracked_users = 3
         collector._active_user_timeout = 3600
 
@@ -63,11 +69,14 @@ class TestTrackUserActivity:
         for i in range(3):
             collector._active_users[f"recent-{i}"] = now
 
-        # Adding another triggers eviction attempt, but all are recent
         collector.track_user_activity("new-user")
-        # recent users should still be there
-        for i in range(3):
-            assert f"recent-{i}" in collector._active_users
+        # New user is present; total never exceeds the cap.
+        assert "new-user" in collector._active_users
+        assert len(collector._active_users) <= collector._max_tracked_users
+        # Oldest (recent-0) is the LRU victim.
+        assert "recent-0" not in collector._active_users
+        assert "recent-1" in collector._active_users
+        assert "recent-2" in collector._active_users
 
 
 class TestTrackActions:

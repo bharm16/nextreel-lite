@@ -180,6 +180,80 @@ async def test_watched_tconsts_passes_user_id(mock_db_pool):
 
 
 # ---------------------------------------------------------------------------
+# watched_tconsts caching
+# ---------------------------------------------------------------------------
+
+
+class _FakeCache:
+    """Minimal in-memory stand-in for SimpleCacheManager."""
+
+    def __init__(self):
+        self.store: dict[tuple, object] = {}
+        self.get_calls = 0
+        self.set_calls = 0
+        self.delete_calls = 0
+
+    async def get(self, namespace, key):
+        self.get_calls += 1
+        return self.store.get((namespace, key))
+
+    async def set(self, namespace, key, value, ttl=None):
+        self.set_calls += 1
+        self.store[(namespace, key)] = value
+
+    async def delete(self, namespace, key):
+        self.delete_calls += 1
+        self.store.pop((namespace, key), None)
+
+
+async def test_watched_tconsts_uses_cache_on_second_call(mock_db_pool):
+    """The second call hits the cache and skips the DB."""
+    mock_db_pool.execute.return_value = [{"tconst": "tt1"}, {"tconst": "tt2"}]
+    cache = _FakeCache()
+    store = WatchedStore(mock_db_pool, cache=cache)
+
+    first = await store.watched_tconsts("user-1")
+    second = await store.watched_tconsts("user-1")
+
+    assert first == {"tt1", "tt2"}
+    assert second == {"tt1", "tt2"}
+    # DB queried only once; cache served the second call.
+    assert mock_db_pool.execute.await_count == 1
+    assert cache.set_calls == 1
+
+
+async def test_add_invalidates_cache(mock_db_pool):
+    """add() drops the cached set so the next read re-queries the DB."""
+    mock_db_pool.execute.return_value = [{"tconst": "tt1"}]
+    cache = _FakeCache()
+    store = WatchedStore(mock_db_pool, cache=cache)
+
+    await store.watched_tconsts("user-1")  # populate cache
+    await store.add("user-1", "tt2")
+    assert cache.delete_calls == 1
+
+
+async def test_remove_invalidates_cache(mock_db_pool):
+    mock_db_pool.execute.return_value = [{"tconst": "tt1"}]
+    cache = _FakeCache()
+    store = WatchedStore(mock_db_pool, cache=cache)
+
+    await store.watched_tconsts("user-1")
+    await store.remove("user-1", "tt1")
+    assert cache.delete_calls == 1
+
+
+async def test_watched_tconsts_works_without_cache(mock_db_pool):
+    """No cache configured -> falls through to DB on every call."""
+    mock_db_pool.execute.return_value = [{"tconst": "tt1"}]
+    store = WatchedStore(mock_db_pool)
+
+    await store.watched_tconsts("user-1")
+    await store.watched_tconsts("user-1")
+    assert mock_db_pool.execute.await_count == 2
+
+
+# ---------------------------------------------------------------------------
 # count
 # ---------------------------------------------------------------------------
 
