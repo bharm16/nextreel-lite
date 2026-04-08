@@ -18,7 +18,7 @@ Analyze the provided code changes for these vulnerability categories:
 
 ### 2. Session Security
 - **Session refs must be lightweight**: `CURRENT_MOVIE_KEY` stores only `{imdb_id, tmdb_id, title, slug}`. Never store full movie data in session.
-- **Session lifetime**: 8h max, 15min idle timeout — enforced by `EnhancedSessionSecurity` in `session/security.py`.
+- **Session lifetime**: 8h max, 15min idle timeout — enforced by `EnhancedSessionSecurity` in `session/user_auth.py`.
 - **Token rotation**: CSRF tokens must be validated on all POST routes (`/next_movie`, `/previous_movie`, `/filtered_movie`).
 - **Fingerprinting**: Session is bound to user agent + IP hash.
 
@@ -40,7 +40,7 @@ Analyze the provided code changes for these vulnerability categories:
 ### 6. Security Headers
 - **Baseline** (all environments): X-Frame-Options, X-Content-Type-Options (nosniff), Permissions-Policy.
 - **Production-only**: HSTS, CSP.
-- **Where to look**: `session/security.py`.
+- **Where to look**: `infra/security_headers.py`.
 
 ### 7. Rate Limiting
 - Applied to `/next_movie`, `/previous_movie`, `/filtered_movie`, and ops endpoints.
