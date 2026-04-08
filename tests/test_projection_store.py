@@ -687,3 +687,42 @@ class TestFetchRenderablePayload:
             "tt1234567",
             known_tmdb_id=7,
         )
+
+
+async def test_requeue_stale_projections_batches_under_limit():
+    mock_pool = AsyncMock()
+    # First batch: full 500. Second batch: 150 (partial -> loop exits).
+    mock_pool.execute = AsyncMock(side_effect=[500, 150])
+
+    store = ProjectionStore(mock_pool)
+    total = await store.requeue_stale_projections()
+
+    assert total == 650
+    assert mock_pool.execute.await_count == 2
+    for call in mock_pool.execute.await_args_list:
+        query = call.args[0]
+        assert "LIMIT" in query.upper()
+
+
+async def test_requeue_stale_projections_exits_immediately_when_empty():
+    mock_pool = AsyncMock()
+    mock_pool.execute = AsyncMock(return_value=0)
+
+    store = ProjectionStore(mock_pool)
+    total = await store.requeue_stale_projections()
+
+    assert total == 0
+    assert mock_pool.execute.await_count == 1
+
+
+async def test_requeue_stale_projections_safety_cap_prevents_infinite_loop():
+    """If DB never returns less than batch size, loop must exit after max_iterations."""
+    mock_pool = AsyncMock()
+    mock_pool.execute = AsyncMock(return_value=500)  # always full batch
+
+    store = ProjectionStore(mock_pool)
+    total = await store.requeue_stale_projections()
+
+    # Safety cap: 100 iterations x 500 rows = 50000
+    assert mock_pool.execute.await_count == 100
+    assert total == 50000

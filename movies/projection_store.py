@@ -354,17 +354,31 @@ class ProjectionStore:
             known_tmdb_id=known_tmdb_id,
         )
 
-    async def requeue_stale_projections(self) -> int:
-        now = utcnow()
-        result = await self.db_pool.execute(
-            """
-            UPDATE movie_projection
-            SET projection_state = %s
-            WHERE projection_state = %s
-              AND stale_after IS NOT NULL
-              AND stale_after <= %s
-            """,
-            [PROJECTION_STALE, PROJECTION_READY, now],
-            fetch="none",
-        )
-        return result if isinstance(result, int) else 0
+    async def requeue_stale_projections(self, batch_size: int = 500) -> int:
+        """Mark ready projections past their staleness window as stale.
+
+        Loops UPDATE ... LIMIT batch_size until affected rows < batch_size to
+        bound InnoDB row-lock hold time. Safety cap of 100 iterations prevents
+        pathological infinite loops.
+        """
+        max_iterations = 100
+        total_affected = 0
+        for _ in range(max_iterations):
+            now = utcnow()
+            affected = await self.db_pool.execute(
+                """
+                UPDATE movie_projection
+                SET projection_state = %s
+                WHERE projection_state = %s
+                  AND stale_after IS NOT NULL
+                  AND stale_after <= %s
+                LIMIT %s
+                """,
+                [PROJECTION_STALE, PROJECTION_READY, now, batch_size],
+                fetch="none",
+            )
+            affected_count = affected if isinstance(affected, int) else 0
+            total_affected += affected_count
+            if affected_count < batch_size:
+                break
+        return total_affected

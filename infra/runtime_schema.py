@@ -104,6 +104,8 @@ async def ensure_runtime_schema(db_pool) -> None:
     await ensure_user_navigation_current_ref_column(db_pool)
     await ensure_movie_candidates_shuffle_key(db_pool)
     await ensure_movie_candidates_refreshed_at_index(db_pool)
+    await ensure_movie_candidates_shuffle_key_index(db_pool)
+    await ensure_popular_movies_cache_composite_index(db_pool)
     await ensure_user_navigation_user_id_column(db_pool)
     logger.info("Runtime schema ensured")
 
@@ -222,6 +224,80 @@ async def ensure_movie_candidates_refreshed_at_index(db_pool) -> None:
         fetch="none",
     )
     logger.info("Added movie_candidates refreshed_at index")
+
+
+async def ensure_movie_candidates_shuffle_key_index(db_pool) -> None:
+    """Ensure shuffle_key has an index to support the hot candidate-fetch sort.
+
+    movies/candidate_store.py orders candidate queries by
+    (shuffle_key, numVotes DESC, averageRating DESC). Without this index
+    MySQL filesorts on every fetch.
+    """
+    present = await db_pool.execute(
+        """
+        SELECT 1 AS present
+        FROM information_schema.statistics
+        WHERE table_schema = DATABASE()
+          AND table_name = 'movie_candidates'
+          AND index_name = 'idx_movie_candidates_shuffle'
+        LIMIT 1
+        """,
+        fetch="one",
+    )
+    if present:
+        return
+
+    await db_pool.execute(
+        "CREATE INDEX idx_movie_candidates_shuffle "
+        "ON movie_candidates (shuffle_key, numVotes, averageRating)",
+        fetch="none",
+    )
+    logger.info("Added movie_candidates shuffle_key index")
+
+
+async def ensure_popular_movies_cache_composite_index(db_pool) -> None:
+    """Add a filter+rand composite index to popular_movies_cache if it exists.
+
+    popular_movies_cache is defined in ops/production_db_optimization.sql
+    and may not exist in dev environments. Check table presence first so
+    dev bootstraps are cleanly no-op. Supports the filter+random queries
+    in movies/query_builder.py:414-415 by covering both the WHERE predicate
+    prefix and the ORDER BY suffix in a single index.
+    """
+    table_present = await db_pool.execute(
+        """
+        SELECT 1 AS present
+        FROM information_schema.tables
+        WHERE table_schema = DATABASE()
+          AND table_name = 'popular_movies_cache'
+        LIMIT 1
+        """,
+        fetch="one",
+    )
+    if not table_present:
+        logger.debug("popular_movies_cache not present; skipping composite index")
+        return
+
+    index_present = await db_pool.execute(
+        """
+        SELECT 1 AS present
+        FROM information_schema.statistics
+        WHERE table_schema = DATABASE()
+          AND table_name = 'popular_movies_cache'
+          AND index_name = 'idx_cache_filter_rand'
+        LIMIT 1
+        """,
+        fetch="one",
+    )
+    if index_present:
+        return
+
+    await db_pool.execute(
+        "CREATE INDEX idx_cache_filter_rand "
+        "ON popular_movies_cache (startYear, averageRating, numVotes, rand_order)",
+        fetch="none",
+    )
+    logger.info("Added popular_movies_cache filter+rand composite index")
 
 
 async def ensure_movie_candidates_fulltext_index(db_pool) -> None:

@@ -96,6 +96,9 @@ CREATE TABLE popular_movies_cache (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_cache_filter (startYear, numVotes, averageRating),
     INDEX idx_cache_rand (rand_order),
+    -- Added 2026-04: supports filter+rand queries in movies/query_builder.py
+    -- Runtime migration in infra/runtime_schema.py handles existing deploys.
+    INDEX idx_cache_filter_rand (startYear, averageRating, numVotes, rand_order),
     INDEX idx_cache_lang (language(20)),
     FULLTEXT idx_cache_genres (genres)
 ) ENGINE=InnoDB;
