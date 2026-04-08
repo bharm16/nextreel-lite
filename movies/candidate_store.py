@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import random
 from datetime import datetime
 from typing import Any
 
 from filter_contracts import FilterState, MovieCriteria
+from infra.cache import CacheNamespace
 from infra.errors import DatabaseError
 from infra.filter_normalizer import criteria_from_filters
 from infra.time_utils import utcnow
@@ -20,6 +23,24 @@ SELECTION_BUCKET_STEPS = (2, 8, 32, SAMPLE_BUCKET_COUNT)
 _MYSQL_INT_MAX = 2_147_483_647
 
 _ALLOWED_CANDIDATE_TABLES = frozenset({"movie_candidates_next", "movie_candidates"})
+
+# Filter-result cache: collapses repeated queries against the same filter
+# combo (e.g., bots hitting unique filter pages) to one DB fetch per window.
+# We cache a larger pool than any single caller needs, then sample from it,
+# so concurrent callers still see varied results.
+_FILTER_RESULT_CACHE_TTL_SECONDS = 30
+_FILTER_RESULT_POOL_SIZE = 50
+
+
+def _filter_cache_key(criteria: MovieCriteria, excluded_tconsts: set[str]) -> str:
+    """Deterministic cache key: criteria hash only, not excluded set.
+
+    Excluded tconsts are per-session (seen list), so including them
+    would collapse the hit rate to nearly zero. We sample from the pool
+    and filter excluded tconsts client-side.
+    """
+    blob = json.dumps(dict(criteria), sort_keys=True, default=str).encode()
+    return "filter_pool:" + hashlib.sha256(blob).hexdigest()[:16]
 
 
 def _ref_from_row(row: dict[str, Any]) -> dict[str, Any]:
@@ -35,6 +56,10 @@ class CandidateStore:
     def __init__(self, db_pool):
         self.db_pool = db_pool
         self._table_maintainer: CandidateTableMaintainer | None = None
+        # Optional Redis cache wired by MovieManager.attach_cache. Used for
+        # filter-result pooling so repeated unique-filter queries don't
+        # each run a shuffle_key sort.
+        self._cache = None
 
     async def latest_refresh_at(self) -> datetime | None:
         row = await self.db_pool.execute(
@@ -163,6 +188,54 @@ class CandidateStore:
             limit,
         )
 
+    async def _sample_from_cached_pool(
+        self,
+        criteria: MovieCriteria,
+        excluded_tconsts: set[str],
+        limit: int,
+    ) -> list[dict[str, Any]] | None:
+        """Try to satisfy the request from the cached filter pool.
+
+        Returns None on miss, empty list when pool exists but yields
+        nothing after exclusion, or a sampled subset on hit.
+        """
+        if self._cache is None:
+            return None
+        cache_key = _filter_cache_key(criteria, excluded_tconsts)
+        try:
+            pool = await self._cache.get(CacheNamespace.TEMP, cache_key)
+        except Exception:
+            return None
+        if not pool or not isinstance(pool, list):
+            return None
+        available = [
+            ref for ref in pool
+            if isinstance(ref, dict) and ref.get("tconst") not in excluded_tconsts
+        ]
+        if not available:
+            return None
+        random.shuffle(available)
+        return available[:limit]
+
+    async def _store_filter_pool(
+        self,
+        criteria: MovieCriteria,
+        excluded_tconsts: set[str],
+        refs: list[dict[str, Any]],
+    ) -> None:
+        if self._cache is None or not refs:
+            return
+        cache_key = _filter_cache_key(criteria, excluded_tconsts)
+        try:
+            await self._cache.set(
+                CacheNamespace.TEMP,
+                cache_key,
+                refs,
+                ttl=_FILTER_RESULT_CACHE_TTL_SECONDS,
+            )
+        except Exception:
+            logger.debug("Filter-pool cache write failed", exc_info=True)
+
     async def fetch_candidate_refs_for_criteria(
         self,
         criteria: MovieCriteria,
@@ -170,6 +243,18 @@ class CandidateStore:
         limit: int,
     ) -> list[dict[str, Any]]:
         desired_limit = max(1, limit)
+
+        # Fast path: serve from the cached filter pool if available.
+        cached = await self._sample_from_cached_pool(
+            criteria, excluded_tconsts, desired_limit
+        )
+        if cached:
+            return cached
+
+        # Miss path: fetch a larger pool so subsequent callers in the TTL
+        # window can sample from it without re-querying. The pool size is
+        # capped so the shuffle_key ORDER BY stays cheap.
+        fetch_limit = max(desired_limit, _FILTER_RESULT_POOL_SIZE)
         seed = str(random.randint(0, _MYSQL_INT_MAX))
 
         for bucket_count in SELECTION_BUCKET_STEPS:
@@ -177,7 +262,7 @@ class CandidateStore:
             query, params = self._build_candidate_query(
                 criteria=criteria,
                 excluded_tconsts=excluded_tconsts,
-                desired_limit=desired_limit,
+                desired_limit=fetch_limit,
                 buckets=buckets,
                 seed=seed,
                 use_fulltext=True,
@@ -194,24 +279,28 @@ class CandidateStore:
                 fallback_query, fallback_params = self._build_candidate_query(
                     criteria=criteria,
                     excluded_tconsts=excluded_tconsts,
-                    desired_limit=desired_limit,
+                    desired_limit=fetch_limit,
                     buckets=buckets,
                     seed=seed,
                     use_fulltext=False,
                 )
                 rows = await self.db_pool.execute(fallback_query, fallback_params, fetch="all")
             if rows:
-                deduped: list[dict[str, Any]] = []
+                pool: list[dict[str, Any]] = []
                 seen: set[str] = set()
                 for row in rows:
                     tconst = row["tconst"]
                     if tconst in seen:
                         continue
                     seen.add(tconst)
-                    deduped.append(_ref_from_row(row))
-                    if len(deduped) >= desired_limit:
+                    pool.append(_ref_from_row(row))
+                    if len(pool) >= fetch_limit:
                         break
-                return deduped
+                await self._store_filter_pool(criteria, excluded_tconsts, pool)
+                # Return only what the caller asked for, randomized so
+                # two concurrent callers miss the cache → see different orders.
+                random.shuffle(pool)
+                return pool[:desired_limit]
 
         return []
 

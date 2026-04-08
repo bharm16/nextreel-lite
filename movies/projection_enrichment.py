@@ -22,8 +22,14 @@ def _safe_inc(counter, **labels) -> None:
             counter.inc()
     except Exception:  # pragma: no cover - defensive
         pass
+from infra.cache import CacheNamespace
 from movies.movie import Movie
 from movies.projection_state import ENQUEUE_COOLDOWN, ProjectionState
+
+# Global enrichment dedup window. Long enough to cover the 25s
+# ENRICHMENT_TIMEOUT_SECONDS + ARQ hand-off + retry cooldown. A crashed
+# worker's lock expires naturally rather than blocking enrichment forever.
+_GLOBAL_ENRICHMENT_LOCK_TTL_SECONDS = 45
 
 if TYPE_CHECKING:
     from movies.projection_store import ProjectionStore
@@ -62,10 +68,14 @@ class ProjectionEnrichmentCoordinator:
         local_concurrency: int | None = None,
         max_pending: int | None = None,
         background_scheduler=None,
+        cache=None,
     ) -> None:
         self.store = store
         self.tmdb_helper = tmdb_helper
         self.enqueue_fn = enqueue_fn
+        # Optional shared Redis cache for cross-worker enrichment dedup.
+        # Wired by MovieManager.attach_cache when Redis is available.
+        self._cache = cache
         self._local_enrichment_tconsts: set[str] = set()
         self._local_enrichment_tasks: set[asyncio.Task] = set()
         self._local_enrichment_semaphore = asyncio.Semaphore(
@@ -196,30 +206,56 @@ class ProjectionEnrichmentCoordinator:
         row: dict[str, Any] | None,
         tmdb_id: int | None = None,
     ) -> bool:
-        """Try to enqueue background enrichment."""
+        """Try to enqueue background enrichment.
+
+        Cross-worker dedup: acquires a Redis SET NX lock before enqueueing
+        so N workers racing on the same tconst collapse to a single job.
+        The lock is fail-open — ARQ's ``_job_id`` dedup still catches
+        duplicates if Redis is unavailable.
+        """
         now = utcnow()
         last_attempt_at = row.get("last_attempt_at") if row else None
         if last_attempt_at and now < last_attempt_at + ENQUEUE_COOLDOWN:
             return False
 
-        if self.enqueue_fn:
-            try:
-                result = await self.enqueue_fn(
-                    "enrich_projection",
-                    tconst,
-                    tmdb_id,
-                    _job_id=f"enrich:{tconst}",
-                )
-                if result is not None:
-                    await self.store._mark_attempt(tconst, now)
-                    return True
-            except Exception as exc:
-                logger.debug("Failed to enqueue enrich_projection(%s): %s", tconst, exc)
+        lock_key = f"enrich_inflight:{tconst}"
+        lock_held = False
+        if self._cache is not None:
+            acquired = await self._cache.try_acquire_lock(
+                CacheNamespace.TEMP,
+                lock_key,
+                ttl_seconds=_GLOBAL_ENRICHMENT_LOCK_TTL_SECONDS,
+            )
+            if not acquired:
+                return False
+            lock_held = True
 
-        scheduled = await self._schedule_local_enrichment(tconst, tmdb_id=tmdb_id)
-        if scheduled:
-            await self.store._mark_attempt(tconst, now)
-        return scheduled
+        try:
+            if self.enqueue_fn:
+                try:
+                    result = await self.enqueue_fn(
+                        "enrich_projection",
+                        tconst,
+                        tmdb_id,
+                        _job_id=f"enrich:{tconst}",
+                    )
+                    if result is not None:
+                        await self.store._mark_attempt(tconst, now)
+                        lock_held = False  # ARQ job owns the dedup window now.
+                        return True
+                except Exception as exc:
+                    logger.debug("Failed to enqueue enrich_projection(%s): %s", tconst, exc)
+
+            scheduled = await self._schedule_local_enrichment(tconst, tmdb_id=tmdb_id)
+            if scheduled:
+                await self.store._mark_attempt(tconst, now)
+                lock_held = False  # Local task owns the dedup window now.
+            return scheduled
+        finally:
+            # Release the lock if no downstream path took ownership, so
+            # the next retry isn't blocked for the full TTL.
+            if lock_held and self._cache is not None:
+                await self._cache.release_lock(CacheNamespace.TEMP, lock_key)
 
     async def _schedule_local_enrichment(
         self,

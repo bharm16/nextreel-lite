@@ -6,7 +6,7 @@ import json
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from infra.time_utils import utcnow
+from infra.time_utils import env_bool, utcnow
 from logging_config import get_logger
 from movies.projection_enrichment import ProjectionEnrichmentCoordinator
 from movies.projection_state import (
@@ -14,6 +14,18 @@ from movies.projection_state import (
     STALE_AFTER,
     ProjectionState,
 )
+
+
+def _enrichment_blocks_render() -> bool:
+    """Whether ``fetch_renderable_payload`` may block on enrichment.
+
+    When ``PROJECTION_ENRICHMENT_BLOCKS_RENDER`` is ``false``, requests
+    for projections in a ``needs_enrichment`` state return the core
+    payload immediately and enqueue enrichment for a later visit. This
+    trades first-view completeness for tail-latency insulation under
+    load — the strategic fix for the TMDb semaphore bottleneck.
+    """
+    return env_bool("PROJECTION_ENRICHMENT_BLOCKS_RENDER", default=True)
 
 if TYPE_CHECKING:
     import asyncio
@@ -148,23 +160,39 @@ class ProjectionStore:
                     )
                 return self._payload_from_row(row)
             if ProjectionState(state).needs_enrichment():
-                enriched = await self.enrich_projection(
-                    tconst,
-                    known_tmdb_id=row.get("tmdb_id"),
-                )
-                if enriched:
-                    return enriched
+                if _enrichment_blocks_render():
+                    enriched = await self.enrich_projection(
+                        tconst,
+                        known_tmdb_id=row.get("tmdb_id"),
+                    )
+                    if enriched:
+                        return enriched
+                else:
+                    # Off-path enrichment: enqueue for later, render core now.
+                    if coordinator is not None:
+                        await coordinator.maybe_enqueue_if_not_inflight(
+                            tconst,
+                            row,
+                            tmdb_id=row.get("tmdb_id"),
+                        )
                 payload = self._payload_from_row(row)
                 if not payload or payload.get("projection_state") == PROJECTION_FAILED:
                     payload = await self.ensure_core_projection(tconst)
                 return payload
 
-        # No projection row — enrich inline so the first render has full data.
-        enriched = await self.enrich_projection(tconst)
-        if enriched:
-            return enriched
+        # No projection row — enrich inline only when blocking is allowed.
+        if _enrichment_blocks_render():
+            enriched = await self.enrich_projection(tconst)
+            if enriched:
+                return enriched
 
         payload = await self.ensure_core_projection(tconst)
+        if not _enrichment_blocks_render() and coordinator is not None and payload:
+            await coordinator.maybe_enqueue_if_not_inflight(
+                tconst,
+                None,
+                tmdb_id=None,
+            )
         return payload
 
     @staticmethod

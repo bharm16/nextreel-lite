@@ -9,9 +9,11 @@ class DatabaseConfig:
     """Database connection and pool settings."""
 
     # Pool sizes — authoritative defaults, also read from POOL_MIN_SIZE /
-    # POOL_MAX_SIZE env vars in infra/pool.py.
+    # POOL_MAX_SIZE env vars in infra/pool.py. Sized for ~6 concurrent
+    # `/next_movie` requests per worker (3 acquires each) with headroom
+    # for `/movie/<tconst>` (2 acquires) and background jobs.
     POOL_MIN_SIZE = 5
-    POOL_MAX_SIZE = 20
+    POOL_MAX_SIZE = 60
 
     @staticmethod
     def get_db_config():

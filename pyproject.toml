@@ -1,6 +1,10 @@
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = [
+    "spike: opt-in resilience and burst-load tests excluded from the default fast lane",
+]
+timeout = 30
 filterwarnings = [
     "ignore::DeprecationWarning",
 ]

@@ -420,6 +420,16 @@ class ImdbRandomMovieFetcher(MovieFetcher):
         for key in stale:
             self._count_locks.pop(key, None)
 
+    # Redis lock TTL for cross-worker COUNT single-flight. Long enough
+    # to cover a slow full-table scan but bounded so a crashed worker's
+    # lock releases naturally.
+    _COUNT_LOCK_TTL_SECONDS = 30
+    # How long a waiting caller polls the cache for the leader's result
+    # before giving up and running its own COUNT. Total wait capped so
+    # a slow leader doesn't block followers forever.
+    _COUNT_LOCK_POLL_INTERVAL = 0.1
+    _COUNT_LOCK_POLL_MAX_WAIT = 5.0
+
     async def _count_qualifying_rows(
         self,
         criteria: dict[str, Any],
@@ -430,26 +440,75 @@ class ImdbRandomMovieFetcher(MovieFetcher):
     ) -> int:
         """Count rows matching criteria, single-flighted + Redis-cached (5-min TTL).
 
-        The per-key asyncio.Lock collapses concurrent cache misses onto a
-        single DB COUNT so a cache invalidation under burst load cannot
-        fan out N full-table scans.
+        Two-layer single-flight:
+        1. Redis SET NX lock collapses concurrent cache misses across
+           workers so only one process hits MySQL.
+        2. Per-process asyncio.Lock collapses callers within a worker
+           so we don't round-trip Redis N times for the same key.
         """
         generation = await _current_count_generation(self._cache)
         cache_key = _criteria_cache_key(criteria, generation)
 
-        # Fast path: cache hit, no lock needed.
+        # Fast path: cache hit, no locks needed.
         total_rows = await self._get_cached_count(cache_key)
         if total_rows is not None:
             return total_rows
 
         lock = await self._acquire_count_lock(cache_key)
         async with lock:
-            # Double-check: another caller may have populated the cache
-            # while we were waiting on the lock.
+            # Double-check: another coroutine in this worker may have
+            # populated the cache while we waited on the local lock.
             total_rows = await self._get_cached_count(cache_key)
             if total_rows is not None:
                 return total_rows
 
+            return await self._run_count_with_global_lock(
+                criteria=criteria,
+                parameters=parameters,
+                use_cache=use_cache,
+                use_recent=use_recent,
+                lang=lang,
+                cache_key=cache_key,
+            )
+
+    async def _run_count_with_global_lock(
+        self,
+        *,
+        criteria: dict[str, Any],
+        parameters: list[Any],
+        use_cache: bool,
+        use_recent: bool,
+        lang: str,
+        cache_key: str,
+    ) -> int:
+        """Execute COUNT under a Redis-backed cross-worker lock.
+
+        If we acquire the lock, we run the query and populate the cache.
+        If we lose, we poll the cache for the leader's result, falling
+        back to our own query if the leader is too slow.
+        """
+        lock_key = f"count_lock:{cache_key}"
+        acquired_global = False
+        if self._cache is not None:
+            acquired_global = await self._cache.try_acquire_lock(
+                CacheNamespace.TEMP,
+                lock_key,
+                ttl_seconds=self._COUNT_LOCK_TTL_SECONDS,
+            )
+        else:
+            acquired_global = True
+
+        if not acquired_global:
+            waited = 0.0
+            while waited < self._COUNT_LOCK_POLL_MAX_WAIT:
+                await asyncio.sleep(self._COUNT_LOCK_POLL_INTERVAL)
+                waited += self._COUNT_LOCK_POLL_INTERVAL
+                total_rows = await self._get_cached_count(cache_key)
+                if total_rows is not None:
+                    return total_rows
+            # Leader too slow — fall through and run our own COUNT.
+
+        try:
             count_query = MovieQueryBuilder.build_count_query(
                 use_cache=use_cache, use_recent=use_recent, language=lang
             )
@@ -461,8 +520,15 @@ class ImdbRandomMovieFetcher(MovieFetcher):
             except DatabaseError:
                 count_result = None
             total_rows = list(count_result.values())[0] if count_result else 0
-            await self._set_cached_count(cache_key, total_rows)
+            # Only the lock holder writes the cache; followers that fell
+            # through after a slow leader would otherwise race with the
+            # eventual leader write.
+            if acquired_global:
+                await self._set_cached_count(cache_key, total_rows)
             return total_rows
+        finally:
+            if acquired_global and self._cache is not None:
+                await self._cache.release_lock(CacheNamespace.TEMP, lock_key)
 
     async def _fetch_random_movies_impl(self, criteria: dict[str, Any], limit: int):
         method_start_time = time.time()

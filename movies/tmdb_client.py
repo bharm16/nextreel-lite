@@ -136,15 +136,17 @@ class _CircuitBreaker:
                 )
 
 
-# Semaphore shared across all instances to respect TMDb rate limits
-# (~40-50 req/s). Override with TMDB_RATE_SEMAPHORE env var for
-# load-test or scale-out scenarios.
+# Semaphore shared across all instances. TMDb's documented limit is
+# ~40-50 req/s *sustained*; concurrency can go much higher when latency
+# is low. Default 200 gives 10x headroom over the old 50 while still
+# bounding fan-out during burst enrichment. Override with
+# TMDB_RATE_SEMAPHORE env var.
 def _resolve_rate_semaphore_size() -> int:
-    raw = os.getenv("TMDB_RATE_SEMAPHORE", "50")
+    raw = os.getenv("TMDB_RATE_SEMAPHORE", "200")
     try:
         value = int(raw)
     except ValueError:
-        return 50
+        return 200
     return max(1, value)
 
 

@@ -11,6 +11,7 @@ pytest==8.3.5                    # Testing framework
 pytest-asyncio==0.25.3           # Async test support for pytest
 pytest-cov==6.1.1                # Coverage reporting for pytest
 pytest-mock==3.14.0              # Mock object library for pytest
+pytest-timeout==2.3.1            # Fail fast on hung tests
 
 # Code Quality & Linting
 # ---------------------

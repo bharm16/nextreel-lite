@@ -31,6 +31,8 @@ from movies.projection_enrichment import ProjectionEnrichmentCoordinator
 from movies.query_builder import ImdbRandomMovieFetcher
 from movies.tmdb_client import TMDbHelper
 
+pytestmark = pytest.mark.spike
+
 
 # ---------------------------------------------------------------------------
 # #1 Single-flight COUNT(*)
@@ -47,12 +49,23 @@ class _InMemoryCache:
 
     def __init__(self) -> None:
         self._data: dict[tuple, object] = {}
+        self._locks: set[tuple] = set()
 
     async def get(self, namespace, key):
         return self._data.get((namespace, key))
 
     async def set(self, namespace, key, value, ttl=None):
         self._data[(namespace, key)] = value
+
+    async def try_acquire_lock(self, namespace, key, ttl_seconds):
+        lock_key = (namespace, key)
+        if lock_key in self._locks:
+            return False
+        self._locks.add(lock_key)
+        return True
+
+    async def release_lock(self, namespace, key):
+        self._locks.discard((namespace, key))
 
 
 async def test_count_is_single_flighted():
@@ -87,7 +100,7 @@ async def test_count_is_single_flighted():
     tasks = [asyncio.create_task(one_caller()) for _ in range(100)]
 
     # Wait until the first query is in flight, then release it.
-    await count_started.wait()
+    await asyncio.wait_for(count_started.wait(), timeout=1.0)
     release_count.set()
     results = await asyncio.gather(*tasks)
 

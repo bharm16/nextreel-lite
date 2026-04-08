@@ -255,3 +255,56 @@ class SimpleCacheManager:
             await self._redis.delete(self._make_key(namespace, key))
         except Exception as e:
             logger.debug("Cache delete failed for %s:%s — %s", namespace.value, key, e)
+
+    async def try_acquire_lock(
+        self,
+        namespace: CacheNamespace,
+        key: str,
+        ttl_seconds: int,
+    ) -> bool:
+        """Attempt to claim a distributed lock via SET NX PX.
+
+        Returns True if this caller acquired the lock, False if another
+        worker already holds it. TTL acts as a safety release in case the
+        holder crashes. Callers should ``release_lock`` when done if they
+        want to shorten the window; otherwise the TTL expiry is enough.
+
+        On Redis unavailability, returns True so callers fall back to
+        whatever in-process guard they already have — we prefer
+        fail-open (let work proceed) over fail-closed (block everything).
+        """
+        if not self._redis:
+            return True
+        try:
+            got = await self._redis.set(
+                self._make_key(namespace, key),
+                "1",
+                nx=True,
+                ex=ttl_seconds,
+            )
+            return bool(got)
+        except Exception as e:
+            logger.debug(
+                "Lock acquire failed for %s:%s — %s (fail-open)",
+                namespace.value,
+                key,
+                e,
+            )
+            return True
+
+    async def release_lock(self, namespace: CacheNamespace, key: str) -> None:
+        """Release a distributed lock acquired via ``try_acquire_lock``.
+
+        Safe to call even if the lock has already expired.
+        """
+        if not self._redis:
+            return
+        try:
+            await self._redis.delete(self._make_key(namespace, key))
+        except Exception as e:
+            logger.debug(
+                "Lock release failed for %s:%s — %s",
+                namespace.value,
+                key,
+                e,
+            )

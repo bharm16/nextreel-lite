@@ -91,10 +91,20 @@ class MovieManager:
         """Wire a Redis cache into stores that benefit from it.
 
         Called by ``app.py`` after ``SimpleCacheManager`` initializes so that
-        the watched-list hot path can avoid full table scans on every nav.
+        the watched-list hot path can avoid full table scans on every nav,
+        the query builder can single-flight COUNT(*) across workers, the
+        enrichment coordinator can dedup enqueue-in-flight across workers,
+        and the candidate store can share filter-result snapshots.
         """
-        if cache is not None:
-            self.watched_store._cache = cache
+        if cache is None:
+            return
+        self.watched_store._cache = cache
+        if self.projection_coordinator is not None:
+            self.projection_coordinator._cache = cache
+        if self.candidate_store is not None:
+            self.candidate_store._cache = cache
+        if self.navigation_state_store is not None:
+            self.navigation_state_store._cache = cache
 
     async def start(self) -> None:
         logger.info("Starting MovieManager")

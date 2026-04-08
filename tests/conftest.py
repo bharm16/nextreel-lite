@@ -1,6 +1,7 @@
 """Shared test fixtures for nextreel-lite test suite."""
 
 import asyncio
+import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -121,3 +122,14 @@ def mock_db_pool():
     pool.init_pool = AsyncMock()
     pool.close_pool = AsyncMock()
     return pool
+
+
+def pytest_collection_modifyitems(config, items):
+    """Keep spike-style resilience tests out of the default fast lane."""
+    if os.environ.get("RUN_SPIKE") == "1":
+        return
+
+    skip_spike = pytest.mark.skip(reason="spike tests are opt-in; set RUN_SPIKE=1 to run them")
+    for item in items:
+        if "spike" in item.keywords:
+            item.add_marker(skip_spike)

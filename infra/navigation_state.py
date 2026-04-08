@@ -48,7 +48,8 @@ SEEN_MAX = 50
 
 
 # Re-export from shared utility for backward compatibility.
-from infra.time_utils import utcnow  # noqa: F811
+from infra.cache import CacheNamespace
+from infra.time_utils import env_bool, utcnow  # noqa: F811
 
 
 def _idle_timeout() -> timedelta:
@@ -143,6 +144,29 @@ class NavigationStateStore:
         from infra.legacy_migration import LegacyMigrationHelper
 
         self.migration = LegacyMigrationHelper(db_pool)
+        # Optional write-through Redis read cache, wired by
+        # MovieManager.attach_cache. Gated behind
+        # NAV_STATE_REDIS_READ_CACHE_ENABLED (default off) so rollout is
+        # opt-in until the staleness semantics are validated in staging.
+        self._cache = None
+
+    def _redis_read_cache_enabled(self) -> bool:
+        if self._cache is None:
+            return False
+        return env_bool("NAV_STATE_REDIS_READ_CACHE_ENABLED", default=False)
+
+    async def _invalidate_cached_state(self, session_id: str) -> None:
+        """Delete the Redis read cache entry for ``session_id``.
+
+        Called after every successful mutation so retried callers
+        observe fresh state. No-op when the cache isn't attached.
+        """
+        if self._cache is None:
+            return
+        try:
+            await self._cache.delete(CacheNamespace.SESSION, f"nav:{session_id}")
+        except Exception:
+            logger.debug("nav state cache invalidate failed", exc_info=True)
 
     async def dual_write_enabled(self) -> bool:
         return await self.migration.dual_write_enabled()
@@ -188,6 +212,10 @@ class NavigationStateStore:
         )
 
     async def _load_row(self, session_id: str) -> NavigationState | None:
+        if self._redis_read_cache_enabled():
+            cached_state = await self._load_row_from_cache(session_id)
+            if cached_state is not None:
+                return cached_state
         row = await self.db_pool.execute(
             """
             SELECT session_id, version, csrf_token, filters_json, current_tconst, current_ref_json,
@@ -201,7 +229,63 @@ class NavigationStateStore:
         )
         if not row:
             return None
-        return self._row_to_state(row)
+        state = self._row_to_state(row)
+        if self._redis_read_cache_enabled():
+            await self._store_row_in_cache(state, row)
+        return state
+
+    async def _load_row_from_cache(
+        self, session_id: str
+    ) -> NavigationState | None:
+        """Try to reconstruct state from the Redis read cache.
+
+        The cached blob is the raw row dict (with JSON fields as strings)
+        so ``_row_to_state`` can hydrate it the same way as a fresh SELECT.
+        Returns None on miss, deserialization failure, or expired row.
+        """
+        try:
+            cached = await self._cache.get(CacheNamespace.SESSION, f"nav:{session_id}")
+        except Exception:
+            return None
+        if not isinstance(cached, dict):
+            return None
+        # Datetime fields are ISO strings after JSON round-trip; rehydrate.
+        for field in ("created_at", "last_activity_at", "expires_at"):
+            value = cached.get(field)
+            if isinstance(value, str):
+                try:
+                    cached[field] = datetime.fromisoformat(value)
+                except ValueError:
+                    return None
+        try:
+            state = self._row_to_state(cached)
+        except Exception:
+            return None
+        if state.expires_at <= utcnow():
+            return None
+        return state
+
+    async def _store_row_in_cache(
+        self,
+        state: NavigationState,
+        row: dict[str, Any],
+    ) -> None:
+        """Write the raw row to Redis so future loads can hydrate it.
+
+        TTL matches the session's remaining lifetime (bounded below at
+        60s to avoid pathological short caches).
+        """
+        remaining = int((state.expires_at - utcnow()).total_seconds())
+        ttl = max(60, min(remaining, SESSION_COOKIE_MAX_AGE))
+        try:
+            await self._cache.set(
+                CacheNamespace.SESSION,
+                f"nav:{state.session_id}",
+                row,
+                ttl=ttl,
+            )
+        except Exception:
+            logger.debug("nav state cache write failed", exc_info=True)
 
     def _json_load(self, value: Any, fallback: Any) -> Any:
         if value is None:
@@ -411,6 +495,7 @@ class NavigationStateStore:
         if updated != 1:
             return False
         state.version = next_version
+        await self._invalidate_cached_state(state.session_id)
         return True
 
     def _write_legacy_session(

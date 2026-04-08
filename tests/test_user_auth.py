@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch
 
-import bcrypt
 import pytest
 
 from session.user_auth import (
@@ -80,12 +79,17 @@ async def test_register_user_returns_user_id(mock_db_pool):
 async def test_register_user_hashes_password(mock_db_pool):
     mock_db_pool.execute.return_value = None
 
-    await register_user(mock_db_pool, "user@example.com", "plainpassword")
+    with patch(
+        "session.user_auth.hash_password_async",
+        AsyncMock(return_value="hashed-plainpassword"),
+    ) as hash_password:
+        await register_user(mock_db_pool, "user@example.com", "plainpassword")
+
+    hash_password.assert_awaited_once_with("plainpassword")
 
     call_args = mock_db_pool.execute.call_args
     stored_hash = call_args[0][1][2]  # password_hash param
-    assert stored_hash != "plainpassword"
-    assert bcrypt.checkpw(b"plainpassword", stored_hash.encode("utf-8"))
+    assert stored_hash == "hashed-plainpassword"
 
 
 @pytest.mark.asyncio
@@ -107,23 +111,35 @@ async def test_register_user_with_display_name(mock_db_pool):
 @pytest.mark.asyncio
 async def test_authenticate_user_valid_credentials(mock_db_pool):
     password = "correctpassword"
-    hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    mock_db_pool.execute.return_value = {
+        "user_id": "abc123",
+        "password_hash": "stored-hash",
+    }
 
-    mock_db_pool.execute.return_value = {"user_id": "abc123", "password_hash": hashed}
+    with patch(
+        "session.user_auth.verify_password_async",
+        AsyncMock(return_value=True),
+    ) as verify_password:
+        result = await authenticate_user(mock_db_pool, "user@example.com", password)
 
-    result = await authenticate_user(mock_db_pool, "user@example.com", password)
-
+    verify_password.assert_awaited_once_with(password, "stored-hash")
     assert result == "abc123"
 
 
 @pytest.mark.asyncio
 async def test_authenticate_user_wrong_password(mock_db_pool):
-    hashed = bcrypt.hashpw(b"correctpassword", bcrypt.gensalt()).decode("utf-8")
+    mock_db_pool.execute.return_value = {
+        "user_id": "abc123",
+        "password_hash": "stored-hash",
+    }
 
-    mock_db_pool.execute.return_value = {"user_id": "abc123", "password_hash": hashed}
+    with patch(
+        "session.user_auth.verify_password_async",
+        AsyncMock(return_value=False),
+    ) as verify_password:
+        result = await authenticate_user(mock_db_pool, "user@example.com", "wrongpassword")
 
-    result = await authenticate_user(mock_db_pool, "user@example.com", "wrongpassword")
-
+    verify_password.assert_awaited_once_with("wrongpassword", "stored-hash")
     assert result is None
 
 
