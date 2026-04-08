@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from typing import TYPE_CHECKING, Any
 
 from infra.metrics import (
@@ -35,12 +36,18 @@ class ProjectionEnrichmentCoordinator:
 
     # Cap concurrent in-process enrichment coroutines so a burst of cache
     # misses (e.g. a filter change touching many stale projections) cannot
-    # exhaust the DB pool or trip the TMDb circuit breaker.
-    LOCAL_ENRICHMENT_CONCURRENCY = 20
+    # exhaust the DB pool or trip the TMDb circuit breaker. Overridable via
+    # LOCAL_ENRICHMENT_CONCURRENCY env var for load tests.
+    LOCAL_ENRICHMENT_CONCURRENCY = int(os.getenv("LOCAL_ENRICHMENT_CONCURRENCY", "20"))
 
     # Cap pending in-process enrichment task creation so a burst can't
-    # accumulate hundreds of coroutines waiting on the semaphore.
-    LOCAL_ENRICHMENT_MAX_PENDING = 200
+    # accumulate hundreds of coroutines waiting on the semaphore. Overridable
+    # via LOCAL_ENRICHMENT_MAX_PENDING env var.
+    LOCAL_ENRICHMENT_MAX_PENDING = int(os.getenv("LOCAL_ENRICHMENT_MAX_PENDING", "200"))
+
+    # Emit a warning when the backlog crosses this fraction of the cap, so
+    # ops can react before tasks start being dropped.
+    LOCAL_ENRICHMENT_HIGH_WATERMARK = 0.70
 
     # Overall ceiling on a single enrichment attempt. Headroom over the two
     # sequential 10s TMDb HTTP timeouts; anything longer is treated as a
@@ -72,6 +79,10 @@ class ProjectionEnrichmentCoordinator:
         # lookup+create+removal — never across the enrichment work itself.
         self._inflight_enrichment: dict[str, asyncio.Task] = {}
         self._inflight_lock = asyncio.Lock()
+        # Edge-triggered flag for the high-watermark warning so a burst
+        # doesn't produce hundreds of identical log lines. Reset when the
+        # backlog drains below 50% of cap.
+        self._high_watermark_fired = False
         # App-level background scheduler (wired from app.create_app). Lets
         # prefetch tasks register in app.background_tasks so they survive
         # request teardown and are drained on shutdown.
@@ -218,14 +229,29 @@ class ProjectionEnrichmentCoordinator:
         if not self.tmdb_helper or tconst in self._local_enrichment_tconsts:
             return False
 
-        if len(self._local_enrichment_tconsts) >= self._local_enrichment_max_pending:
+        pending = len(self._local_enrichment_tconsts)
+        cap = self._local_enrichment_max_pending
+        if pending >= cap:
             logger.warning(
-                "Local enrichment backlog full (%d), dropping schedule for %s",
-                len(self._local_enrichment_tconsts),
+                "Local enrichment backlog full (%d/%d), dropping schedule for %s",
+                pending,
+                cap,
                 tconst,
             )
             _safe_inc(enrichment_backlog_drop_total)
             return False
+
+        high_threshold = int(cap * self.LOCAL_ENRICHMENT_HIGH_WATERMARK)
+        if pending >= high_threshold and not self._high_watermark_fired:
+            self._high_watermark_fired = True
+            logger.warning(
+                "Local enrichment backlog high-watermark: %d/%d (>=%.0f%%)",
+                pending,
+                cap,
+                self.LOCAL_ENRICHMENT_HIGH_WATERMARK * 100,
+            )
+        elif pending < cap // 2:
+            self._high_watermark_fired = False
 
         self._local_enrichment_tconsts.add(tconst)
 

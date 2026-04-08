@@ -31,6 +31,28 @@ _rate_limit_lock = asyncio.Lock()
 
 
 _active_backend = "memory"
+_memory_fallback_warned = False
+
+
+def _warn_memory_fallback_once(reason: str) -> None:
+    """Emit a single loud warning the first time we fall back to in-memory.
+
+    The in-memory limiter is per-process: if the app is horizontally scaled
+    to N workers without Redis, the effective limit is N × configured limit.
+    Ops must know about this explicitly — a per-request debug log is not
+    enough.
+    """
+    global _memory_fallback_warned
+    if _memory_fallback_warned:
+        return
+    _memory_fallback_warned = True
+    logger.error(
+        "RATE LIMITER DEGRADED: falling back to in-memory store (reason: %s). "
+        "This limiter is PER-PROCESS — multi-worker deployments will have "
+        "effective limits of N × configured. Restore Redis to re-enable "
+        "shared limits.",
+        reason,
+    )
 
 
 # ── Public API ────────────────────────────────────────────────────
@@ -48,6 +70,7 @@ async def check_rate_limit(endpoint_key: str) -> bool:
             if _active_backend != "memory":
                 set_rate_limit_backend("memory")
                 _active_backend = "memory"
+            _warn_memory_fallback_once("SESSION_REDIS not configured")
             return await check_rate_limit_memory(endpoint_key)
         ip = get_client_ip()
         key = f"ratelimit:{endpoint_key}:{ip}"
@@ -70,6 +93,7 @@ async def check_rate_limit(endpoint_key: str) -> bool:
         if _active_backend != "memory":
             set_rate_limit_backend("memory")
             _active_backend = "memory"
+        _warn_memory_fallback_once(f"redis error: {exc}")
         return await check_rate_limit_memory(endpoint_key)
 
 

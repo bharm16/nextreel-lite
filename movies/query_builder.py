@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import random
@@ -263,6 +264,13 @@ class ImdbRandomMovieFetcher(MovieFetcher):
         self.db_pool = database_pool
         self._cache = cache
         self.use_fulltext = True
+        # Per-key locks for single-flighting expensive COUNT(*) queries.
+        # When a generation bump invalidates the cache, 100 concurrent
+        # /next_movie requests would otherwise all issue the same 2-5s
+        # full-table COUNT scan. The lock ensures exactly one query hits
+        # MySQL; the rest await the shared result via the lock + re-read.
+        self._count_locks: dict[str, asyncio.Lock] = {}
+        self._count_locks_guard = asyncio.Lock()
 
     _COUNT_CACHE_TTL = 300  # 5 minutes
 
@@ -376,6 +384,42 @@ class ImdbRandomMovieFetcher(MovieFetcher):
         """Fetch random movies using optimized cache tables."""
         return await self._safe_fetch(self._fetch_random_movies_impl, criteria, limit)
 
+    async def _acquire_count_lock(self, cache_key: str) -> asyncio.Lock:
+        """Return a per-key lock, creating it under a guard if needed.
+
+        Keys embed the count-cache generation, so each
+        ``bump_count_cache_generation`` call creates a fresh namespace.
+        Stale-generation locks are evicted lazily on insert to keep the
+        dict from growing unbounded across long-lived processes.
+        """
+        async with self._count_locks_guard:
+            lock = self._count_locks.get(cache_key)
+            if lock is None:
+                self._evict_stale_count_locks(cache_key)
+                lock = asyncio.Lock()
+                self._count_locks[cache_key] = lock
+            return lock
+
+    def _evict_stale_count_locks(self, current_key: str) -> None:
+        """Drop locks whose generation prefix differs from ``current_key``.
+
+        Cache keys are formatted as ``count:{generation}:{hash}``. When a
+        new key is inserted with a generation not matching any existing
+        entry, purge all entries from prior generations — only locks for
+        the current generation remain useful.
+        """
+        try:
+            current_gen = current_key.split(":", 2)[1]
+        except IndexError:
+            return
+        stale = [
+            key
+            for key in self._count_locks
+            if key.split(":", 2)[1] != current_gen
+        ]
+        for key in stale:
+            self._count_locks.pop(key, None)
+
     async def _count_qualifying_rows(
         self,
         criteria: dict[str, Any],
@@ -384,26 +428,41 @@ class ImdbRandomMovieFetcher(MovieFetcher):
         use_recent: bool,
         lang: str,
     ) -> int:
-        """Count rows matching criteria, using Redis cache with 5-min TTL."""
+        """Count rows matching criteria, single-flighted + Redis-cached (5-min TTL).
+
+        The per-key asyncio.Lock collapses concurrent cache misses onto a
+        single DB COUNT so a cache invalidation under burst load cannot
+        fan out N full-table scans.
+        """
         generation = await _current_count_generation(self._cache)
         cache_key = _criteria_cache_key(criteria, generation)
+
+        # Fast path: cache hit, no lock needed.
         total_rows = await self._get_cached_count(cache_key)
         if total_rows is not None:
             return total_rows
 
-        count_query = MovieQueryBuilder.build_count_query(
-            use_cache=use_cache, use_recent=use_recent, language=lang
-        )
-        count_query, count_params = self._build_query_with_genres(
-            count_query, criteria, parameters, use_cache or use_recent
-        )
-        try:
-            count_result = await self.db_pool.execute(count_query, count_params, fetch="one")
-        except DatabaseError:
-            count_result = None
-        total_rows = list(count_result.values())[0] if count_result else 0
-        await self._set_cached_count(cache_key, total_rows)
-        return total_rows
+        lock = await self._acquire_count_lock(cache_key)
+        async with lock:
+            # Double-check: another caller may have populated the cache
+            # while we were waiting on the lock.
+            total_rows = await self._get_cached_count(cache_key)
+            if total_rows is not None:
+                return total_rows
+
+            count_query = MovieQueryBuilder.build_count_query(
+                use_cache=use_cache, use_recent=use_recent, language=lang
+            )
+            count_query, count_params = self._build_query_with_genres(
+                count_query, criteria, parameters, use_cache or use_recent
+            )
+            try:
+                count_result = await self.db_pool.execute(count_query, count_params, fetch="one")
+            except DatabaseError:
+                count_result = None
+            total_rows = list(count_result.values())[0] if count_result else 0
+            await self._set_cached_count(cache_key, total_rows)
+            return total_rows
 
     async def _fetch_random_movies_impl(self, criteria: dict[str, Any], limit: int):
         method_start_time = time.time()

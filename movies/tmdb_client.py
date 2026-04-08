@@ -276,7 +276,11 @@ class TMDbHelper:
 
                 if response.status_code == 429:
                     retry_after = float(response.headers.get("Retry-After", 1))
-                    wait = min(retry_after, 10)
+                    # Jitter (0-1s) prevents synchronized thundering-herd retries
+                    # when many concurrent coroutines receive the same
+                    # Retry-After value from TMDb and would otherwise wake in
+                    # lockstep and re-trip the circuit breaker.
+                    wait = min(retry_after, 10) + random.uniform(0, 1.0)
                     logger.warning(
                         "TMDb rate limited (429). Retry-After: %.1fs (attempt %d/%d)",
                         wait,
@@ -289,6 +293,9 @@ class TMDbHelper:
                     )
                     metric_recorded = True
                     if attempt < self._max_retries:
+                        # Sleep OUTSIDE the rate semaphore (we already exited
+                        # the `async with` above) so other callers aren't
+                        # starved while we wait out the 429.
                         await asyncio.sleep(wait)
                         continue
                     response.raise_for_status()
@@ -317,9 +324,12 @@ class TMDbHelper:
                     )
                     metric_recorded = True
                 if attempt < self._max_retries:
-                    backoff = 2**attempt
+                    # Exponential backoff with jitter — prevents synchronized
+                    # retry storms on shared transport failures (DNS blip,
+                    # connection pool exhaustion, etc.).
+                    backoff = (2**attempt) + random.uniform(0, 1.0)
                     logger.warning(
-                        "TMDb request error (attempt %d/%d): %s. Retrying in %ds",
+                        "TMDb request error (attempt %d/%d): %s. Retrying in %.2fs",
                         attempt + 1,
                         self._max_retries,
                         e,
