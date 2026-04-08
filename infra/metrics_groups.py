@@ -224,3 +224,91 @@ error = ErrorMetrics(
         "Total failed home page queue prewarm attempts",
     ),
 )
+
+
+# ── Enrichment ───────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class EnrichmentMetrics:
+    enqueued_total: Counter
+    enqueue_fallback_total: Counter
+    backlog_drop_total: Counter
+    timeout_total: Counter
+
+
+enrichment = EnrichmentMetrics(
+    enqueued_total=Counter(
+        "nextreel_enrichment_enqueued_total",
+        "Total projection enrichment jobs successfully enqueued via arq",
+    ),
+    enqueue_fallback_total=Counter(
+        "nextreel_enrichment_enqueue_fallback_total",
+        "Total times enrichment enqueue fell back to in-process execution",
+        ["reason"],
+    ),
+    backlog_drop_total=Counter(
+        "nextreel_enrichment_backlog_drop_total",
+        "Total in-process enrichment schedules dropped due to backlog cap",
+    ),
+    timeout_total=Counter(
+        "nextreel_enrichment_timeout_total",
+        "Total projection enrichment attempts that hit the overall timeout",
+    ),
+)
+
+
+# ── Worker / background jobs ─────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class WorkerMetrics:
+    jobs_total: Counter
+    job_duration_seconds: Histogram
+    queue_depth: Gauge
+    queue_oldest_job_age_seconds: Gauge
+    local_enrichment_pending: Gauge
+
+
+worker = WorkerMetrics(
+    jobs_total=Counter(
+        "nextreel_worker_jobs_total",
+        "Total worker jobs started/completed by name and status",
+        ["job_name", "status"],
+    ),
+    job_duration_seconds=Histogram(
+        "nextreel_worker_job_duration_seconds",
+        "Worker job duration in seconds",
+        ["job_name"],
+        buckets=(0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0, 120.0, 300.0),
+    ),
+    queue_depth=Gauge(
+        "nextreel_worker_queue_depth",
+        "Number of jobs waiting in the ARQ queue",
+    ),
+    queue_oldest_job_age_seconds=Gauge(
+        "nextreel_worker_queue_oldest_job_age_seconds",
+        "Age in seconds of the oldest pending job in the ARQ queue",
+    ),
+    local_enrichment_pending=Gauge(
+        "nextreel_local_enrichment_pending",
+        "Number of local (in-process) enrichment tasks pending when worker is unavailable",
+    ),
+)
+
+
+# ── Logging pipeline ─────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class LoggingMetrics:
+    dropped_total: Counter
+
+
+logging_metrics = LoggingMetrics(
+    dropped_total=Counter(
+        "nextreel_logging_dropped_total",
+        "Total log entries dropped by the logging pipeline (e.g. Loki buffer full)",
+        ["reason"],
+    ),
+)

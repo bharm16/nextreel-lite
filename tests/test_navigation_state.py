@@ -846,6 +846,52 @@ async def test_mutate_uses_current_state_without_reloading(mock_db_pool):
     mock_db_pool.execute.assert_awaited_once()
 
 
+async def test_mutate_passes_a_clone_not_the_shared_state(mock_db_pool):
+    """Regression lock: mutate() must pass a clone to the mutator.
+
+    Concurrent navigation correctness (e.g. two rapid /next_movie requests
+    for the same session) depends on each mutate call operating on its
+    own deep copy of state. If a future refactor hands the shared state
+    reference directly to the mutator, two concurrent calls could
+    interleave their in-memory queue mutations and lose or duplicate
+    entries before the optimistic-lock save fires.
+    """
+    store = NavigationStateStore(mock_db_pool)
+    state = _make_state(
+        version=7,
+        queue=[{"tconst": "tt1"}, {"tconst": "tt2"}],
+    )
+    mock_db_pool.execute = AsyncMock(return_value=1)
+
+    captured: dict[str, NavigationState] = {}
+
+    def mutator(s):
+        captured["arg"] = s
+        # Mutate the (hopefully) clone — must not touch the original.
+        s.queue.pop(0)
+        return "ok"
+
+    with patch(
+        "infra.navigation_state.NavigationStateStore.dual_write_enabled",
+        new_callable=AsyncMock,
+        return_value=False,
+    ):
+        result = await store.mutate(
+            state.session_id, mutator, current_state=state
+        )
+
+    assert result.conflicted is False
+    assert result.result == "ok"
+    # Invariant 1: the mutator received a different object than our input.
+    assert captured["arg"] is not state
+    # Invariant 2: the caller's state was not mutated by the mutator.
+    assert len(state.queue) == 2
+    assert state.queue[0]["tconst"] == "tt1"
+    # Invariant 3: the mutator's changes DID land in the result.
+    assert len(result.state.queue) == 1
+    assert result.state.queue[0]["tconst"] == "tt2"
+
+
 # ===========================================================================
 # NavigationState.user_id field
 # ===========================================================================

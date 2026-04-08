@@ -26,6 +26,9 @@ from infra.metrics_groups import (
     user,
     cache,
     error,
+    enrichment,
+    worker as worker_metrics_group,
+    logging_metrics as logging_metrics_group,
 )
 
 # ── Backward-compatible aliases ──────────────────────────────────────
@@ -65,6 +68,102 @@ navigation_state_redis_import_total = error.navigation_state_redis_import_total
 navigation_state_migration_miss_total = error.navigation_state_migration_miss_total
 navigation_state_conflicts_total = error.navigation_state_conflicts_total
 home_prewarm_failed_total = error.home_prewarm_failed_total
+
+enrichment_enqueued_total = enrichment.enqueued_total
+enrichment_enqueue_fallback_total = enrichment.enqueue_fallback_total
+enrichment_backlog_drop_total = enrichment.backlog_drop_total
+enrichment_timeout_total = enrichment.timeout_total
+
+# Worker / background job metrics
+worker_jobs_total = worker_metrics_group.jobs_total
+worker_job_duration_seconds = worker_metrics_group.job_duration_seconds
+worker_queue_depth = worker_metrics_group.queue_depth
+worker_queue_oldest_job_age_seconds = worker_metrics_group.queue_oldest_job_age_seconds
+local_enrichment_pending = worker_metrics_group.local_enrichment_pending
+
+# Logging pipeline metrics
+logging_dropped_total = logging_metrics_group.dropped_total
+
+
+# ── Label cardinality helpers ────────────────────────────────────────
+# Cap the set of exception class names that can become Prometheus label
+# values so a misbehaving dependency raising dynamically-named classes
+# cannot cause label-explosion on ``application_errors_total``. Anything
+# not in this allow-list is bucketed as ``"other"``.
+_KNOWN_ERROR_TYPES = frozenset(
+    {
+        "ValueError",
+        "TypeError",
+        "KeyError",
+        "AttributeError",
+        "RuntimeError",
+        "TimeoutError",
+        "CancelledError",
+        "ConnectionError",
+        "ConnectionResetError",
+        "OSError",
+        "IOError",
+        "DatabaseError",
+        "OperationalError",
+        "IntegrityError",
+        "InterfaceError",
+        "ProgrammingError",
+        "PoolError",
+        "HTTPError",
+        "RequestError",
+        "HTTPStatusError",
+        "ReadTimeout",
+        "ConnectTimeout",
+        "JSONDecodeError",
+        "NotImplementedError",
+        "AssertionError",
+        "LookupError",
+        "IndexError",
+    }
+)
+
+
+def bucket_error_type(error_type: str) -> str:
+    """Bucket an exception class name for low-cardinality labeling.
+
+    Names in the allow-list pass through unchanged; everything else is
+    collapsed to ``"other"`` to bound Prometheus label cardinality. Used
+    by ``application_errors_total`` in ``app.py``.
+    """
+    if not error_type:
+        return "other"
+    if error_type in _KNOWN_ERROR_TYPES:
+        return error_type
+    return "other"
+
+
+def bucket_http_status(status_code) -> str:
+    """Collapse raw HTTP status codes into low-cardinality buckets.
+
+    - ``"circuit_open"`` / ``"transport_error"`` / ``"error"`` pass through.
+    - ``"429"`` passes through (rate limiting is operationally important).
+    - ``2xx`` / ``3xx`` / ``4xx`` / ``5xx`` are bucketed by class.
+    """
+    if status_code is None:
+        return "other"
+    text = str(status_code)
+    if not text.isdigit():
+        return text  # circuit_open, transport_error, error
+    if text == "429":
+        return "429"
+    try:
+        code = int(text)
+    except ValueError:  # pragma: no cover - defensive
+        return "other"
+    if 200 <= code < 300:
+        return "2xx"
+    if 300 <= code < 400:
+        return "3xx"
+    if 400 <= code < 500:
+        return "4xx"
+    if 500 <= code < 600:
+        return "5xx"
+    return "other"
 
 # ============================================================================
 # METRICS COLLECTION SERVICE

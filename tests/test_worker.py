@@ -279,7 +279,30 @@ async def test_purge_uses_correct_sql():
     assert call_args[1]["fetch"] == "none"
 
 
-def test_worker_settings_has_expected_cron_jobs():
+async def test_purge_expired_navigation_state_sleeps_between_full_batches():
+    """Should sleep PURGE_BATCH_SLEEP_SECONDS after each full batch, not after final partial."""
+    import worker
+    from worker import purge_expired_navigation_state
+
+    mock_pool = AsyncMock()
+    mock_pool.execute = AsyncMock(side_effect=[1000, 1000, 500])
+    ctx = {"db_pool": mock_pool}
+
+    with patch("worker.asyncio.sleep", new=AsyncMock()) as mock_sleep:
+        result = await purge_expired_navigation_state(ctx)
+
+    assert result == 2500
+    assert mock_sleep.await_count == 2
+    for call in mock_sleep.await_args_list:
+        assert call.args[0] == worker.PURGE_BATCH_SLEEP_SECONDS
+
+
+def test_worker_settings_has_no_cron_jobs_by_default():
+    """I9 regression: WorkerSettings.cron_jobs must be empty by default so a
+    co-running MaintenanceWorkerSettings does not double-execute every cron.
+    Maintenance crons are owned by MaintenanceWorkerSettings. Single-worker
+    deploys can opt back in via NEXTREEL_CRON_ON_HOT_PATH=1.
+    """
     import importlib
     worker = importlib.import_module("worker")
     if not hasattr(worker, "WorkerSettings"):
@@ -288,8 +311,74 @@ def test_worker_settings_has_expected_cron_jobs():
 
     cron_jobs = getattr(worker.WorkerSettings, "cron_jobs", None)
     assert cron_jobs is not None, "WorkerSettings must define cron_jobs"
+    # Default: empty (no double-execution in two-worker topology).
+    assert cron_jobs == []
 
+
+def test_maintenance_worker_settings_owns_cron_schedule():
+    """I9 regression: MaintenanceWorkerSettings is the canonical owner of
+    the maintenance cron schedule. All three recurring jobs live here.
+    """
+    import importlib
+    worker = importlib.import_module("worker")
+    if not hasattr(worker, "MaintenanceWorkerSettings"):
+        import pytest
+        pytest.skip("arq not installed")
+
+    cron_jobs = worker.MaintenanceWorkerSettings.cron_jobs
     scheduled_fn_names = {cj.name for cj in cron_jobs}
     assert any("refresh_movie_candidates" in n for n in scheduled_fn_names)
     assert any("requeue_stale_projections" in n for n in scheduled_fn_names)
     assert any("purge_expired_navigation_state" in n for n in scheduled_fn_names)
+
+
+def test_maintenance_worker_settings_has_isolated_queue():
+    import importlib
+    worker = importlib.import_module("worker")
+    if not hasattr(worker, "MaintenanceWorkerSettings"):
+        pytest.skip("arq not installed")
+
+    assert worker.MaintenanceWorkerSettings.queue_name == worker.MAINTENANCE_QUEUE_NAME
+    assert worker.MaintenanceWorkerSettings.queue_name == "nextreel_maintenance"
+
+
+def test_maintenance_worker_settings_functions_are_maintenance_only():
+    import importlib
+    worker = importlib.import_module("worker")
+    if not hasattr(worker, "MaintenanceWorkerSettings"):
+        pytest.skip("arq not installed")
+
+    funcs = worker.MaintenanceWorkerSettings.functions
+    assert funcs == worker.MAINTENANCE_FUNCTIONS
+    assert worker.enrich_projection not in funcs
+    assert worker.ensure_core_projection not in funcs
+
+
+def test_worker_settings_still_registers_all_functions_for_backcompat():
+    import importlib
+    worker = importlib.import_module("worker")
+    if not hasattr(worker, "WorkerSettings"):
+        pytest.skip("arq not installed")
+
+    assert set(worker.WorkerSettings.functions) == set(
+        worker.HOT_PATH_FUNCTIONS + worker.MAINTENANCE_FUNCTIONS
+    )
+
+
+def test_maintenance_worker_cron_schedule_is_exclusive_by_default():
+    """I9 regression: MaintenanceWorkerSettings owns the cron schedule and
+    WorkerSettings does NOT duplicate it by default. Running both workers
+    together must not double-execute any cron.
+    """
+    import importlib
+    worker = importlib.import_module("worker")
+    if not hasattr(worker, "MaintenanceWorkerSettings"):
+        pytest.skip("arq not installed")
+
+    main_names = {cj.name for cj in worker.WorkerSettings.cron_jobs}
+    maint_names = {cj.name for cj in worker.MaintenanceWorkerSettings.cron_jobs}
+    # Maintenance owns all three crons; hot-path has none by default.
+    assert main_names == set()
+    assert len(maint_names) == 3
+    # No overlap — two workers in the same deploy cannot double-execute.
+    assert main_names.isdisjoint(maint_names)

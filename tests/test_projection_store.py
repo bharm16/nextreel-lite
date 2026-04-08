@@ -519,10 +519,11 @@ class TestRequeueStaleProjections:
     """ProjectionStore.requeue_stale_projections() row-count logic."""
 
     async def test_returns_count_of_updated_rows(self, mock_db_pool):
+        # Both loops (ready->stale, failed->stale) run; each returns 5 then exits.
         mock_db_pool.execute = AsyncMock(return_value=5)
         store = _make_store(mock_db_pool)
         count = await store.requeue_stale_projections()
-        assert count == 5
+        assert count == 10
 
     async def test_returns_zero_when_result_is_not_int(self, mock_db_pool):
         mock_db_pool.execute = AsyncMock(return_value=None)
@@ -535,8 +536,9 @@ class TestRequeueStaleProjections:
         store = _make_store(mock_db_pool)
         await store.requeue_stale_projections()
 
-        call_args = mock_db_pool.execute.call_args
-        params = call_args[0][1]
+        # First call is the ready->stale loop.
+        first_call = mock_db_pool.execute.call_args_list[0]
+        params = first_call[0][1]
         assert params[0] == PROJECTION_STALE
         assert params[1] == PROJECTION_READY
 
@@ -545,6 +547,39 @@ class TestRequeueStaleProjections:
         store = _make_store(mock_db_pool)
         count = await store.requeue_stale_projections()
         assert count == 0
+
+    async def test_failed_recovery_sweep_runs_second_update(self, mock_db_pool):
+        """Both ready->stale and failed->stale UPDATEs are issued."""
+        from movies.projection_state import FAILED_RETRY_COOLDOWN
+
+        # Each loop returns less-than-batch-size on first call so each exits
+        # after one iteration. 3 + 7 = 10 total.
+        mock_db_pool.execute = AsyncMock(side_effect=[3, 7])
+        store = _make_store(mock_db_pool)
+        count = await store.requeue_stale_projections()
+
+        assert count == 10
+        assert mock_db_pool.execute.await_count == 2
+
+        first_call, second_call = mock_db_pool.execute.await_args_list
+        first_params = first_call.args[1]
+        second_params = second_call.args[1]
+
+        # First UPDATE: ready -> stale
+        assert first_params[0] == PROJECTION_STALE
+        assert first_params[1] == PROJECTION_READY
+
+        # Second UPDATE: failed -> stale, with cooldown threshold
+        second_sql = second_call.args[0]
+        assert "projection_state" in second_sql
+        assert second_params[0] == PROJECTION_STALE
+        assert second_params[1] == PROJECTION_FAILED
+        # cutoff is "now - FAILED_RETRY_COOLDOWN"; verify it's roughly that
+        from infra.time_utils import utcnow as _utcnow
+        cutoff = second_params[2]
+        delta = _utcnow() - cutoff
+        # Should be within a few seconds of FAILED_RETRY_COOLDOWN
+        assert abs(delta.total_seconds() - FAILED_RETRY_COOLDOWN.total_seconds()) < 5
 
 
 async def test_ready_check_is_select_only(mock_db_pool):
@@ -691,14 +726,15 @@ class TestFetchRenderablePayload:
 
 async def test_requeue_stale_projections_batches_under_limit():
     mock_pool = AsyncMock()
-    # First batch: full 500. Second batch: 150 (partial -> loop exits).
-    mock_pool.execute = AsyncMock(side_effect=[500, 150])
+    # ready->stale loop: full 500, then 150 (partial -> exits).
+    # failed->stale loop: 0 (exits immediately).
+    mock_pool.execute = AsyncMock(side_effect=[500, 150, 0])
 
     store = ProjectionStore(mock_pool)
     total = await store.requeue_stale_projections()
 
     assert total == 650
-    assert mock_pool.execute.await_count == 2
+    assert mock_pool.execute.await_count == 3
     for call in mock_pool.execute.await_args_list:
         query = call.args[0]
         assert "LIMIT" in query.upper()
@@ -712,7 +748,8 @@ async def test_requeue_stale_projections_exits_immediately_when_empty():
     total = await store.requeue_stale_projections()
 
     assert total == 0
-    assert mock_pool.execute.await_count == 1
+    # Both loops fire one iteration each before exiting on 0.
+    assert mock_pool.execute.await_count == 2
 
 
 async def test_requeue_stale_projections_safety_cap_prevents_infinite_loop():
@@ -723,6 +760,6 @@ async def test_requeue_stale_projections_safety_cap_prevents_infinite_loop():
     store = ProjectionStore(mock_pool)
     total = await store.requeue_stale_projections()
 
-    # Safety cap: 100 iterations x 500 rows = 50000
-    assert mock_pool.execute.await_count == 100
-    assert total == 50000
+    # Safety cap on each loop: 100 iterations x 500 rows = 50000 each, x2 loops.
+    assert mock_pool.execute.await_count == 200
+    assert total == 100000

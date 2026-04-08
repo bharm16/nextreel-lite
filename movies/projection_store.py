@@ -7,14 +7,18 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from infra.time_utils import utcnow
+from logging_config import get_logger
 from movies.projection_enrichment import ProjectionEnrichmentCoordinator
 from movies.projection_state import (
+    FAILED_RETRY_COOLDOWN,
     STALE_AFTER,
     ProjectionState,
 )
 
 if TYPE_CHECKING:
     import asyncio
+
+logger = get_logger(__name__)
 
 PLACEHOLDER_POSTER = "/static/img/poster-placeholder.svg"
 PLACEHOLDER_BACKDROP = "/static/img/backdrop-placeholder.svg"
@@ -86,6 +90,25 @@ class ProjectionStore:
         )
 
     async def fetch_renderable_payload(self, tconst: str) -> dict[str, Any] | None:
+        # Fast path: if a local prefetch/enrichment task is already in flight
+        # for this tconst (scheduled by a navigation handler before redirect),
+        # await that shared task and reuse its result. Failures propagate to
+        # all concurrent awaiters and the map entry is removed so the next
+        # request starts fresh.
+        coordinator = self.coordinator
+        inflight = coordinator.get_inflight(tconst) if coordinator else None
+        if inflight is not None:
+            logger.debug(
+                "Reusing in-flight local enrichment task for %s", tconst
+            )
+            try:
+                enriched = await inflight
+            except Exception:
+                enriched = None
+            if enriched:
+                return enriched
+            # Fall through to the normal path on failure.
+
         row = await self._select_row(tconst)
         now = utcnow()
         if row:
@@ -107,11 +130,22 @@ class ProjectionStore:
             if state == PROJECTION_READY:
                 return self._payload_from_row(row)
             if state == PROJECTION_STALE:
-                await self._maybe_enqueue_enrichment(
-                    tconst,
-                    row,
-                    tmdb_id=row.get("tmdb_id"),
-                )
+                # Mutual exclusion: skip ARQ enqueue if a local prefetch task
+                # is already in flight for this tconst. The check-and-enqueue
+                # happens under the coordinator lock so a concurrent prefetch
+                # handler cannot start a local task between the two steps.
+                if coordinator is not None:
+                    await coordinator.maybe_enqueue_if_not_inflight(
+                        tconst,
+                        row,
+                        tmdb_id=row.get("tmdb_id"),
+                    )
+                else:
+                    await self._maybe_enqueue_enrichment(
+                        tconst,
+                        row,
+                        tmdb_id=row.get("tmdb_id"),
+                    )
                 return self._payload_from_row(row)
             if ProjectionState(state).needs_enrichment():
                 enriched = await self.enrich_projection(
@@ -375,6 +409,27 @@ class ProjectionStore:
                 LIMIT %s
                 """,
                 [PROJECTION_STALE, PROJECTION_READY, now, batch_size],
+                fetch="none",
+            )
+            affected_count = affected if isinstance(affected, int) else 0
+            total_affected += affected_count
+            if affected_count < batch_size:
+                break
+
+        # Re-arm failed projections whose cooldown has elapsed so movies with
+        # no traffic eventually recover (the inline-on-request path only fires
+        # when a user actually visits the tconst).
+        for _ in range(max_iterations):
+            cutoff = utcnow() - FAILED_RETRY_COOLDOWN
+            affected = await self.db_pool.execute(
+                """
+                UPDATE movie_projection
+                SET projection_state = %s
+                WHERE projection_state = %s
+                  AND (last_attempt_at IS NULL OR last_attempt_at <= %s)
+                LIMIT %s
+                """,
+                [PROJECTION_STALE, PROJECTION_FAILED, cutoff, batch_size],
                 fetch="none",
             )
             affected_count = affected if isinstance(affected, int) else 0

@@ -42,3 +42,4 @@ class ProjectionState(Enum):
 # Enrichment policy constants
 ENQUEUE_COOLDOWN = timedelta(minutes=15)
 STALE_AFTER = timedelta(days=7)
+FAILED_RETRY_COOLDOWN = timedelta(hours=6)

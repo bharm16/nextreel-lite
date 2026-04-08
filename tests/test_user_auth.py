@@ -9,6 +9,7 @@ import pytest
 
 from session.user_auth import (
     MIN_PASSWORD_LENGTH,
+    DuplicateUserError,
     authenticate_user,
     find_or_create_oauth_user,
     get_user_by_email,
@@ -278,3 +279,56 @@ async def test_get_user_by_email_not_found(mock_db_pool):
     result = await get_user_by_email(mock_db_pool, "nobody@example.com")
 
     assert result is None
+
+
+# ---------------------------------------------------------------------------
+# DuplicateUserError on concurrent race past pre-check
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_register_user_raises_duplicate_on_unique_violation(mock_db_pool):
+    """C2 regression: if two concurrent register requests race past the
+    pre-insert duplicate-email check, the second INSERT must raise
+    DuplicateUserError (mapped from pymysql errno 1062) so the route can
+    render the same error as the pre-check branch.
+    """
+    import pymysql
+
+    mock_db_pool.execute = AsyncMock(
+        side_effect=pymysql.err.IntegrityError(
+            1062, "Duplicate entry 'dup@example.com' for key 'idx_users_email'"
+        )
+    )
+
+    with pytest.raises(DuplicateUserError):
+        await register_user(
+            mock_db_pool,
+            "dup@example.com",
+            "password123",
+            None,
+            precomputed_hash="$2b$12$precomputed",
+        )
+
+
+@pytest.mark.asyncio
+async def test_register_user_reraises_other_integrity_errors(mock_db_pool):
+    """Non-1062 IntegrityErrors (e.g. FK violations) must propagate
+    unchanged — we only bucket duplicate-entry as DuplicateUserError.
+    """
+    import pymysql
+
+    mock_db_pool.execute = AsyncMock(
+        side_effect=pymysql.err.IntegrityError(
+            1452, "Cannot add or update a child row: a foreign key constraint fails"
+        )
+    )
+
+    with pytest.raises(pymysql.err.IntegrityError):
+        await register_user(
+            mock_db_pool,
+            "x@example.com",
+            "password123",
+            None,
+            precomputed_hash="$2b$12$precomputed",
+        )

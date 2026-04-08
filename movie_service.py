@@ -2,7 +2,18 @@ from __future__ import annotations
 
 import asyncio
 import os
-from typing import Any, MutableMapping
+from typing import Any, Awaitable, Callable, MutableMapping
+
+
+def _nav_dual_write_active() -> bool:
+    """Read the dual-write flag from the environment, once per call.
+
+    The home-prewarm decision reads this exactly once at schedule time and
+    passes the resulting boolean into the background task — never inside
+    the task, which would re-read stale config.
+    """
+    raw = os.getenv("NAV_STATE_DUAL_WRITE_ENABLED", "true").strip().lower()
+    return raw not in ("false", "0", "no", "off")
 
 from filter_contracts import FilterState
 from logging_config import get_logger
@@ -40,6 +51,41 @@ class MovieManager:
         self._navigator: MovieNavigator | None = None
         self._renderer = MovieRenderer(self.projection_store)
         self.watched_store = WatchedStore(self.db_pool)
+        # Background-task scheduler hook wired from ``app.create_app()``. When
+        # present, request handlers can schedule best-effort work (queue
+        # prewarm, local enrichment prefetch) off the request path.
+        self._background_scheduler: (
+            Callable[[Awaitable[Any]], Any] | None
+        ) = None
+
+    def attach_background_scheduler(
+        self,
+        scheduler: Callable[[Awaitable[Any]], Any] | None,
+    ) -> None:
+        """Wire an app-owned background task scheduler.
+
+        The scheduler is called with a single coroutine argument and is
+        expected to wrap it in ``asyncio.create_task`` and register the task
+        in ``app.background_tasks`` so it is awaited on shutdown.
+        """
+        self._background_scheduler = scheduler
+
+    def schedule_background(self, coro: Awaitable[Any]) -> bool:
+        """Hand a coroutine to the app scheduler, closing it on failure."""
+        scheduler = self._background_scheduler
+        if scheduler is None:
+            coro.close()
+            return False
+        try:
+            scheduler(coro)
+            return True
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning("Background scheduler rejected task: %s", exc)
+            try:
+                coro.close()
+            except Exception:
+                pass
+            return False
 
     def attach_cache(self, cache) -> None:
         """Wire a Redis cache into stores that benefit from it.
@@ -92,27 +138,56 @@ class MovieManager:
         legacy_session: MutableMapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         if state and not state.queue and self._navigator:
-            try:
-                prewarm_timeout = float(os.getenv("PREWARM_TIMEOUT_SECONDS", "0.1"))
-            except ValueError:
-                prewarm_timeout = 0.1
-            try:
-                await asyncio.wait_for(
-                    self._navigator.prewarm_queue(
-                        state.session_id,
-                        legacy_session=legacy_session,
-                        current_state=state,
-                    ),
-                    timeout=prewarm_timeout,
-                )
-            except asyncio.TimeoutError:
-                logger.info(
-                    "prewarm_queue exceeded %.2fs timeout; skipping prewarm",
-                    prewarm_timeout,
-                )
-            except Exception as exc:
-                home_prewarm_failed_total.inc()
-                logger.warning("Home prewarm failed for %s: %s", state.session_id, exc)
+            # Read the dual-write flag exactly once here — the background
+            # task must not re-read stale config mid-flight.
+            dual_write_active = _nav_dual_write_active()
+
+            if self._background_scheduler is not None and not dual_write_active:
+                # Capture only plain data. The background task must not
+                # touch request/session/g — it receives the session_id
+                # (a plain str) and schedules prewarm without the legacy
+                # session mapping, since dual-write is off by assumption.
+                session_id = state.session_id
+                navigator = self._navigator
+
+                async def _bg_prewarm() -> None:
+                    try:
+                        await navigator.prewarm_queue(
+                            session_id,
+                            legacy_session=None,
+                            current_state=None,
+                        )
+                    except Exception as exc:
+                        home_prewarm_failed_total.inc()
+                        logger.warning(
+                            "Background home prewarm failed for %s: %s",
+                            session_id,
+                            exc,
+                        )
+
+                self.schedule_background(_bg_prewarm())
+            else:
+                try:
+                    prewarm_timeout = float(os.getenv("PREWARM_TIMEOUT_SECONDS", "0.1"))
+                except ValueError:
+                    prewarm_timeout = 0.1
+                try:
+                    await asyncio.wait_for(
+                        self._navigator.prewarm_queue(
+                            state.session_id,
+                            legacy_session=legacy_session,
+                            current_state=state,
+                        ),
+                        timeout=prewarm_timeout,
+                    )
+                except asyncio.TimeoutError:
+                    logger.info(
+                        "prewarm_queue exceeded %.2fs timeout; skipping prewarm",
+                        prewarm_timeout,
+                    )
+                except Exception as exc:
+                    home_prewarm_failed_total.inc()
+                    logger.warning("Home prewarm failed for %s: %s", state.session_id, exc)
 
         return {"default_backdrop_url": self.default_backdrop_url}
 

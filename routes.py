@@ -1,5 +1,6 @@
 """Application route handlers."""
 
+import asyncio
 from dataclasses import dataclass
 import json
 import re
@@ -70,7 +71,38 @@ def _safe_referrer(fallback_tconst: str) -> str:
     return url_for("main.movie_detail", tconst=fallback_tconst)
 
 
-def _redirect_for_navigation_outcome(outcome: NavigationOutcome):
+async def _schedule_prefetch(tconst: str) -> None:
+    """Best-effort local prefetch for the redirect target.
+
+    Inserts an in-flight enrichment task into the coordinator map
+    *synchronously* before the redirect response is returned, so the
+    detail request that immediately follows the redirect observes the
+    in-flight task and reuses its result instead of starting duplicate
+    enrichment.
+    """
+    try:
+        services = _services()
+        store = services.movie_manager.projection_store
+        coordinator = store.coordinator
+        if coordinator is None:
+            return
+        # Only schedule when we have the tools for enrichment.
+        if not coordinator.tmdb_helper:
+            return
+        row = await store._select_row(tconst)
+        # Skip when the row is already ready/fresh — no prefetch needed.
+        if row and row.get("projection_state") == "ready":
+            stale_after = row.get("stale_after")
+            from infra.time_utils import utcnow as _utcnow
+            if not stale_after or stale_after > _utcnow():
+                return
+        tmdb_id = row.get("tmdb_id") if row else None
+        await coordinator.get_or_start_inflight(tconst, tmdb_id=tmdb_id)
+    except Exception as exc:  # pragma: no cover - best-effort only
+        logger.debug("Prefetch scheduling skipped for %s: %s", tconst, exc)
+
+
+async def _redirect_for_navigation_outcome(outcome: NavigationOutcome):
     if outcome.state_conflict:
         if outcome.tconst:
             return redirect(
@@ -79,6 +111,7 @@ def _redirect_for_navigation_outcome(outcome: NavigationOutcome):
             )
         return redirect(url_for("main.home", state_conflict=1), code=303)
     if outcome.tconst:
+        await _schedule_prefetch(outcome.tconst)
         return redirect(url_for("main.movie_detail", tconst=outcome.tconst), code=303)
     abort(500, description="Navigation outcome missing target movie")
 
@@ -197,7 +230,13 @@ async def register_page():
 @csrf_required
 @rate_limited("register")
 async def register_submit():
-    from session.user_auth import get_user_by_email, register_user, validate_registration
+    from session.user_auth import (
+        DuplicateUserError,
+        get_user_by_email,
+        hash_password_async,
+        register_user,
+        validate_registration,
+    )
 
     form_data = await request.form
     email = form_data.get("email", "").strip()
@@ -210,8 +249,47 @@ async def register_submit():
         return await render_template("register.html", errors=errors), 400
 
     services = _services()
-    existing = await get_user_by_email(services.movie_manager.db_pool, email)
-    if existing:
+    db_pool = services.movie_manager.db_pool
+
+    # Run bcrypt hashing concurrently with the duplicate-email lookup.
+    # On the duplicate-email branch we cancel the hash awaitable; note that
+    # cancelling an asyncio.to_thread future does NOT stop the underlying
+    # bcrypt work — the worker thread still runs to completion. That is
+    # acceptable wasted CPU, not a correctness change. The wasted-CPU blast
+    # radius is bounded by @rate_limited("register") above.
+    hash_task = asyncio.create_task(hash_password_async(password))
+    try:
+        existing = await get_user_by_email(db_pool, email)
+        if existing:
+            hash_task.cancel()
+            await asyncio.gather(hash_task, return_exceptions=True)
+            return (
+                await render_template(
+                    "register.html",
+                    errors={"email": "An account with this email already exists."},
+                ),
+                400,
+            )
+
+        password_hash = await hash_task
+    except BaseException:
+        if not hash_task.done():
+            hash_task.cancel()
+            await asyncio.gather(hash_task, return_exceptions=True)
+        raise
+
+    try:
+        user_id = await register_user(
+            db_pool,
+            email,
+            password,
+            display_name,
+            precomputed_hash=password_hash,
+        )
+    except DuplicateUserError:
+        # TOCTOU race: another request registered the same email between
+        # our duplicate-email check and INSERT. The UNIQUE constraint on
+        # users.email caught it. Render the same error as the pre-check.
         return (
             await render_template(
                 "register.html",
@@ -219,8 +297,6 @@ async def register_submit():
             ),
             400,
         )
-
-    user_id = await register_user(services.movie_manager.db_pool, email, password, display_name)
 
     state = _current_state()
     await current_app.navigation_state_store.set_user_id(state.session_id, user_id)
@@ -314,10 +390,8 @@ async def movie_detail(tconst):
 
     state = _current_state()
     user_id = _current_user_id()
-    if user_id:
-        g.is_watched = await _services().movie_manager.watched_store.is_watched(user_id, tconst)
-    else:
-        g.is_watched = False
+    services = _services()
+    movie_manager = services.movie_manager
 
     logger.debug(
         "Fetching movie details for tconst: %s, session_id: %s. Correlation ID: %s",
@@ -325,10 +399,37 @@ async def movie_detail(tconst):
         state.session_id,
         g.correlation_id,
     )
-    return await _services().movie_manager.render_movie_by_tconst(
-        state,
-        tconst,
-        template_name="movie.html",
+
+    # Run the watched-status lookup concurrently with the projection payload
+    # fetch. Each branch independently acquires a pooled DB connection via
+    # its store method — no shared connection is reused across gathered legs.
+    async def _watched_lookup() -> bool:
+        if not user_id:
+            return False
+        return await movie_manager.watched_store.is_watched(user_id, tconst)
+
+    async def _payload_lookup():
+        return await movie_manager.projection_store.fetch_renderable_payload(tconst)
+
+    is_watched_result, movie_data = await asyncio.gather(
+        _watched_lookup(),
+        _payload_lookup(),
+    )
+    g.is_watched = bool(is_watched_result)
+
+    if not movie_data:
+        logger.info("No data found for movie with tconst: %s", tconst)
+        return "Movie not found", 404
+
+    previous_count = (
+        movie_manager._navigator.prev_stack_length(state)
+        if movie_manager._navigator and state
+        else 0
+    )
+    return await render_template(
+        "movie.html",
+        movie=movie_data,
+        previous_count=previous_count,
     )
 
 
@@ -364,7 +465,7 @@ async def next_movie():
     )
 
     if outcome is not None:
-        return _redirect_for_navigation_outcome(outcome)
+        return await _redirect_for_navigation_outcome(outcome)
 
     logger.warning("No more movies available. Correlation ID: %s", g.correlation_id)
     return "No more movies available. Please try again later.", 200
@@ -390,7 +491,7 @@ async def previous_movie():
             return redirect(url_for("main.movie_detail", tconst=tconst))
         return redirect(url_for("main.home"))
 
-    return _redirect_for_navigation_outcome(outcome)
+    return await _redirect_for_navigation_outcome(outcome)
 
 
 @bp.route("/filters")
@@ -487,7 +588,7 @@ async def filtered_movie_endpoint():
                 "ok": False,
                 "errors": {"form": "No movies matched your filters. Try broadening your criteria."},
             })
-        return _redirect_for_navigation_outcome(outcome)
+        return await _redirect_for_navigation_outcome(outcome)
     if wants_json:
         return jsonify({
             "ok": False,
@@ -520,10 +621,14 @@ async def watched_list_page():
     per_page = max(1, min(per_page, 200))
     offset = (page - 1) * per_page
 
-    raw_rows = await services.movie_manager.watched_store.list_watched(
-        user_id, limit=per_page, offset=offset
+    # Run the page fetch and total-count query concurrently. Each leg
+    # acquires its own connection from the pool via WatchedStore's methods.
+    raw_rows, total_count = await asyncio.gather(
+        services.movie_manager.watched_store.list_watched(
+            user_id, limit=per_page, offset=offset
+        ),
+        services.movie_manager.watched_store.count(user_id),
     )
-    total_count = await services.movie_manager.watched_store.count(user_id)
 
     movies: list[dict] = []
     year_values: list[int] = []

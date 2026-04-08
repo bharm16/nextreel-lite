@@ -67,3 +67,65 @@ def test_tmdb_semaphore_default_is_50(monkeypatch):
     import movies.tmdb_client as tmdb_module
     importlib.reload(tmdb_module)
     assert tmdb_module._rate_semaphore._value == 50
+
+
+import time
+
+import pytest
+
+from movies.tmdb_client import _CircuitBreaker, _build_circuit_breaker
+
+
+class TestCircuitBreakerLatency:
+    async def test_record_success_without_duration_keeps_ewma_none(self):
+        breaker = _CircuitBreaker(latency_threshold_seconds=1.0)
+        for _ in range(5):
+            await breaker.record_success()
+        assert breaker.latency_ewma_seconds is None
+        assert breaker.state == _CircuitBreaker.CLOSED
+
+    async def test_ewma_updates_correctly(self):
+        breaker = _CircuitBreaker(latency_ewma_alpha=0.5)
+        await breaker.record_success(duration_seconds=1.0)
+        await breaker.record_success(duration_seconds=3.0)
+        assert breaker.latency_ewma_seconds == pytest.approx(2.0)
+
+    async def test_latency_trip_opens_breaker(self):
+        breaker = _CircuitBreaker(latency_threshold_seconds=2.0, latency_ewma_alpha=0.5)
+        for _ in range(5):
+            await breaker.record_success(duration_seconds=5.0)
+        assert breaker.state == _CircuitBreaker.OPEN
+        assert await breaker.allow_request() is False
+
+    async def test_no_trip_when_threshold_none(self):
+        breaker = _CircuitBreaker(latency_threshold_seconds=None)
+        for _ in range(10):
+            await breaker.record_success(duration_seconds=30.0)
+        assert breaker.state == _CircuitBreaker.CLOSED
+        assert await breaker.allow_request() is True
+
+    async def test_recovery_after_latency_trip(self):
+        breaker = _CircuitBreaker(
+            latency_threshold_seconds=1.0,
+            latency_ewma_alpha=1.0,
+            recovery_timeout=30.0,
+        )
+        await breaker.record_success(duration_seconds=5.0)
+        assert breaker.state == _CircuitBreaker.OPEN
+        breaker._last_failure_time = time.time() - 60
+        assert await breaker.allow_request() is True
+
+    def test_invalid_env_var_ignored(self, monkeypatch):
+        monkeypatch.setenv("TMDB_LATENCY_BREAKER_SECONDS", "not-a-float")
+        breaker = _build_circuit_breaker()
+        assert breaker.latency_threshold_seconds is None
+
+    def test_zero_env_var_ignored(self, monkeypatch):
+        monkeypatch.setenv("TMDB_LATENCY_BREAKER_SECONDS", "0")
+        breaker = _build_circuit_breaker()
+        assert breaker.latency_threshold_seconds is None
+
+    def test_negative_env_var_ignored(self, monkeypatch):
+        monkeypatch.setenv("TMDB_LATENCY_BREAKER_SECONDS", "-1")
+        breaker = _build_circuit_breaker()
+        assert breaker.latency_threshold_seconds is None

@@ -100,6 +100,33 @@ async def test_movie_detail_route():
     with patch.dict(os.environ, TEST_ENV), patch("app.MovieManager") as MockManager:
         manager = MockManager.return_value
         manager.render_movie_by_tconst = AsyncMock(return_value="detail")
+        manager.projection_store = MagicMock()
+        manager.projection_store.fetch_renderable_payload = AsyncMock(
+            return_value={
+                "title": "X",
+                "year": "2024",
+                "genres": "Drama",
+                "directors": "D",
+                "rating": 0.0,
+                "votes": 0,
+                "plot": "",
+                "poster_url": None,
+                "backdrop_url": None,
+                "cast": [],
+                "tmdb_id": 1,
+                "imdb_id": "tt1234567",
+                "_full": True,
+                "projection_state": "ready",
+            }
+        )
+        manager.projection_store.coordinator = MagicMock()
+        manager.projection_store.coordinator.has_inflight = MagicMock(return_value=False)
+        manager.projection_store.coordinator._inflight_enrichment = {}
+        manager.watched_store = MagicMock()
+        manager.watched_store.is_watched = AsyncMock(return_value=False)
+        navigator = MagicMock()
+        navigator.prev_stack_length = MagicMock(return_value=0)
+        manager._navigator = navigator
 
         app = _make_test_app()
         async with app.app_context():

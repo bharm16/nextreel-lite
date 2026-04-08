@@ -53,21 +53,30 @@ class _CircuitBreaker:
         failure_threshold: int = 5,
         recovery_timeout: float = 30.0,
         half_open_max: int = 1,
+        latency_threshold_seconds: float | None = None,
+        latency_ewma_alpha: float = 0.2,
     ):
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout
         self.half_open_max = half_open_max
+        self.latency_threshold_seconds = latency_threshold_seconds
+        self.latency_ewma_alpha = latency_ewma_alpha
 
         self._state = self.CLOSED
         self._failure_count = 0
         self._last_failure_time: float = 0
         self._half_open_count = 0
+        self._latency_ewma: float | None = None
         self._lock = asyncio.Lock()
 
     @property
     def state(self) -> str:
         """Return current state (read-only, no side effects)."""
         return self._state
+
+    @property
+    def latency_ewma_seconds(self) -> float | None:
+        return self._latency_ewma
 
     async def attempt_recovery(self) -> None:
         """Transition OPEN → HALF_OPEN if the recovery timeout has elapsed."""
@@ -89,10 +98,31 @@ class _CircuitBreaker:
                 return False
             return False  # OPEN
 
-    async def record_success(self) -> None:
+    async def record_success(self, duration_seconds: float | None = None) -> None:
         async with self._lock:
             self._failure_count = 0
             self._state = self.CLOSED
+            if duration_seconds is not None:
+                if self._latency_ewma is None:
+                    self._latency_ewma = duration_seconds
+                else:
+                    alpha = self.latency_ewma_alpha
+                    self._latency_ewma = (
+                        alpha * duration_seconds + (1 - alpha) * self._latency_ewma
+                    )
+                if (
+                    self.latency_threshold_seconds is not None
+                    and self._latency_ewma > self.latency_threshold_seconds
+                ):
+                    self._state = self.OPEN
+                    self._last_failure_time = time.time()
+                    logger.warning(
+                        "TMDb circuit breaker OPEN (latency EWMA %.2fs > %.2fs threshold)",
+                        self._latency_ewma,
+                        self.latency_threshold_seconds,
+                    )
+                    # Reset EWMA after tripping so recovery can measure fresh.
+                    self._latency_ewma = None
 
     async def record_failure(self) -> None:
         async with self._lock:
@@ -121,10 +151,29 @@ def _resolve_rate_semaphore_size() -> int:
 _rate_semaphore = asyncio.Semaphore(_resolve_rate_semaphore_size())
 
 
+def _build_circuit_breaker() -> _CircuitBreaker:
+    raw = os.getenv("TMDB_LATENCY_BREAKER_SECONDS")
+    threshold: float | None = None
+    if raw:
+        try:
+            value = float(raw)
+            if value > 0:
+                threshold = value
+        except ValueError:
+            logger.warning(
+                "Invalid TMDB_LATENCY_BREAKER_SECONDS=%r, ignoring", raw
+            )
+    return _CircuitBreaker(
+        failure_threshold=5,
+        recovery_timeout=30.0,
+        latency_threshold_seconds=threshold,
+    )
+
+
 class TMDbHelper:
     _rate_semaphore = _rate_semaphore
     # Circuit breaker shared across all instances
-    _circuit_breaker = _CircuitBreaker(failure_threshold=5, recovery_timeout=30.0)
+    _circuit_breaker = _build_circuit_breaker()
 
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or get_tmdb_api_key()
@@ -161,20 +210,69 @@ class TMDbHelper:
 
         return headers, request_params
 
-    async def _get(self, endpoint, params=None):
+    def _record_tmdb_metrics(self, logical_endpoint, status_code, duration_seconds):
+        """Best-effort Prometheus emission. Failures never break the caller.
+
+        ``status_code`` is bucketed via ``bucket_http_status`` so non-429
+        HTTP codes collapse into ``2xx`` / ``3xx`` / ``4xx`` / ``5xx`` and
+        sentinel strings (``circuit_open``, ``transport_error``, ``error``)
+        pass through. This keeps the ``status_code`` label bounded to ~8
+        values regardless of what TMDb or httpx surface.
+        """
+        try:
+            from infra.metrics import (
+                bucket_http_status,
+                tmdb_api_calls_total,
+                tmdb_api_duration_seconds,
+            )
+
+            tmdb_api_calls_total.labels(
+                endpoint=logical_endpoint,
+                status_code=bucket_http_status(status_code),
+            ).inc()
+            tmdb_api_duration_seconds.labels(endpoint=logical_endpoint).observe(
+                duration_seconds
+            )
+        except Exception:  # pragma: no cover - metrics must never break requests
+            pass
+
+    def _record_tmdb_rate_limit(self, response):
+        try:
+            remaining = response.headers.get("X-RateLimit-Remaining")
+            if remaining is None:
+                return
+            from infra.metrics import tmdb_rate_limit_remaining
+
+            tmdb_rate_limit_remaining.set(float(remaining))
+        except Exception:  # pragma: no cover - best-effort
+            pass
+
+    async def _get(self, endpoint, params=None, *, metric_endpoint=None):
+        """Fetch a TMDb endpoint.
+
+        ``metric_endpoint`` is the stable low-cardinality label used for
+        Prometheus metrics (e.g. ``movie_full``, ``movie_images``,
+        ``find_by_imdb``). It MUST NOT include dynamic IDs, URLs, or SQL.
+        When absent, a fallback label ``unknown`` is used.
+        """
+        logical_endpoint = metric_endpoint or "unknown"
         url = f"{self.base_url}/{endpoint}"
         headers, params = self._build_request_options(params)
 
         # Circuit breaker check — fail fast when TMDb is known to be down
         if not await self._circuit_breaker.allow_request():
             logger.warning("TMDb circuit breaker OPEN — rejecting request to %s", endpoint)
+            self._record_tmdb_metrics(logical_endpoint, "circuit_open", 0.0)
             raise httpx.RequestError(f"TMDb circuit breaker open — request to {endpoint} rejected")
 
         for attempt in range(self._max_retries + 1):
             start_time = time.time()
+            metric_recorded = False
             try:
                 async with self._rate_semaphore:
                     response = await self._client.get(url, params=params, headers=headers)
+
+                self._record_tmdb_rate_limit(response)
 
                 if response.status_code == 429:
                     retry_after = float(response.headers.get("Retry-After", 1))
@@ -186,6 +284,10 @@ class TMDbHelper:
                         self._max_retries,
                     )
                     await self._circuit_breaker.record_failure()
+                    self._record_tmdb_metrics(
+                        logical_endpoint, 429, time.time() - start_time
+                    )
+                    metric_recorded = True
                     if attempt < self._max_retries:
                         await asyncio.sleep(wait)
                         continue
@@ -200,12 +302,20 @@ class TMDbHelper:
                     elapsed_time,
                     response.status_code,
                 )
-                await self._circuit_breaker.record_success()
+                await self._circuit_breaker.record_success(duration_seconds=elapsed_time)
+                self._record_tmdb_metrics(
+                    logical_endpoint, response.status_code, elapsed_time
+                )
                 return response.json()
 
             except httpx.RequestError as e:
                 elapsed_time = time.time() - start_time
                 await self._circuit_breaker.record_failure()
+                if not metric_recorded:
+                    self._record_tmdb_metrics(
+                        logical_endpoint, "transport_error", elapsed_time
+                    )
+                    metric_recorded = True
                 if attempt < self._max_retries:
                     backoff = 2**attempt
                     logger.warning(
@@ -229,6 +339,11 @@ class TMDbHelper:
                 # 4xx client errors (except 429) are not TMDb failures
                 if e.response.status_code >= 500:
                     await self._circuit_breaker.record_failure()
+                if not metric_recorded:
+                    self._record_tmdb_metrics(
+                        logical_endpoint, e.response.status_code, elapsed_time
+                    )
+                    metric_recorded = True
                 logger.error(
                     "HTTP error from %s: %s; Time elapsed: %.2fs",
                     url,
@@ -239,6 +354,11 @@ class TMDbHelper:
             except Exception as e:
                 elapsed_time = time.time() - start_time
                 await self._circuit_breaker.record_failure()
+                if not metric_recorded:
+                    self._record_tmdb_metrics(
+                        logical_endpoint, "error", elapsed_time
+                    )
+                    metric_recorded = True
                 logger.error(
                     "Unexpected error from %s: %s; Time elapsed: %.2fs",
                     url,
@@ -262,6 +382,7 @@ class TMDbHelper:
                 ),
                 "include_image_language": "en,null",
             },
+            metric_endpoint="movie_full",
         )
         return data
 
@@ -317,7 +438,9 @@ class TMDbHelper:
         """Fetch limited number of images for a TMDB ID."""
         start_time = time.time()
         try:
-            data = await self._get(f"movie/{tmdb_id}/images")
+            data = await self._get(
+                f"movie/{tmdb_id}/images", metric_endpoint="movie_images"
+            )
             images = self._parser().parse_images({"images": data}, limit=limit)
 
             logger.debug(
@@ -336,11 +459,15 @@ class TMDbHelper:
             )
 
     async def get_tmdb_id_by_tconst(self, tconst):
-        data = await self._get("find/" + tconst, {"external_source": "imdb_id"})
+        data = await self._get(
+            "find/" + tconst,
+            {"external_source": "imdb_id"},
+            metric_endpoint="find_by_imdb",
+        )
         return data["movie_results"][0]["id"] if data["movie_results"] else None
 
     async def get_movie_info_by_tmdb_id(self, tmdb_id):
-        return await self._get(f"movie/{tmdb_id}")
+        return await self._get(f"movie/{tmdb_id}", metric_endpoint="movie_info")
 
     def get_full_image_url(self, profile_path, size="original"):
         return f"{self.image_base_url}{size}{profile_path}"

@@ -30,6 +30,7 @@ mysql -e "CALL refresh_movie_caches()"  # Rebuild denormalized cache tables
 
 # Background worker
 arq worker.WorkerSettings              # Start arq worker for enrichment/refresh jobs
+arq worker.MaintenanceWorkerSettings   # Optional: second worker for heavy maintenance (isolates refresh_movie_candidates from enrichment)
 ```
 
 ## Architecture

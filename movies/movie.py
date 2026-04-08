@@ -74,6 +74,8 @@ class Movie:
     async def get_movie_data(self, known_tmdb_id: int | None = None) -> dict[str, Any] | None:
         start_time = time.time()
 
+        ratings_task: asyncio.Task | None = None
+        full_task: asyncio.Task | None = None
         try:
             ratings_task = asyncio.create_task(self.fetch_slug_and_ratings(self.tconst))
             tmdb_id = known_tmdb_id
@@ -84,15 +86,37 @@ class Movie:
                     logger.warning("TMDb ID lookup failed for %s: %s", self.tconst, exc)
                     tmdb_id = None
 
-            ratings_data = await ratings_task
             if not tmdb_id:
+                # Await the ratings task for clean shutdown before returning.
+                try:
+                    await ratings_task
+                except Exception:  # pragma: no cover - defensive
+                    pass
+                ratings_task = None
                 logger.warning("No TMDB ID found for tconst: %s", self.tconst)
                 return None
 
+            # Start the full-data fetch immediately so it runs concurrently
+            # with whatever remains of the ratings query. The existing TMDb
+            # semaphore and circuit breaker in TMDbHelper still bound fan-out.
+            full_task = asyncio.create_task(self.tmdb_helper.get_movie_full(tmdb_id))
+
             try:
-                full_data = await self.tmdb_helper.get_movie_full(tmdb_id)
+                ratings_data = await ratings_task
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.warning("Ratings fetch failed for %s: %s", self.tconst, exc)
+                ratings_data = None
+            finally:
+                ratings_task = None
+
+            try:
+                full_data = await full_task
             except Exception as exc:
                 logger.warning("TMDb combined fetch failed for %s: %s", self.tconst, exc)
+                full_data = {}
+            finally:
+                full_task = None
+            if full_data is None:
                 full_data = {}
 
             # Phase 3: parse all fields from the combined response
@@ -188,6 +212,15 @@ class Movie:
         except Exception as e:
             logger.error("Error fetching movie data for %s: %s", self.tconst, e, exc_info=True)
             return None
+        finally:
+            # Guarantee every spawned task is awaited or cancelled on every
+            # exit path so we never leak a dangling coroutine.
+            for task in (ratings_task, full_task):
+                if task is None:
+                    continue
+                if not task.done():
+                    task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
 
     async def close(self):
         """Close underlying HTTP clients (only if this instance owns them)."""

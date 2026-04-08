@@ -20,6 +20,38 @@ def _make_app():
         manager.render_movie_by_tconst = AsyncMock(return_value="<html>movie</html>")
         manager.get_current_movie_tconst = MagicMock(return_value=None)
         manager.logout = AsyncMock()
+        # /movie/<tconst> now calls projection_store.fetch_renderable_payload
+        # and watched_store.is_watched concurrently.
+        manager.projection_store = MagicMock()
+        manager.projection_store.fetch_renderable_payload = AsyncMock(
+            return_value={
+                "title": "Sample",
+                "year": "2024",
+                "genres": "Drama",
+                "directors": "Dir",
+                "rating": 0.0,
+                "votes": 0,
+                "plot": "",
+                "poster_url": None,
+                "backdrop_url": None,
+                "cast": [],
+                "tmdb_id": 1,
+                "imdb_id": "tt1234567",
+                "_full": True,
+                "projection_state": "ready",
+            }
+        )
+        manager.projection_store.coordinator = MagicMock()
+        manager.projection_store.coordinator.tmdb_helper = None
+        manager.projection_store.coordinator._inflight_enrichment = {}
+        manager.projection_store.coordinator.has_inflight = MagicMock(return_value=False)
+        manager.watched_store = MagicMock()
+        manager.watched_store.is_watched = AsyncMock(return_value=False)
+        manager.watched_store.list_watched = AsyncMock(return_value=[])
+        manager.watched_store.count = AsyncMock(return_value=0)
+        navigator = MagicMock()
+        navigator.prev_stack_length = MagicMock(return_value=0)
+        manager._navigator = navigator
 
         from app import create_app
 

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 from uuid import uuid4
 
 import bcrypt
+import pymysql
 from email_validator import EmailNotValidError, validate_email
 
 from infra.time_utils import utcnow
@@ -13,6 +15,41 @@ from logging_config import get_logger
 logger = get_logger(__name__)
 
 MIN_PASSWORD_LENGTH = 8
+
+# MySQL error code for duplicate-entry on a UNIQUE key. Tested against the
+# pymysql/aiomysql IntegrityError raised when two concurrent register
+# requests race past the pre-insert duplicate-email check and both try to
+# INSERT the same email. The users table has UNIQUE KEY idx_users_email.
+_MYSQL_DUP_ENTRY_ERRNO = 1062
+
+
+class DuplicateUserError(Exception):
+    """Raised when a user already exists for the given email.
+
+    The register route catches this to render the "account already exists"
+    error regardless of whether the duplicate was caught by the pre-check
+    or by the database unique constraint (TOCTOU race window).
+    """
+
+
+async def hash_password_async(password: str) -> str:
+    """Bcrypt hash a password off the event loop.
+
+    bcrypt is CPU-bound (hundreds of ms); run it in a worker thread so we
+    don't block the Quart event loop on auth requests.
+    """
+    return await asyncio.to_thread(
+        lambda: bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    )
+
+
+async def verify_password_async(password: str, password_hash: str) -> bool:
+    """Bcrypt-verify a password off the event loop."""
+    return await asyncio.to_thread(
+        bcrypt.checkpw,
+        password.encode("utf-8"),
+        password_hash.encode("utf-8"),
+    )
 
 
 def validate_registration(email: str, password: str, confirm_password: str) -> dict[str, str]:
@@ -38,21 +75,45 @@ async def register_user(
     email: str,
     password: str,
     display_name: str | None = None,
+    *,
+    precomputed_hash: str | None = None,
 ) -> str:
-    """Create a new email+password user. Returns user_id."""
+    """Create a new email+password user. Returns user_id.
+
+    ``precomputed_hash`` is a keyword-only escape hatch for callers that
+    already hashed the password concurrently with a duplicate-email check.
+    It is intentionally keyword-only so positional-arg drift cannot slip
+    an unhashed password in.
+    """
     user_id = uuid4().hex
-    password_hash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    if precomputed_hash is not None:
+        password_hash = precomputed_hash
+    else:
+        password_hash = await hash_password_async(password)
     now = utcnow()
 
-    await db_pool.execute(
-        """
-        INSERT INTO users (user_id, email, password_hash, display_name,
-                           auth_provider, created_at, updated_at)
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
-        """,
-        [user_id, email.lower().strip(), password_hash, display_name, "email", now, now],
-        fetch="none",
-    )
+    try:
+        await db_pool.execute(
+            """
+            INSERT INTO users (user_id, email, password_hash, display_name,
+                               auth_provider, created_at, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """,
+            [user_id, email.lower().strip(), password_hash, display_name, "email", now, now],
+            fetch="none",
+        )
+    except pymysql.err.IntegrityError as exc:
+        # errno 1062 = duplicate entry on UNIQUE key. Map to a domain
+        # exception so the register route can render the right error even
+        # when the duplicate slipped past the pre-insert email check.
+        errno = exc.args[0] if exc.args else None
+        if errno == _MYSQL_DUP_ENTRY_ERRNO:
+            logger.info(
+                "Duplicate-email race for %s caught by UNIQUE constraint",
+                email,
+            )
+            raise DuplicateUserError(email) from exc
+        raise
     logger.info("Registered user %s via email", user_id)
     return user_id
 
@@ -71,7 +132,7 @@ async def authenticate_user(db_pool, email: str, password: str) -> str | None:
     if not row or not row.get("password_hash"):
         return None
 
-    if bcrypt.checkpw(password.encode("utf-8"), row["password_hash"].encode("utf-8")):
+    if await verify_password_async(password, row["password_hash"]):
         return row["user_id"]
     return None
 

@@ -24,7 +24,14 @@ from redis import asyncio as aioredis
 import settings
 from env_bootstrap import get_environment
 from infra.cache import SimpleCacheManager
-from infra.metrics import MetricsCollector, setup_metrics_middleware
+from infra.metrics import (
+    MetricsCollector,
+    application_errors_total,
+    bucket_error_type,
+    enrichment_enqueue_fallback_total,
+    enrichment_enqueued_total,
+    setup_metrics_middleware,
+)
 from infra.navigation_state import (
     SESSION_COOKIE_MAX_AGE,
     SESSION_COOKIE_NAME,
@@ -238,6 +245,27 @@ def _init_core(app):
     app.secure_cache = None
     app.background_tasks = set()
     app.config["SESSION_REDIS"] = None
+
+    # Wire a background-task scheduler so MovieManager (and the projection
+    # enrichment coordinator) can schedule best-effort background work.
+    # Tasks are registered in app.background_tasks so shutdown can drain them.
+    def _schedule_background_task(coro):
+        task = asyncio.create_task(coro)
+        app.background_tasks.add(task)
+        task.add_done_callback(app.background_tasks.discard)
+        return task
+
+    movie_manager.attach_background_scheduler(_schedule_background_task)
+    # Wire the same scheduler into the projection enrichment coordinator so
+    # its in-flight prefetch tasks are also tracked in app.background_tasks.
+    def _register_existing_task(task):
+        app.background_tasks.add(task)
+        task.add_done_callback(app.background_tasks.discard)
+
+    if movie_manager.projection_coordinator is not None:
+        movie_manager.projection_coordinator.attach_background_scheduler(
+            _register_existing_task
+        )
     return movie_manager
 
 
@@ -332,8 +360,25 @@ def create_app():
     async def enqueue_runtime_job(function_name: str, *args, **kwargs):
         pool = await ensure_arq_pool()
         if not pool:
+            try:
+                enrichment_enqueue_fallback_total.labels(reason="no_pool").inc()
+            except Exception:
+                pass
             return None
-        return await pool.enqueue_job(function_name, *args, **kwargs)
+        try:
+            result = await pool.enqueue_job(function_name, *args, **kwargs)
+        except Exception:
+            try:
+                enrichment_enqueue_fallback_total.labels(reason="enqueue_error").inc()
+            except Exception:
+                pass
+            raise
+        if result is not None:
+            try:
+                enrichment_enqueued_total.inc()
+            except Exception:
+                pass
+        return result
 
     app.enqueue_runtime_job = enqueue_runtime_job
     movie_manager.projection_store.enqueue_fn = enqueue_runtime_job
@@ -366,12 +411,24 @@ def create_app():
             raise
         except Exception as exc:
             logger.error("Error loading navigation state: %s", exc, exc_info=True)
+            try:
+                application_errors_total.labels(
+                    error_type="navigation_state_load_failure",
+                    endpoint=request.endpoint or "unknown",
+                ).inc()
+            except Exception:  # pragma: no cover - metrics never break requests
+                pass
             from quart import make_response
 
             return await make_response(("Service temporarily unavailable", 503))
 
     @app.after_request
     async def after_request(response):
+        # Always propagate the correlation ID, even on short-circuit responses.
+        correlation_id = g.get("correlation_id") if hasattr(g, "get") else None
+        if correlation_id:
+            response.headers["X-Correlation-ID"] = correlation_id
+
         if hasattr(g, "start_time"):
             elapsed = time.time() - g.start_time
             if elapsed > 1.0:
@@ -381,7 +438,7 @@ def create_app():
                     session_id=getattr(
                         getattr(g, "navigation_state", None), "session_id", None
                     ),
-                    correlation_id=g.get("correlation_id"),
+                    correlation_id=correlation_id,
                 )
             response.headers["X-Response-Time"] = f"{elapsed:.3f}"
 
@@ -422,6 +479,29 @@ def create_app():
     app.lifespan = lifespan
 
     setup_metrics_middleware(app, metrics_collector)
+
+    # Emit application_errors_total for uncaught non-HTTP exceptions.
+    # HTTPExceptions (4xx like CSRF 403) are normal flow and NOT counted.
+    # We use got_request_exception so Quart's own 500 rendering still runs.
+    from quart import got_request_exception
+
+    def _on_request_exception(sender, exception, **extra):
+        try:
+            from werkzeug.exceptions import HTTPException
+
+            if isinstance(exception, HTTPException):
+                return
+            # Bucket to an allow-list so dynamic exception classes cannot
+            # explode label cardinality on application_errors_total.
+            error_type = bucket_error_type(type(exception).__name__)
+            endpoint = request.endpoint or "unknown"
+            application_errors_total.labels(
+                error_type=error_type, endpoint=endpoint
+            ).inc()
+        except Exception:  # pragma: no cover - metrics must never break error path
+            pass
+
+    got_request_exception.connect(_on_request_exception, app)
 
     @app.before_serving
     async def startup():

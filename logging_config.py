@@ -15,6 +15,86 @@ from env_bootstrap import ensure_env_loaded, get_environment
 
 _LOGGING_CONFIGURED = False
 
+# Cached handle to the dropped-log counter. Bound once on first use and
+# reused thereafter — we cannot import it at module top because
+# ``infra.metrics`` imports ``logging_config.get_logger`` (circular). Caching
+# avoids paying first-use import cost on every log-drop, and avoids the
+# re-entrancy risk flagged in the original lazy-import pattern: any import
+# error during the *first* call is caught and the slot is set to a sentinel,
+# so subsequent calls no-op without re-attempting the import.
+_logging_dropped_total = None  # populated on first successful lookup
+_logging_metric_init_failed = False
+
+
+def _increment_dropped_logs(reason: str) -> None:
+    """Best-effort increment of the dropped-log metric.
+
+    No logger.* calls here — that would risk infinite recursion if the
+    Prometheus client itself triggers a logging failure. The metric handle
+    is cached after the first successful import so the hot emit() path
+    doesn't re-enter the import machinery on every drop.
+    """
+    global _logging_dropped_total, _logging_metric_init_failed
+    counter = _logging_dropped_total
+    if counter is None:
+        if _logging_metric_init_failed:
+            return
+        try:
+            from infra.metrics import logging_dropped_total as counter
+            _logging_dropped_total = counter
+        except Exception:
+            # Flip the sentinel so we stop retrying on every log drop.
+            _logging_metric_init_failed = True
+            return
+    try:
+        counter.labels(reason=reason).inc()
+    except Exception:
+        # Silent by design: the logger must not log its own failures here.
+        pass
+
+
+class JSONFormatter(logging.Formatter):
+    """Opt-in JSON log formatter.
+
+    Includes correlation_id / endpoint / method / status_code / duration_ms /
+    job_name / job_id when those fields are present in the record's ``extra``
+    dict. Degrades to a plain JSON record when no context is attached, so
+    code paths that run before ``setup_logging()`` (e.g. early module imports)
+    still work.
+    """
+
+    _STATIC_FIELDS = (
+        "correlation_id",
+        "endpoint",
+        "method",
+        "status_code",
+        "duration_ms",
+        "job_name",
+        "job_id",
+    )
+
+    def format(self, record: logging.LogRecord) -> str:
+        payload = {
+            "timestamp": self.formatTime(record, "%Y-%m-%dT%H:%M:%S"),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+            "module": record.module,
+            "function": record.funcName,
+            "line": record.lineno,
+        }
+        for field in self._STATIC_FIELDS:
+            value = getattr(record, field, None)
+            if value is not None:
+                payload[field] = value
+        if record.exc_info:
+            payload["exc_info"] = self.formatException(record.exc_info)
+        try:
+            return json.dumps(payload, default=str)
+        except Exception:
+            # Last-resort fallback — never raise from a formatter.
+            return f'{{"level": "{record.levelname}", "message": "{record.getMessage()}"}}'
+
 
 class LokiHandler(logging.Handler):
     """Custom handler to send logs to Grafana Loki"""
@@ -64,6 +144,7 @@ class LokiHandler(logging.Handler):
             except queue.Full:
                 # If buffer is full, drop oldest and add new
                 self._dropped_logs += 1
+                _increment_dropped_logs("buffer_full")
                 try:
                     self.buffer.get_nowait()
                     self.buffer.put_nowait(log_entry)
@@ -170,12 +251,18 @@ def setup_logging(log_level=logging.INFO):
     # Clear existing handlers
     root_logger.handlers.clear()
 
-    # Console handler
+    # Console handler — format switches on LOG_FORMAT (default: text).
+    log_format = os.getenv("LOG_FORMAT", "text").lower()
     console_handler = logging.StreamHandler(sys.stdout)
-    console_format = logging.Formatter(
-        "%(asctime)s [%(levelname)s] %(name)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
-    )
-    console_handler.setFormatter(console_format)
+    if log_format == "json":
+        console_handler.setFormatter(JSONFormatter())
+    else:
+        console_handler.setFormatter(
+            logging.Formatter(
+                "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+                datefmt="%Y-%m-%d %H:%M:%S",
+            )
+        )
     console_handler.setLevel(log_level)
     root_logger.addHandler(console_handler)
 

@@ -312,14 +312,23 @@ class CandidateTableMaintainer:
             """,
             fetch="none",
         )
-        for statement in (
-            "CREATE INDEX idx_movie_candidates_next_filter ON movie_candidates_next (titleType, startYear, averageRating, numVotes, sample_bucket)",
-            "CREATE INDEX idx_movie_candidates_next_language ON movie_candidates_next (language)",
-            "CREATE INDEX idx_movie_candidates_next_slug ON movie_candidates_next (slug(191))",
-            "CREATE INDEX idx_movie_candidates_next_refreshed_at ON movie_candidates_next (refreshed_at)",
-            "CREATE FULLTEXT INDEX ftx_movie_candidates_next_genres ON movie_candidates_next (genres)",
-        ):
-            await self.db_pool.execute(statement, fetch="none")
+        # Single ALTER TABLE building all five indexes at once. MySQL 8 builds
+        # the B-tree indexes in a single table scan instead of five, and the
+        # FULLTEXT index is co-scheduled rather than triggering a second full
+        # scan. The _next table is not visible to readers until the RENAME
+        # swap below, so a table-copy path (if the combined ALTER chooses one)
+        # is safe.
+        await self.db_pool.execute(
+            """
+            ALTER TABLE movie_candidates_next
+              ADD INDEX idx_movie_candidates_next_filter (titleType, startYear, averageRating, numVotes, sample_bucket),
+              ADD INDEX idx_movie_candidates_next_language (language),
+              ADD INDEX idx_movie_candidates_next_slug (slug(191)),
+              ADD INDEX idx_movie_candidates_next_refreshed_at (refreshed_at),
+              ADD FULLTEXT INDEX ftx_movie_candidates_next_genres (genres)
+            """,
+            fetch="none",
+        )
 
         await self.validate_bucket_distribution("movie_candidates_next")
         await self.db_pool.execute("DROP TABLE IF EXISTS movie_candidates_prev", fetch="none")
