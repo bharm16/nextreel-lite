@@ -48,22 +48,29 @@ worker.py               # arq background worker (Redis-backed enrichment/refresh
 movies/
   movie.py              # Movie class — fetches and assembles movie data from TMDb + DB
   tmdb_client.py        # TMDbHelper — async HTTP client with circuit breaker
+  tmdb_parser.py        # TMDb response parsing
   query_builder.py      # SQL query builder for random movie fetching (MovieQueryBuilder)
   interfaces.py         # MovieFetcher protocol
   candidate_store.py    # Data access layer for movie candidates
   projection_store.py   # Data access layer for movie projections
+  projection_state.py   # Projection state machine (core/ready/stale/failed)
+  projection_enrichment.py # Async TMDb enrichment worker logic
+  watched_store.py      # Watched-list persistence
   filter_parser.py      # Filter query parsing and validation
+  migration/            # Projection/candidate schema migrations
 session/
   keys.py               # Session key constants
-  auth.py               # User registration in movie manager
-  security.py           # Session fingerprinting, token rotation, security headers
+  user_auth.py          # User registration in movie manager; EnhancedSessionSecurity lives here
   quart_session_compat.py  # Compatibility shim for quart-session 3.0.0
 infra/
   pool.py               # SecureConnectionPool + DatabaseConnectionPool wrapper
+  pool_monitors.py      # Pool health/metrics monitors
   cache.py              # Redis cache manager (namespaced, TTL-based)
   errors.py             # DatabaseError exception
   secrets.py            # Secret retrieval and validation
   metrics.py            # Prometheus metrics collector
+  metrics_groups.py     # Metric grouping/labels helpers
+  worker_metrics.py     # arq worker metrics
   ssl.py                # SSL certificate validation
   security_headers.py   # Baseline + production-only HTTP security headers
   rate_limit.py         # Redis-backed rate limiter with in-memory fallback
@@ -71,6 +78,11 @@ infra/
   navigation_state.py   # DB-backed navigation state (NavigationStateStore)
   runtime_schema.py     # Runtime schema creation and validation
   ops_auth.py           # Authentication for ops/admin endpoints
+  route_helpers.py      # Shared route utilities
+  filter_normalizer.py  # Filter input normalization
+  integrity_checks.py   # Data integrity validators
+  legacy_migration.py   # One-shot legacy data migrations
+  time_utils.py         # Time/timezone helpers
 config/
   env.py                # get_environment() — single source for env detection
   session.py            # Session cookie and timeout defaults
