@@ -70,6 +70,7 @@ class ProjectionStore:
         if not isinstance(payload, dict):
             payload = {}
         payload.setdefault("projection_state", row.get("projection_state"))
+        payload.setdefault("tconst", row.get("tconst"))
         return payload
 
     async def _select_row(self, tconst: str) -> dict[str, Any] | None:

@@ -568,6 +568,7 @@ async def watched_list_page():
         for y in year_values:
             d = (y // 10) * 10
             decade_counts[d] = decade_counts.get(d, 0) + 1
+        # Tie-break: prefer the more recent decade when counts are equal.
         top_decade_year = max(decade_counts.items(), key=lambda kv: (kv[1], kv[0]))[0]
         top_decade = "%ds" % top_decade_year
     else:

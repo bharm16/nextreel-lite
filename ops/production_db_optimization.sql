@@ -52,7 +52,11 @@ ALTER TABLE `title.ratings` ADD INDEX idx_ratings_compound (
 );
 
 ALTER TABLE `title.ratings` ADD INDEX idx_averagerating (averageRating);
-ALTER TABLE `title.ratings` ADD INDEX idx_numVotes (numVotes);
+
+-- NOTE: idx_numVotes removed — it's a prefix of idx_ratings_compound.
+-- NOTE: idx_tconst, idx_tconst_ratings, idx_title_ratings_tconst removed —
+--       all duplicate PRIMARY(tconst).
+-- NOTE: title.basics idx_tconst / idx_tconst_basics removed — duplicate PRIMARY.
 
 -- =====================================================
 -- PHASE 3: FULLTEXT INDEXES FOR SEARCH
@@ -143,7 +147,7 @@ CREATE TABLE recent_movies_cache (
     averageRating DECIMAL(3,1),
     numVotes INT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_recent_year (startYear),
+    -- NOTE: idx_recent_year removed — it's a prefix of idx_recent_filter.
     INDEX idx_recent_filter (startYear, numVotes, averageRating),
     FULLTEXT idx_recent_genres (genres)
 ) ENGINE=InnoDB;
@@ -171,17 +175,14 @@ AND tb.startYear >= YEAR(CURDATE()) - 2;
 -- PHASE 6: ADDITIONAL INDEXES
 -- =====================================================
 
--- Optimize other tables
-ALTER TABLE `title.akas` DROP INDEX IF EXISTS idx_title_akas_titleId;
-ALTER TABLE `title.akas` ADD INDEX idx_title_akas_titleId (titleId);
+-- NOTE: title.akas dropped — table was empty and unused by application code.
+-- NOTE: title.akastest dropped — test clone, unused by application code.
+-- NOTE: title.principals idx_tconst_nconst removed — duplicates PRIMARY(tconst, nconst).
+-- NOTE: title.crew idx_title_crew_tconst removed — duplicates PRIMARY(tconst).
 
-ALTER TABLE `title.principals` DROP INDEX IF EXISTS idx_tconst_nconst;
+-- Keep nconst index on principals for integrity checks (not covered by PRIMARY).
 ALTER TABLE `title.principals` DROP INDEX IF EXISTS idx_nconst;
-ALTER TABLE `title.principals` ADD INDEX idx_tconst_nconst (tconst(10), nconst(10));
 ALTER TABLE `title.principals` ADD INDEX idx_nconst (nconst(10));
-
-ALTER TABLE `title.crew` DROP INDEX IF EXISTS idx_title_crew_tconst;
-ALTER TABLE `title.crew` ADD INDEX idx_title_crew_tconst (tconst);
 
 ALTER TABLE `title.episode` DROP INDEX IF EXISTS idx_title_episode_parentTconst;
 ALTER TABLE `title.episode` ADD INDEX idx_title_episode_parentTconst (parentTconst);
@@ -192,7 +193,6 @@ ALTER TABLE `title.episode` ADD INDEX idx_title_episode_parentTconst (parentTcon
 
 ANALYZE TABLE `title.basics`;
 ANALYZE TABLE `title.ratings`;
-ANALYZE TABLE `title.akas`;
 ANALYZE TABLE `title.principals`;
 ANALYZE TABLE `title.crew`;
 ANALYZE TABLE `title.episode`;

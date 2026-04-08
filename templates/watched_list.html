@@ -80,7 +80,6 @@
         </div>
         <div class="watched-toolbar-right">
           <span class="watched-count" id="watched-count" aria-live="polite">{{ stats.total }} of {{ stats.total }}</span>
-          <div id="watched-toast" class="watched-toast" role="alert" aria-live="assertive" hidden></div>
           <select id="watched-sort" class="watched-sort" aria-label="Sort watched films">
             <option value="recent">Recent</option>
             <option value="oldest">Oldest first</option>
@@ -94,7 +93,7 @@
 
       <section class="watched-grid auth-fade-in" id="watched-grid">
         {% for movie in movies %}
-          {% set href = '/movie/' ~ movie.slug if movie.slug else '/movie/' ~ movie.tconst %}
+          {% set href = url_for('main.movie_detail', tconst=movie.tconst) %}
           <div
             class="watched-card"
             data-tconst="{{ movie.tconst }}"
@@ -133,6 +132,8 @@
       </section>
     {% endif %}
   </main>
+
+  <div id="watched-toast" class="watched-toast" role="alert" aria-live="assertive" hidden></div>
 
   <script>
     (function () {

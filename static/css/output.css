@@ -2139,6 +2139,11 @@ body {
   border-bottom-color: var(--color-accent);
 }
 
+.watched-search:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
 .watched-toolbar-right {
   display: flex;
   align-items: center;
