@@ -277,3 +277,19 @@ async def test_purge_uses_correct_sql():
     assert "DELETE FROM user_navigation_state" in sql
     assert "LIMIT 1000" in sql
     assert call_args[1]["fetch"] == "none"
+
+
+def test_worker_settings_has_expected_cron_jobs():
+    import importlib
+    worker = importlib.import_module("worker")
+    if not hasattr(worker, "WorkerSettings"):
+        import pytest
+        pytest.skip("arq not installed")
+
+    cron_jobs = getattr(worker.WorkerSettings, "cron_jobs", None)
+    assert cron_jobs is not None, "WorkerSettings must define cron_jobs"
+
+    scheduled_fn_names = {cj.name for cj in cron_jobs}
+    assert any("refresh_movie_candidates" in n for n in scheduled_fn_names)
+    assert any("requeue_stale_projections" in n for n in scheduled_fn_names)
+    assert any("purge_expired_navigation_state" in n for n in scheduled_fn_names)

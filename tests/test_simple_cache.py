@@ -143,13 +143,13 @@ class TestMakeKey:
     def test_key_format(self):
         cache = SimpleCacheManager()
         key = cache._make_key(CacheNamespace.MOVIE, "tt1234567")
-        assert key == "cache:movie:tt1234567"
+        assert key == "cache:v1:movie:tt1234567"
 
     def test_all_namespaces(self):
         cache = SimpleCacheManager()
         for ns in CacheNamespace:
             key = cache._make_key(ns, "test")
-            assert key == f"cache:{ns.value}:test"
+            assert key == f"cache:v1:{ns.value}:test"
 
 
 # ---------------------------------------------------------------------------
@@ -191,7 +191,7 @@ class TestGetSetDelete:
         await cache.initialize()
 
         await cache.set(CacheNamespace.API, "key", "value")
-        assert fake_redis._ttls["cache:api:key"] == 300
+        assert fake_redis._ttls["cache:v1:api:key"] == 300
 
     @pytest.mark.asyncio
     async def test_set_with_custom_ttl(self, fake_redis):
@@ -199,7 +199,7 @@ class TestGetSetDelete:
         await cache.initialize()
 
         await cache.set(CacheNamespace.API, "key", "value", ttl=60)
-        assert fake_redis._ttls["cache:api:key"] == 60
+        assert fake_redis._ttls["cache:v1:api:key"] == 60
 
     @pytest.mark.asyncio
     async def test_json_serialization_round_trip(self, fake_redis):
@@ -273,6 +273,31 @@ class TestErrorHandling:
 # ---------------------------------------------------------------------------
 # Backward compatibility
 # ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_cache_keys_are_versioned(fake_redis):
+    cache = SimpleCacheManager(redis_client=fake_redis)
+    await cache.initialize()
+    await cache.set(CacheNamespace.USER, "abc", {"x": 1})
+
+    raw = await fake_redis.get("cache:v1:user:abc")
+    assert raw is not None
+    assert json.loads(raw) == {"x": 1}
+
+    # Old unversioned format should NOT be written on set().
+    assert await fake_redis.get("cache:user:abc") is None
+
+
+@pytest.mark.asyncio
+async def test_cache_get_falls_back_to_legacy_unversioned_key(fake_redis):
+    cache = SimpleCacheManager(redis_client=fake_redis)
+    await cache.initialize()
+    # Seed an old-format entry, as if written by a prior deploy.
+    await fake_redis.setex("cache:user:legacy", 60, json.dumps({"legacy": True}))
+
+    result = await cache.get(CacheNamespace.USER, "legacy")
+    assert result == {"legacy": True}
 
 
 class TestBackwardCompatibility:

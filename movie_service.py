@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from typing import Any, MutableMapping
 
 from filter_contracts import FilterState
@@ -92,13 +93,22 @@ class MovieManager:
     ) -> dict[str, Any]:
         if state and not state.queue and self._navigator:
             try:
+                prewarm_timeout = float(os.getenv("PREWARM_TIMEOUT_SECONDS", "0.1"))
+            except ValueError:
+                prewarm_timeout = 0.1
+            try:
                 await asyncio.wait_for(
                     self._navigator.prewarm_queue(
                         state.session_id,
                         legacy_session=legacy_session,
                         current_state=state,
                     ),
-                    timeout=0.1,
+                    timeout=prewarm_timeout,
+                )
+            except asyncio.TimeoutError:
+                logger.info(
+                    "prewarm_queue exceeded %.2fs timeout; skipping prewarm",
+                    prewarm_timeout,
                 )
             except Exception as exc:
                 home_prewarm_failed_total.inc()

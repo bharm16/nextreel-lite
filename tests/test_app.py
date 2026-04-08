@@ -1,5 +1,7 @@
 import os
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from app import create_app
 from tests.helpers import TEST_ENV
@@ -182,3 +184,66 @@ async def test_startup_hook_initializes_movie_manager_without_db_warmup_queries(
         manager.start.assert_awaited_once()
         manager.db_pool.execute.assert_not_awaited()
         app.enqueue_runtime_job.assert_awaited_once_with("refresh_movie_candidates")
+
+
+@pytest.mark.asyncio
+async def test_slow_request_logging_samples_when_rate_configured(monkeypatch):
+    """With SLOW_LOG_SAMPLE_RATE=3, only 1 in 3 slow requests logs."""
+    import app as app_module
+    monkeypatch.setenv("SLOW_LOG_SAMPLE_RATE", "3")
+    monkeypatch.setattr(app_module, "_slow_log_counter", 0)
+
+    mock_logger = MagicMock()
+    monkeypatch.setattr(app_module, "logger", mock_logger)
+
+    for _ in range(6):
+        app_module._maybe_log_slow_request(
+            endpoint="main.next_movie",
+            elapsed=2.5,
+            session_id="sess-1",
+            correlation_id="corr-1",
+        )
+
+    assert mock_logger.warning.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_slow_request_logging_default_logs_all(monkeypatch):
+    """Default SLOW_LOG_SAMPLE_RATE=1 logs every slow request."""
+    import app as app_module
+    monkeypatch.delenv("SLOW_LOG_SAMPLE_RATE", raising=False)
+    monkeypatch.setattr(app_module, "_slow_log_counter", 0)
+
+    mock_logger = MagicMock()
+    monkeypatch.setattr(app_module, "logger", mock_logger)
+
+    for _ in range(4):
+        app_module._maybe_log_slow_request(
+            endpoint="main.next_movie",
+            elapsed=1.5,
+            session_id="sess-1",
+            correlation_id="corr-1",
+        )
+
+    assert mock_logger.warning.call_count == 4
+
+
+@pytest.mark.asyncio
+async def test_enqueue_runtime_job_forwards_kwargs():
+    """The wrapper must accept and forward arbitrary kwargs like _job_id."""
+    pool_mock = MagicMock()
+    pool_mock.enqueue_job = AsyncMock(return_value=object())
+
+    async def fake_ensure_pool():
+        return pool_mock
+
+    async def enqueue_runtime_job(function_name, *args, **kwargs):
+        pool = await fake_ensure_pool()
+        if not pool:
+            return None
+        return await pool.enqueue_job(function_name, *args, **kwargs)
+
+    await enqueue_runtime_job("enrich_projection", "tt0001", 123, _job_id="enrich:tt0001")
+    pool_mock.enqueue_job.assert_awaited_once_with(
+        "enrich_projection", "tt0001", 123, _job_id="enrich:tt0001"
+    )

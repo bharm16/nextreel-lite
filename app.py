@@ -59,6 +59,33 @@ logger = get_logger(__name__)
 
 _SKIP_PATHS = ("/static", "/favicon.ico", "/health", "/ready", "/metrics")
 
+# Counter-based slow-request log sampler. Default rate of 1 means
+# "log every slow request" (backward compatible). Ops can raise this
+# in production (e.g. SLOW_LOG_SAMPLE_RATE=10) to reduce log pressure
+# during slow-DB incidents.
+_slow_log_counter = 0
+
+
+def _maybe_log_slow_request(
+    *, endpoint, elapsed, session_id, correlation_id
+) -> None:
+    """Log a slow request iff it wins the 1-in-N counter-based sample."""
+    global _slow_log_counter
+    try:
+        sample_rate = max(1, int(os.getenv("SLOW_LOG_SAMPLE_RATE", "1")))
+    except ValueError:
+        sample_rate = 1
+    _slow_log_counter += 1
+    if _slow_log_counter % sample_rate != 0:
+        return
+    logger.warning(
+        "Slow request: %s took %.2fs (state: %s, correlation: %s)",
+        endpoint,
+        elapsed,
+        session_id,
+        correlation_id,
+    )
+
 
 def _redis_url() -> str:
     if get_environment() == "production":
@@ -302,11 +329,11 @@ def create_app():
                 app.arq_redis = None
             return app.arq_redis
 
-    async def enqueue_runtime_job(function_name: str, *args):
+    async def enqueue_runtime_job(function_name: str, *args, **kwargs):
         pool = await ensure_arq_pool()
         if not pool:
             return None
-        return await pool.enqueue_job(function_name, *args)
+        return await pool.enqueue_job(function_name, *args, **kwargs)
 
     app.enqueue_runtime_job = enqueue_runtime_job
     movie_manager.projection_store.enqueue_fn = enqueue_runtime_job
@@ -348,12 +375,13 @@ def create_app():
         if hasattr(g, "start_time"):
             elapsed = time.time() - g.start_time
             if elapsed > 1.0:
-                logger.warning(
-                    "Slow request: %s took %.2fs (state: %s, correlation: %s)",
-                    request.endpoint,
-                    elapsed,
-                    getattr(getattr(g, "navigation_state", None), "session_id", None),
-                    g.get("correlation_id"),
+                _maybe_log_slow_request(
+                    endpoint=request.endpoint,
+                    elapsed=elapsed,
+                    session_id=getattr(
+                        getattr(g, "navigation_state", None), "session_id", None
+                    ),
+                    correlation_id=g.get("correlation_id"),
                 )
             response.headers["X-Response-Time"] = f"{elapsed:.3f}"
 

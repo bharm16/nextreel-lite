@@ -97,7 +97,7 @@ Optional:
 ## Key Patterns
 
 ### Session State
-- Navigation state is **MySQL-backed** (`user_navigation_state` table) via `NavigationStateStore` in `infra/navigation_state.py`. Uses optimistic locking (version column, 2 retries on conflict).
+- Navigation state is **MySQL-backed** (`user_navigation_state` table) via `NavigationStateStore` in `infra/navigation_state.py`. Uses optimistic locking (version column, 5 retries on conflict with exponential backoff + jitter).
 - Full movie data lives in Redis cache (`cache:movie:full:{tconst}`, 24h TTL). Session stores lightweight refs only.
 - Session lifetime: 8h max, 15min idle (`EnhancedSessionSecurity`). `session/auth.py` handles only user registration.
 - **Migration period**: Dual-write from Redis session → MySQL is enabled by default for 7 days (`NAV_STATE_DUAL_WRITE_ENABLED`, `NAV_STATE_MIGRATION_MIN_DAYS`).

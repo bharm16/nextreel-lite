@@ -106,9 +106,23 @@ class _CircuitBreaker:
                 )
 
 
+# Semaphore shared across all instances to respect TMDb rate limits
+# (~40-50 req/s). Override with TMDB_RATE_SEMAPHORE env var for
+# load-test or scale-out scenarios.
+def _resolve_rate_semaphore_size() -> int:
+    raw = os.getenv("TMDB_RATE_SEMAPHORE", "50")
+    try:
+        value = int(raw)
+    except ValueError:
+        return 50
+    return max(1, value)
+
+
+_rate_semaphore = asyncio.Semaphore(_resolve_rate_semaphore_size())
+
+
 class TMDbHelper:
-    # Semaphore shared across all instances to respect TMDb rate limits (~40 req/s)
-    _rate_semaphore = asyncio.Semaphore(30)
+    _rate_semaphore = _rate_semaphore
     # Circuit breaker shared across all instances
     _circuit_breaker = _CircuitBreaker(failure_threshold=5, recovery_timeout=30.0)
 

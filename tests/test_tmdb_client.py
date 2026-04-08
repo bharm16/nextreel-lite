@@ -46,3 +46,24 @@ async def test_get_backdrop_for_movie():
     with patch("random.choice", lambda x: x[0]):
         url = await helper.get_backdrop_for_movie(123)
         assert url == "url1"
+
+
+def test_tmdb_semaphore_size_reads_env_var(monkeypatch):
+    """The module-level rate semaphore size should come from TMDB_RATE_SEMAPHORE."""
+    monkeypatch.setenv("TMDB_RATE_SEMAPHORE", "77")
+    import importlib
+    import movies.tmdb_client as tmdb_module
+    importlib.reload(tmdb_module)
+    try:
+        assert tmdb_module._rate_semaphore._value == 77
+    finally:
+        monkeypatch.delenv("TMDB_RATE_SEMAPHORE", raising=False)
+        importlib.reload(tmdb_module)
+
+
+def test_tmdb_semaphore_default_is_50(monkeypatch):
+    monkeypatch.delenv("TMDB_RATE_SEMAPHORE", raising=False)
+    import importlib
+    import movies.tmdb_client as tmdb_module
+    importlib.reload(tmdb_module)
+    assert tmdb_module._rate_semaphore._value == 50

@@ -15,8 +15,10 @@ logger = get_logger(__name__)
 
 try:
     from arq.connections import RedisSettings
+    from arq import cron
 except ImportError:  # pragma: no cover - exercised only when arq is missing
     RedisSettings = None
+    cron = None
 
 
 async def startup(ctx):
@@ -124,6 +126,22 @@ if RedisSettings is not None:
             validate_referential_integrity,
             purge_expired_navigation_state,
         ]
+        # Scheduled recurring maintenance. Minutes deliberately off :00/:30
+        # to avoid fleet-wide sync. Times are UTC (arq default).
+        cron_jobs = [
+            # Daily candidate-cache rebuild at 02:17 UTC (off-peak).
+            cron(refresh_movie_candidates, hour={2}, minute={17}),
+            # Re-queue stale projections hourly at :07.
+            cron(requeue_stale_projections, minute={7}),
+            # Purge expired nav-state rows four times daily.
+            cron(
+                purge_expired_navigation_state,
+                hour={3, 9, 15, 21},
+                minute={23},
+            ),
+        ]
         on_startup = startup
         on_shutdown = shutdown
-        redis_settings = RedisSettings.from_dsn(os.getenv("REDIS_URL", "redis://localhost:6379"))
+        redis_settings = RedisSettings.from_dsn(
+            os.getenv("REDIS_URL", "redis://localhost:6379")
+        )

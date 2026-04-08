@@ -588,7 +588,9 @@ class TestFetchRenderablePayload:
         payload = await store.fetch_renderable_payload("tt1234567")
 
         assert payload["projection_state"] == PROJECTION_STALE
-        enqueue.assert_awaited_once_with("enrich_projection", "tt1234567", 42)
+        enqueue.assert_awaited_once_with(
+            "enrich_projection", "tt1234567", 42, _job_id="enrich:tt1234567"
+        )
 
     async def test_core_payload_enriches_inline_before_returning(self, mock_db_pool):
         enriched = {

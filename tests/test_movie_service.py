@@ -1,3 +1,4 @@
+import asyncio
 import os
 from unittest.mock import AsyncMock, patch
 
@@ -102,3 +103,25 @@ async def test_filtered_movie_normalizes_and_delegates():
     movie_manager._navigator.apply_filters.assert_awaited_once()
     _, delegated_filters = movie_manager._navigator.apply_filters.await_args.args[:2]
     assert delegated_filters == filters
+
+
+@pytest.mark.asyncio
+@patch.dict(os.environ, {**TEST_ENV, "PREWARM_TIMEOUT_SECONDS": "0.05"})
+async def test_home_prewarm_respects_timeout():
+    """A hanging prewarm_queue must NOT block home() beyond the timeout."""
+    movie_manager = MovieManager(db_config=None)
+    movie_manager._navigator = AsyncMock()
+
+    async def hang(*args, **kwargs):
+        await asyncio.sleep(5.0)
+
+    movie_manager._navigator.prewarm_queue = AsyncMock(side_effect=hang)
+
+    state = _state()
+    loop = asyncio.get_event_loop()
+    start = loop.time()
+    result = await movie_manager.home(state)
+    elapsed = loop.time() - start
+
+    assert elapsed < 1.0, f"home() took {elapsed}s -- prewarm not bounded"
+    assert result == {"default_backdrop_url": None}

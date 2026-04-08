@@ -54,7 +54,12 @@ class ProjectionEnrichmentCoordinator:
 
         if self.enqueue_fn:
             try:
-                result = await self.enqueue_fn("enrich_projection", tconst, tmdb_id)
+                result = await self.enqueue_fn(
+                    "enrich_projection",
+                    tconst,
+                    tmdb_id,
+                    _job_id=f"enrich:{tconst}",
+                )
                 if result is not None:
                     await self.store._mark_attempt(tconst, now)
                     return True

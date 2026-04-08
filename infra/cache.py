@@ -18,6 +18,11 @@ from logging_config import get_logger
 
 logger = get_logger(__name__)
 
+# Bump this whenever a cached payload's schema changes. Old entries are
+# read once as a fallback during the transition; writes always use the
+# current version prefix.
+CACHE_KEY_VERSION = "v1"
+
 
 class CacheNamespace(Enum):
     """Cache namespaces for different data types."""
@@ -147,16 +152,28 @@ class SimpleCacheManager:
         self._redis = None
 
     def _make_key(self, namespace: CacheNamespace, key: str) -> str:
+        return f"cache:{CACHE_KEY_VERSION}:{namespace.value}:{key}"
+
+    def _make_legacy_key(self, namespace: CacheNamespace, key: str) -> str:
+        """Pre-versioning key format. Read-only compat during migration."""
         return f"cache:{namespace.value}:{key}"
 
     async def get(self, namespace: CacheNamespace, key: str) -> Optional[Any]:
-        """Retrieve a cached value, or None on miss/error."""
+        """Retrieve a cached value, or None on miss/error.
+
+        Reads the current versioned key first; on miss, attempts a single
+        read of the legacy (unversioned) key so entries written by a prior
+        deploy remain visible during a transition.
+        """
         if not self._redis:
             return None
         try:
             raw = await self._redis.get(self._make_key(namespace, key))
             if raw is None:
-                return None
+                # Backward-compat: try the legacy unversioned key once.
+                raw = await self._redis.get(self._make_legacy_key(namespace, key))
+                if raw is None:
+                    return None
             return json.loads(raw)
         except Exception as e:
             logger.debug("Cache get failed for %s:%s — %s", namespace.value, key, e)
