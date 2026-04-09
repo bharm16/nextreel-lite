@@ -16,6 +16,7 @@ from logging_config import get_logger
 
 from infra.cache import CacheNamespace
 from movies.movie import Movie
+from movies.projection_results import EnrichmentResult
 from movies.projection_state import ENQUEUE_COOLDOWN, ProjectionState
 
 # Global enrichment dedup window. Long enough to cover the 25s
@@ -351,22 +352,46 @@ class ProjectionEnrichmentCoordinator:
                             "payload unchanged for %s, refreshing metadata only",
                             tconst,
                         )
-                        await self.store.refresh_ready_metadata(
-                            tconst, now, attempts
+                        await self.store.apply_enrichment_result(
+                            tconst,
+                            EnrichmentResult(
+                                status="ready",
+                                persistence_mode="READY_METADATA_ONLY",
+                                payload=payload,
+                                attempts=attempts,
+                                tmdb_id=payload.get("tmdb_id"),
+                                error=None,
+                                timestamp=now,
+                            ),
                         )
                         return payload
 
-            await self.store.upsert_ready(tconst, payload, now, attempts)
+            await self.store.apply_enrichment_result(
+                tconst,
+                EnrichmentResult(
+                    status="ready",
+                    persistence_mode="READY_UPSERT",
+                    payload=payload,
+                    attempts=attempts,
+                    tmdb_id=payload.get("tmdb_id"),
+                    error=None,
+                    timestamp=now,
+                ),
+            )
             return payload
         except Exception as exc:
             core_payload = await self.store.ensure_core_projection(tconst)
-            await self.store.upsert_failed(
+            await self.store.apply_enrichment_result(
                 tconst,
-                core_payload or {},
-                now,
-                attempts,
-                str(exc),
-                tmdb_id=tmdb_id,
+                EnrichmentResult(
+                    status="failed",
+                    persistence_mode="FAILED_UPSERT",
+                    payload=core_payload or {},
+                    attempts=attempts,
+                    tmdb_id=tmdb_id,
+                    error=str(exc),
+                    timestamp=now,
+                ),
             )
             logger.warning("Projection enrichment failed for %s: %s", tconst, exc)
             return core_payload

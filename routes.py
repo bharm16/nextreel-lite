@@ -2,7 +2,6 @@
 
 import asyncio
 import hmac as _hmac
-import json
 import re
 import secrets as stdlib_secrets
 import time
@@ -10,7 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-import httpx
+from auth_flows import GoogleOAuthService, RegistrationService
 from quart import (
     Blueprint,
     abort,
@@ -40,6 +39,7 @@ from infra.route_helpers import (
 from infra.time_utils import current_year as _current_year, utcnow as _utcnow
 from logging_config import get_logger
 from movie_navigator import NavigationOutcome
+from route_services import MovieDetailService, WatchedListPresenter, WatchedMutationService
 from session.keys import SESSION_OAUTH_STATE_KEY
 
 # NOTE: session.user_auth imports bcrypt eagerly. Keep this as a lazy
@@ -64,6 +64,11 @@ _TCONST_RE = re.compile(r"^tt\d{1,10}$")
 _READY_CACHE_TTL_SECONDS = 5.0
 _ready_cache_entry: tuple[float, tuple[dict, int]] | None = None
 _ready_cache_lock = asyncio.Lock()
+_registration_service = RegistrationService()
+_google_oauth_service = GoogleOAuthService()
+_movie_detail_service = MovieDetailService()
+_watched_list_presenter = WatchedListPresenter()
+_watched_mutation_service = WatchedMutationService()
 
 
 def _no_matches_response():
@@ -253,75 +258,25 @@ async def register_page():
 @csrf_required
 @rate_limited("register")
 async def register_submit():
-    from session.user_auth import (
-        DuplicateUserError,
-        get_user_by_email,
-        hash_password_async,
-        register_user,
-        validate_registration,
-    )
-
     form_data = await request.form
     email = form_data.get("email", "").strip()
     password = form_data.get("password", "")
     confirm_password = form_data.get("confirm_password", "")
     display_name = form_data.get("display_name", "").strip() or None
 
-    errors = validate_registration(email, password, confirm_password)
-    if errors:
-        return await render_template("register.html", errors=errors), 400
-
     services = _services()
-    db_pool = services.movie_manager.db_pool
-
-    # Run bcrypt hashing concurrently with the duplicate-email lookup.
-    # On the duplicate-email branch we cancel the hash awaitable; note that
-    # cancelling an asyncio.to_thread future does NOT stop the underlying
-    # bcrypt work — the worker thread still runs to completion. That is
-    # acceptable wasted CPU, not a correctness change. The wasted-CPU blast
-    # radius is bounded by @rate_limited("register") above.
-    hash_task = asyncio.create_task(hash_password_async(password))
-    try:
-        existing = await get_user_by_email(db_pool, email)
-        if existing:
-            hash_task.cancel()
-            await asyncio.gather(hash_task, return_exceptions=True)
-            return (
-                await render_template(
-                    "register.html",
-                    errors={"email": "An account with this email already exists."},
-                ),
-                400,
-            )
-
-        password_hash = await hash_task
-    except BaseException:
-        if not hash_task.done():
-            hash_task.cancel()
-            await asyncio.gather(hash_task, return_exceptions=True)
-        raise
-
-    try:
-        user_id = await register_user(
-            db_pool,
-            email,
-            password,
-            display_name,
-            precomputed_hash=password_hash,
-        )
-    except DuplicateUserError:
-        # TOCTOU race: another request registered the same email between
-        # our duplicate-email check and INSERT. The UNIQUE constraint on
-        # users.email caught it. Render the same error as the pre-check.
-        return (
-            await render_template(
-                "register.html",
-                errors={"email": "An account with this email already exists."},
-            ),
-            400,
-        )
+    outcome = await _registration_service.register_email_user(
+        email=email,
+        password=password,
+        confirm_password=confirm_password,
+        display_name=display_name,
+        db_pool=services.movie_manager.db_pool,
+    )
+    if outcome.kind != "success":
+        return await render_template("register.html", errors=outcome.errors), 400
 
     state = _current_state()
+    user_id = outcome.user_id
     await current_app.navigation_state_store.set_user_id(state.session_id, user_id)
     state.user_id = user_id
     logger.info("User %s registered, session %s", user_id, state.session_id)
@@ -446,32 +401,22 @@ async def movie_detail(tconst):
         g.correlation_id,
     )
 
-    # Run the watched-status lookup concurrently with the projection payload
-    # fetch. Each branch independently acquires a pooled DB connection via
-    # its store method — no shared connection is reused across gathered legs.
-    async def _watched_lookup() -> bool:
-        if not user_id:
-            return False
-        return await movie_manager.watched_store.is_watched(user_id, tconst)
-
-    async def _payload_lookup():
-        return await movie_manager.projection_store.fetch_renderable_payload(tconst)
-
-    is_watched_result, movie_data = await asyncio.gather(
-        _watched_lookup(),
-        _payload_lookup(),
+    view_model = await _movie_detail_service.get(
+        movie_manager=movie_manager,
+        state=state,
+        user_id=user_id,
+        tconst=tconst,
     )
-    g.is_watched = bool(is_watched_result)
 
-    if not movie_data:
+    if view_model is None:
         logger.info("No data found for movie with tconst: %s", tconst)
         return "Movie not found", 404
 
-    previous_count = movie_manager.prev_stack_length(state)
+    g.is_watched = view_model.is_watched
     return await render_template(
         "movie.html",
-        movie=movie_data,
-        previous_count=previous_count,
+        movie=view_model.movie,
+        previous_count=view_model.previous_count,
     )
 
 
@@ -648,76 +593,6 @@ def _parse_watched_pagination(args) -> tuple[int, int, int]:
     return page, per_page, offset
 
 
-def _normalize_watched_row(row, now) -> tuple[dict | None, int | None, bool]:
-    """Return (movie_dict, year_int, is_this_month) or (None, None, False) to skip."""
-    payload = row.get("payload_json")
-    if isinstance(payload, str):
-        try:
-            payload = json.loads(payload)
-        except (TypeError, ValueError):
-            payload = {}
-    if not isinstance(payload, dict):
-        payload = {}
-
-    tconst = row.get("tconst")
-    if not tconst:
-        return None, None, False
-    title = payload.get("title") or row.get("primaryTitle") or "Untitled"
-    slug = payload.get("slug") or row.get("slug")
-
-    year_raw = payload.get("year") or row.get("startYear")
-    try:
-        year_int = int(str(year_raw)[:4]) if year_raw else None
-    except (TypeError, ValueError):
-        year_int = None
-
-    try:
-        tmdb_rating = float(payload.get("rating") or 0)
-    except (TypeError, ValueError):
-        tmdb_rating = 0.0
-
-    poster_url = payload.get("poster_url") or "/static/img/poster-placeholder.svg"
-
-    watched_at = row.get("watched_at")
-    watched_iso = watched_at.isoformat() if hasattr(watched_at, "isoformat") else str(watched_at or "")
-    is_this_month = (
-        hasattr(watched_at, "year")
-        and watched_at.year == now.year
-        and watched_at.month == now.month
-    )
-
-    movie = {
-        "tconst": tconst,
-        "slug": slug,
-        "title": title,
-        "year": year_int,
-        "poster_url": poster_url,
-        "tmdb_rating": tmdb_rating,
-        "watched_at": watched_iso,
-    }
-    return movie, year_int, is_this_month
-
-
-def _build_watched_stats(total: int, this_month_count: int, year_values: list[int]) -> dict:
-    avg_year = int(round(sum(year_values) / len(year_values))) if year_values else None
-    if year_values:
-        decade_counts: dict[int, int] = {}
-        for y in year_values:
-            d = (y // 10) * 10
-            decade_counts[d] = decade_counts.get(d, 0) + 1
-        # Tie-break: prefer the more recent decade when counts are equal.
-        top_decade_year = max(decade_counts.items(), key=lambda kv: (kv[1], kv[0]))[0]
-        top_decade = "%ds" % top_decade_year
-    else:
-        top_decade = None
-    return {
-        "total": total,
-        "this_month": this_month_count,
-        "avg_year": avg_year,
-        "top_decade": top_decade,
-    }
-
-
 @bp.route("/watched")
 async def watched_list_page():
     redirect_response = _require_login()
@@ -736,39 +611,20 @@ async def watched_list_page():
         services.movie_manager.watched_store.count(user_id),
     )
 
-    movies: list[dict] = []
-    year_values: list[int] = []
-    this_month_count = 0
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
-
-    for row in raw_rows:
-        movie, year_int, is_this_month = _normalize_watched_row(row, now)
-        if movie is None:
-            continue
-        if year_int:
-            year_values.append(year_int)
-        if is_this_month:
-            this_month_count += 1
-        movies.append(movie)
-
-    total = total_count
-    stats = _build_watched_stats(total, this_month_count, year_values)
-
-    total_pages = max(1, (total_count + per_page - 1) // per_page)
-    pagination = {
-        "page": page,
-        "per_page": per_page,
-        "total_pages": total_pages,
-        "has_prev": page > 1,
-        "has_next": page < total_pages,
-    }
+    view_model = _watched_list_presenter.build(
+        raw_rows=raw_rows,
+        total_count=total_count,
+        page=page,
+        per_page=per_page,
+        now=datetime.now(timezone.utc).replace(tzinfo=None),
+    )
 
     return await render_template(
         "watched_list.html",
-        movies=movies,
-        stats=stats,
-        total=total,
-        pagination=pagination,
+        movies=view_model.movies,
+        stats=view_model.stats,
+        total=view_model.total,
+        pagination=view_model.pagination,
     )
 
 
@@ -783,7 +639,11 @@ async def add_to_watched(tconst):
         abort(401, "Login required")
 
     services = _services()
-    await services.movie_manager.watched_store.add(user_id, tconst)
+    await _watched_mutation_service.add(
+        user_id=user_id,
+        tconst=tconst,
+        watched_store=services.movie_manager.watched_store,
+    )
     logger.info("User %s marked %s as watched", user_id, tconst)
 
     return redirect(_safe_referrer(tconst), code=303)
@@ -800,7 +660,11 @@ async def remove_from_watched(tconst):
         abort(401, "Login required")
 
     services = _services()
-    await services.movie_manager.watched_store.remove(user_id, tconst)
+    await _watched_mutation_service.remove(
+        user_id=user_id,
+        tconst=tconst,
+        watched_store=services.movie_manager.watched_store,
+    )
     logger.info("User %s removed %s from watched", user_id, tconst)
 
     return redirect(_safe_referrer(tconst), code=303)
@@ -812,97 +676,41 @@ async def auth_google():
     if not oauth_config.get("google_enabled"):
         abort(404, "Google sign-in not configured")
 
-    from urllib.parse import urlencode
-
     state_token = stdlib_secrets.token_urlsafe(32)
     session[SESSION_OAUTH_STATE_KEY] = state_token
 
-    redirect_uri = "%s/auth/google/callback" % oauth_config["redirect_base"]
-    params = urlencode({
-        "client_id": oauth_config["google_client_id"],
-        "redirect_uri": redirect_uri,
-        "response_type": "code",
-        "scope": "openid email profile",
-        "state": state_token,
-    })
-    auth_url = "https://accounts.google.com/o/oauth2/v2/auth?%s" % params
+    auth_url = _google_oauth_service.build_authorize_url(
+        oauth_config=oauth_config,
+        state_token=state_token,
+    )
     return redirect(auth_url)
 
 
 @bp.route("/auth/google/callback")
 async def auth_google_callback():
-    from session.user_auth import find_or_create_oauth_user, get_user_by_email
-
     oauth_config = getattr(current_app, "oauth_config", {})
     if not oauth_config.get("google_enabled"):
         abort(404)
 
-    # Validate OAuth state to prevent login CSRF
     expected_state = session.pop(SESSION_OAUTH_STATE_KEY, None)
-    received_state = request.args.get("state", "")
-    if not expected_state or not _hmac.compare_digest(expected_state, received_state):
-        logger.warning("OAuth state mismatch — possible CSRF attempt")
-        return await _oauth_fail("Google sign-in failed. Please try again.")
-
-    code = request.args.get("code")
-    if not code:
-        return await _oauth_fail("Google sign-in failed. Please try again.")
-
-    redirect_uri = "%s/auth/google/callback" % oauth_config["redirect_base"]
-
-    async with httpx.AsyncClient() as client:
-        token_response = await client.post(
-            "https://oauth2.googleapis.com/token",
-            data={
-                "code": code,
-                "client_id": oauth_config["google_client_id"],
-                "client_secret": oauth_config["google_client_secret"],
-                "redirect_uri": redirect_uri,
-                "grant_type": "authorization_code",
-            },
-        )
-        if token_response.status_code != 200:
-            return await _oauth_fail("Google sign-in failed. Please try again.")
-
-        tokens = token_response.json()
-
-        userinfo_response = await client.get(
-            "https://www.googleapis.com/oauth2/v3/userinfo",
-            headers={"Authorization": f"Bearer {tokens['access_token']}"},
-        )
-        if userinfo_response.status_code != 200:
-            return await _oauth_fail("Google sign-in failed. Please try again.")
-
-        userinfo = userinfo_response.json()
-
-    email = userinfo.get("email")
-    oauth_sub = userinfo.get("sub")
-    display_name = userinfo.get("name")
-
-    if not email or not oauth_sub:
-        return await _oauth_fail("Google sign-in failed. Please try again.")
-
     services = _services()
-    db_pool = services.movie_manager.db_pool
-
-    existing = await get_user_by_email(db_pool, email)
-    if existing and existing["auth_provider"] != "google":
-        provider = existing["auth_provider"]
-        await flash(
-            "An account with this email already exists. Please log in with %s." % provider,
-            "error",
-        )
+    outcome = await _google_oauth_service.complete_login(
+        oauth_config=oauth_config,
+        expected_state=expected_state,
+        received_state=request.args.get("state", ""),
+        code=request.args.get("code"),
+        db_pool=services.movie_manager.db_pool,
+    )
+    if outcome.kind == "failure":
+        if expected_state and not _hmac.compare_digest(expected_state, request.args.get("state", "")):
+            logger.warning("OAuth state mismatch — possible CSRF attempt")
+        return await _oauth_fail(outcome.error_message)
+    if outcome.kind == "provider_conflict":
+        await flash(outcome.error_message, "error")
         return redirect(url_for("main.login_page"))
 
-    user_id = await find_or_create_oauth_user(
-        db_pool,
-        provider="google",
-        oauth_sub=oauth_sub,
-        email=email,
-        display_name=display_name,
-    )
-
     state = _current_state()
+    user_id = outcome.user_id
     await current_app.navigation_state_store.set_user_id(state.session_id, user_id)
     state.user_id = user_id
     logger.info("User %s logged in via Google, session %s", user_id, state.session_id)

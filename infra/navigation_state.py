@@ -144,34 +144,20 @@ class MutationResult:
     conflicted: bool = False
 
 
-class NavigationStateStore:
+class NavigationStateRepository:
     def __init__(self, db_pool):
         self.db_pool = db_pool
-        # Migration helper — can be removed once dual-write window closes.
-        from infra.legacy_migration import LegacyMigrationHelper
-
-        self.migration = LegacyMigrationHelper(db_pool)
-        # Optional write-through Redis read cache, wired by
-        # MovieManager.attach_cache. Gated behind
-        # NAV_STATE_REDIS_READ_CACHE_ENABLED (default off) so rollout is
-        # opt-in until the staleness semantics are validated in staging.
         self._cache = None
 
     def attach_cache(self, cache) -> None:
-        """Attach a cache manager. Idempotent — callers may rebind."""
         self._cache = cache
 
-    def _redis_read_cache_enabled(self) -> bool:
+    def redis_read_cache_enabled(self) -> bool:
         if self._cache is None:
             return False
         return env_bool("NAV_STATE_REDIS_READ_CACHE_ENABLED", default=False)
 
-    async def _invalidate_cached_state(self, session_id: str) -> None:
-        """Delete the Redis read cache entry for ``session_id``.
-
-        Called after every successful mutation so retried callers
-        observe fresh state. No-op when the cache isn't attached.
-        """
+    async def invalidate_cached_state(self, session_id: str) -> None:
         if self._cache is None:
             return
         try:
@@ -179,52 +165,9 @@ class NavigationStateStore:
         except Exception:
             logger.debug("nav state cache invalidate failed", exc_info=True)
 
-    async def dual_write_enabled(self) -> bool:
-        return await self.migration.dual_write_enabled()
-
-    async def record_legacy_import(self) -> None:
-        await self.migration.record_legacy_import()
-
-    def _fresh_expiry(self, created_at: datetime, now: datetime | None = None) -> datetime:
-        current = now or utcnow()
-        return min(created_at + _max_duration(), current + _idle_timeout())
-
-    def _fresh_state(self, session_id: str | None = None) -> NavigationState:
-        created_at = utcnow()
-        return NavigationState(
-            session_id=session_id or uuid.uuid4().hex,
-            version=1,
-            csrf_token=secrets.token_hex(32),
-            filters=default_filter_state(),
-            current_tconst=None,
-            queue=[],
-            prev=[],
-            future=[],
-            seen=[],
-            created_at=created_at,
-            last_activity_at=created_at,
-            expires_at=self._fresh_expiry(created_at, created_at),
-            current_ref=None,
-        )
-
-    def _state_from_legacy(
-        self, session_id: str, legacy_session: MutableMapping[str, Any]
-    ) -> NavigationState:
-        return self.migration.state_from_legacy(
-            legacy_session,
-            fresh_state_fn=self._fresh_state,
-            filters_from_criteria_fn=filters_from_criteria,
-            normalize_ref_fn=_normalize_ref,
-            normalize_ref_list_fn=_normalize_ref_list,
-            normalize_seen_fn=_normalize_seen,
-            queue_target=QUEUE_TARGET,
-            prev_max=PREV_STACK_MAX,
-            future_max=FUTURE_STACK_MAX,
-        )
-
-    async def _load_row(self, session_id: str) -> NavigationState | None:
-        if self._redis_read_cache_enabled():
-            cached_state = await self._load_row_from_cache(session_id)
+    async def load_state(self, session_id: str) -> NavigationState | None:
+        if self.redis_read_cache_enabled():
+            cached_state = await self.load_state_from_cache(session_id)
             if cached_state is not None:
                 return cached_state
         row = await self.db_pool.execute(
@@ -240,27 +183,18 @@ class NavigationStateStore:
         )
         if not row:
             return None
-        state = self._row_to_state(row)
-        if self._redis_read_cache_enabled():
-            await self._store_row_in_cache(state, row)
+        state = self.row_to_state(row)
+        if self.redis_read_cache_enabled():
+            await self.store_state_in_cache(state, row)
         return state
 
-    async def _load_row_from_cache(
-        self, session_id: str
-    ) -> NavigationState | None:
-        """Try to reconstruct state from the Redis read cache.
-
-        The cached blob is the raw row dict (with JSON fields as strings)
-        so ``_row_to_state`` can hydrate it the same way as a fresh SELECT.
-        Returns None on miss, deserialization failure, or expired row.
-        """
+    async def load_state_from_cache(self, session_id: str) -> NavigationState | None:
         try:
             cached = await self._cache.get(CacheNamespace.SESSION, f"nav:{session_id}")
         except Exception:
             return None
         if not isinstance(cached, dict):
             return None
-        # Datetime fields are ISO strings after JSON round-trip; rehydrate.
         for field in ("created_at", "last_activity_at", "expires_at"):
             value = cached.get(field)
             if isinstance(value, str):
@@ -269,23 +203,14 @@ class NavigationStateStore:
                 except ValueError:
                     return None
         try:
-            state = self._row_to_state(cached)
+            state = self.row_to_state(cached)
         except Exception:
             return None
         if state.expires_at <= utcnow():
             return None
         return state
 
-    async def _store_row_in_cache(
-        self,
-        state: NavigationState,
-        row: dict[str, Any],
-    ) -> None:
-        """Write the raw row to Redis so future loads can hydrate it.
-
-        TTL matches the session's remaining lifetime (bounded below at
-        60s to avoid pathological short caches).
-        """
+    async def store_state_in_cache(self, state: NavigationState, row: dict[str, Any]) -> None:
         remaining = int((state.expires_at - utcnow()).total_seconds())
         ttl = max(60, min(remaining, SESSION_COOKIE_MAX_AGE))
         try:
@@ -298,7 +223,7 @@ class NavigationStateStore:
         except Exception:
             logger.debug("nav state cache write failed", exc_info=True)
 
-    def _json_load(self, value: Any, fallback: Any) -> Any:
+    def json_load(self, value: Any, fallback: Any) -> Any:
         if value is None:
             return fallback
         if isinstance(value, (dict, list)):
@@ -310,9 +235,9 @@ class NavigationStateStore:
                 return fallback
         return fallback
 
-    def _row_to_state(self, row: dict[str, Any]) -> NavigationState:
-        filters = self._json_load(row.get("filters_json"), default_filter_state())
-        current_ref = _normalize_ref(self._json_load(row.get("current_ref_json"), None))
+    def row_to_state(self, row: dict[str, Any]) -> NavigationState:
+        filters = self.json_load(row.get("filters_json"), default_filter_state())
+        current_ref = _normalize_ref(self.json_load(row.get("current_ref_json"), None))
         return NavigationState(
             session_id=row["session_id"],
             version=int(row["version"]),
@@ -320,15 +245,15 @@ class NavigationStateStore:
             filters=filters if isinstance(filters, dict) else default_filter_state(),
             current_tconst=row.get("current_tconst"),
             queue=_normalize_ref_list(
-                self._json_load(row.get("queue_json"), []), max_items=QUEUE_TARGET
+                self.json_load(row.get("queue_json"), []), max_items=QUEUE_TARGET
             ),
             prev=_normalize_ref_list(
-                self._json_load(row.get("prev_json"), []), max_items=PREV_STACK_MAX
+                self.json_load(row.get("prev_json"), []), max_items=PREV_STACK_MAX
             ),
             future=_normalize_ref_list(
-                self._json_load(row.get("future_json"), []), max_items=FUTURE_STACK_MAX
+                self.json_load(row.get("future_json"), []), max_items=FUTURE_STACK_MAX
             ),
-            seen=_normalize_seen(self._json_load(row.get("seen_json"), [])),
+            seen=_normalize_seen(self.json_load(row.get("seen_json"), [])),
             created_at=row["created_at"],
             last_activity_at=row["last_activity_at"],
             expires_at=row["expires_at"],
@@ -337,7 +262,7 @@ class NavigationStateStore:
         )
 
     @staticmethod
-    def _normalize_current_ref(state: NavigationState) -> dict[str, Any] | None:
+    def normalize_current_ref(state: NavigationState) -> dict[str, Any] | None:
         current_ref = _normalize_ref(state.current_ref) if state.current_ref else None
         if current_ref and state.current_tconst and current_ref["tconst"] != state.current_tconst:
             current_ref = {
@@ -349,11 +274,11 @@ class NavigationStateStore:
             state.current_tconst = current_ref["tconst"]
         return current_ref
 
-    def _serialized_state_fields(self, state: NavigationState) -> dict[str, Any]:
+    def serialized_state_fields(self, state: NavigationState) -> dict[str, Any]:
         cached = state._serialized_cache
         if cached is not None:
             return cached
-        current_ref = self._normalize_current_ref(state)
+        current_ref = self.normalize_current_ref(state)
         serialized = {
             "csrf_token": state.csrf_token,
             "filters_json": json.dumps(state.filters),
@@ -367,8 +292,8 @@ class NavigationStateStore:
         state._serialized_cache = serialized
         return serialized
 
-    async def _insert_state(self, state: NavigationState) -> None:
-        serialized = self._serialized_state_fields(state)
+    async def insert_state(self, state: NavigationState) -> None:
+        serialized = self.serialized_state_fields(state)
         await self.db_pool.execute(
             """
             INSERT INTO user_navigation_state (
@@ -397,66 +322,21 @@ class NavigationStateStore:
             fetch="none",
         )
 
-    async def _touch_if_needed(self, state: NavigationState) -> NavigationState:
-        now = utcnow()
-        if now <= state.last_activity_at + timedelta(minutes=1):
-            return state
-
-        expires_at = self._fresh_expiry(state.created_at, now)
+    async def refresh_activity(
+        self,
+        session_id: str,
+        now: datetime,
+        expires_at: datetime,
+    ) -> None:
         await self.db_pool.execute(
             """
             UPDATE user_navigation_state
             SET last_activity_at = %s, expires_at = %s
             WHERE session_id = %s
             """,
-            [now, expires_at, state.session_id],
+            [now, expires_at, session_id],
             fetch="none",
         )
-        state.last_activity_at = now
-        state.expires_at = expires_at
-        return state
-
-    async def load_for_request(
-        self,
-        cookie_session_id: str | None,
-        legacy_session: MutableMapping[str, Any] | None = None,
-    ) -> tuple[NavigationState, bool]:
-        if cookie_session_id:
-            state = await self._load_row(cookie_session_id)
-            if state and state.expires_at > utcnow():
-                return await self._touch_if_needed(state), False
-
-        dual_write = await self.dual_write_enabled()
-        if (
-            dual_write
-            and legacy_session
-            and (
-                legacy_session.get(CURRENT_MOVIE_KEY)
-                or legacy_session.get(WATCH_QUEUE_KEY)
-                or legacy_session.get(PREVIOUS_STACK_KEY)
-                or legacy_session.get(FUTURE_STACK_KEY)
-                or legacy_session.get(CRITERIA_KEY)
-            )
-        ):
-            state = self._state_from_legacy(uuid.uuid4().hex, legacy_session)
-            await self._insert_state(state)
-            await self.record_legacy_import()
-            return state, True
-
-        if dual_write:
-            from infra.metrics import navigation_state_migration_miss_total
-
-            navigation_state_migration_miss_total.inc()
-
-        state = self._fresh_state()
-        await self._insert_state(state)
-        return state, True
-
-    async def get_state(self, session_id: str) -> NavigationState | None:
-        state = await self._load_row(session_id)
-        if state and state.expires_at > utcnow():
-            return state
-        return None
 
     async def ready_check(self) -> bool:
         await self.db_pool.execute(
@@ -465,19 +345,16 @@ class NavigationStateStore:
         )
         return True
 
-    async def save_state(
+    async def save_with_version(
         self,
         state: NavigationState,
         expected_version: int,
         previous_state: NavigationState | None = None,
     ) -> bool:
-        now = utcnow()
-        state.last_activity_at = now
-        state.expires_at = self._fresh_expiry(state.created_at, now)
         next_version = expected_version + 1
-        current_values = self._serialized_state_fields(state)
+        current_values = self.serialized_state_fields(state)
         previous_values = (
-            self._serialized_state_fields(previous_state) if previous_state is not None else None
+            self.serialized_state_fields(previous_state) if previous_state is not None else None
         )
 
         assignments = ["version = %s"]
@@ -510,11 +387,151 @@ class NavigationStateStore:
         )
         if updated != 1:
             return False
-        state.version = next_version
-        await self._invalidate_cached_state(state.session_id)
+        await self.invalidate_cached_state(state.session_id)
         return True
 
-    def _write_legacy_session(
+    async def set_user_id(self, session_id: str, user_id: str | None) -> None:
+        await self.db_pool.execute(
+            """
+            UPDATE user_navigation_state
+            SET user_id = %s, last_activity_at = %s
+            WHERE session_id = %s
+            """,
+            [user_id, utcnow(), session_id],
+            fetch="none",
+        )
+
+    async def delete_state(self, session_id: str) -> None:
+        await self.db_pool.execute(
+            "DELETE FROM user_navigation_state WHERE session_id = %s",
+            [session_id],
+            fetch="none",
+        )
+
+
+class NavigationStateService:
+    def __init__(self, repository: NavigationStateRepository, migration):
+        self.repository = repository
+        self.migration = migration
+
+    async def dual_write_enabled(self) -> bool:
+        return await self.migration.dual_write_enabled()
+
+    async def record_legacy_import(self) -> None:
+        await self.migration.record_legacy_import()
+
+    def fresh_expiry(self, created_at: datetime, now: datetime | None = None) -> datetime:
+        current = now or utcnow()
+        return min(created_at + _max_duration(), current + _idle_timeout())
+
+    def fresh_state(self, session_id: str | None = None) -> NavigationState:
+        created_at = utcnow()
+        return NavigationState(
+            session_id=session_id or uuid.uuid4().hex,
+            version=1,
+            csrf_token=secrets.token_hex(32),
+            filters=default_filter_state(),
+            current_tconst=None,
+            queue=[],
+            prev=[],
+            future=[],
+            seen=[],
+            created_at=created_at,
+            last_activity_at=created_at,
+            expires_at=self.fresh_expiry(created_at, created_at),
+            current_ref=None,
+        )
+
+    def state_from_legacy(
+        self, session_id: str, legacy_session: MutableMapping[str, Any]
+    ) -> NavigationState:
+        return self.migration.state_from_legacy(
+            legacy_session,
+            fresh_state_fn=self.fresh_state,
+            filters_from_criteria_fn=filters_from_criteria,
+            normalize_ref_fn=_normalize_ref,
+            normalize_ref_list_fn=_normalize_ref_list,
+            normalize_seen_fn=_normalize_seen,
+            queue_target=QUEUE_TARGET,
+            prev_max=PREV_STACK_MAX,
+            future_max=FUTURE_STACK_MAX,
+        )
+
+    async def touch_if_needed(self, state: NavigationState) -> NavigationState:
+        now = utcnow()
+        if now <= state.last_activity_at + timedelta(minutes=1):
+            return state
+
+        expires_at = self.fresh_expiry(state.created_at, now)
+        await self.repository.refresh_activity(state.session_id, now, expires_at)
+        state.last_activity_at = now
+        state.expires_at = expires_at
+        return state
+
+    async def load_for_request(
+        self,
+        cookie_session_id: str | None,
+        legacy_session: MutableMapping[str, Any] | None = None,
+    ) -> tuple[NavigationState, bool]:
+        if cookie_session_id:
+            state = await self.repository.load_state(cookie_session_id)
+            if state and state.expires_at > utcnow():
+                return await self.touch_if_needed(state), False
+
+        dual_write = await self.dual_write_enabled()
+        if (
+            dual_write
+            and legacy_session
+            and (
+                legacy_session.get(CURRENT_MOVIE_KEY)
+                or legacy_session.get(WATCH_QUEUE_KEY)
+                or legacy_session.get(PREVIOUS_STACK_KEY)
+                or legacy_session.get(FUTURE_STACK_KEY)
+                or legacy_session.get(CRITERIA_KEY)
+            )
+        ):
+            state = self.state_from_legacy(uuid.uuid4().hex, legacy_session)
+            await self.repository.insert_state(state)
+            await self.record_legacy_import()
+            return state, True
+
+        if dual_write:
+            from infra.metrics import navigation_state_migration_miss_total
+
+            navigation_state_migration_miss_total.inc()
+
+        state = self.fresh_state()
+        await self.repository.insert_state(state)
+        return state, True
+
+    async def get_state(self, session_id: str) -> NavigationState | None:
+        state = await self.repository.load_state(session_id)
+        if state and state.expires_at > utcnow():
+            return state
+        return None
+
+    async def ready_check(self) -> bool:
+        return await self.repository.ready_check()
+
+    async def save_state(
+        self,
+        state: NavigationState,
+        expected_version: int,
+        previous_state: NavigationState | None = None,
+    ) -> bool:
+        now = utcnow()
+        state.last_activity_at = now
+        state.expires_at = self.fresh_expiry(state.created_at, now)
+        saved = await self.repository.save_with_version(
+            state,
+            expected_version=expected_version,
+            previous_state=previous_state,
+        )
+        if saved:
+            state.version = expected_version + 1
+        return saved
+
+    def write_legacy_session(
         self, state: NavigationState, legacy_session: MutableMapping[str, Any]
     ) -> None:
         self.migration.write_legacy_session(state, legacy_session, criteria_from_filters)
@@ -549,16 +566,12 @@ class NavigationStateStore:
                 previous_state=current,
             ):
                 if legacy_session and await self.dual_write_enabled():
-                    self._write_legacy_session(working, legacy_session)
+                    self.write_legacy_session(working, legacy_session)
                 return MutationResult(state=working, result=result, conflicted=False)
 
             navigation_state_conflicts_total.inc()
             current_state = None
-            # Exponential backoff + jitter on conflict to avoid retry storms
-            # under per-session contention (rapid double-clicks, browser retries).
             if attempt < max_attempts - 1:
-                # Full jitter: sleep uniformly in [0, base_backoff] for
-                # better thundering-herd resistance than narrow ±10ms jitter.
                 base_backoff_ms = 10 * (2 ** attempt)
                 backoff_ms = random.randint(0, base_backoff_ms)
                 await asyncio.sleep(backoff_ms / 1000.0)
@@ -566,24 +579,126 @@ class NavigationStateStore:
         return MutationResult(state=await self.get_state(session_id), conflicted=True)
 
     async def set_user_id(self, session_id: str, user_id: str | None) -> None:
-        """Link or unlink a user account to/from a session."""
-        await self.db_pool.execute(
-            """
-            UPDATE user_navigation_state
-            SET user_id = %s, last_activity_at = %s
-            WHERE session_id = %s
-            """,
-            [user_id, utcnow(), session_id],
-            fetch="none",
-        )
+        await self.repository.set_user_id(session_id, user_id)
+
+    async def delete_state(
+        self,
+        session_id: str,
+        legacy_session: MutableMapping[str, Any] | None = None,
+    ) -> None:
+        await self.repository.delete_state(session_id)
+        if legacy_session is not None:
+            legacy_session.clear()
+
+
+class NavigationStateStore:
+    def __init__(self, db_pool):
+        self.db_pool = db_pool
+        from infra.legacy_migration import LegacyMigrationHelper
+
+        self.migration = LegacyMigrationHelper(db_pool)
+        self.repository = NavigationStateRepository(db_pool)
+        self.service = NavigationStateService(self.repository, self.migration)
+        self._cache = None
+
+    def attach_cache(self, cache) -> None:
+        self._cache = cache
+        self.repository.attach_cache(cache)
+
+    def _redis_read_cache_enabled(self) -> bool:
+        return self.repository.redis_read_cache_enabled()
+
+    async def _invalidate_cached_state(self, session_id: str) -> None:
+        await self.repository.invalidate_cached_state(session_id)
+
+    async def dual_write_enabled(self) -> bool:
+        return await self.service.dual_write_enabled()
+
+    async def record_legacy_import(self) -> None:
+        await self.service.record_legacy_import()
+
+    def _fresh_expiry(self, created_at: datetime, now: datetime | None = None) -> datetime:
+        return self.service.fresh_expiry(created_at, now)
+
+    def _fresh_state(self, session_id: str | None = None) -> NavigationState:
+        return self.service.fresh_state(session_id)
+
+    def _state_from_legacy(
+        self, session_id: str, legacy_session: MutableMapping[str, Any]
+    ) -> NavigationState:
+        return self.service.state_from_legacy(session_id, legacy_session)
+
+    async def _load_row(self, session_id: str) -> NavigationState | None:
+        return await self.repository.load_state(session_id)
+
+    async def _load_row_from_cache(self, session_id: str) -> NavigationState | None:
+        return await self.repository.load_state_from_cache(session_id)
+
+    async def _store_row_in_cache(
+        self,
+        state: NavigationState,
+        row: dict[str, Any],
+    ) -> None:
+        await self.repository.store_state_in_cache(state, row)
+
+    def _json_load(self, value: Any, fallback: Any) -> Any:
+        return self.repository.json_load(value, fallback)
+
+    def _row_to_state(self, row: dict[str, Any]) -> NavigationState:
+        return self.repository.row_to_state(row)
+
+    @staticmethod
+    def _normalize_current_ref(state: NavigationState) -> dict[str, Any] | None:
+        return NavigationStateRepository.normalize_current_ref(state)
+
+    def _serialized_state_fields(self, state: NavigationState) -> dict[str, Any]:
+        return self.repository.serialized_state_fields(state)
+
+    async def _insert_state(self, state: NavigationState) -> None:
+        await self.repository.insert_state(state)
+
+    async def _touch_if_needed(self, state: NavigationState) -> NavigationState:
+        return await self.service.touch_if_needed(state)
+
+    async def load_for_request(
+        self,
+        cookie_session_id: str | None,
+        legacy_session: MutableMapping[str, Any] | None = None,
+    ) -> tuple[NavigationState, bool]:
+        return await self.service.load_for_request(cookie_session_id, legacy_session)
+
+    async def get_state(self, session_id: str) -> NavigationState | None:
+        return await self.service.get_state(session_id)
+
+    async def ready_check(self) -> bool:
+        return await self.service.ready_check()
+
+    async def save_state(
+        self,
+        state: NavigationState,
+        expected_version: int,
+        previous_state: NavigationState | None = None,
+    ) -> bool:
+        return await self.service.save_state(state, expected_version, previous_state)
+
+    def _write_legacy_session(
+        self, state: NavigationState, legacy_session: MutableMapping[str, Any]
+    ) -> None:
+        self.service.write_legacy_session(state, legacy_session)
+
+    async def mutate(
+        self,
+        session_id: str,
+        mutator: Callable[[NavigationState], Any | Awaitable[Any]],
+        legacy_session: MutableMapping[str, Any] | None = None,
+        current_state: NavigationState | None = None,
+    ) -> MutationResult:
+        return await self.service.mutate(session_id, mutator, legacy_session, current_state)
+
+    async def set_user_id(self, session_id: str, user_id: str | None) -> None:
+        await self.service.set_user_id(session_id, user_id)
 
     async def delete_state(
         self, session_id: str, legacy_session: MutableMapping[str, Any] | None = None
     ) -> None:
-        await self.db_pool.execute(
-            "DELETE FROM user_navigation_state WHERE session_id = %s",
-            [session_id],
-            fetch="none",
-        )
-        if legacy_session is not None:
-            legacy_session.clear()
+        await self.service.delete_state(session_id, legacy_session)

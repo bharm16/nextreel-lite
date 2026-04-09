@@ -89,6 +89,15 @@ async def test_refresh_movie_candidates_delegates():
     mock_store.refresh_movie_candidates.assert_awaited_once()
 
 
+async def test_refresh_movie_candidates_delegates_to_job_module():
+    with patch("worker.refresh_movie_candidates_job", AsyncMock()) as job:
+        from worker import refresh_movie_candidates
+
+        await refresh_movie_candidates({"candidate_store": AsyncMock()})
+
+    job.assert_awaited_once()
+
+
 async def test_ensure_core_projection_delegates():
     """ensure_core_projection() should delegate to projection_store and return result."""
     from worker import ensure_core_projection

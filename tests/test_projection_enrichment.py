@@ -35,9 +35,8 @@ async def test_enrich_projection_times_out_and_marks_failed():
     store = MagicMock()
     store.db_pool = MagicMock()
     store.select_row = AsyncMock(return_value=None)
-    store.upsert_ready = AsyncMock()
-    store.upsert_failed = AsyncMock()
     store.ensure_core_projection = AsyncMock(return_value={"title": "core"})
+    store.apply_enrichment_result = AsyncMock()
 
     coord = ProjectionEnrichmentCoordinator(
         store=store, tmdb_helper=MagicMock(), enqueue_fn=None
@@ -51,12 +50,11 @@ async def test_enrich_projection_times_out_and_marks_failed():
         MockMovie.return_value.get_movie_data = AsyncMock(side_effect=_slow)
         result = await coord.enrich_projection("tt1")
 
-    store.upsert_ready.assert_not_awaited()
-    store.upsert_failed.assert_awaited_once()
-    args, kwargs = store.upsert_failed.call_args
-    # error string is positional arg index 4 in upsert_failed call signature
-    # (tconst, core_payload, now, attempts, error, tmdb_id=...)
-    assert "timeout" in args[4].lower()
+    store.apply_enrichment_result.assert_awaited_once()
+    args, _ = store.apply_enrichment_result.call_args
+    assert args[0] == "tt1"
+    assert args[1].persistence_mode == "FAILED_UPSERT"
+    assert "timeout" in args[1].error.lower()
     assert result == {"title": "core"}
 
 
@@ -86,9 +84,8 @@ async def test_enrich_projection_timeout_increments_metric():
     store = MagicMock()
     store.db_pool = MagicMock()
     store.select_row = AsyncMock(return_value=None)
-    store.upsert_ready = AsyncMock()
-    store.upsert_failed = AsyncMock()
     store.ensure_core_projection = AsyncMock(return_value={"title": "core"})
+    store.apply_enrichment_result = AsyncMock()
 
     coord = ProjectionEnrichmentCoordinator(
         store=store, tmdb_helper=MagicMock(), enqueue_fn=None
@@ -135,10 +132,8 @@ async def test_enrich_projection_skips_upsert_when_payload_unchanged():
         "projection_state": "stale",
         "attempt_count": 1,
     })
-    store.upsert_ready = AsyncMock()
-    store.upsert_failed = AsyncMock()
-    store.refresh_ready_metadata = AsyncMock()
     store.ensure_core_projection = AsyncMock()
+    store.apply_enrichment_result = AsyncMock()
 
     coord = ProjectionEnrichmentCoordinator(
         store=store, tmdb_helper=MagicMock(), enqueue_fn=None
@@ -150,8 +145,33 @@ async def test_enrich_projection_skips_upsert_when_payload_unchanged():
         )
         result = await coord.enrich_projection("tt1")
 
-    store.upsert_ready.assert_not_awaited()
-    store.refresh_ready_metadata.assert_awaited_once()
-    args, kwargs = store.refresh_ready_metadata.call_args
+    store.apply_enrichment_result.assert_awaited_once()
+    args, _ = store.apply_enrichment_result.call_args
     assert args[0] == "tt1"
+    assert args[1].persistence_mode == "READY_METADATA_ONLY"
     assert result["title"] == "Same"
+
+
+@pytest.mark.asyncio
+async def test_enrich_projection_applies_ready_upsert_result():
+    store = MagicMock()
+    store.db_pool = MagicMock()
+    store.select_row = AsyncMock(return_value=None)
+    store.ensure_core_projection = AsyncMock()
+    store.apply_enrichment_result = AsyncMock()
+
+    coord = ProjectionEnrichmentCoordinator(
+        store=store, tmdb_helper=MagicMock(), enqueue_fn=None
+    )
+
+    with patch("movies.projection_enrichment.Movie") as MockMovie:
+        MockMovie.return_value.get_movie_data = AsyncMock(
+            return_value={"title": "Enriched", "tmdb_id": 42, "_full": True}
+        )
+        result = await coord.enrich_projection("tt1")
+
+    store.apply_enrichment_result.assert_awaited_once()
+    args, _ = store.apply_enrichment_result.call_args
+    assert args[0] == "tt1"
+    assert args[1].persistence_mode == "READY_UPSERT"
+    assert result["title"] == "Enriched"

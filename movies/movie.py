@@ -7,6 +7,7 @@ from typing import Any
 
 from infra.errors import DatabaseError
 from infra.pool import DatabaseConnectionPool
+from movies.movie_payload import MoviePayloadFormatter
 from movies.tmdb_client import TMDbHelper
 from logging_config import get_logger
 
@@ -27,6 +28,7 @@ class Movie:
         self.tmdb_helper = tmdb_helper or TMDbHelper()
         self._owns_tmdb_helper = tmdb_helper is None
         self.slug: str | None = None
+        self.payload_formatter = MoviePayloadFormatter()
 
     async def __aenter__(self):
         return self
@@ -119,85 +121,14 @@ class Movie:
             if full_data is None:
                 full_data = {}
 
-            h = self.tmdb_helper
-            tmdb_cast_info = h.parse_cast(full_data)
-            directors = h.parse_directors(full_data)
-            key_crew = h.parse_key_crew(full_data)
-            trailer = h.parse_trailer(full_data)
-            images = h.parse_images(full_data)
-            age_rating = h.parse_age_rating(full_data)
-            watch_providers = h.parse_watch_providers(full_data)
-            keywords = h.parse_keywords(full_data)
-            recommendations = h.parse_recommendations(full_data)
-            external_ids = h.parse_external_ids(full_data)
-            collection = h.parse_collection(full_data)
-
-            backdrop_url = images["backdrops"][0] if images.get("backdrops") else None
-
-            rating = (
-                ratings_data["averageRating"]
-                if ratings_data and ratings_data["averageRating"] != "N/A"
-                else full_data.get("vote_average", "N/A")
+            self.movie_data = self.payload_formatter.assemble(
+                full_data=full_data,
+                ratings_data=ratings_data,
+                tmdb_helper=self.tmdb_helper,
+                tconst=self.tconst,
+                slug=self.slug,
+                tmdb_id=tmdb_id,
             )
-            votes = (
-                ratings_data["numVotes"]
-                if ratings_data and ratings_data["numVotes"] != "N/A"
-                else full_data.get("vote_count", "N/A")
-            )
-
-            budget = full_data.get("budget", 0)
-            revenue = full_data.get("revenue", 0)
-            budget_formatted = f"${budget:,}" if budget > 0 else "Unknown"
-            revenue_formatted = f"${revenue:,}" if revenue > 0 else "Unknown"
-
-            countries = full_data.get("production_countries", [])
-            country_names = [country.get("name", "") for country in countries[:3]]
-
-            self.movie_data = {
-                "title": full_data.get("title", "N/A"),
-                "imdb_id": self.tconst,
-                "tmdb_id": tmdb_id,
-                "slug": self.slug,
-                "genres": ", ".join([genre["name"] for genre in full_data.get("genres", [])]),
-                "directors": ", ".join(directors),
-                "rating": rating,
-                "votes": votes,
-                "plot": full_data.get("overview", "N/A"),
-                "poster_url": (
-                    f"{h.image_base_url}w500{full_data.get('poster_path')}"
-                    if full_data.get("poster_path")
-                    else None
-                ),
-                "year": (
-                    full_data.get("release_date", "N/A")[:4]
-                    if full_data.get("release_date")
-                    else "N/A"
-                ),
-                "cast": tmdb_cast_info,
-                "trailer": trailer,
-                "backdrop_url": backdrop_url,
-                "original_language": full_data.get("original_language", "unknown"),
-                "spoken_languages": [
-                    lang.get("iso_639_1") for lang in full_data.get("spoken_languages", [])
-                ],
-                "age_rating": age_rating,
-                "budget": budget_formatted,
-                "revenue": revenue_formatted,
-                "runtime": (
-                    f"{full_data.get('runtime', 0)} min" if full_data.get("runtime") else "Unknown"
-                ),
-                "production_countries": ", ".join(country_names) if country_names else "Unknown",
-                "status": full_data.get("status", "Unknown"),
-                "tagline": full_data.get("tagline", ""),
-                "watch_providers": watch_providers,
-                "key_crew": key_crew,
-                "keywords": keywords,
-                "recommendations": recommendations,
-                "external_ids": external_ids,
-                "collection": collection,
-                "homepage": full_data.get("homepage", ""),
-                "_full": True,  # sentinel for _is_full_movie()
-            }
 
             method_time = time.time() - start_time
             logger.info("Completed get_movie_data for %s in %.2f seconds", self.tconst, method_time)

@@ -33,24 +33,99 @@ from settings import Config
 logger = get_logger(__name__)
 
 
+class HomePrewarmService:
+    async def prewarm(
+        self,
+        *,
+        state: NavigationState | None,
+        navigator: MovieNavigator | None,
+        legacy_session: MutableMapping[str, Any] | None,
+        background_scheduler: Callable[[Awaitable[Any]], Any] | None,
+        schedule_background: Callable[[Awaitable[Any]], bool],
+    ) -> None:
+        if not state or state.queue or navigator is None:
+            return
+
+        dual_write_active = _nav_dual_write_active()
+        if background_scheduler is not None and not dual_write_active:
+            session_id = state.session_id
+
+            async def _bg_prewarm() -> None:
+                try:
+                    await navigator.prewarm_queue(
+                        session_id,
+                        legacy_session=None,
+                        current_state=None,
+                    )
+                except Exception as exc:
+                    home_prewarm_failed_total.inc()
+                    logger.warning(
+                        "Background home prewarm failed for %s: %s",
+                        session_id,
+                        exc,
+                    )
+
+            schedule_background(_bg_prewarm())
+            return
+
+        try:
+            prewarm_timeout = float(os.getenv("PREWARM_TIMEOUT_SECONDS", "0.1"))
+        except ValueError:
+            prewarm_timeout = 0.1
+        try:
+            await asyncio.wait_for(
+                navigator.prewarm_queue(
+                    state.session_id,
+                    legacy_session=legacy_session,
+                    current_state=state,
+                ),
+                timeout=prewarm_timeout,
+            )
+        except asyncio.TimeoutError:
+            logger.info(
+                "prewarm_queue exceeded %.2fs timeout; skipping prewarm",
+                prewarm_timeout,
+            )
+        except Exception as exc:
+            home_prewarm_failed_total.inc()
+            logger.warning("Home prewarm failed for %s: %s", state.session_id, exc)
+
+
 class MovieManager:
     """Facade coordinating DB-backed navigation, rendering, and enrichment."""
 
-    def __init__(self, db_config: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self,
+        db_config: dict[str, Any] | None = None,
+        *,
+        db_pool: DatabaseConnectionPool | None = None,
+        tmdb_helper: TMDbHelper | None = None,
+        candidate_store: CandidateStore | None = None,
+        projection_store: ProjectionStore | None = None,
+        watched_store: WatchedStore | None = None,
+        renderer: MovieRenderer | None = None,
+        navigation_state_store: NavigationStateStore | None = None,
+        navigator: MovieNavigator | None = None,
+        home_prewarm_service: HomePrewarmService | None = None,
+    ) -> None:
         logger.debug("Initializing MovieManager")
         self.db_config = db_config or Config.get_db_config()
-        self.db_pool = DatabaseConnectionPool(self.db_config)
+        self.db_pool = db_pool or DatabaseConnectionPool(self.db_config)
         self.default_movie_tmdb_id: int = 62
         self.default_backdrop_url: str | None = None
-        self.tmdb_helper = TMDbHelper()
+        self.tmdb_helper = tmdb_helper or TMDbHelper()
 
-        self.candidate_store = CandidateStore(self.db_pool)
-        self.projection_store = ProjectionStore(self.db_pool, tmdb_helper=self.tmdb_helper)
+        self.candidate_store = candidate_store or CandidateStore(self.db_pool)
+        self.projection_store = projection_store or ProjectionStore(
+            self.db_pool,
+            tmdb_helper=self.tmdb_helper,
+        )
         self.projection_coordinator = self.projection_store.coordinator
-        self.navigation_state_store = None
-        self._navigator: MovieNavigator | None = None
-        self._renderer = MovieRenderer(self.projection_store)
-        self.watched_store = WatchedStore(self.db_pool)
+        self.navigation_state_store = navigation_state_store
+        self._navigator = navigator
+        self._renderer = renderer or MovieRenderer(self.projection_store)
+        self.watched_store = watched_store or WatchedStore(self.db_pool)
+        self._home_prewarm_service = home_prewarm_service or HomePrewarmService()
         # Background-task scheduler hook wired from ``app.create_app()``. When
         # present, request handlers can schedule best-effort work (queue
         # prewarm, local enrichment prefetch) off the request path.
@@ -155,57 +230,18 @@ class MovieManager:
         state: NavigationState | None,
         legacy_session: MutableMapping[str, Any] | None = None,
     ) -> dict[str, Any]:
-        if state and not state.queue and self._navigator:
-            # Read the dual-write flag exactly once here — the background
-            # task must not re-read stale config mid-flight.
-            dual_write_active = _nav_dual_write_active()
+        prewarm_service = getattr(self, "_home_prewarm_service", None)
+        if prewarm_service is None:
+            prewarm_service = HomePrewarmService()
+            self._home_prewarm_service = prewarm_service
 
-            if self._background_scheduler is not None and not dual_write_active:
-                # Capture only plain data. The background task must not
-                # touch request/session/g — it receives the session_id
-                # (a plain str) and schedules prewarm without the legacy
-                # session mapping, since dual-write is off by assumption.
-                session_id = state.session_id
-                navigator = self._navigator
-
-                async def _bg_prewarm() -> None:
-                    try:
-                        await navigator.prewarm_queue(
-                            session_id,
-                            legacy_session=None,
-                            current_state=None,
-                        )
-                    except Exception as exc:
-                        home_prewarm_failed_total.inc()
-                        logger.warning(
-                            "Background home prewarm failed for %s: %s",
-                            session_id,
-                            exc,
-                        )
-
-                self.schedule_background(_bg_prewarm())
-            else:
-                try:
-                    prewarm_timeout = float(os.getenv("PREWARM_TIMEOUT_SECONDS", "0.1"))
-                except ValueError:
-                    prewarm_timeout = 0.1
-                try:
-                    await asyncio.wait_for(
-                        self._navigator.prewarm_queue(
-                            state.session_id,
-                            legacy_session=legacy_session,
-                            current_state=state,
-                        ),
-                        timeout=prewarm_timeout,
-                    )
-                except asyncio.TimeoutError:
-                    logger.info(
-                        "prewarm_queue exceeded %.2fs timeout; skipping prewarm",
-                        prewarm_timeout,
-                    )
-                except Exception as exc:
-                    home_prewarm_failed_total.inc()
-                    logger.warning("Home prewarm failed for %s: %s", state.session_id, exc)
+        await prewarm_service.prewarm(
+            state=state,
+            navigator=self._navigator,
+            legacy_session=legacy_session,
+            background_scheduler=self._background_scheduler,
+            schedule_background=self.schedule_background,
+        )
 
         return {"default_backdrop_url": self.default_backdrop_url}
 

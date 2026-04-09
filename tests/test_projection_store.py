@@ -118,7 +118,7 @@ class TestPayloadFromRow:
         store = _make_store(mock_db_pool)
         row = {"payload_json": None, "projection_state": PROJECTION_FAILED}
         result = store._payload_from_row(row)
-        assert result == {"projection_state": PROJECTION_FAILED}
+        assert result == {"projection_state": PROJECTION_FAILED, "tconst": None}
 
     def test_invalid_json_returns_empty_dict(self, mock_db_pool):
         store = _make_store(mock_db_pool)
@@ -131,7 +131,7 @@ class TestPayloadFromRow:
         store = _make_store(mock_db_pool)
         row = {"payload_json": "[1, 2, 3]", "projection_state": PROJECTION_READY}
         result = store._payload_from_row(row)
-        assert result == {"projection_state": PROJECTION_READY}
+        assert result == {"projection_state": PROJECTION_READY, "tconst": None}
 
     def test_existing_projection_state_not_overwritten(self, mock_db_pool):
         """setdefault should not overwrite a projection_state already in payload."""

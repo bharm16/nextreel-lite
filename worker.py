@@ -6,6 +6,14 @@ import asyncio
 import os
 
 from infra.integrity_checks import INTEGRITY_CHECKS
+from infra.maintenance_jobs import (
+    enrich_projection_job,
+    ensure_core_projection_job,
+    purge_expired_navigation_state_job,
+    refresh_movie_candidates_job,
+    requeue_stale_projections_job,
+    validate_referential_integrity_job,
+)
 from infra.pool import DatabaseConnectionPool
 from infra.time_utils import env_bool
 from infra.worker_metrics import (
@@ -17,7 +25,6 @@ from infra.worker_metrics import (
 from logging_config import get_logger
 from movies.candidate_store import CandidateStore
 from movies.projection_store import ProjectionStore
-from movies.query_builder import bump_count_cache_generation
 from settings import Config
 
 logger = get_logger(__name__)
@@ -170,31 +177,22 @@ async def shutdown(ctx):
 
 @instrument_job("refresh_movie_candidates")
 async def refresh_movie_candidates(ctx):
-    await ctx["candidate_store"].refresh_movie_candidates()
-    # Invalidate the cached qualifying-row counts used by MovieQueryBuilder's
-    # random-offset strategy. Stale counts after a refresh can produce empty
-    # result sets when the random offset overshoots the new row count.
-    cache = ctx.get("redis_cache")
-    if cache is not None:
-        try:
-            await bump_count_cache_generation(cache)
-        except Exception as exc:  # pragma: no cover - defensive
-            logger.warning("Failed to bump count cache generation after refresh: %s", exc)
+    await refresh_movie_candidates_job(ctx)
 
 
 @instrument_job("ensure_core_projection")
 async def ensure_core_projection(ctx, tconst: str):
-    return await ctx["projection_store"].ensure_core_projection(tconst)
+    return await ensure_core_projection_job(ctx, tconst)
 
 
 @instrument_job("enrich_projection")
 async def enrich_projection(ctx, tconst: str, tmdb_id: int | None = None):
-    return await ctx["projection_store"].enrich_projection(tconst, known_tmdb_id=tmdb_id)
+    return await enrich_projection_job(ctx, tconst, tmdb_id=tmdb_id)
 
 
 @instrument_job("requeue_stale_projections")
 async def requeue_stale_projections(ctx):
-    return await ctx["projection_store"].requeue_stale_projections()
+    return await requeue_stale_projections_job(ctx)
 
 
 # Bounded concurrency for integrity checks. Conservative cap of 4 keeps
@@ -205,26 +203,11 @@ INTEGRITY_CHECK_CONCURRENCY = 4
 
 @instrument_job("validate_referential_integrity")
 async def validate_referential_integrity(ctx):
-    db_pool = ctx["db_pool"]
-    semaphore = asyncio.Semaphore(INTEGRITY_CHECK_CONCURRENCY)
-
-    async def _run_check(query: str):
-        async with semaphore:
-            return await db_pool.execute(query, fetch="one")
-
-    results = await asyncio.gather(
-        *[_run_check(query) for _description, query in INTEGRITY_CHECKS],
-        return_exceptions=True,
+    return await validate_referential_integrity_job(
+        ctx,
+        integrity_checks=INTEGRITY_CHECKS,
+        concurrency=INTEGRITY_CHECK_CONCURRENCY,
     )
-
-    issues_found = 0
-    for result in results:
-        if isinstance(result, Exception):
-            logger.warning("Integrity check failed: %s", result)
-            continue
-        if result and result.get("orphans", 0) > 0:
-            issues_found += 1
-    return issues_found
 
 
 _PURGE_NAV_STATE_SQL = (
@@ -235,20 +218,12 @@ _PURGE_NAV_STATE_SQL = (
 
 @instrument_job("purge_expired_navigation_state")
 async def purge_expired_navigation_state(ctx):
-    total_deleted = 0
-    while True:
-        result = await ctx["db_pool"].execute(
-            _PURGE_NAV_STATE_SQL,
-            fetch="none",
-        )
-        batch_deleted = result if isinstance(result, int) else 0
-        total_deleted += batch_deleted
-        if batch_deleted < _PURGE_BATCH_SIZE:
-            break
-        await asyncio.sleep(PURGE_BATCH_SLEEP_SECONDS)
-    if total_deleted:
-        logger.info("Purged %d expired navigation states", total_deleted)
-    return total_deleted
+    return await purge_expired_navigation_state_job(
+        ctx,
+        sql=_PURGE_NAV_STATE_SQL,
+        batch_size=_PURGE_BATCH_SIZE,
+        batch_sleep_seconds=PURGE_BATCH_SLEEP_SECONDS,
+    )
 
 
 HOT_PATH_FUNCTIONS = [
