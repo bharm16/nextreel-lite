@@ -7,6 +7,7 @@ import os
 
 from infra.integrity_checks import INTEGRITY_CHECKS
 from infra.pool import DatabaseConnectionPool
+from infra.time_utils import env_bool
 from infra.worker_metrics import (
     instrument_job,
     resolve_queue_key,
@@ -16,6 +17,7 @@ from infra.worker_metrics import (
 from logging_config import get_logger
 from movies.candidate_store import CandidateStore
 from movies.projection_store import ProjectionStore
+from movies.query_builder import bump_count_cache_generation
 from settings import Config
 
 logger = get_logger(__name__)
@@ -23,6 +25,7 @@ logger = get_logger(__name__)
 # Brief pause between full-batch DELETEs in purge_expired_navigation_state to
 # avoid saturating MySQL/replication when chewing through a backlog.
 PURGE_BATCH_SLEEP_SECONDS = 0.1
+_PURGE_BATCH_SIZE = 1000
 
 # Queue name for the isolated maintenance worker. Defined outside the
 # `if RedisSettings is not None:` block so callers can import this constant
@@ -174,8 +177,6 @@ async def refresh_movie_candidates(ctx):
     cache = ctx.get("redis_cache")
     if cache is not None:
         try:
-            from movies.query_builder import bump_count_cache_generation
-
             await bump_count_cache_generation(cache)
         except Exception as exc:  # pragma: no cover - defensive
             logger.warning("Failed to bump count cache generation after refresh: %s", exc)
@@ -226,17 +227,23 @@ async def validate_referential_integrity(ctx):
     return issues_found
 
 
+_PURGE_NAV_STATE_SQL = (
+    "DELETE FROM user_navigation_state WHERE expires_at < UTC_TIMESTAMP(6) LIMIT "
+    + str(_PURGE_BATCH_SIZE)
+)
+
+
 @instrument_job("purge_expired_navigation_state")
 async def purge_expired_navigation_state(ctx):
     total_deleted = 0
     while True:
         result = await ctx["db_pool"].execute(
-            "DELETE FROM user_navigation_state WHERE expires_at < UTC_TIMESTAMP(6) LIMIT 1000",
+            _PURGE_NAV_STATE_SQL,
             fetch="none",
         )
         batch_deleted = result if isinstance(result, int) else 0
         total_deleted += batch_deleted
-        if batch_deleted < 1000:
+        if batch_deleted < _PURGE_BATCH_SIZE:
             break
         await asyncio.sleep(PURGE_BATCH_SLEEP_SECONDS)
     if total_deleted:
@@ -267,11 +274,7 @@ if RedisSettings is not None:
     # NEXTREEL_CRON_ON_HOT_PATH=1 to register the schedule on
     # WorkerSettings instead (or run a separate MaintenanceWorkerSettings
     # process — the recommended topology).
-    _HOT_PATH_OWNS_CRON = os.getenv("NEXTREEL_CRON_ON_HOT_PATH", "").lower() in (
-        "1",
-        "true",
-        "yes",
-    )
+    _HOT_PATH_OWNS_CRON = env_bool("NEXTREEL_CRON_ON_HOT_PATH", False)
 
     _MAINTENANCE_CRON_JOBS = [
         # Daily candidate-cache rebuild at 02:17 UTC (off-peak).

@@ -3,6 +3,9 @@
 import os
 
 from config.env import get_environment
+from infra.time_utils import env_int
+
+_ONE_DAY_SECONDS = 24 * 60 * 60
 
 
 class SessionConfig:
@@ -23,12 +26,12 @@ class SessionConfig:
         return os.getenv("COOKIE_DOMAIN", None)
 
     # Navigation-state lifetime configuration.
-    SESSION_IDLE_TIMEOUT_MINUTES = int(os.getenv("SESSION_IDLE_TIMEOUT_MINUTES", 15))
-    MAX_SESSION_DURATION_HOURS = int(os.getenv("MAX_SESSION_DURATION_HOURS", 8))
+    SESSION_IDLE_TIMEOUT_MINUTES = env_int("SESSION_IDLE_TIMEOUT_MINUTES", 15)
+    MAX_SESSION_DURATION_HOURS = env_int("MAX_SESSION_DURATION_HOURS", 8)
 
     # Redis session backend
     SESSION_TYPE = "redis"
     SESSION_PERMANENT = False
     SESSION_USE_SIGNER = True
     SESSION_KEY_PREFIX = "session:"
-    PERMANENT_SESSION_LIFETIME = 86400  # 24 hours in seconds
+    PERMANENT_SESSION_LIFETIME = _ONE_DAY_SECONDS

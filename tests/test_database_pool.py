@@ -63,7 +63,7 @@ class TestDatabaseConnectionPool:
     async def test_execute_delegates_to_secure_pool(self):
         pool, mock = self._make_pool()
         result = await pool.execute("SELECT 1", [], fetch="one")
-        mock.execute_secure.assert_awaited_once_with("SELECT 1", [], user_id=None, fetch="one")
+        mock.execute_secure.assert_awaited_once_with("SELECT 1", [], fetch="one")
         assert result == [{"tconst": "tt1"}]
 
     @pytest.mark.asyncio

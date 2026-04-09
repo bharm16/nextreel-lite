@@ -9,19 +9,17 @@ def test_get_full_image_url():
     assert url == "https://image.tmdb.org/t/p/w500/path"
 
 
-def test_build_request_options_uses_query_param_for_v3_api_key():
+def test_build_request_options_v3_key_uses_bearer_header():
     helper = TMDbHelper("1234567890abcdef1234567890abcdef")
 
     headers, params = helper._build_request_options({"language": "en-US"})
 
-    assert headers == {}
-    assert params == {
-        "language": "en-US",
-        "api_key": "1234567890abcdef1234567890abcdef",
-    }
+    assert headers == {"Authorization": "Bearer 1234567890abcdef1234567890abcdef"}
+    assert params == {"language": "en-US"}
+    assert "api_key" not in params
 
 
-def test_build_request_options_uses_bearer_header_for_v4_token():
+def test_build_request_options_v4_token_uses_bearer_header():
     token = "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJ0bWRiIn0.signature"
     helper = TMDbHelper(token)
 
@@ -29,6 +27,19 @@ def test_build_request_options_uses_bearer_header_for_v4_token():
 
     assert headers == {"Authorization": f"Bearer {token}"}
     assert params == {"language": "en-US"}
+    assert "api_key" not in params
+
+
+def test_build_request_options_preserves_other_params_without_injecting_api_key():
+    helper = TMDbHelper("abc.def.ghi")
+
+    headers, params = helper._build_request_options(
+        {"language": "en", "append_to_response": "credits"}
+    )
+
+    assert headers == {"Authorization": "Bearer abc.def.ghi"}
+    assert params == {"language": "en", "append_to_response": "credits"}
+    assert "api_key" not in params
 
 
 async def test_get_backdrop_image_for_home():

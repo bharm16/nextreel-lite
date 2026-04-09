@@ -11,6 +11,10 @@ from __future__ import annotations
 from quart_session import Session
 from quart_session.sessions import FileBody, RedisSessionInterface, want_bytes
 
+from logging_config import get_logger
+
+logger = get_logger(__name__)
+
 
 class CompatibleRedisSessionInterface(RedisSessionInterface):
     """Redis session interface that normalizes signed cookie values to text."""
@@ -19,7 +23,9 @@ class CompatibleRedisSessionInterface(RedisSessionInterface):
         if not session.modified:
             return
 
-        if self._config["SESSION_STATIC_FILE"] is False and isinstance(response.response, FileBody):
+        config = getattr(self, "_config", None)
+        static_file = config.get("SESSION_STATIC_FILE") if config is not None else False
+        if static_file is False and isinstance(response.response, FileBody):
             return
 
         cname = app.config.get("SESSION_COOKIE_NAME", "session")
@@ -69,10 +75,17 @@ def install_session(app) -> None:
 
     session_interface = app.session_interface
     if isinstance(session_interface, RedisSessionInterface):
+        config = getattr(session_interface, "_config", None)
+        if config is None:
+            logger.warning(
+                "quart-session %s lacks _config attribute; compat shim disabled",
+                type(session_interface).__name__,
+            )
+            return
         app.session_interface = CompatibleRedisSessionInterface(
             redis=session_interface.backend,
             key_prefix=session_interface.key_prefix,
             use_signer=session_interface.use_signer,
             permanent=session_interface.permanent,
-            **session_interface._config,
+            **config,
         )

@@ -205,6 +205,15 @@ class _FakeCache:
         self.delete_calls += 1
         self.store.pop((namespace, key), None)
 
+    async def safe_get_or_set(self, namespace, key, loader, ttl=None):
+        cached = await self.get(namespace, key)
+        if cached is not None:
+            return cached
+        value = await loader()
+        if value is not None:
+            await self.set(namespace, key, value, ttl=ttl)
+        return value
+
 
 async def test_watched_tconsts_uses_cache_on_second_call(mock_db_pool):
     """The second call hits the cache and skips the DB."""

@@ -9,7 +9,7 @@ import os
 import random
 import secrets
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Awaitable, Callable, MutableMapping
 
@@ -49,15 +49,15 @@ SEEN_MAX = 50
 
 # Re-export from shared utility for backward compatibility.
 from infra.cache import CacheNamespace
-from infra.time_utils import env_bool, utcnow  # noqa: F811
+from infra.time_utils import env_bool, env_int, utcnow  # noqa: F811
 
 
 def _idle_timeout() -> timedelta:
-    return timedelta(minutes=int(os.getenv("SESSION_IDLE_TIMEOUT_MINUTES", 15)))
+    return timedelta(minutes=env_int("SESSION_IDLE_TIMEOUT_MINUTES", 15))
 
 
 def _max_duration() -> timedelta:
-    return timedelta(hours=int(os.getenv("MAX_SESSION_DURATION_HOURS", 8)))
+    return timedelta(hours=env_int("MAX_SESSION_DURATION_HOURS", 8))
 
 
 def _normalize_ref(entry: Any) -> dict[str, Any] | None:
@@ -106,6 +106,13 @@ class NavigationState:
     expires_at: datetime
     current_ref: dict[str, Any] | None = None
     user_id: str | None = None
+    # Memoization slot for ``_serialized_state_fields`` — populated lazily on
+    # first serialization, reset to None by ``clone()`` so derived states do
+    # not inherit a stale cache. Excluded from repr/eq so it cannot leak into
+    # equality comparisons or logs.
+    _serialized_cache: dict[str, Any] | None = field(
+        default=None, repr=False, compare=False
+    )
 
     def clone(self) -> "NavigationState":
         # Shallow clone: filter values are immutable scalars/lists; queue/prev/future
@@ -149,6 +156,10 @@ class NavigationStateStore:
         # NAV_STATE_REDIS_READ_CACHE_ENABLED (default off) so rollout is
         # opt-in until the staleness semantics are validated in staging.
         self._cache = None
+
+    def attach_cache(self, cache) -> None:
+        """Attach a cache manager. Idempotent — callers may rebind."""
+        self._cache = cache
 
     def _redis_read_cache_enabled(self) -> bool:
         if self._cache is None:
@@ -339,8 +350,11 @@ class NavigationStateStore:
         return current_ref
 
     def _serialized_state_fields(self, state: NavigationState) -> dict[str, Any]:
+        cached = state._serialized_cache
+        if cached is not None:
+            return cached
         current_ref = self._normalize_current_ref(state)
-        return {
+        serialized = {
             "csrf_token": state.csrf_token,
             "filters_json": json.dumps(state.filters),
             "current_tconst": state.current_tconst,
@@ -350,6 +364,8 @@ class NavigationStateStore:
             "future_json": json.dumps(state.future),
             "seen_json": json.dumps(state.seen),
         }
+        state._serialized_cache = serialized
+        return serialized
 
     async def _insert_state(self, state: NavigationState) -> None:
         serialized = self._serialized_state_fields(state)
@@ -541,7 +557,10 @@ class NavigationStateStore:
             # Exponential backoff + jitter on conflict to avoid retry storms
             # under per-session contention (rapid double-clicks, browser retries).
             if attempt < max_attempts - 1:
-                backoff_ms = (10 * (2 ** attempt)) + random.randint(0, 10)
+                # Full jitter: sleep uniformly in [0, base_backoff] for
+                # better thundering-herd resistance than narrow ±10ms jitter.
+                base_backoff_ms = 10 * (2 ** attempt)
+                backoff_ms = random.randint(0, base_backoff_ms)
                 await asyncio.sleep(backoff_ms / 1000.0)
 
         return MutationResult(state=await self.get_state(session_id), conflicted=True)

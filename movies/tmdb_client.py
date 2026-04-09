@@ -13,12 +13,13 @@ from movies.tmdb_parser import TMDbResponseParser
 def get_tmdb_api_key() -> str:
     """Retrieve the TMDb API key from secure secrets manager.
 
+    Delegates to ``ApiConfig.get_tmdb_api_key`` for a single source of truth.
     Fetching the key on demand enables key rotation without changing code or
     redeploying the application.
     """
-    from infra.secrets import secrets_manager
+    from config.api import ApiConfig
 
-    api_key = secrets_manager.get_secret("TMDB_API_KEY")
+    api_key = ApiConfig.get_tmdb_api_key()
     if not api_key:
         raise RuntimeError("TMDB_API_KEY not configured. Please set the environment variable.")
     return api_key
@@ -183,6 +184,7 @@ class TMDbHelper:
         self.image_base_url = TMDB_IMAGE_BASE_URL
         self._max_retries = 3
         self._response_parser: TMDbResponseParser | None = None
+        self._auth_headers = {"Authorization": f"Bearer {self.api_key}"}
         self._client = httpx.AsyncClient(
             timeout=httpx.Timeout(10.0, connect=3.0),
             limits=httpx.Limits(
@@ -190,26 +192,15 @@ class TMDbHelper:
             ),
         )
 
-    def _uses_bearer_auth(self) -> bool:
-        """Treat JWT-like tokens as TMDb v4 read access tokens.
-
-        TMDb v3 API keys are opaque strings typically passed as the ``api_key``
-        query parameter. TMDb v4 read access tokens are JWT-like bearer tokens.
-        Supporting both formats preserves compatibility with existing
-        ``TMDB_API_KEY`` values in local and deployed environments.
-        """
-        token = self.api_key.strip()
-        return token.count(".") == 2
-
     def _build_request_options(self, params=None):
+        """Build request headers and params with Bearer auth.
+
+        TMDb auth is always sent via the ``Authorization: Bearer`` header,
+        never as an ``api_key`` query parameter. Both v3 API keys and v4
+        read access tokens are accepted as bearer credentials.
+        """
         request_params = dict(params or {})
-        headers = {}
-
-        if self._uses_bearer_auth():
-            headers["Authorization"] = f"Bearer {self.api_key}"
-        else:
-            request_params["api_key"] = self.api_key
-
+        headers = dict(self._auth_headers)
         return headers, request_params
 
     def _record_tmdb_metrics(self, logical_endpoint, status_code, duration_seconds):
@@ -221,33 +212,39 @@ class TMDbHelper:
         pass through. This keeps the ``status_code`` label bounded to ~8
         values regardless of what TMDb or httpx surface.
         """
-        try:
-            from infra.metrics import (
-                bucket_http_status,
-                tmdb_api_calls_total,
-                tmdb_api_duration_seconds,
-            )
+        from infra.metrics import (
+            bucket_http_status,
+            tmdb_api_calls_total,
+            tmdb_api_duration_seconds,
+        )
+        from infra.metrics_groups import safe_emit
 
-            tmdb_api_calls_total.labels(
+        safe_emit(
+            lambda: tmdb_api_calls_total.labels(
                 endpoint=logical_endpoint,
                 status_code=bucket_http_status(status_code),
             ).inc()
-            tmdb_api_duration_seconds.labels(endpoint=logical_endpoint).observe(
-                duration_seconds
-            )
-        except Exception:  # pragma: no cover - metrics must never break requests
-            pass
+        )
+        safe_emit(
+            tmdb_api_duration_seconds.labels(endpoint=logical_endpoint).observe,
+            duration_seconds,
+        )
 
     def _record_tmdb_rate_limit(self, response):
         try:
             remaining = response.headers.get("X-RateLimit-Remaining")
-            if remaining is None:
-                return
-            from infra.metrics import tmdb_rate_limit_remaining
-
-            tmdb_rate_limit_remaining.set(float(remaining))
         except Exception:  # pragma: no cover - best-effort
-            pass
+            return
+        if remaining is None:
+            return
+        from infra.metrics import tmdb_rate_limit_remaining
+        from infra.metrics_groups import safe_emit
+
+        try:
+            value = float(remaining)
+        except (TypeError, ValueError):
+            return
+        safe_emit(tmdb_rate_limit_remaining.set, value)
 
     async def _get(self, endpoint, params=None, *, metric_endpoint=None):
         """Fetch a TMDb endpoint.

@@ -1,13 +1,16 @@
 """Application route handlers."""
 
 import asyncio
-from dataclasses import dataclass
+import hmac as _hmac
 import json
 import re
+import secrets as stdlib_secrets
 import time
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
+import httpx
 from quart import (
     Blueprint,
     abort,
@@ -27,9 +30,22 @@ from infra.metrics import user_actions_total
 from infra.navigation_state import normalize_filters, validate_filters
 from infra.ops_auth import check_ops_auth
 from infra.rate_limit import check_rate_limit, get_rate_limit_backend
-from infra.route_helpers import csrf_required, rate_limited, validate_csrf, with_timeout
+from infra.route_helpers import (
+    csrf_required,
+    rate_limited,
+    safe_referrer as _safe_referrer,
+    validate_csrf,
+    with_timeout,
+)
+from infra.time_utils import current_year as _current_year, utcnow as _utcnow
 from logging_config import get_logger
 from movie_navigator import NavigationOutcome
+from session.keys import SESSION_OAUTH_STATE_KEY
+
+# NOTE: session.user_auth imports bcrypt eagerly. Keep this as a lazy
+# in-function import in each auth route so test suites without bcrypt
+# installed can still collect tests that import routes.py for blueprint
+# registration (test_app.py, test_movie_navigator_extended.py, etc.).
 
 if TYPE_CHECKING:
     from infra.metrics import MetricsCollector
@@ -48,6 +64,20 @@ _TCONST_RE = re.compile(r"^tt\d{1,10}$")
 _READY_CACHE_TTL_SECONDS = 5.0
 _ready_cache_entry: tuple[float, tuple[dict, int]] | None = None
 _ready_cache_lock = asyncio.Lock()
+
+
+def _no_matches_response():
+    """JSON 'no movies matched' response shared by /filtered_movie branches."""
+    return jsonify({
+        "ok": False,
+        "errors": {"form": "No movies matched your filters. Try broadening your criteria."},
+    })
+
+
+async def _oauth_fail(flash_msg: str):
+    """Flash an OAuth error and redirect to the login page."""
+    await flash(flash_msg, "error")
+    return redirect(url_for("main.login_page"))
 
 
 @dataclass(slots=True)
@@ -70,14 +100,6 @@ def _services() -> NextReelServices:
     return services
 
 
-def _safe_referrer(fallback_tconst: str) -> str:
-    """Return request.referrer only if it shares our origin; otherwise fall back."""
-    referrer = request.referrer
-    if referrer and referrer.startswith(request.host_url):
-        return referrer
-    return url_for("main.movie_detail", tconst=fallback_tconst)
-
-
 async def _schedule_prefetch(tconst: str) -> None:
     """Best-effort local prefetch for the redirect target.
 
@@ -96,11 +118,10 @@ async def _schedule_prefetch(tconst: str) -> None:
         # Only schedule when we have the tools for enrichment.
         if not coordinator.tmdb_helper:
             return
-        row = await store._select_row(tconst)
+        row = await store.select_row(tconst)
         # Skip when the row is already ready/fresh — no prefetch needed.
         if row and row.get("projection_state") == "ready":
             stale_after = row.get("stale_after")
-            from infra.time_utils import utcnow as _utcnow
             if not stale_after or stale_after > _utcnow():
                 return
         tmdb_id = row.get("tmdb_id") if row else None
@@ -164,17 +185,12 @@ async def _render_filters_page(
     response = await render_template(
         "set_filters.html",
         current_filters=current_filters,
-        current_year=datetime.now(timezone.utc).year,
+        current_year=_current_year(),
         validation_errors=validation_errors or {},
         form_notice=form_notice,
         genres_notice=genres_notice,
     )
     return response, status_code
-
-
-# CSRF validation is canonical in infra.route_helpers.validate_csrf.
-# Alias kept for any external callers.
-_validate_csrf_from_form = validate_csrf
 
 
 @bp.app_context_processor
@@ -186,7 +202,7 @@ def inject_csrf_token():
         "csrf_token": _get_csrf_token,
         "current_user_id": user_id,
         "current_filters": (getattr(state, "filters", None) or {}),
-        "current_year": datetime.now(timezone.utc).year,
+        "current_year": _current_year(),
         "is_watched": getattr(g, "is_watched", False),
         "google_enabled": oauth_config.get("google_enabled", False),
         "apple_enabled": oauth_config.get("apple_enabled", False),
@@ -451,11 +467,7 @@ async def movie_detail(tconst):
         logger.info("No data found for movie with tconst: %s", tconst)
         return "Movie not found", 404
 
-    previous_count = (
-        movie_manager._navigator.prev_stack_length(state)
-        if movie_manager._navigator and state
-        else 0
-    )
+    previous_count = movie_manager.prev_stack_length(state)
     return await render_template(
         "movie.html",
         movie=movie_data,
@@ -614,106 +626,79 @@ async def filtered_movie_endpoint():
                     "ok": True,
                     "redirect": url_for("main.movie_detail", tconst=outcome.tconst),
                 })
-            return jsonify({
-                "ok": False,
-                "errors": {"form": "No movies matched your filters. Try broadening your criteria."},
-            })
+            return _no_matches_response()
         return await _redirect_for_navigation_outcome(outcome)
     if wants_json:
-        return jsonify({
-            "ok": False,
-            "errors": {"form": "No movies matched your filters. Try broadening your criteria."},
-        })
+        return _no_matches_response()
     await flash("No movies matched your filters. Try broadening your criteria.", "warning")
     return redirect(url_for("main.set_filters"))
 
 
-@bp.route("/watched")
-async def watched_list_page():
-    redirect_response = _require_login()
-    if redirect_response:
-        return redirect_response
-
-    user_id = _current_user_id()
-    services = _services()
-
-    # Pagination — keeps the page bounded even for power users with thousands
-    # of watched titles. Stats below are page-local; ``total`` reflects the
-    # full row count via WatchedStore.count().
+def _parse_watched_pagination(args) -> tuple[int, int, int]:
     try:
-        page = max(1, int(request.args.get("page", 1)))
+        page = max(1, int(args.get("page", 1)))
     except (TypeError, ValueError):
         page = 1
     try:
-        per_page = int(request.args.get("per_page", 60))
+        per_page = int(args.get("per_page", 60))
     except (TypeError, ValueError):
         per_page = 60
     per_page = max(1, min(per_page, 200))
     offset = (page - 1) * per_page
+    return page, per_page, offset
 
-    # Run the page fetch and total-count query concurrently. Each leg
-    # acquires its own connection from the pool via WatchedStore's methods.
-    raw_rows, total_count = await asyncio.gather(
-        services.movie_manager.watched_store.list_watched(
-            user_id, limit=per_page, offset=offset
-        ),
-        services.movie_manager.watched_store.count(user_id),
+
+def _normalize_watched_row(row, now) -> tuple[dict | None, int | None, bool]:
+    """Return (movie_dict, year_int, is_this_month) or (None, None, False) to skip."""
+    payload = row.get("payload_json")
+    if isinstance(payload, str):
+        try:
+            payload = json.loads(payload)
+        except (TypeError, ValueError):
+            payload = {}
+    if not isinstance(payload, dict):
+        payload = {}
+
+    tconst = row.get("tconst")
+    if not tconst:
+        return None, None, False
+    title = payload.get("title") or row.get("primaryTitle") or "Untitled"
+    slug = payload.get("slug") or row.get("slug")
+
+    year_raw = payload.get("year") or row.get("startYear")
+    try:
+        year_int = int(str(year_raw)[:4]) if year_raw else None
+    except (TypeError, ValueError):
+        year_int = None
+
+    try:
+        tmdb_rating = float(payload.get("rating") or 0)
+    except (TypeError, ValueError):
+        tmdb_rating = 0.0
+
+    poster_url = payload.get("poster_url") or "/static/img/poster-placeholder.svg"
+
+    watched_at = row.get("watched_at")
+    watched_iso = watched_at.isoformat() if hasattr(watched_at, "isoformat") else str(watched_at or "")
+    is_this_month = (
+        hasattr(watched_at, "year")
+        and watched_at.year == now.year
+        and watched_at.month == now.month
     )
 
-    movies: list[dict] = []
-    year_values: list[int] = []
-    this_month_count = 0
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
-    current_year = now.year
-    current_month = now.month
+    movie = {
+        "tconst": tconst,
+        "slug": slug,
+        "title": title,
+        "year": year_int,
+        "poster_url": poster_url,
+        "tmdb_rating": tmdb_rating,
+        "watched_at": watched_iso,
+    }
+    return movie, year_int, is_this_month
 
-    for row in raw_rows:
-        payload = row.get("payload_json")
-        if isinstance(payload, str):
-            try:
-                payload = json.loads(payload)
-            except (TypeError, ValueError):
-                payload = {}
-        if not isinstance(payload, dict):
-            payload = {}
 
-        tconst = row.get("tconst")
-        if not tconst:
-            continue
-        title = payload.get("title") or row.get("primaryTitle") or "Untitled"
-        slug = payload.get("slug") or row.get("slug")
-
-        year_raw = payload.get("year") or row.get("startYear")
-        try:
-            year_int = int(str(year_raw)[:4]) if year_raw else None
-        except (TypeError, ValueError):
-            year_int = None
-        if year_int:
-            year_values.append(year_int)
-
-        try:
-            tmdb_rating = float(payload.get("rating") or 0)
-        except (TypeError, ValueError):
-            tmdb_rating = 0.0
-
-        poster_url = payload.get("poster_url") or "/static/img/poster-placeholder.svg"
-
-        watched_at = row.get("watched_at")
-        watched_iso = watched_at.isoformat() if hasattr(watched_at, "isoformat") else str(watched_at or "")
-        if hasattr(watched_at, "year") and watched_at.year == current_year and watched_at.month == current_month:
-            this_month_count += 1
-
-        movies.append({
-            "tconst": tconst,
-            "slug": slug,
-            "title": title,
-            "year": year_int,
-            "poster_url": poster_url,
-            "tmdb_rating": tmdb_rating,
-            "watched_at": watched_iso,
-        })
-
-    total = total_count
+def _build_watched_stats(total: int, this_month_count: int, year_values: list[int]) -> dict:
     avg_year = int(round(sum(year_values) / len(year_values))) if year_values else None
     if year_values:
         decade_counts: dict[int, int] = {}
@@ -725,13 +710,49 @@ async def watched_list_page():
         top_decade = "%ds" % top_decade_year
     else:
         top_decade = None
-
-    stats = {
+    return {
         "total": total,
         "this_month": this_month_count,
         "avg_year": avg_year,
         "top_decade": top_decade,
     }
+
+
+@bp.route("/watched")
+async def watched_list_page():
+    redirect_response = _require_login()
+    if redirect_response:
+        return redirect_response
+
+    user_id = _current_user_id()
+    services = _services()
+
+    page, per_page, offset = _parse_watched_pagination(request.args)
+
+    raw_rows, total_count = await asyncio.gather(
+        services.movie_manager.watched_store.list_watched(
+            user_id, limit=per_page, offset=offset
+        ),
+        services.movie_manager.watched_store.count(user_id),
+    )
+
+    movies: list[dict] = []
+    year_values: list[int] = []
+    this_month_count = 0
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    for row in raw_rows:
+        movie, year_int, is_this_month = _normalize_watched_row(row, now)
+        if movie is None:
+            continue
+        if year_int:
+            year_values.append(year_int)
+        if is_this_month:
+            this_month_count += 1
+        movies.append(movie)
+
+    total = total_count
+    stats = _build_watched_stats(total, this_month_count, year_values)
 
     total_pages = max(1, (total_count + per_page - 1) // per_page)
     pagination = {
@@ -791,11 +812,10 @@ async def auth_google():
     if not oauth_config.get("google_enabled"):
         abort(404, "Google sign-in not configured")
 
-    import secrets as stdlib_secrets
     from urllib.parse import urlencode
 
     state_token = stdlib_secrets.token_urlsafe(32)
-    session["oauth_state"] = state_token
+    session[SESSION_OAUTH_STATE_KEY] = state_token
 
     redirect_uri = "%s/auth/google/callback" % oauth_config["redirect_base"]
     params = urlencode({
@@ -811,8 +831,6 @@ async def auth_google():
 
 @bp.route("/auth/google/callback")
 async def auth_google_callback():
-    import hmac as _hmac
-
     from session.user_auth import find_or_create_oauth_user, get_user_by_email
 
     oauth_config = getattr(current_app, "oauth_config", {})
@@ -820,19 +838,15 @@ async def auth_google_callback():
         abort(404)
 
     # Validate OAuth state to prevent login CSRF
-    expected_state = session.pop("oauth_state", None)
+    expected_state = session.pop(SESSION_OAUTH_STATE_KEY, None)
     received_state = request.args.get("state", "")
     if not expected_state or not _hmac.compare_digest(expected_state, received_state):
         logger.warning("OAuth state mismatch — possible CSRF attempt")
-        await flash("Google sign-in failed. Please try again.", "error")
-        return redirect(url_for("main.login_page"))
+        return await _oauth_fail("Google sign-in failed. Please try again.")
 
     code = request.args.get("code")
     if not code:
-        await flash("Google sign-in failed. Please try again.", "error")
-        return redirect(url_for("main.login_page"))
-
-    import httpx
+        return await _oauth_fail("Google sign-in failed. Please try again.")
 
     redirect_uri = "%s/auth/google/callback" % oauth_config["redirect_base"]
 
@@ -848,8 +862,7 @@ async def auth_google_callback():
             },
         )
         if token_response.status_code != 200:
-            await flash("Google sign-in failed. Please try again.", "error")
-            return redirect(url_for("main.login_page"))
+            return await _oauth_fail("Google sign-in failed. Please try again.")
 
         tokens = token_response.json()
 
@@ -858,8 +871,7 @@ async def auth_google_callback():
             headers={"Authorization": f"Bearer {tokens['access_token']}"},
         )
         if userinfo_response.status_code != 200:
-            await flash("Google sign-in failed. Please try again.", "error")
-            return redirect(url_for("main.login_page"))
+            return await _oauth_fail("Google sign-in failed. Please try again.")
 
         userinfo = userinfo_response.json()
 
@@ -868,8 +880,7 @@ async def auth_google_callback():
     display_name = userinfo.get("name")
 
     if not email or not oauth_sub:
-        await flash("Google sign-in failed. Please try again.", "error")
-        return redirect(url_for("main.login_page"))
+        return await _oauth_fail("Google sign-in failed. Please try again.")
 
     services = _services()
     db_pool = services.movie_manager.db_pool

@@ -15,6 +15,37 @@ from logging_config import get_logger
 logger = get_logger(__name__)
 
 
+def build_mysql_ssl_context(cert_path: Optional[str] = None) -> ssl.SSLContext:
+    """Create a properly configured SSL context for MySQL connections.
+
+    Stateless module-level helper. Always enforces ``ssl.CERT_REQUIRED`` and
+    disables hostname verification (MySQL servers use IP-based certs).
+    """
+    # Try to create context with the certificate file
+    if cert_path and os.path.exists(cert_path):
+        context = ssl.create_default_context(cafile=cert_path)
+    else:
+        # Fall back to system certificates
+        context = ssl.create_default_context()
+        logger.warning("Using system default certificates")
+
+    # MySQL servers use IP-based certs so hostname verification
+    # is disabled, but we always verify the certificate chain.
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_REQUIRED
+
+    # Set minimum TLS version to 1.2
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
+
+    # Disable weak ciphers
+    context.set_ciphers(
+        "ECDHE+AESGCM:ECDHE+CHACHA20:DHE+AESGCM:DHE+CHACHA20:!aNULL:!MD5:!DSS"
+    )
+
+    logger.info("SSL context created with strict security settings")
+    return context
+
+
 class SSLCertificateValidator:
     """Comprehensive SSL certificate validation for database connections"""
 
@@ -103,35 +134,10 @@ class SSLCertificateValidator:
 
         return results
 
-    def create_ssl_context(
-        self, verify_mode: ssl.VerifyMode = ssl.CERT_REQUIRED
-    ) -> Optional[ssl.SSLContext]:
-        """Create a properly configured SSL context"""
+    def create_ssl_context(self) -> Optional[ssl.SSLContext]:
+        """Create a properly configured SSL context (delegates to module helper)."""
         try:
-            # Try to create context with the certificate file
-            if self.cert_path and os.path.exists(self.cert_path):
-                context = ssl.create_default_context(cafile=self.cert_path)
-            else:
-                # Fall back to system certificates
-                context = ssl.create_default_context()
-                logger.warning("Using system default certificates")
-
-            # MySQL servers use IP-based certs so hostname verification
-            # is disabled, but we always verify the certificate chain.
-            context.check_hostname = False
-            context.verify_mode = ssl.CERT_REQUIRED
-
-            # Set minimum TLS version to 1.2
-            context.minimum_version = ssl.TLSVersion.TLSv1_2
-
-            # Disable weak ciphers
-            context.set_ciphers(
-                "ECDHE+AESGCM:ECDHE+CHACHA20:DHE+AESGCM:DHE+CHACHA20:!aNULL:!MD5:!DSS"
-            )
-
-            logger.info("✓ SSL context created with strict security settings")
-            return context
-
+            return build_mysql_ssl_context(self.cert_path)
         except Exception as e:
             logger.error("Failed to create SSL context: %s", e)
             return None

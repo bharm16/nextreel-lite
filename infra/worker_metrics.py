@@ -14,6 +14,8 @@ import os
 import time
 from typing import Awaitable, Callable, Optional
 
+from infra.metrics_groups import safe_emit
+from infra.time_utils import env_float, env_int
 from logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -30,27 +32,11 @@ def _resolve_metrics_host() -> str:
 
 
 def _resolve_metrics_port(default: int = DEFAULT_METRICS_PORT) -> int:
-    raw = os.getenv("WORKER_METRICS_PORT")
-    if not raw:
-        return default
-    try:
-        return int(raw)
-    except ValueError:
-        logger.warning(
-            "Invalid WORKER_METRICS_PORT=%r, falling back to %d", raw, default
-        )
-        return default
+    return env_int("WORKER_METRICS_PORT", default)
 
 
 def _resolve_poll_interval() -> float:
-    raw = os.getenv("WORKER_METRICS_POLL_INTERVAL")
-    if not raw:
-        return DEFAULT_POLL_INTERVAL
-    try:
-        value = float(raw)
-        return max(1.0, value)
-    except ValueError:
-        return DEFAULT_POLL_INTERVAL
+    return max(1.0, env_float("WORKER_METRICS_POLL_INTERVAL", DEFAULT_POLL_INTERVAL))
 
 
 def _resolve_queue_key(worker_settings: Optional[type] = None) -> str:
@@ -133,29 +119,20 @@ def instrument_job(job_name: Optional[str] = None):
             )
 
             start = time.time()
-            try:
-                worker_jobs_total.labels(job_name=name, status="started").inc()
-            except Exception:  # pragma: no cover - metrics never break jobs
-                pass
+            safe_emit(worker_jobs_total.labels(job_name=name, status="started").inc)
             try:
                 result = await func(*args, **kwargs)
             except Exception:
                 duration = time.time() - start
-                try:
-                    worker_jobs_total.labels(job_name=name, status="failed").inc()
-                    worker_job_duration_seconds.labels(job_name=name).observe(duration)
-                except Exception:
-                    pass
+                safe_emit(worker_jobs_total.labels(job_name=name, status="failed").inc)
+                safe_emit(worker_job_duration_seconds.labels(job_name=name).observe, duration)
                 logger.exception(
                     "Worker job %s failed after %.2fs", name, duration
                 )
                 raise
             duration = time.time() - start
-            try:
-                worker_jobs_total.labels(job_name=name, status="completed").inc()
-                worker_job_duration_seconds.labels(job_name=name).observe(duration)
-            except Exception:
-                pass
+            safe_emit(worker_jobs_total.labels(job_name=name, status="completed").inc)
+            safe_emit(worker_job_duration_seconds.labels(job_name=name).observe, duration)
             logger.info("Worker job %s completed in %.2fs", name, duration)
             return result
 
@@ -181,10 +158,7 @@ async def _poll_queue_once(redis_client, queue_key: str) -> None:
     except Exception as exc:  # pragma: no cover - best-effort
         logger.debug("queue depth poll failed: %s", exc)
         return
-    try:
-        worker_queue_depth.set(float(depth or 0))
-    except Exception:
-        pass
+    safe_emit(worker_queue_depth.set, float(depth or 0))
 
     try:
         # arq stores jobs in a sorted set scored by enqueue time (ms).
@@ -194,10 +168,7 @@ async def _poll_queue_once(redis_client, queue_key: str) -> None:
         return
 
     if not oldest:
-        try:
-            worker_queue_oldest_job_age_seconds.set(0.0)
-        except Exception:
-            pass
+        safe_emit(worker_queue_oldest_job_age_seconds.set, 0.0)
         return
 
     try:
@@ -205,9 +176,9 @@ async def _poll_queue_once(redis_client, queue_key: str) -> None:
         _member, score = oldest[0]
         enqueue_time = float(score) / 1000.0  # ms → s
         age = max(0.0, time.time() - enqueue_time)
-        worker_queue_oldest_job_age_seconds.set(age)
     except Exception:
-        pass
+        return
+    safe_emit(worker_queue_oldest_job_age_seconds.set, age)
 
 
 async def run_queue_poller(

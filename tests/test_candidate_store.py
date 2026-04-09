@@ -181,6 +181,44 @@ async def test_fetch_ref_passes_tconst_twice(mock_db_pool):
 
 
 # ---------------------------------------------------------------------------
+# fetch_refs (batched)
+# ---------------------------------------------------------------------------
+
+
+async def test_fetch_refs_empty_input_returns_empty_list(mock_db_pool):
+    """No DB call when called with an empty list."""
+    store = _make_store(mock_db_pool)
+    result = await store.fetch_refs([])
+    assert result == []
+    mock_db_pool.execute.assert_not_called()
+
+
+async def test_fetch_refs_returns_normalized_dicts(mock_db_pool):
+    """Multi-tconst input → list of normalized refs."""
+    mock_db_pool.execute.return_value = [
+        {"tconst": "tt1", "primaryTitle": "One", "slug": "one"},
+        {"tconst": "tt2", "primaryTitle": "Two", "slug": "two"},
+    ]
+    store = _make_store(mock_db_pool)
+    result = await store.fetch_refs(["tt1", "tt2"])
+    assert {r["tconst"] for r in result} == {"tt1", "tt2"}
+    assert all(set(r.keys()) == {"tconst", "title", "slug"} for r in result)
+
+
+async def test_fetch_refs_skips_missing_and_dedupes(mock_db_pool):
+    """Missing tconsts simply absent; duplicates collapse."""
+    mock_db_pool.execute.return_value = [
+        {"tconst": "tt1", "primaryTitle": "One", "slug": "one"},
+        # tt2 missing — DB returned no row for it
+        {"tconst": "tt1", "primaryTitle": "One", "slug": "one"},  # duplicate row
+    ]
+    store = _make_store(mock_db_pool)
+    result = await store.fetch_refs(["tt1", "tt2", "tt1"])
+    assert len(result) == 1
+    assert result[0]["tconst"] == "tt1"
+
+
+# ---------------------------------------------------------------------------
 # _genre_clause
 # ---------------------------------------------------------------------------
 
@@ -481,7 +519,6 @@ def test_build_candidate_query_omits_language_clause_for_any(mock_db_pool):
         excluded_tconsts=set(),
         desired_limit=2,
         buckets=[1, 2],
-        seed="unused",
         use_fulltext=True,
     )
 
@@ -498,7 +535,6 @@ def test_build_candidate_query_orders_by_shuffle_key_first(mock_db_pool):
         excluded_tconsts=set(),
         desired_limit=2,
         buckets=[1, 2],
-        seed="unused",
         use_fulltext=True,
     )
 

@@ -13,11 +13,12 @@ designed to be removable once the migration window closes:
 from __future__ import annotations
 
 import os
+import time
 import uuid
 from datetime import datetime, timedelta
 from typing import Any, MutableMapping
 
-from infra.time_utils import utcnow
+from infra.time_utils import env_bool, env_int, utcnow
 from logging_config import get_logger
 from session.keys import (
     CRITERIA_KEY,
@@ -34,13 +35,25 @@ logger = get_logger(__name__)
 MIGRATION_META_STARTED_AT = "nav_state_migration_started_at"
 MIGRATION_META_LAST_IMPORT_AT = "nav_state_last_redis_import_at"
 
+# Module-level cache for ``dual_write_enabled``. The flag value only changes
+# during ops maintenance (manual env flip), so caching for 60s eliminates
+# 1-2 DB round-trips per request without changing observable behavior.
+_DUAL_WRITE_CACHE_TTL_SECONDS = 60.0
+_dual_write_cache: tuple[float, bool] | None = None
+
+
+def _reset_dual_write_cache() -> None:
+    """Clear the cached dual_write_enabled value. Test-only helper."""
+    global _dual_write_cache
+    _dual_write_cache = None
+
 
 def _migration_min_days() -> int:
-    return int(os.getenv("NAV_STATE_MIGRATION_MIN_DAYS", 7))
+    return env_int("NAV_STATE_MIGRATION_MIN_DAYS", 7)
 
 
 def _migration_quiet_hours() -> int:
-    return int(os.getenv("NAV_STATE_ZERO_IMPORT_HOURS", 24))
+    return env_int("NAV_STATE_ZERO_IMPORT_HOURS", 24)
 
 
 class LegacyMigrationHelper:
@@ -81,7 +94,18 @@ class LegacyMigrationHelper:
         return now
 
     async def dual_write_enabled(self) -> bool:
-        if os.getenv("NAV_STATE_DUAL_WRITE_ENABLED", "true").lower() == "false":
+        global _dual_write_cache
+        now_mono = time.monotonic()
+        if _dual_write_cache is not None:
+            expires_at, cached_value = _dual_write_cache
+            if now_mono < expires_at:
+                return cached_value
+        value = await self._compute_dual_write_enabled()
+        _dual_write_cache = (now_mono + _DUAL_WRITE_CACHE_TTL_SECONDS, value)
+        return value
+
+    async def _compute_dual_write_enabled(self) -> bool:
+        if not env_bool("NAV_STATE_DUAL_WRITE_ENABLED", True):
             return False
 
         started_at = await self._ensure_migration_started_at()

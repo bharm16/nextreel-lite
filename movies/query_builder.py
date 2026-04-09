@@ -10,14 +10,17 @@ from typing import Any
 
 from logging_config import get_logger
 
-from infra.cache import CacheNamespace
+from infra.cache import CacheNamespace, LruExpiringMap
 from infra.errors import DatabaseError
+from infra.time_utils import current_year as _current_year
 from .interfaces import MovieFetcher
 
 logger = get_logger(__name__)
 
 
 _COUNT_GENERATION_KEY = "count_generation"
+
+_FETCH_MOVIES_LIMIT = 500
 
 
 def _criteria_cache_key(criteria: dict[str, Any], generation: int = 0) -> str:
@@ -43,6 +46,16 @@ async def bump_count_cache_generation(cache) -> int:
     except Exception:
         logger.warning("Failed to bump count cache generation", exc_info=True)
         return 0
+
+
+def is_fulltext_index_error(exc: Exception) -> bool:
+    """Return True when *exc* looks like a MySQL FULLTEXT index failure.
+
+    Shared between ``ImdbRandomMovieFetcher._with_fulltext_fallback`` and
+    ``CandidateStore.fetch_candidate_refs_for_criteria`` so both paths use
+    a single detector rather than independent string matchers.
+    """
+    return "fulltext" in str(exc).lower()
 
 
 async def _current_count_generation(cache) -> int:
@@ -88,7 +101,7 @@ class MovieQueryBuilder:
     def should_use_cache(criteria: dict[str, Any], current_year: int | None = None) -> bool:
         """Determine if we should use the cache table based on criteria."""
         if current_year is None:
-            current_year = datetime.now(timezone.utc).year
+            current_year = _current_year()
         min_year = criteria.get("min_year", 1900)
         max_year = criteria.get("max_year", current_year)
         min_votes = criteria.get("min_votes", 100000)
@@ -107,7 +120,7 @@ class MovieQueryBuilder:
         13+ second full-table queries.
         """
         if current_year is None:
-            current_year = datetime.now(timezone.utc).year
+            current_year = _current_year()
         recent_threshold = current_year - 2  # e.g. 2024 when year is 2026
 
         min_year = criteria.get("min_year", 1900)
@@ -166,7 +179,7 @@ class MovieQueryBuilder:
         or 9 params when a specific language is requested.
         """
         if current_year is None:
-            current_year = datetime.now(timezone.utc).year
+            current_year = _current_year()
         lang = criteria.get("language", "en")
 
         params: list[Any] = [
@@ -258,6 +271,33 @@ class MovieQueryBuilder:
             )
         return genre_conditions
 
+    @staticmethod
+    def genre_clause(
+        criteria: dict[str, Any],
+        *,
+        use_fulltext: bool = True,
+        use_cache: bool = False,
+    ) -> tuple[str, list[Any]]:
+        """Unified genre-clause builder.
+
+        Dispatches to the FULLTEXT or LIKE variant depending on
+        *use_fulltext*. Returns ``(clause, params)`` where *clause* is an
+        empty string when no genre filter applies. The LIKE path is wrapped
+        in an extra ``AND (...)`` to match the pattern previously used by
+        ``CandidateStore._genre_clause`` and ``_build_query_with_genres``.
+        """
+        if use_fulltext:
+            return MovieQueryBuilder.build_genre_conditions_fulltext(
+                criteria, use_cache=use_cache
+            )
+        genre_params: list[Any] = []
+        genre_conditions = MovieQueryBuilder.build_genre_conditions(
+            criteria, genre_params, use_cache=use_cache
+        )
+        if not genre_conditions:
+            return "", []
+        return f" AND ({genre_conditions[0]})", genre_params
+
 
 class ImdbRandomMovieFetcher(MovieFetcher):
     def __init__(self, database_pool, cache=None):
@@ -269,7 +309,12 @@ class ImdbRandomMovieFetcher(MovieFetcher):
         # /next_movie requests would otherwise all issue the same 2-5s
         # full-table COUNT scan. The lock ensures exactly one query hits
         # MySQL; the rest await the shared result via the lock + re-read.
-        self._count_locks: dict[str, asyncio.Lock] = {}
+        # Bounded LRU map prevents unbounded growth across long-lived
+        # processes; TTL is generous enough to outlast the slowest
+        # plausible COUNT scan.
+        self._count_locks: LruExpiringMap = LruExpiringMap(
+            max_keys=512, ttl_seconds=300
+        )
         self._count_locks_guard = asyncio.Lock()
 
     _COUNT_CACHE_TTL = 300  # 5 minutes
@@ -319,7 +364,7 @@ class ImdbRandomMovieFetcher(MovieFetcher):
     @staticmethod
     def _resolve_table_routing(criteria: dict[str, Any]) -> tuple[bool, bool, int]:
         """Determine which table to query and return (use_cache, use_recent, current_year)."""
-        current_year = datetime.now(timezone.utc).year
+        current_year = _current_year()
         use_recent = MovieQueryBuilder.should_use_recent_cache(criteria, current_year)
         use_cache = MovieQueryBuilder.should_use_cache(criteria, current_year) and not use_recent
         return use_cache, use_recent, current_year
@@ -329,7 +374,7 @@ class ImdbRandomMovieFetcher(MovieFetcher):
         try:
             return await fn(*args, **kwargs)
         except DatabaseError as e:
-            if self.use_fulltext and "FULLTEXT" in str(e):
+            if self.use_fulltext and is_fulltext_index_error(e):
                 logger.warning(
                     "FULLTEXT search failed, falling back to LIKE queries for this request"
                 )
@@ -368,7 +413,7 @@ class ImdbRandomMovieFetcher(MovieFetcher):
         )
 
         full_query += " LIMIT %s"
-        all_parameters = all_parameters + [500]
+        all_parameters = all_parameters + [_FETCH_MOVIES_LIMIT]
 
         result = await self.db_pool.execute(full_query, all_parameters, fetch="all")
 

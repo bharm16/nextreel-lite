@@ -3,6 +3,7 @@
 import os
 
 from config.env import get_environment
+from infra.time_utils import env_int
 
 
 class DatabaseConfig:
@@ -24,7 +25,7 @@ class DatabaseConfig:
                 "user": os.getenv("DB_USER", "root"),
                 "password": os.getenv("DB_PASSWORD", ""),
                 "database": os.getenv("DB_NAME", "imdb"),
-                "port": int(os.getenv("DB_PORT", 3306)),
+                "port": env_int("DB_PORT", 3306),
             }
         else:
             return {
@@ -32,7 +33,7 @@ class DatabaseConfig:
                 "user": os.getenv("PROD_DB_USER", os.getenv("DB_USER", "root")),
                 "password": os.getenv("PROD_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
                 "database": os.getenv("PROD_DB_NAME", os.getenv("DB_NAME", "imdb")),
-                "port": int(os.getenv("PROD_DB_PORT", os.getenv("DB_PORT", 3306))),
+                "port": env_int("PROD_DB_PORT", env_int("DB_PORT", 3306)),
             }
 
     @staticmethod

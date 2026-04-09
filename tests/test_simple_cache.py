@@ -290,7 +290,10 @@ async def test_cache_keys_are_versioned(fake_redis):
 
 
 @pytest.mark.asyncio
-async def test_cache_get_falls_back_to_legacy_unversioned_key(fake_redis):
+async def test_cache_get_falls_back_to_legacy_unversioned_key(fake_redis, monkeypatch):
+    # Legacy fallback is gated behind an env flag (default off). Enable it
+    # for this test to verify the migration-window behavior.
+    monkeypatch.setattr("infra.cache._CACHE_LEGACY_FALLBACK_ENABLED", True)
     cache = SimpleCacheManager(redis_client=fake_redis)
     await cache.initialize()
     # Seed an old-format entry, as if written by a prior deploy.

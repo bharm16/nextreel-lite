@@ -9,14 +9,128 @@ See ADR-001-ARCHITECTURE-AUDIT.md, Finding 3.1.
 
 import asyncio
 import json
+import time
+from collections import OrderedDict
 from enum import Enum
 from typing import Any, Awaitable, Callable, Optional, Union
 
 import redis.asyncio as aioredis
 
+from infra.time_utils import env_bool
 from logging_config import get_logger
 
+# Gate the unversioned legacy-key fallback read so the second Redis RTT
+# only happens during a documented migration window. Default off — flip
+# CACHE_LEGACY_FALLBACK_ENABLED=true while draining a previous deploy's
+# unversioned entries.
+_CACHE_LEGACY_FALLBACK_ENABLED = env_bool("CACHE_LEGACY_FALLBACK_ENABLED", False)
+
 logger = get_logger(__name__)
+
+
+class LruExpiringMap:
+    """Bounded LRU map with per-entry TTL expiration.
+
+    - Set is O(1); re-setting an existing key refreshes both LRU position and TTL.
+    - Get is O(1); expired entries are evicted on access and return ``default``.
+    - Uses ``time.monotonic()`` by default so clock skew cannot resurrect stale entries.
+    - Not thread-safe. Each caller owns its own instance.
+    """
+
+    def __init__(
+        self,
+        max_keys: int,
+        ttl_seconds: float,
+        time_func=None,
+    ) -> None:
+        if max_keys <= 0:
+            raise ValueError("max_keys must be positive")
+        if ttl_seconds <= 0:
+            raise ValueError("ttl_seconds must be positive")
+        self._max_keys = max_keys
+        self._ttl = ttl_seconds
+        self._now = time_func if time_func is not None else time.monotonic
+        self._data: "OrderedDict[Any, tuple[float, Any]]" = OrderedDict()
+
+    @property
+    def max_keys(self) -> int:
+        return self._max_keys
+
+    @max_keys.setter
+    def max_keys(self, value: int) -> None:
+        if value <= 0:
+            raise ValueError("max_keys must be positive")
+        self._max_keys = value
+        while len(self._data) > self._max_keys:
+            self._data.popitem(last=False)
+
+    def set(self, key, value) -> None:
+        now = self._now()
+        self._sweep_expired(now)
+        self._data[key] = (now + self._ttl, value)
+        self._data.move_to_end(key)
+        while len(self._data) > self._max_keys:
+            self._data.popitem(last=False)
+
+    def get(self, key, default=None):
+        entry = self._data.get(key)
+        if entry is None:
+            return default
+        expires_at, value = entry
+        if self._now() >= expires_at:
+            self._data.pop(key, None)
+            return default
+        self._data.move_to_end(key)
+        return value
+
+    def pop(self, key, default=None):
+        entry = self._data.pop(key, None)
+        if entry is None:
+            return default
+        return entry[1]
+
+    def clear(self) -> None:
+        self._data.clear()
+
+    def items(self):
+        """Yield (key, value) pairs for non-expired entries.
+
+        Expired entries are lazily evicted. Iteration order is LRU (oldest first).
+        """
+        now = self._now()
+        self._sweep_expired(now)
+        return [(k, v) for k, (_, v) in self._data.items()]
+
+    def __iter__(self):
+        now = self._now()
+        self._sweep_expired(now)
+        return iter(list(self._data.keys()))
+
+    def __setitem__(self, key, value) -> None:
+        self.set(key, value)
+
+    def __getitem__(self, key):
+        sentinel = object()
+        value = self.get(key, sentinel)
+        if value is sentinel:
+            raise KeyError(key)
+        return value
+
+    def __delitem__(self, key) -> None:
+        if key not in self._data:
+            raise KeyError(key)
+        self._data.pop(key, None)
+
+    def _sweep_expired(self, now: float) -> None:
+        expired = [k for k, (exp, _) in self._data.items() if now >= exp]
+        for k in expired:
+            self._data.pop(k, None)
+
+    def __len__(self) -> int:
+        return len(self._data)
+
+    def __contains__(self, key) -> bool:
+        return self.get(key) is not None
 
 # Bump this whenever a cached payload's schema changes. Old entries are
 # read once as a fallback during the transition; writes always use the
@@ -170,6 +284,8 @@ class SimpleCacheManager:
         try:
             raw = await self._redis.get(self._make_key(namespace, key))
             if raw is None:
+                if not _CACHE_LEGACY_FALLBACK_ENABLED:
+                    return None
                 # Backward-compat: try the legacy unversioned key once.
                 raw = await self._redis.get(self._make_legacy_key(namespace, key))
                 if raw is None:
@@ -220,7 +336,7 @@ class SimpleCacheManager:
         async with self._inflight_lock:
             future = self._inflight.get(flight_key)
             if future is None:
-                future = asyncio.get_event_loop().create_future()
+                future = asyncio.get_running_loop().create_future()
                 self._inflight[flight_key] = future
                 owns = True
             else:
@@ -246,6 +362,39 @@ class SimpleCacheManager:
         finally:
             async with self._inflight_lock:
                 self._inflight.pop(flight_key, None)
+
+    async def safe_get_or_set(
+        self,
+        namespace: CacheNamespace,
+        key: str,
+        loader: Callable[[], Awaitable[Any]],
+        ttl: Optional[int] = None,
+    ) -> Any:
+        """Get from cache, fall back to loader on miss, write back on hit.
+
+        Swallows and logs cache-layer exceptions so a Redis outage degrades
+        to direct loader calls instead of crashing the caller. Unlike
+        ``get_or_load``, this helper does not perform single-flight
+        coalescing — it's intended as a drop-in replacement for hand-rolled
+        "try cache, swallow errors, call loader, write back" blocks.
+        """
+        try:
+            cached = await self.get(namespace, key)
+            if cached is not None:
+                return cached
+        except Exception as exc:
+            logger.warning(
+                "cache get failed for %s:%s — %s", namespace.value, key, exc
+            )
+        value = await loader()
+        if value is not None:
+            try:
+                await self.set(namespace, key, value, ttl=ttl)
+            except Exception as exc:
+                logger.warning(
+                    "cache set failed for %s:%s — %s", namespace.value, key, exc
+                )
+        return value
 
     async def delete(self, namespace: CacheNamespace, key: str) -> None:
         """Delete a cached key."""

@@ -10,11 +10,13 @@ continue to work.
 
 import time
 import asyncio
-from collections import OrderedDict
 from typing import Optional
 from prometheus_client import generate_latest, REGISTRY
 from quart import Response, request, g
+from infra.cache import LruExpiringMap
 from logging_config import get_logger
+
+_CIRCUIT_STATE_METRIC_VALUES = {"closed": 0, "open": 1, "half-open": 2}
 
 # Grouped metrics — the canonical source for all Prometheus objects.
 from infra.metrics_groups import (
@@ -177,12 +179,16 @@ class MetricsCollector:
         self.db_pool = db_pool
         self.movie_manager = movie_manager
         self._collection_task: Optional[asyncio.Task] = None
-        # OrderedDict so we can LRU-evict the oldest entries when bursty
-        # unique users push us past _max_tracked_users (the prior age-only
-        # eviction leaked memory under sustained traffic).
-        self._active_users: "OrderedDict[str, float]" = OrderedDict()
         self._active_user_timeout = 1800  # 30 minutes
         self._max_tracked_users = 10000  # Cap to prevent unbounded growth
+        # LruExpiringMap handles LRU eviction + TTL expiration in one structure.
+        # Uses wall-clock time so raw timestamps stored by callers are directly
+        # comparable against time.time() in the eviction scan.
+        self._active_users: LruExpiringMap = LruExpiringMap(
+            max_keys=self._max_tracked_users,
+            ttl_seconds=self._active_user_timeout,
+            time_func=time.time,
+        )
         self.logger = get_logger(__name__)
 
     async def start_collection(self):
@@ -246,10 +252,8 @@ class MetricsCollector:
             db_connections_idle.set(metrics.get("free_connections", 0))
             db_connections_total.set(metrics.get("pool_size", 0))
 
-            # Circuit breaker state
-            state_map = {"closed": 0, "open": 1, "half-open": 2}
             state = metrics.get("circuit_breaker_state", "closed")
-            db_circuit_breaker_state.set(state_map.get(state, 0))
+            db_circuit_breaker_state.set(_CIRCUIT_STATE_METRIC_VALUES.get(state, 0))
 
         except Exception as e:
             self.logger.error("Failed to collect database metrics: %s", e)
@@ -263,18 +267,12 @@ class MetricsCollector:
         """
 
     def track_user_activity(self, user_id: str):
-        """Track user activity with timestamp for expiry."""
-        if user_id in self._active_users:
-            self._active_users.move_to_end(user_id)
+        """Track user activity with timestamp for expiry.
+
+        LruExpiringMap handles LRU + TTL automatically; set() refreshes
+        both ordering and TTL and evicts the oldest entry when at cap.
+        """
         self._active_users[user_id] = time.time()
-        # Drop expired entries first, then LRU-evict to enforce the hard cap.
-        if len(self._active_users) > self._max_tracked_users:
-            cutoff = time.time() - self._active_user_timeout
-            stale = [uid for uid, ts in list(self._active_users.items()) if ts < cutoff]
-            for uid in stale:
-                self._active_users.pop(uid, None)
-            while len(self._active_users) > self._max_tracked_users:
-                self._active_users.popitem(last=False)
 
     def track_user_action(self, action_type: str):
         """Track user actions"""
@@ -329,7 +327,7 @@ def setup_metrics_middleware(app, metrics_collector: MetricsCollector):
                 http_requests_total.labels(
                     method=request.method,
                     endpoint=request.endpoint or "unknown",
-                    status_code=str(response.status_code),
+                    status_code=bucket_http_status(response.status_code),
                 ).inc()
 
                 http_request_duration_seconds.labels(

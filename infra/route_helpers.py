@@ -11,10 +11,18 @@ import functools
 import hmac
 from typing import Callable
 
-from quart import abort, g, request
+from quart import abort, g, request, url_for
 
 from infra.rate_limit import check_rate_limit
 from logging_config import get_logger
+
+
+def safe_referrer(fallback_tconst: str) -> str:
+    """Return request.referrer only if it shares our origin; otherwise fall back."""
+    referrer = request.referrer
+    if referrer and referrer.startswith(request.host_url):
+        return referrer
+    return url_for("main.movie_detail", tconst=fallback_tconst)
 
 logger = get_logger(__name__)
 
@@ -93,9 +101,15 @@ def with_timeout(seconds: int = 30) -> Callable:
     def decorator(fn: Callable) -> Callable:
         @functools.wraps(fn)
         async def wrapper(*args, **kwargs):
+            task = asyncio.ensure_future(fn(*args, **kwargs))
             try:
-                return await asyncio.wait_for(fn(*args, **kwargs), timeout=seconds)
+                return await asyncio.wait_for(asyncio.shield(task), timeout=seconds)
             except asyncio.TimeoutError:
+                task.cancel()
+                try:
+                    await task
+                except (asyncio.CancelledError, Exception):
+                    pass
                 logger.error("Timeout in %s after %ds", fn.__name__, seconds)
                 return "Request timed out. Please try again.", 504
 

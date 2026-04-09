@@ -1,9 +1,14 @@
 """Tests for runtime schema verification and repair helpers."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pymysql
+import pytest
 
 from infra.runtime_schema import (
     _RUNTIME_SCHEMA_STATEMENTS,
+    _ensure_column,
+    _ensure_index,
     ensure_movie_candidates_fulltext_index,
     ensure_movie_candidates_refreshed_at_index,
     ensure_movie_candidates_shuffle_key,
@@ -39,43 +44,125 @@ async def test_ensure_movie_candidates_fulltext_index_repairs_when_missing(mock_
     )
 
 
+# ---------------------------------------------------------------------------
+# _ensure_index / _ensure_column helper tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_ensure_index_runs_create_sql():
+    pool = MagicMock()
+    pool.execute = AsyncMock()
+    await _ensure_index(
+        pool,
+        "movie_candidates",
+        "idx_test",
+        "CREATE INDEX idx_test ON movie_candidates(tconst)",
+    )
+    pool.execute.assert_awaited_once()
+    call_sql = pool.execute.call_args[0][0]
+    assert "CREATE INDEX" in call_sql
+
+
+@pytest.mark.asyncio
+async def test_ensure_index_swallows_duplicate_key_error():
+    pool = MagicMock()
+    pool.execute = AsyncMock(
+        side_effect=pymysql.err.OperationalError(1061, "Duplicate key name 'idx_test'")
+    )
+    await _ensure_index(
+        pool,
+        "movie_candidates",
+        "idx_test",
+        "CREATE INDEX idx_test ON movie_candidates(tconst)",
+    )
+
+
+@pytest.mark.asyncio
+async def test_ensure_index_reraises_other_errors():
+    pool = MagicMock()
+    pool.execute = AsyncMock(
+        side_effect=pymysql.err.OperationalError(1146, "Table doesn't exist")
+    )
+    with pytest.raises(pymysql.err.OperationalError):
+        await _ensure_index(
+            pool, "no_such", "idx_test", "CREATE INDEX idx_test ON no_such(x)"
+        )
+
+
+@pytest.mark.asyncio
+async def test_ensure_column_swallows_duplicate_column_error():
+    pool = MagicMock()
+    pool.execute = AsyncMock(
+        side_effect=pymysql.err.OperationalError(1060, "Duplicate column name 'extra'")
+    )
+    await _ensure_column(
+        pool,
+        "movie_candidates",
+        "extra",
+        "ALTER TABLE movie_candidates ADD COLUMN extra INT",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Public wrapper tests (updated to new CREATE-directly shape)
+# ---------------------------------------------------------------------------
+
+
 async def test_ensure_user_navigation_current_ref_column_adds_when_missing(mock_db_pool):
-    mock_db_pool.execute.side_effect = [None, None]
+    mock_db_pool.execute.side_effect = [None]
 
     await ensure_user_navigation_current_ref_column(mock_db_pool)
 
-    assert mock_db_pool.execute.await_count == 2
-    lookup_query = mock_db_pool.execute.await_args_list[0].args[0]
-    alter_query = mock_db_pool.execute.await_args_list[1].args[0]
-    assert "information_schema.columns" in lookup_query
+    assert mock_db_pool.execute.await_count == 1
+    alter_query = mock_db_pool.execute.await_args_list[0].args[0]
     assert "ADD COLUMN current_ref_json JSON NULL" in alter_query
 
 
 async def test_ensure_movie_candidates_shuffle_key_adds_and_backfills(mock_db_pool):
-    mock_db_pool.execute.side_effect = [None, None, None, None]
+    # ADD COLUMN, SELECT flag (None → not yet done), UPDATE, ALTER, INSERT flag
+    mock_db_pool.execute.side_effect = [None, None, None, None, None]
 
     await ensure_movie_candidates_shuffle_key(mock_db_pool)
 
-    assert mock_db_pool.execute.await_count == 4
-    lookup_query = mock_db_pool.execute.await_args_list[0].args[0]
-    add_query = mock_db_pool.execute.await_args_list[1].args[0]
+    assert mock_db_pool.execute.await_count == 5
+    add_query = mock_db_pool.execute.await_args_list[0].args[0]
+    flag_select = mock_db_pool.execute.await_args_list[1].args[0]
     update_query = mock_db_pool.execute.await_args_list[2].args[0]
     alter_query = mock_db_pool.execute.await_args_list[3].args[0]
-    assert "information_schema.columns" in lookup_query
+    flag_insert = mock_db_pool.execute.await_args_list[4].args[0]
     assert "ADD COLUMN shuffle_key INT NULL" in add_query
+    assert "SELECT meta_value FROM runtime_metadata" in flag_select
     assert "UPDATE movie_candidates" in update_query
     assert "MODIFY COLUMN shuffle_key INT NOT NULL" in alter_query
+    assert "INSERT INTO runtime_metadata" in flag_insert
+
+
+async def test_ensure_movie_candidates_shuffle_key_skips_when_flag_set(mock_db_pool):
+    # ADD COLUMN, SELECT flag → returns "1" → early return, no UPDATE/ALTER
+    mock_db_pool.execute.side_effect = [None, {"meta_value": "1"}]
+
+    await ensure_movie_candidates_shuffle_key(mock_db_pool)
+
+    assert mock_db_pool.execute.await_count == 2
+    add_query = mock_db_pool.execute.await_args_list[0].args[0]
+    flag_select = mock_db_pool.execute.await_args_list[1].args[0]
+    assert "ADD COLUMN shuffle_key INT NULL" in add_query
+    assert "SELECT meta_value FROM runtime_metadata" in flag_select
+    # No UPDATE or ALTER after the flag check.
+    for call in mock_db_pool.execute.await_args_list[2:]:
+        sql = call.args[0]
+        assert "UPDATE movie_candidates" not in sql
+        assert "MODIFY COLUMN" not in sql
 
 
 async def test_ensure_movie_candidates_refreshed_at_index_adds_when_missing(mock_db_pool):
-    mock_db_pool.execute.side_effect = [None, None]
+    mock_db_pool.execute.side_effect = [None]
 
     await ensure_movie_candidates_refreshed_at_index(mock_db_pool)
 
-    assert mock_db_pool.execute.await_count == 2
-    lookup_query = mock_db_pool.execute.await_args_list[0].args[0]
-    create_query = mock_db_pool.execute.await_args_list[1].args[0]
-    assert "information_schema.statistics" in lookup_query
+    assert mock_db_pool.execute.await_count == 1
+    create_query = mock_db_pool.execute.await_args_list[0].args[0]
     assert "CREATE INDEX idx_movie_candidates_refreshed_at" in create_query
 
 
@@ -110,28 +197,28 @@ async def test_ensure_runtime_schema_runs_additive_repairs_without_blocking_full
 
 
 async def test_ensure_movie_candidates_shuffle_key_index_adds_when_missing(mock_db_pool):
-    mock_db_pool.execute.side_effect = [None, None]
+    mock_db_pool.execute.side_effect = [None]
 
     from infra.runtime_schema import ensure_movie_candidates_shuffle_key_index
     await ensure_movie_candidates_shuffle_key_index(mock_db_pool)
 
-    assert mock_db_pool.execute.await_count == 2
-    lookup_query = mock_db_pool.execute.await_args_list[0].args[0]
-    create_query = mock_db_pool.execute.await_args_list[1].args[0]
-    assert "information_schema.statistics" in lookup_query
-    assert "idx_movie_candidates_shuffle" in lookup_query
+    assert mock_db_pool.execute.await_count == 1
+    create_query = mock_db_pool.execute.await_args_list[0].args[0]
     assert "CREATE INDEX idx_movie_candidates_shuffle" in create_query
     assert "(shuffle_key, numVotes, averageRating)" in create_query
 
 
 async def test_ensure_movie_candidates_shuffle_key_index_skips_when_present(mock_db_pool):
-    mock_db_pool.execute.return_value = {"present": 1}
+    mock_db_pool.execute.side_effect = pymysql.err.OperationalError(
+        1061, "Duplicate key name 'idx_movie_candidates_shuffle'"
+    )
 
     from infra.runtime_schema import ensure_movie_candidates_shuffle_key_index
     await ensure_movie_candidates_shuffle_key_index(mock_db_pool)
 
     mock_db_pool.execute.assert_awaited_once()
-    assert "CREATE INDEX" not in mock_db_pool.execute.await_args.args[0]
+    # Helper still issued the CREATE; the duplicate-key error is swallowed.
+    assert "CREATE INDEX" in mock_db_pool.execute.await_args.args[0]
 
 
 async def test_ensure_runtime_schema_creates_users_table(mock_db_pool):
@@ -169,26 +256,32 @@ async def test_ensure_popular_movies_cache_composite_index_skips_when_table_miss
 
 
 async def test_ensure_popular_movies_cache_composite_index_skips_when_index_present(mock_db_pool):
-    # First call: table exists. Second call: index exists.
-    mock_db_pool.execute.side_effect = [{"present": 1}, {"present": 1}]
+    # First call: table-existence probe returns a row. Second call: CREATE INDEX
+    # raises duplicate-key, which _ensure_index swallows.
+    mock_db_pool.execute.side_effect = [
+        {"present": 1},
+        pymysql.err.OperationalError(1061, "Duplicate key name 'idx_cache_filter_rand'"),
+    ]
 
     from infra.runtime_schema import ensure_popular_movies_cache_composite_index
     await ensure_popular_movies_cache_composite_index(mock_db_pool)
 
     assert mock_db_pool.execute.await_count == 2
-    for call in mock_db_pool.execute.await_args_list:
-        assert "CREATE INDEX" not in call.args[0]
+    # First call is the table-existence probe (no CREATE).
+    assert "information_schema.tables" in mock_db_pool.execute.await_args_list[0].args[0].lower()
+    # Second call is the CREATE INDEX attempt that errored with duplicate key.
+    assert "CREATE INDEX" in mock_db_pool.execute.await_args_list[1].args[0]
 
 
 async def test_ensure_popular_movies_cache_composite_index_creates_when_missing(mock_db_pool):
-    # Table exists (1), index missing (None), CREATE INDEX (None).
-    mock_db_pool.execute.side_effect = [{"present": 1}, None, None]
+    # Table exists (1), CREATE INDEX succeeds (None).
+    mock_db_pool.execute.side_effect = [{"present": 1}, None]
 
     from infra.runtime_schema import ensure_popular_movies_cache_composite_index
     await ensure_popular_movies_cache_composite_index(mock_db_pool)
 
-    assert mock_db_pool.execute.await_count == 3
-    create_query = mock_db_pool.execute.await_args_list[2].args[0]
+    assert mock_db_pool.execute.await_count == 2
+    create_query = mock_db_pool.execute.await_args_list[1].args[0]
     assert "CREATE INDEX idx_cache_filter_rand" in create_query
     assert "popular_movies_cache" in create_query
     assert "(startYear, averageRating, numVotes, rand_order)" in create_query

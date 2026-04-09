@@ -18,8 +18,9 @@ if not os.environ.get("NEXTREEL_ENV") and not os.environ.get("FLASK_ENV"):
     setup_local_environment()
 # -------------------------------------------------------------------------
 
-from quart import Quart, g, request, session
+from quart import Quart, g, got_request_exception, make_response, request, session
 from redis import asyncio as aioredis
+from werkzeug.exceptions import HTTPException
 
 import settings
 from env_bootstrap import get_environment
@@ -41,9 +42,10 @@ from infra.navigation_state import (
 )
 from infra.runtime_schema import ensure_movie_candidates_fulltext_index
 from infra.secrets import secrets_manager
+from infra.time_utils import env_int
 from infra.security_headers import add_security_headers
 from logging_config import get_logger, setup_logging
-from middleware import add_correlation_id
+from middleware import add_correlation_id, _CORRELATION_LOG_SKIP_PREFIXES
 from movie_service import MovieManager
 from routes import bp as routes_bp, init_routes
 
@@ -64,7 +66,7 @@ class FixedQuart(Quart):
 
 logger = get_logger(__name__)
 
-_SKIP_PATHS = ("/static", "/favicon.ico", "/health", "/ready", "/metrics")
+_SKIP_PATHS = _CORRELATION_LOG_SKIP_PREFIXES
 
 # Counter-based slow-request log sampler. Default rate of 1 means
 # "log every slow request" (backward compatible). Ops can raise this
@@ -78,10 +80,7 @@ def _maybe_log_slow_request(
 ) -> None:
     """Log a slow request iff it wins the 1-in-N counter-based sample."""
     global _slow_log_counter
-    try:
-        sample_rate = max(1, int(os.getenv("SLOW_LOG_SAMPLE_RATE", "1")))
-    except ValueError:
-        sample_rate = 1
+    sample_rate = max(1, env_int("SLOW_LOG_SAMPLE_RATE", 1))
     _slow_log_counter += 1
     if _slow_log_counter % sample_rate != 0:
         return
@@ -132,7 +131,7 @@ async def _setup_redis(app):
     try:
         shared_pool = aioredis.ConnectionPool.from_url(
             redis_url,
-            max_connections=int(os.getenv("REDIS_MAX_CONNECTIONS", 30)),
+            max_connections=env_int("REDIS_MAX_CONNECTIONS", 30),
             socket_connect_timeout=5,
             socket_timeout=5,
             retry_on_timeout=True,
@@ -226,11 +225,9 @@ def _init_core(app):
     app.config["NR_SESSION_COOKIE_MAX_AGE"] = SESSION_COOKIE_MAX_AGE
 
     # CSS cache-busting: use output.css mtime as version query param
-    import os as _os
-
-    css_path = _os.path.join(app.root_path, "static", "css", "output.css")
+    css_path = os.path.join(app.root_path, "static", "css", "output.css")
     app.config["CSS_VERSION"] = (
-        str(int(_os.path.getmtime(css_path))) if _os.path.exists(css_path) else "1"
+        str(int(os.path.getmtime(css_path))) if os.path.exists(css_path) else "1"
     )
 
     movie_manager = MovieManager(settings.Config.get_db_config())
@@ -271,12 +268,10 @@ def _init_core(app):
 
 def _init_oauth(app):
     """Phase 1b: OAuth client setup (optional — skipped if no credentials configured)."""
-    import os as _os
-
-    google_client_id = _os.getenv("GOOGLE_CLIENT_ID")
-    google_client_secret = _os.getenv("GOOGLE_CLIENT_SECRET")
-    apple_client_id = _os.getenv("APPLE_CLIENT_ID")
-    redirect_base = _os.getenv("OAUTH_REDIRECT_BASE_URL", "http://127.0.0.1:5000")
+    google_client_id = os.getenv("GOOGLE_CLIENT_ID")
+    google_client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
+    apple_client_id = os.getenv("APPLE_CLIENT_ID")
+    redirect_base = os.getenv("OAUTH_REDIRECT_BASE_URL", "http://127.0.0.1:5000")
 
     app.oauth_config = {
         "google_enabled": bool(google_client_id and google_client_secret),
@@ -284,9 +279,9 @@ def _init_oauth(app):
         "google_client_id": google_client_id,
         "google_client_secret": google_client_secret,
         "apple_client_id": apple_client_id,
-        "apple_team_id": _os.getenv("APPLE_TEAM_ID"),
-        "apple_key_id": _os.getenv("APPLE_KEY_ID"),
-        "apple_private_key": _os.getenv("APPLE_PRIVATE_KEY"),
+        "apple_team_id": os.getenv("APPLE_TEAM_ID"),
+        "apple_key_id": os.getenv("APPLE_KEY_ID"),
+        "apple_private_key": os.getenv("APPLE_PRIVATE_KEY"),
         "redirect_base": redirect_base,
     }
 
@@ -418,8 +413,6 @@ def create_app():
                 ).inc()
             except Exception:  # pragma: no cover - metrics never break requests
                 pass
-            from quart import make_response
-
             return await make_response(("Service temporarily unavailable", 503))
 
     @app.after_request
@@ -483,12 +476,8 @@ def create_app():
     # Emit application_errors_total for uncaught non-HTTP exceptions.
     # HTTPExceptions (4xx like CSRF 403) are normal flow and NOT counted.
     # We use got_request_exception so Quart's own 500 rendering still runs.
-    from quart import got_request_exception
-
     def _on_request_exception(sender, exception, **extra):
         try:
-            from werkzeug.exceptions import HTTPException
-
             if isinstance(exception, HTTPException):
                 return
             # Bucket to an allow-list so dynamic exception classes cannot

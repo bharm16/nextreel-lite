@@ -22,6 +22,8 @@ import aiomysql
 from aiomysql import Connection, DictCursor, Pool
 
 from infra.errors import DatabaseError
+from infra.ssl import build_mysql_ssl_context
+from infra.time_utils import env_bool, env_float, env_int
 from logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -102,7 +104,6 @@ class SecureConnectionPool:
             "queries_failed": 0,
             "queries_slow": 0,
             "rate_limit_hits": 0,
-            "circuit_breaker_trips": 0,
             "health_check_failures": 0,
         }
         self.recent_queries: deque = deque(maxlen=100)
@@ -140,6 +141,35 @@ class SecureConnectionPool:
     def _cb_lock(self) -> asyncio.Lock:
         return self._circuit_breaker._lock
 
+    def update_state_from_usage(self, free: int, size: int) -> "PoolState":
+        """Compute desired state from pool usage and apply change-detection.
+
+        Mirrors the thresholds previously inlined in
+        ``PoolHealthMonitor._run()``: usage > 90% → CRITICAL, > 75% → DEGRADED,
+        otherwise HEALTHY. Only reassigns ``self.state`` and emits a log line
+        when the computed state differs from the current state.
+        """
+        usage_percent = (size - free) / size * 100 if size > 0 else 0
+
+        if usage_percent > 90:
+            new_state = PoolState.CRITICAL
+        elif usage_percent > 75:
+            new_state = PoolState.DEGRADED
+        else:
+            new_state = PoolState.HEALTHY
+
+        if new_state != self.state:
+            logger.info(
+                "Pool state transition: %s -> %s (free=%d/%d, usage=%.1f%%)",
+                self.state.value if hasattr(self.state, "value") else self.state,
+                new_state.value,
+                free,
+                size,
+                usage_percent,
+            )
+            self.state = new_state
+        return new_state
+
     async def init_pool(self):
         """Initialize the underlying aiomysql pool."""
         if not await self._circuit_breaker.can_attempt():
@@ -175,24 +205,13 @@ class SecureConnectionPool:
             logger.info("Secure connection pool initialized successfully")
         except Exception as exc:
             await self._circuit_breaker.record_failure()
-            self.metrics["circuit_breaker_trips"] = self._circuit_breaker.trips
             logger.error("Failed to initialize pool: %s", exc)
             raise
 
     def _create_ssl_context(self) -> ssl.SSLContext:
         """Create the SSL context for database connections."""
-        if self.config.validate_ssl and self.config.ssl_cert_path:
-            context = ssl.create_default_context(cafile=self.config.ssl_cert_path)
-        else:
-            context = ssl.create_default_context()
-        # MySQL servers typically use IP-based certificates so hostname
-        # verification is disabled, but we always require certificate
-        # validation to prevent MITM attacks.  CERT_NONE is never used.
-        context.check_hostname = False
-        context.verify_mode = ssl.CERT_REQUIRED
-        context.minimum_version = ssl.TLSVersion.TLSv1_2
-        context.set_ciphers("ECDHE+AESGCM:ECDHE+CHACHA20:DHE+AESGCM:DHE+CHACHA20:!aNULL:!MD5:!DSS")
-        return context
+        cert_path = self.config.ssl_cert_path if self.config.validate_ssl else None
+        return build_mysql_ssl_context(cert_path)
 
     async def _validate_pool(self):
         """Validate connectivity."""
@@ -204,16 +223,8 @@ class SecureConnectionPool:
                     raise RuntimeError("Pool validation failed")
 
     @asynccontextmanager
-    async def acquire(
-        self, user_id: str | None = None, ip_address: str | None = None
-    ) -> AsyncIterator[Connection]:
-        """Acquire a connection.
-
-        ``user_id`` and ``ip_address`` are accepted for backward compatibility
-        but are no longer used for per-user/IP accounting.
-        """
-        del user_id, ip_address
-
+    async def acquire(self) -> AsyncIterator[Connection]:
+        """Acquire a connection."""
         if not await self._circuit_breaker.can_attempt():
             raise RuntimeError("Circuit breaker is open - pool unavailable")
 
@@ -248,12 +259,10 @@ class SecureConnectionPool:
         except asyncio.TimeoutError as exc:
             self.metrics["connections_failed"] += 1
             await self._circuit_breaker.record_failure()
-            self.metrics["circuit_breaker_trips"] = self._circuit_breaker.trips
             raise RuntimeError("Connection acquisition timeout") from exc
         except Exception:
             self.metrics["connections_failed"] += 1
             await self._circuit_breaker.record_failure()
-            self.metrics["circuit_breaker_trips"] = self._circuit_breaker.trips
             raise
         finally:
             if connection and conn_id:
@@ -268,12 +277,9 @@ class SecureConnectionPool:
         self,
         query: str,
         params: tuple | list | None = None,
-        user_id: str | None = None,
-        ip_address: str | None = None,
         fetch: str = "one",
     ) -> Any:
         """Execute a query with timeout, metrics, and slow-query tracking."""
-        del user_id, ip_address
         start_time = time.time()
 
         try:
@@ -332,7 +338,7 @@ class SecureConnectionPool:
             "slow_queries": self.metrics["queries_slow"],
             "rate_limit_hits": self.metrics["rate_limit_hits"],
             "circuit_breaker_state": self.circuit_breaker_state,
-            "circuit_breaker_trips": self.metrics["circuit_breaker_trips"],
+            "circuit_breaker_trips": self._circuit_breaker.trips,
             "health_check_failures": self.metrics["health_check_failures"],
             "user_connection_counts": {},
             "ip_connection_counts": {},
@@ -374,10 +380,7 @@ class DatabaseConnectionPool:
         # Convert to secure pool config
         # Default to True in production to enforce SSL certificate validation.
         # Set VALIDATE_SSL=false explicitly in dev/test environments.
-        validate_ssl = (
-            os.getenv("VALIDATE_SSL", "true" if flask_env == "production" else "false").lower()
-            == "true"
-        )
+        validate_ssl = env_bool("VALIDATE_SSL", flask_env == "production")
         ssl_cert = DatabaseConfig.get_ssl_cert_path() if validate_ssl else None
         self.secure_config = SecurePoolConfig(
             host=db_config["host"],
@@ -385,16 +388,16 @@ class DatabaseConnectionPool:
             user=db_config["user"],
             password=db_config["password"],
             database=db_config["database"],
-            min_size=int(os.getenv("POOL_MIN_SIZE", DatabaseConfig.POOL_MIN_SIZE)),
-            max_size=int(os.getenv("POOL_MAX_SIZE", DatabaseConfig.POOL_MAX_SIZE)),
-            connect_timeout=int(os.getenv("DB_CONNECT_TIMEOUT", 5)),
-            query_timeout=int(os.getenv("DB_QUERY_TIMEOUT", 30)),
-            pool_recycle=int(os.getenv("DB_POOL_RECYCLE", 900)),
-            idle_timeout=int(os.getenv("DB_IDLE_TIMEOUT", 300)),
+            min_size=env_int("POOL_MIN_SIZE", DatabaseConfig.POOL_MIN_SIZE),
+            max_size=env_int("POOL_MAX_SIZE", DatabaseConfig.POOL_MAX_SIZE),
+            connect_timeout=env_int("DB_CONNECT_TIMEOUT", 5),
+            query_timeout=env_int("DB_QUERY_TIMEOUT", 30),
+            pool_recycle=env_int("DB_POOL_RECYCLE", 900),
+            idle_timeout=env_int("DB_IDLE_TIMEOUT", 300),
             ssl_cert_path=ssl_cert,
             use_ssl=DatabaseConfig.use_ssl(),
             validate_ssl=validate_ssl,
-            slow_query_threshold=float(os.getenv("SLOW_QUERY_THRESHOLD", 1.0)),
+            slow_query_threshold=env_float("SLOW_QUERY_THRESHOLD", 1.0),
         )
 
         self.pool = SecureConnectionPool(self.secure_config)
@@ -403,20 +406,19 @@ class DatabaseConnectionPool:
         """Initialize the pool"""
         await self.pool.init_pool()
 
-    def acquire(self, user_id: str | None = None, ip_address: str | None = None):
+    def acquire(self):
         """Acquire a connection — returns an async context manager."""
-        return self.pool.acquire(user_id=user_id, ip_address=ip_address)
+        return self.pool.acquire()
 
     async def execute(
         self,
         query: str,
         params: list | tuple | None = None,
         fetch: str = "one",
-        user_id: str | None = None,
     ):
         """Execute a query"""
         try:
-            return await self.pool.execute_secure(query, params, user_id=user_id, fetch=fetch)
+            return await self.pool.execute_secure(query, params, fetch=fetch)
         except DatabaseError:
             raise
         except Exception as exc:

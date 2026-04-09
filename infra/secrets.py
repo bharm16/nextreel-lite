@@ -69,14 +69,6 @@ class SecretsManager:
         Retrieve secret from external secret manager.
         Implement this based on your infrastructure (AWS Secrets Manager, HashiCorp Vault, etc.)
         """
-        # Example implementation for AWS Secrets Manager (requires boto3)
-        # try:
-        #     import boto3
-        #     client = boto3.client('secretsmanager')
-        #     response = client.get_secret_value(SecretId=f'nextreel/{key.lower()}')
-        #     return json.loads(response['SecretString']).get(key)
-        # except Exception:
-        #     pass
         return None
 
     def validate_all_secrets(self) -> bool:

@@ -20,6 +20,10 @@ class WatchedStore:
         self.db_pool = db_pool
         self._cache = cache
 
+    def attach_cache(self, cache) -> None:
+        """Attach a cache manager. Idempotent — callers may rebind."""
+        self._cache = cache
+
     def _cache_key(self, user_id: str) -> str:
         return f"watched_tconsts:{user_id}"
 
@@ -71,37 +75,26 @@ class WatchedStore:
         TTL. Invalidated on add()/remove(). Falls back to a direct DB read when
         no cache is configured or Redis is unavailable.
         """
-        if self._cache:
-            try:
-                from infra.cache import CacheNamespace
+        async def _loader() -> list[str]:
+            rows = await self.db_pool.execute(
+                "SELECT tconst FROM user_watched_movies WHERE user_id = %s",
+                [user_id],
+                fetch="all",
+            )
+            return [row["tconst"] for row in rows] if rows else []
 
-                cached = await self._cache.get(CacheNamespace.USER, self._cache_key(user_id))
-                if cached is not None:
-                    return set(cached)
-            except Exception:  # pragma: no cover - defensive
-                logger.debug("Watched cache read failed for %s", user_id, exc_info=True)
+        if not self._cache:
+            return set(await _loader())
 
-        rows = await self.db_pool.execute(
-            "SELECT tconst FROM user_watched_movies WHERE user_id = %s",
-            [user_id],
-            fetch="all",
+        from infra.cache import CacheNamespace
+
+        cached = await self._cache.safe_get_or_set(
+            CacheNamespace.USER,
+            self._cache_key(user_id),
+            _loader,
+            ttl=_WATCHED_CACHE_TTL,
         )
-        tconsts = {row["tconst"] for row in rows} if rows else set()
-
-        if self._cache:
-            try:
-                from infra.cache import CacheNamespace
-
-                await self._cache.set(
-                    CacheNamespace.USER,
-                    self._cache_key(user_id),
-                    list(tconsts),
-                    ttl=_WATCHED_CACHE_TTL,
-                )
-            except Exception:  # pragma: no cover - defensive
-                logger.debug("Watched cache write failed for %s", user_id, exc_info=True)
-
-        return tconsts
+        return set(cached) if cached is not None else set()
 
     async def count(self, user_id: str) -> int:
         """Return the count of watched movies for a user."""
@@ -132,13 +125,3 @@ class WatchedStore:
             fetch="all",
         )
         return rows if rows else []
-
-    async def list_all_watched(
-        self, user_id: str, limit: int = 5000
-    ) -> list[dict[str, Any]]:
-        """Return all watched movies for a user, ordered by most recently watched.
-
-        Prefer ``list_watched(limit=, offset=)`` for paginated views; this method
-        is retained for callers that genuinely need the full list.
-        """
-        return await self.list_watched(user_id, limit=limit, offset=0)

@@ -13,14 +13,16 @@ from logging_config import get_logger
 logger = get_logger(__name__)
 
 
-def _parse_trusted_networks(raw: str) -> tuple[ipaddress._BaseNetwork, ...]:
+def _parse_trusted_networks(
+    raw: str,
+) -> tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...]:
     """Parse TRUSTED_PROXIES into a tuple of ip_network objects.
 
     Accepts bare IPs (``192.168.1.5``) and CIDR blocks (``10.0.0.0/8``).
     Invalid entries are logged and skipped — a typo must never silently
     turn into "trust nothing" without surfacing the misconfiguration.
     """
-    networks: list[ipaddress._BaseNetwork] = []
+    networks: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = []
     for entry in raw.split(","):
         entry = entry.strip()
         if not entry:
@@ -36,11 +38,13 @@ def _parse_trusted_networks(raw: str) -> tuple[ipaddress._BaseNetwork, ...]:
 
 
 @lru_cache(maxsize=1)
-def _cached_trusted_networks(raw: str) -> tuple[ipaddress._BaseNetwork, ...]:
+def _cached_trusted_networks(
+    raw: str,
+) -> tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...]:
     return _parse_trusted_networks(raw)
 
 
-def trusted_networks() -> tuple[ipaddress._BaseNetwork, ...]:
+def trusted_networks() -> tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...]:
     """Return the parsed TRUSTED_PROXIES networks (CIDR-aware)."""
     return _cached_trusted_networks(os.getenv("TRUSTED_PROXIES", ""))
 

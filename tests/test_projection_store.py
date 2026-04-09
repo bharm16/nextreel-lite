@@ -763,3 +763,66 @@ async def test_requeue_stale_projections_safety_cap_prevents_infinite_loop():
     # Safety cap on each loop: 100 iterations x 500 rows = 50000 each, x2 loops.
     assert mock_pool.execute.await_count == 200
     assert total == 100000
+
+
+# ---------------------------------------------------------------------------
+# fetch_renderable_payloads (batched)
+# ---------------------------------------------------------------------------
+
+
+class TestFetchRenderablePayloadsBatched:
+    async def test_empty_input_returns_empty_dict(self, mock_db_pool):
+        store = _make_store(mock_db_pool)
+        result = await store.fetch_renderable_payloads([])
+        assert result == {}
+        mock_db_pool.execute.assert_not_called()
+
+    async def test_returns_dict_keyed_by_tconst(self, mock_db_pool):
+        mock_db_pool.execute.return_value = [
+            {
+                "tconst": "tt1",
+                "tmdb_id": 1,
+                "payload_json": json.dumps({"title": "One"}),
+                "projection_state": PROJECTION_READY,
+                "enriched_at": None,
+                "stale_after": None,
+                "last_attempt_at": None,
+                "attempt_count": 0,
+                "last_error": None,
+            },
+            {
+                "tconst": "tt2",
+                "tmdb_id": 2,
+                "payload_json": json.dumps({"title": "Two"}),
+                "projection_state": PROJECTION_READY,
+                "enriched_at": None,
+                "stale_after": None,
+                "last_attempt_at": None,
+                "attempt_count": 0,
+                "last_error": None,
+            },
+        ]
+        store = _make_store(mock_db_pool)
+        result = await store.fetch_renderable_payloads(["tt1", "tt2"])
+        assert set(result.keys()) == {"tt1", "tt2"}
+        assert result["tt1"]["title"] == "One"
+        assert result["tt2"]["title"] == "Two"
+
+    async def test_missing_tconst_absent_from_dict(self, mock_db_pool):
+        mock_db_pool.execute.return_value = [
+            {
+                "tconst": "tt1",
+                "tmdb_id": None,
+                "payload_json": json.dumps({"title": "One"}),
+                "projection_state": PROJECTION_READY,
+                "enriched_at": None,
+                "stale_after": None,
+                "last_attempt_at": None,
+                "attempt_count": 0,
+                "last_error": None,
+            },
+        ]
+        store = _make_store(mock_db_pool)
+        result = await store.fetch_renderable_payloads(["tt1", "tt_missing"])
+        assert "tt1" in result
+        assert "tt_missing" not in result

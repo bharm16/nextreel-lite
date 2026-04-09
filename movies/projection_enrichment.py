@@ -3,25 +3,17 @@
 from __future__ import annotations
 
 import asyncio
-import os
+import json
 from typing import TYPE_CHECKING, Any
 
 from infra.metrics import (
     enrichment_backlog_drop_total,
     enrichment_timeout_total,
 )
-from infra.time_utils import utcnow
+from infra.metrics_groups import safe_emit
+from infra.time_utils import env_int, utcnow
 from logging_config import get_logger
 
-
-def _safe_inc(counter, **labels) -> None:
-    try:
-        if labels:
-            counter.labels(**labels).inc()
-        else:
-            counter.inc()
-    except Exception:  # pragma: no cover - defensive
-        pass
 from infra.cache import CacheNamespace
 from movies.movie import Movie
 from movies.projection_state import ENQUEUE_COOLDOWN, ProjectionState
@@ -44,12 +36,12 @@ class ProjectionEnrichmentCoordinator:
     # misses (e.g. a filter change touching many stale projections) cannot
     # exhaust the DB pool or trip the TMDb circuit breaker. Overridable via
     # LOCAL_ENRICHMENT_CONCURRENCY env var for load tests.
-    LOCAL_ENRICHMENT_CONCURRENCY = int(os.getenv("LOCAL_ENRICHMENT_CONCURRENCY", "20"))
+    LOCAL_ENRICHMENT_CONCURRENCY = env_int("LOCAL_ENRICHMENT_CONCURRENCY", 20)
 
     # Cap pending in-process enrichment task creation so a burst can't
     # accumulate hundreds of coroutines waiting on the semaphore. Overridable
     # via LOCAL_ENRICHMENT_MAX_PENDING env var.
-    LOCAL_ENRICHMENT_MAX_PENDING = int(os.getenv("LOCAL_ENRICHMENT_MAX_PENDING", "200"))
+    LOCAL_ENRICHMENT_MAX_PENDING = env_int("LOCAL_ENRICHMENT_MAX_PENDING", 200)
 
     # Emit a warning when the backlog crosses this fraction of the cap, so
     # ops can react before tasks start being dropped.
@@ -97,6 +89,10 @@ class ProjectionEnrichmentCoordinator:
         # prefetch tasks register in app.background_tasks so they survive
         # request teardown and are drained on shutdown.
         self._background_scheduler = background_scheduler
+
+    def attach_cache(self, cache) -> None:
+        """Attach a cache manager. Idempotent — callers may rebind."""
+        self._cache = cache
 
     def attach_background_scheduler(self, scheduler) -> None:
         """Wire an app-owned background task scheduler."""
@@ -240,7 +236,7 @@ class ProjectionEnrichmentCoordinator:
                         _job_id=f"enrich:{tconst}",
                     )
                     if result is not None:
-                        await self.store._mark_attempt(tconst, now)
+                        await self.store.mark_attempt(tconst, now)
                         lock_held = False  # ARQ job owns the dedup window now.
                         return True
                 except Exception as exc:
@@ -248,7 +244,7 @@ class ProjectionEnrichmentCoordinator:
 
             scheduled = await self._schedule_local_enrichment(tconst, tmdb_id=tmdb_id)
             if scheduled:
-                await self.store._mark_attempt(tconst, now)
+                await self.store.mark_attempt(tconst, now)
                 lock_held = False  # Local task owns the dedup window now.
             return scheduled
         finally:
@@ -274,7 +270,7 @@ class ProjectionEnrichmentCoordinator:
                 cap,
                 tconst,
             )
-            _safe_inc(enrichment_backlog_drop_total)
+            safe_emit(enrichment_backlog_drop_total.inc)
             return False
 
         high_threshold = int(cap * self.LOCAL_ENRICHMENT_HIGH_WATERMARK)
@@ -311,7 +307,7 @@ class ProjectionEnrichmentCoordinator:
         known_tmdb_id: int | None = None,
     ) -> dict[str, Any] | None:
         now = utcnow()
-        row = await self.store._select_row(tconst)
+        row = await self.store.select_row(tconst)
         attempts = int(row.get("attempt_count", 0)) + 1 if row else 1
         tmdb_id = known_tmdb_id if known_tmdb_id is not None else (row or {}).get("tmdb_id")
         try:
@@ -322,7 +318,7 @@ class ProjectionEnrichmentCoordinator:
                     timeout=self.ENRICHMENT_TIMEOUT_SECONDS,
                 )
             except asyncio.TimeoutError:
-                _safe_inc(enrichment_timeout_total)
+                safe_emit(enrichment_timeout_total.inc)
                 raise RuntimeError(
                     "enrichment timeout after %ss" % self.ENRICHMENT_TIMEOUT_SECONDS
                 )
@@ -331,11 +327,40 @@ class ProjectionEnrichmentCoordinator:
 
             payload["tmdb_id"] = payload.get("tmdb_id") or tmdb_id
             payload["projection_state"] = ProjectionState.READY.value
-            await self.store._upsert_ready(tconst, payload, now, attempts)
+
+            # Skip the payload UPDATE when the new payload is byte-identical
+            # to what we already have on disk. The persisted shape strips
+            # ``images``/``credits`` so we compare against the same shape.
+            # We still need the row's metadata columns refreshed (state=ready,
+            # enriched_at, stale_after, last_attempt_at, attempt_count) so the
+            # row is not immediately re-enqueued — we just avoid rewriting the
+            # large payload_json blob.
+            if row:
+                existing = row.get("payload_json")
+                if isinstance(existing, str):
+                    try:
+                        existing = json.loads(existing)
+                    except (TypeError, ValueError):
+                        existing = None
+                if isinstance(existing, dict):
+                    new_persisted = self.store._persisted_payload(payload)
+                    new_serialized = json.dumps(new_persisted, sort_keys=True)
+                    existing_serialized = json.dumps(existing, sort_keys=True)
+                    if new_serialized == existing_serialized:
+                        logger.debug(
+                            "payload unchanged for %s, refreshing metadata only",
+                            tconst,
+                        )
+                        await self.store.refresh_ready_metadata(
+                            tconst, now, attempts
+                        )
+                        return payload
+
+            await self.store.upsert_ready(tconst, payload, now, attempts)
             return payload
         except Exception as exc:
             core_payload = await self.store.ensure_core_projection(tconst)
-            await self.store._upsert_failed(
+            await self.store.upsert_failed(
                 tconst,
                 core_payload or {},
                 now,

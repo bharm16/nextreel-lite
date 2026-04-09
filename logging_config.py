@@ -285,17 +285,13 @@ def setup_logging(log_level=logging.INFO):
             loki_handler.setFormatter(loki_format)
             loki_handler.setLevel(logging.INFO)
             root_logger.addHandler(loki_handler)
-            print("✓ Loki logging enabled")
+            print("Loki logging enabled")
         except Exception as e:
-            print(f"⚠ Could not enable Loki logging: {e}")
+            print(f"Could not enable Loki logging: {e}")
     else:
-        print("⚠ Loki API key not found - logs won't be sent to Grafana")
+        print("Loki API key not found - logs won't be sent to Grafana")
     _LOGGING_CONFIGURED = True
     return root_logger
-
-
-# Create logger for import
-logger = logging.getLogger(__name__)
 
 
 def get_logger(name):

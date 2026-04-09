@@ -8,12 +8,30 @@ by prometheus_client), but they are now discoverable by domain.
 
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass
 
 from prometheus_client import Counter, Gauge, Histogram, Info
 
 from config.env import get_environment
+
+logger = logging.getLogger(__name__)
+
+
+def safe_emit(fn, *args, **kwargs):
+    """Call a metric-emitting function, swallow and debug-log any exception.
+
+    Metric libraries occasionally raise on label cardinality limits, registry
+    collisions, or serialization edge cases. Emission must never take down a
+    request or background job, so this wrapper degrades to a no-op on any
+    exception and returns None.
+    """
+    try:
+        return fn(*args, **kwargs)
+    except Exception as exc:
+        logger.debug("metric emit failed: %s", exc)
+        return None
 
 
 # ── Application info ─────────────────────────────────────────────────

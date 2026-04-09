@@ -1,5 +1,8 @@
 """Tests for organized metrics groups."""
 
+import logging
+from unittest.mock import Mock
+
 from infra.metrics_groups import (
     HTTPMetrics,
     DatabaseMetrics,
@@ -11,7 +14,32 @@ from infra.metrics_groups import (
     movie,
     cache,
     error,
+    safe_emit,
 )
+
+
+def test_safe_emit_returns_result_on_success():
+    fn = Mock(return_value="ok")
+    assert safe_emit(fn, 1, 2, k="v") == "ok"
+    fn.assert_called_once_with(1, 2, k="v")
+
+
+def test_safe_emit_returns_none_on_exception():
+    fn = Mock(side_effect=RuntimeError("boom"))
+    assert safe_emit(fn, "a") is None
+
+
+def test_safe_emit_logs_at_debug_on_exception(caplog):
+    fn = Mock(side_effect=ValueError("bad label"))
+    with caplog.at_level(logging.DEBUG, logger="infra.metrics_groups"):
+        safe_emit(fn)
+    assert any("metric emit failed" in r.message for r in caplog.records)
+
+
+def test_safe_emit_no_args():
+    fn = Mock(return_value=42)
+    assert safe_emit(fn) == 42
+    fn.assert_called_once_with()
 
 
 def test_http_metrics_group_has_expected_fields():

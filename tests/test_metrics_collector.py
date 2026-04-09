@@ -42,6 +42,7 @@ class TestTrackUserActivity:
 
     def test_evicts_when_over_cap(self, collector):
         collector._max_tracked_users = 5
+        collector._active_users._max_keys = 5
         collector._active_user_timeout = 60
 
         # Add stale users
@@ -63,6 +64,7 @@ class TestTrackUserActivity:
         hard ceiling and the least-recently-touched entries are dropped.
         """
         collector._max_tracked_users = 3
+        collector._active_users._max_keys = 3
         collector._active_user_timeout = 3600
 
         now = time.time()

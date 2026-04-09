@@ -75,3 +75,29 @@ async def test_rate_limited_allows_through(app):
             client = app.test_client()
             response = await client.get("/allowed")
             assert response.status_code == 200
+
+
+async def test_with_timeout_awaits_cancelled_task(app):
+    """with_timeout must fully await cancellation so connections don't leak."""
+    from infra.route_helpers import with_timeout
+
+    task_ref = {}
+
+    async def slow_inner():
+        try:
+            await asyncio.sleep(10)
+        except asyncio.CancelledError:
+            raise
+        return "never"
+
+    @app.route("/slow")
+    @with_timeout(seconds=0)
+    async def slow_route():
+        task = asyncio.ensure_future(slow_inner())
+        task_ref["task"] = task
+        return await task
+
+    async with app.test_request_context("/slow"):
+        client = app.test_client()
+        response = await client.get("/slow")
+        assert response.status_code == 504

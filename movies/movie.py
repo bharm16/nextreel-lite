@@ -35,7 +35,7 @@ class Movie:
         await self.close()
         return False
 
-    async def fetch_slug_and_ratings(self, tconst):
+    async def fetch_slug_and_ratings(self):
         """Fetch slug and ratings in a single query via JOIN."""
         start_time = time.time()
         try:
@@ -46,21 +46,21 @@ class Movie:
                 LEFT JOIN `title.ratings` tr ON tb.tconst = tr.tconst
                 WHERE tb.tconst = %s
                 """,
-                [tconst],
+                [self.tconst],
                 fetch="one",
             )
         except DatabaseError as e:
-            logger.warning("Database error fetching slug+ratings for %s: %s", tconst, e)
+            logger.warning("Database error fetching slug+ratings for %s: %s", self.tconst, e)
             return None
 
         if not result:
-            logger.info("No data found for tconst: %s", tconst)
+            logger.info("No data found for tconst: %s", self.tconst)
             return None
 
         self.slug = result.get("slug")
 
         ratings_data = {
-            "tconst": result.get("tconst") or tconst,
+            "tconst": result.get("tconst") or self.tconst,
             "averageRating": (
                 result["averageRating"] if result.get("averageRating") is not None else "N/A"
             ),
@@ -68,7 +68,7 @@ class Movie:
         }
 
         query_time = time.time() - start_time
-        logger.info("Fetched slug+ratings for %s in %.2f seconds", tconst, query_time)
+        logger.info("Fetched slug+ratings for %s in %.2f seconds", self.tconst, query_time)
         return ratings_data
 
     async def get_movie_data(self, known_tmdb_id: int | None = None) -> dict[str, Any] | None:
@@ -77,7 +77,7 @@ class Movie:
         ratings_task: asyncio.Task | None = None
         full_task: asyncio.Task | None = None
         try:
-            ratings_task = asyncio.create_task(self.fetch_slug_and_ratings(self.tconst))
+            ratings_task = asyncio.create_task(self.fetch_slug_and_ratings())
             tmdb_id = known_tmdb_id
             if tmdb_id is None:
                 try:
@@ -119,7 +119,6 @@ class Movie:
             if full_data is None:
                 full_data = {}
 
-            # Phase 3: parse all fields from the combined response
             h = self.tmdb_helper
             tmdb_cast_info = h.parse_cast(full_data)
             directors = h.parse_directors(full_data)
@@ -135,7 +134,6 @@ class Movie:
 
             backdrop_url = images["backdrops"][0] if images.get("backdrops") else None
 
-            # Use database rating if available; otherwise, fall back to TMDB rating
             rating = (
                 ratings_data["averageRating"]
                 if ratings_data and ratings_data["averageRating"] != "N/A"
@@ -147,13 +145,11 @@ class Movie:
                 else full_data.get("vote_count", "N/A")
             )
 
-            # Format budget and revenue
             budget = full_data.get("budget", 0)
             revenue = full_data.get("revenue", 0)
             budget_formatted = f"${budget:,}" if budget > 0 else "Unknown"
             revenue_formatted = f"${revenue:,}" if revenue > 0 else "Unknown"
 
-            # Get production countries
             countries = full_data.get("production_countries", [])
             country_names = [country.get("name", "") for country in countries[:3]]
 
@@ -194,7 +190,6 @@ class Movie:
                 "status": full_data.get("status", "Unknown"),
                 "tagline": full_data.get("tagline", ""),
                 "watch_providers": watch_providers,
-                # New enriched fields
                 "key_crew": key_crew,
                 "keywords": keywords,
                 "recommendations": recommendations,

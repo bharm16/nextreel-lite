@@ -272,7 +272,7 @@ async def test_rate_limit_memory_fallback_warns_once(caplog, monkeypatch):
 
     # Reset module state.
     monkeypatch.setattr(rate_limit, "_memory_fallback_warned", False)
-    monkeypatch.setattr(rate_limit, "_rate_limit_store", type(rate_limit._rate_limit_store)())
+    rate_limit._rate_limit_store.clear()
 
     # Stub out current_app so SESSION_REDIS is None → triggers memory path.
     fake_app = MagicMock()

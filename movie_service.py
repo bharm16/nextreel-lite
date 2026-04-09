@@ -19,7 +19,7 @@ from filter_contracts import FilterState
 from logging_config import get_logger
 
 from infra.metrics import home_prewarm_failed_total
-from infra.navigation_state import NavigationState
+from infra.navigation_state import NavigationState, NavigationStateStore
 from infra.pool import DatabaseConnectionPool
 from infra.runtime_schema import ensure_runtime_schema
 from movies.candidate_store import CandidateStore
@@ -98,20 +98,18 @@ class MovieManager:
         """
         if cache is None:
             return
-        self.watched_store._cache = cache
+        self.watched_store.attach_cache(cache)
         if self.projection_coordinator is not None:
-            self.projection_coordinator._cache = cache
+            self.projection_coordinator.attach_cache(cache)
         if self.candidate_store is not None:
-            self.candidate_store._cache = cache
+            self.candidate_store.attach_cache(cache)
         if self.navigation_state_store is not None:
-            self.navigation_state_store._cache = cache
+            self.navigation_state_store.attach_cache(cache)
 
     async def start(self) -> None:
         logger.info("Starting MovieManager")
         await self.db_pool.init_pool()
         await ensure_runtime_schema(self.db_pool)
-
-        from infra.navigation_state import NavigationStateStore
 
         self.navigation_state_store = NavigationStateStore(self.db_pool)
         self._navigator = MovieNavigator(
@@ -141,6 +139,16 @@ class MovieManager:
                 logger.info("MovieManager database pool closed")
         except Exception as e:
             logger.error("Error closing MovieManager: %s", e)
+
+    def prev_stack_length(self, state: NavigationState | None) -> int:
+        """Number of entries currently in the prev stack for this navigation state.
+
+        Facade over the underlying navigator so callers don't reach into
+        ``_navigator`` directly.
+        """
+        if self._navigator is None or state is None:
+            return 0
+        return self._navigator.prev_stack_length(state)
 
     async def home(
         self,

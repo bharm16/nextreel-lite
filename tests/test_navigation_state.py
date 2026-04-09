@@ -920,3 +920,43 @@ async def test_navigation_state_has_user_id_field():
     assert state.user_id is None
     state.user_id = "abc123"
     assert state.user_id == "abc123"
+
+
+# ---------------------------------------------------------------------------
+# _serialized_state_fields memoization
+# ---------------------------------------------------------------------------
+
+
+def test_serialized_state_fields_memoizes_on_state(mock_db_pool, monkeypatch):
+    store = NavigationStateStore(mock_db_pool)
+    state = _make_state(queue=[_ref("tt1")], prev=[_ref("tt2")])
+
+    call_count = {"n": 0}
+    real_dumps = json.dumps
+
+    def counting_dumps(*args, **kwargs):
+        call_count["n"] += 1
+        return real_dumps(*args, **kwargs)
+
+    monkeypatch.setattr("infra.navigation_state.json.dumps", counting_dumps)
+
+    first = store._serialized_state_fields(state)
+    dumps_after_first = call_count["n"]
+    assert dumps_after_first > 0
+
+    second = store._serialized_state_fields(state)
+    # Cache hit: no further json.dumps invocations.
+    assert call_count["n"] == dumps_after_first
+    assert first == second
+    assert first is second
+
+
+def test_clone_resets_serialized_cache(mock_db_pool):
+    store = NavigationStateStore(mock_db_pool)
+    state = _make_state(queue=[_ref("tt1")])
+
+    store._serialized_state_fields(state)
+    assert state._serialized_cache is not None
+
+    cloned = state.clone()
+    assert cloned._serialized_cache is None

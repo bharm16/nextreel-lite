@@ -141,7 +141,7 @@ async def test_rate_limit_memory_lru_eviction(monkeypatch):
 
     # Reset module state.
     rate_limit._rate_limit_store.clear()
-    monkeypatch.setattr(rate_limit, "_RATE_LIMIT_MAX_KEYS", 3)
+    monkeypatch.setattr(rate_limit._rate_limit_store, "_max_keys", 3)
     monkeypatch.setattr(rate_limit, "get_client_ip", lambda: "1.1.1.1")
 
     seq = iter(range(1000))

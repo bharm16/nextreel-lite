@@ -60,7 +60,7 @@ movies/
   migration/            # Projection/candidate schema migrations
 session/
   keys.py               # Session key constants
-  user_auth.py          # User registration in movie manager; EnhancedSessionSecurity lives here
+  user_auth.py          # User registration/authentication helpers (register_user, authenticate_user, hash_password_async, find_or_create_oauth_user)
   quart_session_compat.py  # Compatibility shim for quart-session 3.0.0
 infra/
   pool.py               # SecureConnectionPool + DatabaseConnectionPool wrapper
@@ -109,11 +109,22 @@ Optional:
 
 ## Key Patterns
 
+### Shared helpers (prefer these over hand-rolling)
+
+- **Env parsing**: `infra/time_utils.py` provides `env_bool(name, default)`, `env_int(name, default)`, `env_float(name, default)` — all swallow invalid values and fall back to the default. Never hand-roll `int(os.getenv(...))` — use `env_int`.
+- **Environment detection**: `config/env.py` re-exports `get_environment()` from `env_bootstrap`. Never inline `os.getenv("NEXTREEL_ENV")`.
+- **Current year**: `infra/time_utils.current_year()` — 1-hour TTL cached, avoids recomputing on every query build.
+- **Cache single-flight miss path**: `SimpleCacheManager.safe_get_or_set(namespace, key, loader, ttl)` in `infra/cache.py` — "try cache, fall back to loader, swallow cache errors" wrapper. Does NOT provide coalescing; use `get_or_load` for that.
+- **Bounded TTL cache**: `infra.cache.LruExpiringMap(max_keys, ttl_seconds)` — LRU + per-entry TTL. Used by rate-limit in-memory fallback and metrics active-user tracking.
+- **SSL context for MySQL**: `infra/ssl.build_mysql_ssl_context(cert_path)` — stateless module-level helper with CERT_REQUIRED, check_hostname=False (documented exception for IP-based MySQL certs), TLSv1.2+ minimum, and the reviewed cipher string. `SecureConnectionPool` delegates to this.
+- **Metric emission**: `infra.metrics_groups.safe_emit(fn, *args, **kwargs)` — call a metric emit function, swallow and debug-log any exception. Use this instead of hand-rolled `try: metric.inc(); except Exception: pass`.
+- **Runtime schema helpers**: `infra.runtime_schema._ensure_index(pool, table, name, create_sql)` and `_ensure_column(...)` — run CREATE/ALTER directly and catch the MySQL duplicate-key (1061) / duplicate-column (1060) errnos as idempotent. Eliminates TOCTOU SELECT probes.
+
 ### Session State
-- Navigation state is **MySQL-backed** (`user_navigation_state` table) via `NavigationStateStore` in `infra/navigation_state.py`. Uses optimistic locking (version column, 5 retries on conflict with exponential backoff + jitter).
+- Navigation state is **MySQL-backed** (`user_navigation_state` table) via `NavigationStateStore` in `infra/navigation_state.py`. Uses optimistic locking (version column, 5 retries on conflict with exponential full-jitter backoff).
 - Full movie data lives in Redis cache (`cache:movie:full:{tconst}`, 24h TTL). Session stores lightweight refs only.
-- Session lifetime: 8h max, 15min idle (`EnhancedSessionSecurity`). `session/auth.py` handles only user registration.
-- **Migration period**: Dual-write from Redis session → MySQL is enabled by default for 7 days (`NAV_STATE_DUAL_WRITE_ENABLED`, `NAV_STATE_MIGRATION_MIN_DAYS`).
+- Session cookie lifetime: defaults from `config/session.py` (`SESSION_IDLE_TIMEOUT_MINUTES`, `MAX_SESSION_DURATION_HOURS`, default 15min/8h). User authentication helpers live in `session/user_auth.py` (`register_user`, `authenticate_user`, `hash_password_async`, `find_or_create_oauth_user`).
+- **Migration period**: Dual-write from Redis session → MySQL is enabled by default for 7 days (`NAV_STATE_DUAL_WRITE_ENABLED`, `NAV_STATE_MIGRATION_MIN_DAYS`). The dual-write probe is cached in-process for 60s to avoid per-request DB round-trips.
 
 ### Navigation Routes
 - `/next_movie` and `/previous_movie` are **POST-only** with CSRF tokens. All "Pick a Movie" buttons in templates use `<form method="POST">` with hidden `csrf_token` field.
@@ -161,3 +172,6 @@ All queries must use parameterized placeholders (`%s`), including LIMIT and OFFS
 - **Projection states**: `core` (minimal IMDb data) → `ready` (TMDb-enriched) → `stale` (>7 days) → `failed` (enrichment error). Enrichment is async-enqueued via `enrich_projection` worker job with 15-min cooldown.
 - **CI security gates**: TruffleHog blocks the build on verified secrets. Bandit and pip-audit run but are warnings only (`|| true`). Tests require 40% coverage on Python 3.11 and 3.12.
 - **`.claude.local.md`**: Not in `.gitignore` — add it if you use local Claude overrides to avoid committing personal preferences.
+- **Runtime schema backfills are gated**: `ensure_movie_candidates_shuffle_key` fires its `UPDATE ... WHERE shuffle_key IS NULL` and `ALTER TABLE ... MODIFY COLUMN shuffle_key INT NOT NULL` **once**, then records `shuffle_key_backfill_done` in `runtime_metadata`. If you need to re-run the backfill (e.g. after a data reload), delete that metadata row. The `_ensure_column` call itself is always idempotent.
+- **Dual-write flag is cached**: `legacy_migration.dual_write_enabled()` caches its result in-process for 60 seconds (`_DUAL_WRITE_CACHE_TTL_SECONDS`). If you flip `NAV_STATE_DUAL_WRITE_ENABLED` via env, it takes up to 60s to propagate. Tests can call `_reset_dual_write_cache()` to force a fresh read.
+- **New shared helpers**: See the "Shared helpers" subsection under "Key Patterns" for env parsing (`env_bool`/`env_int`/`env_float`), `safe_get_or_set`, `LruExpiringMap`, `build_mysql_ssl_context`, `safe_emit`, and the runtime-schema `_ensure_index`/`_ensure_column` helpers. Prefer these over hand-rolling equivalents.

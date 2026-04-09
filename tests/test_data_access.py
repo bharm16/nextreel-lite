@@ -36,6 +36,6 @@ async def test_fetch_slug_and_ratings_returns_none_on_database_error():
     db_pool.execute = AsyncMock(side_effect=DatabaseError("boom"))
     movie = Movie("tt1234567", db_pool, tmdb_helper=AsyncMock())
 
-    ratings = await movie.fetch_slug_and_ratings("tt1234567")
+    ratings = await movie.fetch_slug_and_ratings()
 
     assert ratings is None

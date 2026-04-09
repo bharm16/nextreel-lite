@@ -101,6 +101,14 @@ class ProjectionStore:
             fetch="one",
         )
 
+    async def select_row(self, tconst: str) -> dict[str, Any] | None:
+        """Public accessor for the row-select implementation.
+
+        Delegates to :meth:`_select_row` so tests that patch the private
+        name continue to work transparently.
+        """
+        return await self._select_row(tconst)
+
     async def fetch_renderable_payload(self, tconst: str) -> dict[str, Any] | None:
         # Fast path: if a local prefetch/enrichment task is already in flight
         # for this tconst (scheduled by a navigation handler before redirect),
@@ -195,6 +203,33 @@ class ProjectionStore:
             )
         return payload
 
+    async def fetch_renderable_payloads(
+        self, tconsts: list[str]
+    ) -> dict[str, dict[str, Any]]:
+        """Batched variant of :meth:`fetch_renderable_payload`.
+
+        Returns a dict mapping ``tconst`` to its payload for every tconst
+        that has a projection row in any state. Tconsts without a row are
+        absent from the result. Unlike the per-tconst variant this does
+        NOT enrich, mark stale, or enqueue work — it is a pure read for
+        callers that already have a batch of refs and just need the
+        renderable shape.
+        """
+        if not tconsts:
+            return {}
+        unique = list(dict.fromkeys(tconsts))
+        placeholders = ",".join(["%s"] * len(unique))
+        sql = f"""
+            SELECT tconst, tmdb_id, payload_json, projection_state,
+                   enriched_at, stale_after, last_attempt_at, attempt_count, last_error
+            FROM movie_projection
+            WHERE tconst IN ({placeholders})
+        """
+        rows = await self.db_pool.execute(sql, unique, fetch="all")
+        if not rows:
+            return {}
+        return {row["tconst"]: self._payload_from_row(row) for row in rows}
+
     @staticmethod
     def _persisted_payload(payload: dict[str, Any]) -> dict[str, Any]:
         slimmed = dict(payload)
@@ -212,6 +247,10 @@ class ProjectionStore:
             [now, tconst],
             fetch="none",
         )
+
+    async def mark_attempt(self, tconst: str, now: datetime) -> None:
+        """Public accessor for the mark-attempt implementation."""
+        await self._mark_attempt(tconst, now)
 
     async def _maybe_enqueue_enrichment(
         self,
@@ -249,7 +288,7 @@ class ProjectionStore:
         payload = self.build_core_payload(row)
         now = utcnow()
         await self.db_pool.execute(
-            """
+            f"""
             INSERT INTO movie_projection (
                 tconst, tmdb_id, payload_json, projection_state,
                 enriched_at, stale_after, last_attempt_at, attempt_count, last_error
@@ -258,11 +297,11 @@ class ProjectionStore:
             AS new_row
             ON DUPLICATE KEY UPDATE
                 payload_json = CASE
-                    WHEN movie_projection.projection_state IN ('ready', 'stale') THEN movie_projection.payload_json
+                    WHEN movie_projection.projection_state IN ('{ProjectionState.READY.value}', '{ProjectionState.STALE.value}') THEN movie_projection.payload_json
                     ELSE new_row.payload_json
                 END,
                 projection_state = CASE
-                    WHEN movie_projection.projection_state IN ('ready', 'stale') THEN movie_projection.projection_state
+                    WHEN movie_projection.projection_state IN ('{ProjectionState.READY.value}', '{ProjectionState.STALE.value}') THEN movie_projection.projection_state
                     ELSE new_row.projection_state
                 END,
                 last_attempt_at = COALESCE(movie_projection.last_attempt_at, %s)
@@ -368,6 +407,51 @@ class ProjectionStore:
             fetch="none",
         )
 
+    async def upsert_ready(
+        self,
+        tconst: str,
+        payload: dict[str, Any],
+        now: datetime,
+        attempts: int,
+    ) -> None:
+        """Public accessor for the upsert-ready implementation."""
+        await self._upsert_ready(tconst, payload, now, attempts)
+
+    async def refresh_ready_metadata(
+        self,
+        tconst: str,
+        now: datetime,
+        attempts: int,
+    ) -> None:
+        """Refresh the projection metadata without rewriting payload_json.
+
+        Used by enrichment when the new payload is byte-identical to the
+        stored payload — avoids the large blob UPDATE while still resetting
+        the staleness window and bumping attempt_count so the row is not
+        immediately re-enqueued.
+        """
+        await self.db_pool.execute(
+            """
+            UPDATE movie_projection
+            SET projection_state = %s,
+                enriched_at = %s,
+                stale_after = %s,
+                last_attempt_at = %s,
+                attempt_count = %s,
+                last_error = NULL
+            WHERE tconst = %s
+            """,
+            [
+                PROJECTION_READY,
+                now,
+                now + STALE_AFTER,
+                now,
+                attempts,
+                tconst,
+            ],
+            fetch="none",
+        )
+
     async def _upsert_failed(
         self,
         tconst: str,
@@ -404,6 +488,25 @@ class ProjectionStore:
                 error,
             ],
             fetch="none",
+        )
+
+    async def upsert_failed(
+        self,
+        tconst: str,
+        payload: dict[str, Any],
+        now: datetime,
+        attempts: int,
+        error: str,
+        tmdb_id: int | None = None,
+    ) -> None:
+        """Public accessor for the upsert-failed implementation."""
+        await self._upsert_failed(
+            tconst,
+            payload,
+            now,
+            attempts,
+            error,
+            tmdb_id=tmdb_id,
         )
 
     async def enrich_projection(

@@ -14,13 +14,14 @@ from infra.errors import DatabaseError
 from infra.filter_normalizer import criteria_from_filters
 from infra.time_utils import utcnow
 from logging_config import get_logger
-from movies.query_builder import MovieQueryBuilder
+from movies.query_builder import MovieQueryBuilder, is_fulltext_index_error
 
 logger = get_logger(__name__)
 
 SAMPLE_BUCKET_COUNT = 128
 SELECTION_BUCKET_STEPS = (2, 8, 32, SAMPLE_BUCKET_COUNT)
-_MYSQL_INT_MAX = 2_147_483_647
+_MYSQL_INT_MAX = 2147483647
+_OVERFETCH_FACTOR = 3
 
 _ALLOWED_CANDIDATE_TABLES = frozenset({"movie_candidates_next", "movie_candidates"})
 
@@ -32,7 +33,7 @@ _FILTER_RESULT_CACHE_TTL_SECONDS = 30
 _FILTER_RESULT_POOL_SIZE = 50
 
 
-def _filter_cache_key(criteria: MovieCriteria, excluded_tconsts: set[str]) -> str:
+def _filter_cache_key(criteria: MovieCriteria) -> str:
     """Deterministic cache key: criteria hash only, not excluded set.
 
     Excluded tconsts are per-session (seen list), so including them
@@ -60,6 +61,10 @@ class CandidateStore:
         # filter-result pooling so repeated unique-filter queries don't
         # each run a shuffle_key sort.
         self._cache = None
+
+    def attach_cache(self, cache) -> None:
+        """Attach a cache manager. Idempotent — callers may rebind."""
+        self._cache = cache
 
     async def latest_refresh_at(self) -> datetime | None:
         row = await self.db_pool.execute(
@@ -95,29 +100,66 @@ class CandidateStore:
             return None
         return _ref_from_row(row)
 
+    async def fetch_refs(self, tconsts: list[str]) -> list[dict[str, Any]]:
+        """Batched variant of :meth:`fetch_ref` — one SELECT per call.
+
+        Returns ref dicts for any tconsts present in either
+        ``movie_candidates`` or ``title.basics``. Order is NOT guaranteed
+        to match input order; missing tconsts are simply absent. The
+        ``movie_candidates`` row wins on duplicates (matches the UNION ALL
+        precedence in :meth:`fetch_ref`).
+        """
+        if not tconsts:
+            return []
+        # Deduplicate while preserving caller intent — repeated tconsts
+        # in the input collapse to a single SELECT param.
+        unique = list(dict.fromkeys(tconsts))
+        placeholders = ",".join(["%s"] * len(unique))
+        sql = f"""
+            SELECT tconst, primaryTitle, slug
+            FROM movie_candidates
+            WHERE tconst IN ({placeholders})
+            UNION ALL
+            SELECT tconst, primaryTitle, slug
+            FROM `title.basics`
+            WHERE tconst IN ({placeholders})
+              AND tconst NOT IN (
+                  SELECT tconst FROM movie_candidates WHERE tconst IN ({placeholders})
+              )
+        """
+        params = unique + unique + unique
+        rows = await self.db_pool.execute(sql, params, fetch="all")
+        if not rows:
+            return []
+        seen: set[str] = set()
+        refs: list[dict[str, Any]] = []
+        for row in rows:
+            tconst = row["tconst"]
+            if tconst in seen:
+                continue
+            seen.add(tconst)
+            refs.append(_ref_from_row(row))
+        return refs
+
     def _genre_clause(
         self,
         criteria: dict[str, Any],
         *,
         use_fulltext: bool = True,
     ) -> tuple[str, list[Any]]:
-        if use_fulltext:
-            return MovieQueryBuilder.build_genre_conditions_fulltext(criteria, use_cache=True)
+        """Thin delegate to ``MovieQueryBuilder.genre_clause`` (use_cache=True).
 
-        genre_params: list[Any] = []
-        genre_conditions = MovieQueryBuilder.build_genre_conditions(
-            criteria,
-            genre_params,
-            use_cache=True,
+        Retained so existing tests that patch/call ``store._genre_clause``
+        continue to work. New callers should use ``MovieQueryBuilder.genre_clause``
+        directly.
+        """
+        return MovieQueryBuilder.genre_clause(
+            criteria, use_fulltext=use_fulltext, use_cache=True
         )
-        if not genre_conditions:
-            return "", []
-        return f" AND ({genre_conditions[0]})", genre_params
 
     @staticmethod
     def _is_fulltext_index_error(exc: DatabaseError) -> bool:
-        message = str(exc).lower()
-        return "fulltext" in message
+        return is_fulltext_index_error(exc)
 
     def _build_candidate_query(
         self,
@@ -126,7 +168,6 @@ class CandidateStore:
         excluded_tconsts: set[str],
         desired_limit: int,
         buckets: list[int],
-        seed: str,
         use_fulltext: bool,
     ) -> tuple[str, list[Any]]:
         min_year = criteria.get("min_year", 1900)
@@ -172,7 +213,7 @@ class CandidateStore:
             ORDER BY shuffle_key, numVotes DESC, averageRating DESC
             LIMIT %s
         """
-        params.append(desired_limit * 3)
+        params.append(desired_limit * _OVERFETCH_FACTOR)
         return query, params
 
     async def fetch_candidate_refs(
@@ -201,7 +242,7 @@ class CandidateStore:
         """
         if self._cache is None:
             return None
-        cache_key = _filter_cache_key(criteria, excluded_tconsts)
+        cache_key = _filter_cache_key(criteria)
         try:
             pool = await self._cache.get(CacheNamespace.TEMP, cache_key)
         except Exception:
@@ -225,7 +266,7 @@ class CandidateStore:
     ) -> None:
         if self._cache is None or not refs:
             return
-        cache_key = _filter_cache_key(criteria, excluded_tconsts)
+        cache_key = _filter_cache_key(criteria)
         try:
             await self._cache.set(
                 CacheNamespace.TEMP,
@@ -255,7 +296,6 @@ class CandidateStore:
         # window can sample from it without re-querying. The pool size is
         # capped so the shuffle_key ORDER BY stays cheap.
         fetch_limit = max(desired_limit, _FILTER_RESULT_POOL_SIZE)
-        seed = str(random.randint(0, _MYSQL_INT_MAX))
 
         for bucket_count in SELECTION_BUCKET_STEPS:
             buckets = random.sample(range(SAMPLE_BUCKET_COUNT), bucket_count)
@@ -264,7 +304,6 @@ class CandidateStore:
                 excluded_tconsts=excluded_tconsts,
                 desired_limit=fetch_limit,
                 buckets=buckets,
-                seed=seed,
                 use_fulltext=True,
             )
             try:
@@ -281,7 +320,6 @@ class CandidateStore:
                     excluded_tconsts=excluded_tconsts,
                     desired_limit=fetch_limit,
                     buckets=buckets,
-                    seed=seed,
                     use_fulltext=False,
                 )
                 rows = await self.db_pool.execute(fallback_query, fallback_params, fetch="all")
@@ -377,7 +415,7 @@ class CandidateTableMaintainer:
             fetch="none",
         )
         await self.db_pool.execute(
-            """
+            f"""
             INSERT INTO movie_candidates_next (
                 tconst, primaryTitle, startYear, genres, language, titleType, slug,
                 averageRating, numVotes, sample_bucket, shuffle_key, refreshed_at
@@ -392,8 +430,8 @@ class CandidateTableMaintainer:
                 tb.slug,
                 COALESCE(tr.averageRating, 0),
                 COALESCE(tr.numVotes, 0),
-                MOD(CRC32(tb.tconst), 128),
-                CAST(RAND() * 2147483647 AS UNSIGNED),
+                MOD(CRC32(tb.tconst), {SAMPLE_BUCKET_COUNT}),
+                CAST(RAND() * {_MYSQL_INT_MAX} AS UNSIGNED),
                 UTC_TIMESTAMP(6)
             FROM `title.basics` tb
             LEFT JOIN `title.ratings` tr ON tb.tconst = tr.tconst

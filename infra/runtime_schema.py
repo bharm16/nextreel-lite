@@ -2,10 +2,77 @@
 
 from __future__ import annotations
 
+import pymysql
+
 from logging_config import get_logger
 
 logger = get_logger(__name__)
 _CANDIDATE_GENRE_FULLTEXT_INDEX = "ftx_movie_candidates_genres"
+
+_ERR_DUP_KEYNAME = 1061
+_ERR_DUP_FIELDNAME = 1060
+
+
+async def _ensure_index(db_pool, table: str, name: str, create_sql: str) -> None:
+    """Create an index if it doesn't already exist.
+
+    Uses MySQL's duplicate-key errno (1061) as the 'already exists' signal
+    instead of a SELECT probe — removes a round-trip per startup and closes
+    a TOCTOU window between the probe and the create.
+    """
+    try:
+        await db_pool.execute(create_sql, fetch="none")
+        logger.info("created index %s.%s", table, name)
+    except pymysql.err.OperationalError as exc:
+        if exc.args and exc.args[0] == _ERR_DUP_KEYNAME:
+            logger.debug("index %s.%s already exists", table, name)
+            return
+        raise
+
+
+async def _get_runtime_flag(db_pool, key: str) -> str | None:
+    """Read a runtime_metadata flag value, or None if unset."""
+    row = await db_pool.execute(
+        "SELECT meta_value FROM runtime_metadata WHERE meta_key = %s",
+        [key],
+        fetch="one",
+    )
+    if not row:
+        return None
+    return row["meta_value"] if isinstance(row, dict) else row[0]
+
+
+async def _set_runtime_flag(db_pool, key: str, value: str) -> None:
+    """Upsert a runtime_metadata flag value."""
+    from infra.time_utils import utcnow
+
+    await db_pool.execute(
+        """
+        INSERT INTO runtime_metadata (meta_key, meta_value, updated_at)
+        VALUES (%s, %s, %s)
+        AS new_row
+        ON DUPLICATE KEY UPDATE
+            meta_value = new_row.meta_value,
+            updated_at = new_row.updated_at
+        """,
+        [key, value, utcnow()],
+        fetch="none",
+    )
+
+
+async def _ensure_column(db_pool, table: str, name: str, create_sql: str) -> None:
+    """Add a column if it doesn't already exist.
+
+    Uses MySQL's duplicate-column errno (1060) as the 'already exists' signal.
+    """
+    try:
+        await db_pool.execute(create_sql, fetch="none")
+        logger.info("added column %s.%s", table, name)
+    except pymysql.err.OperationalError as exc:
+        if exc.args and exc.args[0] == _ERR_DUP_FIELDNAME:
+            logger.debug("column %s.%s already exists", table, name)
+            return
+        raise
 
 
 _RUNTIME_SCHEMA_STATEMENTS = (
@@ -112,79 +179,51 @@ async def ensure_runtime_schema(db_pool) -> None:
 
 async def ensure_user_navigation_current_ref_column(db_pool) -> None:
     """Add the additive current_ref_json column for navigation state."""
-    present = await db_pool.execute(
-        """
-        SELECT 1 AS present
-        FROM information_schema.columns
-        WHERE table_schema = DATABASE()
-          AND table_name = 'user_navigation_state'
-          AND column_name = 'current_ref_json'
-        LIMIT 1
-        """,
-        fetch="one",
-    )
-    if present:
-        return
-
-    await db_pool.execute(
+    await _ensure_column(
+        db_pool,
+        "user_navigation_state",
+        "current_ref_json",
         """
         ALTER TABLE user_navigation_state
         ADD COLUMN current_ref_json JSON NULL AFTER current_tconst
         """,
-        fetch="none",
     )
-    logger.info("Added user_navigation_state.current_ref_json")
 
 
 async def ensure_user_navigation_user_id_column(db_pool) -> None:
     """Add the additive user_id column to link sessions to user accounts."""
-    present = await db_pool.execute(
-        """
-        SELECT 1 AS present
-        FROM information_schema.columns
-        WHERE table_schema = DATABASE()
-          AND table_name = 'user_navigation_state'
-          AND column_name = 'user_id'
-        LIMIT 1
-        """,
-        fetch="one",
-    )
-    if present:
-        return
-
-    await db_pool.execute(
+    await _ensure_column(
+        db_pool,
+        "user_navigation_state",
+        "user_id",
         """
         ALTER TABLE user_navigation_state
         ADD COLUMN user_id CHAR(32) NULL AFTER session_id,
         ADD KEY idx_nav_user_id (user_id)
         """,
-        fetch="none",
     )
-    logger.info("Added user_navigation_state.user_id")
 
 
 async def ensure_movie_candidates_shuffle_key(db_pool) -> None:
-    """Add and backfill the additive shuffle key column."""
-    present = await db_pool.execute(
+    """Add and backfill the additive shuffle key column.
+
+    The UPDATE backfill and ALTER ... MODIFY tightening only need to run
+    once per database. We gate them behind a ``shuffle_key_backfill_done``
+    runtime_metadata flag so subsequent startups skip the work.
+    """
+    await _ensure_column(
+        db_pool,
+        "movie_candidates",
+        "shuffle_key",
         """
-        SELECT 1 AS present
-        FROM information_schema.columns
-        WHERE table_schema = DATABASE()
-          AND table_name = 'movie_candidates'
-          AND column_name = 'shuffle_key'
-        LIMIT 1
+        ALTER TABLE movie_candidates
+        ADD COLUMN shuffle_key INT NULL AFTER sample_bucket
         """,
-        fetch="one",
     )
-    if not present:
-        await db_pool.execute(
-            """
-            ALTER TABLE movie_candidates
-            ADD COLUMN shuffle_key INT NULL AFTER sample_bucket
-            """,
-            fetch="none",
-        )
-        logger.info("Added movie_candidates.shuffle_key")
+
+    if await _get_runtime_flag(db_pool, "shuffle_key_backfill_done"):
+        logger.debug("shuffle_key backfill already complete, skipping")
+        return
 
     await db_pool.execute(
         """
@@ -201,29 +240,18 @@ async def ensure_movie_candidates_shuffle_key(db_pool) -> None:
         """,
         fetch="none",
     )
+    await _set_runtime_flag(db_pool, "shuffle_key_backfill_done", "1")
+    logger.info("shuffle_key backfill complete")
 
 
 async def ensure_movie_candidates_refreshed_at_index(db_pool) -> None:
     """Ensure movie_candidates has a cheap freshest-row lookup."""
-    present = await db_pool.execute(
-        """
-        SELECT 1 AS present
-        FROM information_schema.statistics
-        WHERE table_schema = DATABASE()
-          AND table_name = 'movie_candidates'
-          AND index_name = 'idx_movie_candidates_refreshed_at'
-        LIMIT 1
-        """,
-        fetch="one",
-    )
-    if present:
-        return
-
-    await db_pool.execute(
+    await _ensure_index(
+        db_pool,
+        "movie_candidates",
+        "idx_movie_candidates_refreshed_at",
         "CREATE INDEX idx_movie_candidates_refreshed_at ON movie_candidates (refreshed_at)",
-        fetch="none",
     )
-    logger.info("Added movie_candidates refreshed_at index")
 
 
 async def ensure_movie_candidates_shuffle_key_index(db_pool) -> None:
@@ -233,26 +261,13 @@ async def ensure_movie_candidates_shuffle_key_index(db_pool) -> None:
     (shuffle_key, numVotes DESC, averageRating DESC). Without this index
     MySQL filesorts on every fetch.
     """
-    present = await db_pool.execute(
-        """
-        SELECT 1 AS present
-        FROM information_schema.statistics
-        WHERE table_schema = DATABASE()
-          AND table_name = 'movie_candidates'
-          AND index_name = 'idx_movie_candidates_shuffle'
-        LIMIT 1
-        """,
-        fetch="one",
-    )
-    if present:
-        return
-
-    await db_pool.execute(
+    await _ensure_index(
+        db_pool,
+        "movie_candidates",
+        "idx_movie_candidates_shuffle",
         "CREATE INDEX idx_movie_candidates_shuffle "
         "ON movie_candidates (shuffle_key, numVotes, averageRating)",
-        fetch="none",
     )
-    logger.info("Added movie_candidates shuffle_key index")
 
 
 async def ensure_popular_movies_cache_composite_index(db_pool) -> None:
@@ -278,26 +293,13 @@ async def ensure_popular_movies_cache_composite_index(db_pool) -> None:
         logger.debug("popular_movies_cache not present; skipping composite index")
         return
 
-    index_present = await db_pool.execute(
-        """
-        SELECT 1 AS present
-        FROM information_schema.statistics
-        WHERE table_schema = DATABASE()
-          AND table_name = 'popular_movies_cache'
-          AND index_name = 'idx_cache_filter_rand'
-        LIMIT 1
-        """,
-        fetch="one",
-    )
-    if index_present:
-        return
-
-    await db_pool.execute(
+    await _ensure_index(
+        db_pool,
+        "popular_movies_cache",
+        "idx_cache_filter_rand",
         "CREATE INDEX idx_cache_filter_rand "
         "ON popular_movies_cache (startYear, averageRating, numVotes, rand_order)",
-        fetch="none",
     )
-    logger.info("Added popular_movies_cache filter+rand composite index")
 
 
 async def ensure_movie_candidates_fulltext_index(db_pool) -> None:
