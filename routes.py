@@ -36,16 +36,14 @@ from infra.route_helpers import (
     validate_csrf,
     with_timeout,
 )
-from infra.time_utils import current_year as _current_year, utcnow as _utcnow
+from infra.time_utils import current_year as _current_year, env_bool, utcnow as _utcnow
 from logging_config import get_logger
 from movie_navigator import NavigationOutcome
 from route_services import MovieDetailService, WatchedListPresenter, WatchedMutationService
 from session.keys import SESSION_OAUTH_STATE_KEY
 
-# NOTE: session.user_auth imports bcrypt eagerly. Keep this as a lazy
-# in-function import in each auth route so test suites without bcrypt
-# installed can still collect tests that import routes.py for blueprint
-# registration (test_app.py, test_movie_navigator_extended.py, etc.).
+# NOTE: Email/password auth remains a lazy in-function import so routes.py
+# stays importable even when auth-only runtime dependencies are missing.
 
 if TYPE_CHECKING:
     from infra.metrics import MetricsCollector
@@ -57,6 +55,7 @@ bp = Blueprint("main", __name__)
 
 _REQUEST_TIMEOUT = 30
 _TCONST_RE = re.compile(r"^tt\d{1,10}$")
+_TMDB_IMAGE_PREFIX = "https://image.tmdb.org/t/p/"
 
 # /ready response cache: collapses bursts of k8s/LB probes onto a single
 # set of DB round-trips. 5s stays responsive to real state changes but
@@ -71,12 +70,74 @@ _watched_list_presenter = WatchedListPresenter()
 _watched_mutation_service = WatchedMutationService()
 
 
+def _movie_detail_blocks_partial_render() -> bool:
+    return env_bool("PROJECTION_ENRICHMENT_BLOCKS_RENDER", default=True)
+
+
+def _tmdb_image_path(image_url: str | None) -> str | None:
+    if not image_url or not isinstance(image_url, str):
+        return None
+    if image_url.startswith("/static/"):
+        return None
+    if image_url.startswith("/"):
+        return image_url
+    if not image_url.startswith(_TMDB_IMAGE_PREFIX):
+        return None
+
+    remainder = image_url[len(_TMDB_IMAGE_PREFIX):]
+    if "/" not in remainder:
+        return None
+    _size, path = remainder.split("/", 1)
+    if not path:
+        return None
+    return "/" + path.lstrip("/")
+
+
+def _tmdb_sized_image_url(image_url: str | None, *, size: str) -> str | None:
+    path = _tmdb_image_path(image_url)
+    if not path:
+        return None
+    return f"{_TMDB_IMAGE_PREFIX}{size}{path}"
+
+
+def _movie_image_context(movie: dict) -> dict[str, str | None]:
+    backdrop_url = movie.get("backdrop_url")
+    poster_url = movie.get("poster_url") or "/static/img/poster-placeholder.svg"
+
+    hero_image_url = (
+        _tmdb_sized_image_url(backdrop_url, size="w780")
+        or backdrop_url
+        or poster_url
+    )
+    hero_path = _tmdb_image_path(backdrop_url)
+    hero_image_srcset = None
+    hero_image_sizes = None
+    if hero_path:
+        hero_image_srcset = (
+            f"{_TMDB_IMAGE_PREFIX}w780{hero_path} 780w, "
+            f"{_TMDB_IMAGE_PREFIX}w1280{hero_path} 1280w"
+        )
+        hero_image_sizes = "(max-width: 640px) 100vw, 42vw"
+
+    return {
+        "hero_image_url": hero_image_url,
+        "hero_image_srcset": hero_image_srcset,
+        "hero_image_sizes": hero_image_sizes,
+        "preload_image_url": hero_image_url,
+        "preload_image_srcset": hero_image_srcset,
+    }
+
+
 def _no_matches_response():
     """JSON 'no movies matched' response shared by /filtered_movie branches."""
     return jsonify({
         "ok": False,
         "errors": {"form": "No movies matched your filters. Try broadening your criteria."},
     })
+
+
+def _wants_json_response() -> bool:
+    return "application/json" in request.headers.get("Accept", "")
 
 
 async def _oauth_fail(flash_msg: str):
@@ -225,14 +286,28 @@ async def login_page():
 @csrf_required
 @rate_limited("login")
 async def login_submit():
-    from session.user_auth import authenticate_user
+    from session.user_auth import (
+        EMAIL_PASSWORD_AUTH_UNAVAILABLE_MESSAGE,
+        EmailPasswordAuthUnavailableError,
+        authenticate_user,
+    )
 
     form_data = await request.form
     email = form_data.get("email", "").strip()
     password = form_data.get("password", "")
 
     services = _services()
-    user_id = await authenticate_user(services.movie_manager.db_pool, email, password)
+    try:
+        user_id = await authenticate_user(services.movie_manager.db_pool, email, password)
+    except EmailPasswordAuthUnavailableError:
+        logger.warning("Email/password login unavailable: bcrypt dependency missing")
+        return (
+            await render_template(
+                "login.html",
+                errors={"form": EMAIL_PASSWORD_AUTH_UNAVAILABLE_MESSAGE},
+            ),
+            503,
+        )
 
     if not user_id:
         return (
@@ -273,7 +348,10 @@ async def register_submit():
         db_pool=services.movie_manager.db_pool,
     )
     if outcome.kind != "success":
-        return await render_template("register.html", errors=outcome.errors), 400
+        if outcome.kind == "service_unavailable":
+            logger.warning("Email/password registration unavailable: bcrypt dependency missing")
+        status_code = 503 if outcome.kind == "service_unavailable" else 400
+        return await render_template("register.html", errors=outcome.errors), status_code
 
     state = _current_state()
     user_id = outcome.user_id
@@ -412,11 +490,21 @@ async def movie_detail(tconst):
         logger.info("No data found for movie with tconst: %s", tconst)
         return "Movie not found", 404
 
+    if _movie_detail_blocks_partial_render() and not view_model.movie.get("_full"):
+        logger.error(
+            "Blocking partial movie detail render for %s (projection_state=%s)",
+            tconst,
+            view_model.movie.get("projection_state"),
+        )
+        return "Service temporarily unavailable", 503
+
     g.is_watched = view_model.is_watched
+    image_context = _movie_image_context(view_model.movie)
     return await render_template(
         "movie.html",
         movie=view_model.movie,
         previous_count=view_model.previous_count,
+        **image_context,
     )
 
 
@@ -522,7 +610,7 @@ async def filtered_movie_endpoint():
         g.correlation_id,
     )
 
-    wants_json = "application/json" in request.headers.get("Accept", "")
+    wants_json = _wants_json_response()
 
     if validation_errors:
         logger.info(
@@ -645,6 +733,12 @@ async def add_to_watched(tconst):
         watched_store=services.movie_manager.watched_store,
     )
     logger.info("User %s marked %s as watched", user_id, tconst)
+    if _wants_json_response():
+        return jsonify({
+            "ok": True,
+            "is_watched": True,
+            "tconst": tconst,
+        })
 
     return redirect(_safe_referrer(tconst), code=303)
 
@@ -666,6 +760,12 @@ async def remove_from_watched(tconst):
         watched_store=services.movie_manager.watched_store,
     )
     logger.info("User %s removed %s from watched", user_id, tconst)
+    if _wants_json_response():
+        return jsonify({
+            "ok": True,
+            "is_watched": False,
+            "tconst": tconst,
+        })
 
     return redirect(_safe_referrer(tconst), code=303)
 

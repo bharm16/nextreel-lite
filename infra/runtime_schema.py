@@ -13,6 +13,21 @@ _ERR_DUP_KEYNAME = 1061
 _ERR_DUP_FIELDNAME = 1060
 
 
+async def _execute_ddl(db_pool, sql: str) -> None:
+    """Execute a DDL statement using the raw aiomysql pool.
+
+    Bypasses SecureConnectionPool.acquire() so that expected idempotent
+    errors (duplicate column/index) don't trigger circuit-breaker failures
+    or get logged at ERROR by the pool's query wrapper.
+    """
+    conn = await db_pool.pool.pool.acquire()
+    try:
+        async with conn.cursor() as cursor:
+            await cursor.execute(sql)
+    finally:
+        db_pool.pool.pool.release(conn)
+
+
 async def _ensure_index(db_pool, table: str, name: str, create_sql: str) -> None:
     """Create an index if it doesn't already exist.
 
@@ -21,7 +36,7 @@ async def _ensure_index(db_pool, table: str, name: str, create_sql: str) -> None
     a TOCTOU window between the probe and the create.
     """
     try:
-        await db_pool.execute(create_sql, fetch="none")
+        await _execute_ddl(db_pool, create_sql)
         logger.info("created index %s.%s", table, name)
     except pymysql.err.OperationalError as exc:
         if exc.args and exc.args[0] == _ERR_DUP_KEYNAME:
@@ -66,7 +81,7 @@ async def _ensure_column(db_pool, table: str, name: str, create_sql: str) -> Non
     Uses MySQL's duplicate-column errno (1060) as the 'already exists' signal.
     """
     try:
-        await db_pool.execute(create_sql, fetch="none")
+        await _execute_ddl(db_pool, create_sql)
         logger.info("added column %s.%s", table, name)
     except pymysql.err.OperationalError as exc:
         if exc.args and exc.args[0] == _ERR_DUP_FIELDNAME:
@@ -132,6 +147,7 @@ _RUNTIME_SCHEMA_STATEMENTS = (
         shuffle_key INT NOT NULL,
         refreshed_at DATETIME(6) NOT NULL,
         KEY idx_movie_candidates_filter (titleType, startYear, averageRating, numVotes, sample_bucket),
+        KEY idx_movie_candidates_bucket_filter (titleType, sample_bucket, numVotes, averageRating, startYear),
         KEY idx_movie_candidates_language (language),
         KEY idx_movie_candidates_slug (slug(191)),
         KEY idx_movie_candidates_refreshed_at (refreshed_at),
@@ -172,6 +188,7 @@ async def ensure_runtime_schema(db_pool) -> None:
     await ensure_movie_candidates_shuffle_key(db_pool)
     await ensure_movie_candidates_refreshed_at_index(db_pool)
     await ensure_movie_candidates_shuffle_key_index(db_pool)
+    await ensure_movie_candidates_bucket_filter_index(db_pool)
     await ensure_popular_movies_cache_composite_index(db_pool)
     await ensure_user_navigation_user_id_column(db_pool)
     logger.info("Runtime schema ensured")
@@ -267,6 +284,25 @@ async def ensure_movie_candidates_shuffle_key_index(db_pool) -> None:
         "idx_movie_candidates_shuffle",
         "CREATE INDEX idx_movie_candidates_shuffle "
         "ON movie_candidates (shuffle_key, numVotes, averageRating)",
+    )
+
+
+async def ensure_movie_candidates_bucket_filter_index(db_pool) -> None:
+    """Ensure the hot candidate filter can prune sample buckets before ranges.
+
+    The candidate picker always constrains title type plus a small random
+    subset of sample buckets, then applies numVotes/averageRating/startYear
+    ranges. The legacy filter index places sample_bucket last, which forces
+    full scans once range predicates are present. This composite order keeps
+    the same query semantics while letting MySQL narrow the hot path to the
+    selected buckets first.
+    """
+    await _ensure_index(
+        db_pool,
+        "movie_candidates",
+        "idx_movie_candidates_bucket_filter",
+        "CREATE INDEX idx_movie_candidates_bucket_filter "
+        "ON movie_candidates (titleType, sample_bucket, numVotes, averageRating, startYear)",
     )
 
 

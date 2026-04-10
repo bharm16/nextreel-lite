@@ -125,3 +125,53 @@ async def test_home_prewarm_respects_timeout():
 
     assert elapsed < 1.0, f"home() took {elapsed}s -- prewarm not bounded"
     assert result == {"default_backdrop_url": None}
+
+
+@pytest.mark.asyncio
+@patch.dict(
+    os.environ,
+    {
+        **TEST_ENV,
+        "NAV_STATE_DUAL_WRITE_ENABLED": "true",
+        "PREWARM_TIMEOUT_SECONDS": "0.01",
+    },
+)
+async def test_home_prewarm_timeout_continues_in_background_when_scheduler_available():
+    movie_manager = MovieManager(db_config=None)
+    movie_manager.default_backdrop_url = None
+
+    inline_started = asyncio.Event()
+    background_finished = asyncio.Event()
+    call_count = 0
+
+    async def prewarm(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            inline_started.set()
+            await asyncio.sleep(0.05)
+            return None
+        background_finished.set()
+        return None
+
+    movie_manager._navigator = AsyncMock()
+    movie_manager._navigator.prewarm_queue = AsyncMock(side_effect=prewarm)
+
+    scheduled: list[asyncio.Task] = []
+
+    def scheduler(coro):
+        task = asyncio.create_task(coro)
+        scheduled.append(task)
+        return task
+
+    movie_manager.attach_background_scheduler(scheduler)
+
+    state = _state()
+    result = await movie_manager.home(state, legacy_session={"legacy": "state"})
+
+    assert result == {"default_backdrop_url": None}
+    assert inline_started.is_set()
+    assert len(scheduled) == 1
+
+    await asyncio.wait_for(background_finished.wait(), timeout=0.5)
+    assert call_count == 2

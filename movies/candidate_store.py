@@ -448,6 +448,7 @@ class CandidateTableMaintainer:
         await self.db_pool.execute(
             """
             ALTER TABLE movie_candidates_next
+              ADD INDEX idx_movie_candidates_bucket_filter (titleType, sample_bucket, numVotes, averageRating, startYear),
               ADD INDEX idx_movie_candidates_next_filter (titleType, startYear, averageRating, numVotes, sample_bucket),
               ADD INDEX idx_movie_candidates_next_language (language),
               ADD INDEX idx_movie_candidates_next_slug (slug(191)),

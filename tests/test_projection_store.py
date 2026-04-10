@@ -159,6 +159,7 @@ class TestBuildCorePayload:
 
         expected_keys = {
             "title",
+            "tconst",
             "imdb_id",
             "tmdb_id",
             "slug",
@@ -216,6 +217,7 @@ class TestBuildCorePayload:
         assert payload["title"] == "Blade Runner"
         assert payload["year"] == "1982"
         assert payload["genres"] == "Sci-Fi"
+        assert payload["tconst"] == "tt1234567"
         assert payload["imdb_id"] == "tt1234567"
 
     def test_rating_is_float_votes_is_int(self, mock_db_pool):

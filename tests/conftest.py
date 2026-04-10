@@ -121,6 +121,21 @@ def mock_db_pool():
     )
     pool.init_pool = AsyncMock()
     pool.close_pool = AsyncMock()
+
+    # Mock the raw aiomysql pool path used by _execute_ddl for DDL statements.
+    # _execute_ddl calls db_pool.pool.pool.acquire() / .release() directly.
+    # The mock cursor's execute is exposed as pool._ddl_cursor for test assertions.
+    ddl_cursor = AsyncMock()
+    ddl_cursor.__aenter__ = AsyncMock(return_value=ddl_cursor)
+    ddl_cursor.__aexit__ = AsyncMock(return_value=False)
+    mock_conn = MagicMock()
+    mock_conn.cursor = MagicMock(return_value=ddl_cursor)
+    raw_pool = MagicMock()
+    raw_pool.acquire = AsyncMock(return_value=mock_conn)
+    raw_pool.release = MagicMock()
+    pool.pool = MagicMock()
+    pool.pool.pool = raw_pool
+    pool._ddl_cursor = ddl_cursor
     return pool
 
 

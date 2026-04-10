@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import builtins
+import sys
+from contextlib import contextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -17,6 +20,31 @@ class _FakeAsyncClient:
 
     async def __aexit__(self, exc_type, exc, tb):
         return False
+
+
+@contextmanager
+def _missing_bcrypt_import():
+    real_import = builtins.__import__
+    original_bcrypt = sys.modules.pop("bcrypt", None)
+    original_user_auth = sys.modules.pop("session.user_auth", None)
+
+    def _import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "bcrypt":
+            exc = ModuleNotFoundError("No module named 'bcrypt'")
+            exc.name = "bcrypt"
+            raise exc
+        return real_import(name, globals, locals, fromlist, level)
+
+    try:
+        with patch("builtins.__import__", side_effect=_import):
+            yield
+    finally:
+        sys.modules.pop("bcrypt", None)
+        sys.modules.pop("session.user_auth", None)
+        if original_bcrypt is not None:
+            sys.modules["bcrypt"] = original_bcrypt
+        if original_user_auth is not None:
+            sys.modules["session.user_auth"] = original_user_auth
 
 
 class TestRegistrationService:
@@ -104,6 +132,27 @@ class TestRegistrationService:
 
         assert outcome.kind == "success"
         assert outcome.user_id == "user-123"
+
+    @pytest.mark.asyncio
+    async def test_register_email_user_returns_service_unavailable_when_bcrypt_missing(self):
+        from auth_flows import RegistrationService
+
+        db_pool = AsyncMock()
+        db_pool.execute = AsyncMock(return_value=None)
+
+        with _missing_bcrypt_import():
+            outcome = await RegistrationService().register_email_user(
+                email="person@example.com",
+                password="password123",
+                confirm_password="password123",
+                display_name=None,
+                db_pool=db_pool,
+            )
+
+        assert outcome.kind == "service_unavailable"
+        assert outcome.errors == {
+            "form": "Email/password sign-in is currently unavailable. Please try again later."
+        }
 
 
 class TestGoogleOAuthService:

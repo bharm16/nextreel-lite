@@ -192,15 +192,18 @@ class TMDbHelper:
             ),
         )
 
-    def _build_request_options(self, params=None):
-        """Build request headers and params with Bearer auth.
+    def _uses_bearer_auth(self) -> bool:
+        """Use bearer auth for v4-style read tokens and query auth for v3 keys."""
+        return "." in self.api_key
 
-        TMDb auth is always sent via the ``Authorization: Bearer`` header,
-        never as an ``api_key`` query parameter. Both v3 API keys and v4
-        read access tokens are accepted as bearer credentials.
-        """
+    def _build_request_options(self, params=None):
+        """Build request headers and params for either TMDb auth mode."""
         request_params = dict(params or {})
-        headers = dict(self._auth_headers)
+        if self._uses_bearer_auth():
+            headers = dict(self._auth_headers)
+        else:
+            headers = {}
+            request_params["api_key"] = self.api_key
         return headers, request_params
 
     def _record_tmdb_metrics(self, logical_endpoint, status_code, duration_seconds):

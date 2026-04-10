@@ -230,7 +230,7 @@ class ProjectionRepository:
                 last_attempt_at = new_row.last_attempt_at,
                 attempt_count = new_row.attempt_count,
                 last_error = new_row.last_error,
-                payload_json = COALESCE(payload_json, new_row.payload_json)
+                payload_json = COALESCE(movie_projection.payload_json, new_row.payload_json)
             """,
             [
                 tconst,

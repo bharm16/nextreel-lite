@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 from uuid import uuid4
 
-import bcrypt
 import pymysql
 from email_validator import EmailNotValidError, validate_email
 
@@ -15,6 +14,9 @@ from logging_config import get_logger
 logger = get_logger(__name__)
 
 MIN_PASSWORD_LENGTH = 8
+EMAIL_PASSWORD_AUTH_UNAVAILABLE_MESSAGE = (
+    "Email/password sign-in is currently unavailable. Please try again later."
+)
 
 # MySQL error code for duplicate-entry on a UNIQUE key. Tested against the
 # pymysql/aiomysql IntegrityError raised when two concurrent register
@@ -32,12 +34,29 @@ class DuplicateUserError(Exception):
     """
 
 
+class EmailPasswordAuthUnavailableError(RuntimeError):
+    """Raised when email/password auth dependencies are unavailable."""
+
+
+def _load_bcrypt():
+    try:
+        import bcrypt
+    except ModuleNotFoundError as exc:
+        if exc.name == "bcrypt":
+            raise EmailPasswordAuthUnavailableError(
+                "bcrypt is required for email/password authentication"
+            ) from exc
+        raise
+    return bcrypt
+
+
 async def hash_password_async(password: str) -> str:
     """Bcrypt hash a password off the event loop.
 
     bcrypt is CPU-bound (hundreds of ms); run it in a worker thread so we
     don't block the Quart event loop on auth requests.
     """
+    bcrypt = _load_bcrypt()
     return await asyncio.to_thread(
         lambda: bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
     )
@@ -45,6 +64,7 @@ async def hash_password_async(password: str) -> str:
 
 async def verify_password_async(password: str, password_hash: str) -> bool:
     """Bcrypt-verify a password off the event loop."""
+    bcrypt = _load_bcrypt()
     return await asyncio.to_thread(
         bcrypt.checkpw,
         password.encode("utf-8"),

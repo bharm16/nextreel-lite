@@ -22,6 +22,7 @@ def test_assemble_preserves_existing_movie_payload_shape():
     )
 
     assert payload["title"] == "Fight Club"
+    assert payload["tconst"] == "tt0137523"
     assert payload["imdb_id"] == "tt0137523"
     assert payload["tmdb_id"] == 550
     assert payload["slug"] == "fight-club"

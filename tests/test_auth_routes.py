@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import builtins
 import os
+import sys
 from contextlib import contextmanager
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -21,6 +23,7 @@ def _make_auth_app(extra_env: dict[str, str] | None = None):
     with patch.dict(os.environ, env, clear=False), patch("app.MovieManager") as MockManager:
         manager = MockManager.return_value
         manager.home = AsyncMock(return_value={"default_backdrop_url": None})
+        manager.db_pool.execute = AsyncMock(return_value=None)
 
         from app import create_app
 
@@ -29,6 +32,31 @@ def _make_auth_app(extra_env: dict[str, str] | None = None):
         app.navigation_state_store = AsyncMock()
         app.navigation_state_store.set_user_id = AsyncMock()
         yield app, manager
+
+
+@contextmanager
+def _missing_bcrypt_import():
+    real_import = builtins.__import__
+    original_bcrypt = sys.modules.pop("bcrypt", None)
+    original_user_auth = sys.modules.pop("session.user_auth", None)
+
+    def _import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "bcrypt":
+            exc = ModuleNotFoundError("No module named 'bcrypt'")
+            exc.name = "bcrypt"
+            raise exc
+        return real_import(name, globals, locals, fromlist, level)
+
+    try:
+        with patch("builtins.__import__", side_effect=_import):
+            yield
+    finally:
+        sys.modules.pop("bcrypt", None)
+        sys.modules.pop("session.user_auth", None)
+        if original_bcrypt is not None:
+            sys.modules["bcrypt"] = original_bcrypt
+        if original_user_auth is not None:
+            sys.modules["session.user_auth"] = original_user_auth
 
 
 def _nav_state(*, user_id: str | None = None) -> SimpleNamespace:
@@ -162,6 +190,55 @@ class TestRegisterRoute:
         app.navigation_state_store.set_user_id.assert_awaited_once_with(
             "test-session-id", "user-123"
         )
+
+    @pytest.mark.asyncio
+    async def test_register_missing_bcrypt_returns_service_unavailable(self):
+        with _make_auth_app() as (app, _manager):
+            async with app.test_request_context(
+                "/register",
+                method="POST",
+                form={
+                    "email": "person@example.com",
+                    "password": "password123",
+                    "confirm_password": "password123",
+                },
+                headers={"X-CSRFToken": "test-csrf-token"},
+            ):
+                g.navigation_state = _nav_state()
+
+                with _missing_bcrypt_import():
+                    body, status_code = await routes.register_submit()
+
+        assert status_code == 503
+        assert "Email/password sign-in is currently unavailable. Please try again later." in body
+        app.navigation_state_store.set_user_id.assert_not_awaited()
+
+
+class TestLoginRoute:
+    @pytest.mark.asyncio
+    async def test_login_missing_bcrypt_returns_service_unavailable(self):
+        with _make_auth_app() as (app, _manager):
+            _manager.db_pool.execute.return_value = {
+                "user_id": "user-123",
+                "password_hash": "stored-hash",
+            }
+            async with app.test_request_context(
+                "/login",
+                method="POST",
+                form={
+                    "email": "person@example.com",
+                    "password": "password123",
+                },
+                headers={"X-CSRFToken": "test-csrf-token"},
+            ):
+                g.navigation_state = _nav_state()
+
+                with _missing_bcrypt_import():
+                    body, status_code = await routes.login_submit()
+
+        assert status_code == 503
+        assert "Email/password sign-in is currently unavailable. Please try again later." in body
+        app.navigation_state_store.set_user_id.assert_not_awaited()
 
 
 class TestGoogleOAuthCallback:

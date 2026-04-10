@@ -36,6 +36,7 @@ class ProjectionPayloadFactory:
         votes = row.get("numVotes") or 0
         return {
             "title": row.get("primaryTitle") or "Unknown",
+            "tconst": row["tconst"],
             "imdb_id": row["tconst"],
             "tmdb_id": None,
             "slug": row.get("slug"),

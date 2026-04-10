@@ -17,7 +17,7 @@ _GOOGLE_FAILURE_MESSAGE = "Google sign-in failed. Please try again."
 
 @dataclass(slots=True)
 class RegistrationOutcome:
-    kind: Literal["success", "validation_error", "duplicate_email"]
+    kind: Literal["success", "validation_error", "duplicate_email", "service_unavailable"]
     user_id: str | None = None
     errors: dict[str, str] = field(default_factory=dict)
 
@@ -41,6 +41,8 @@ class RegistrationService:
     ) -> RegistrationOutcome:
         from session.user_auth import (
             DuplicateUserError,
+            EMAIL_PASSWORD_AUTH_UNAVAILABLE_MESSAGE,
+            EmailPasswordAuthUnavailableError,
             get_user_by_email,
             hash_password_async,
             register_user,
@@ -63,6 +65,11 @@ class RegistrationService:
                 )
 
             password_hash = await hash_task
+        except EmailPasswordAuthUnavailableError:
+            return RegistrationOutcome(
+                kind="service_unavailable",
+                errors={"form": EMAIL_PASSWORD_AUTH_UNAVAILABLE_MESSAGE},
+            )
         except BaseException:
             if not hash_task.done():
                 hash_task.cancel()

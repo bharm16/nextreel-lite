@@ -9,14 +9,16 @@ def test_get_full_image_url():
     assert url == "https://image.tmdb.org/t/p/w500/path"
 
 
-def test_build_request_options_v3_key_uses_bearer_header():
+def test_build_request_options_v3_key_uses_query_param_auth():
     helper = TMDbHelper("1234567890abcdef1234567890abcdef")
 
     headers, params = helper._build_request_options({"language": "en-US"})
 
-    assert headers == {"Authorization": "Bearer 1234567890abcdef1234567890abcdef"}
-    assert params == {"language": "en-US"}
-    assert "api_key" not in params
+    assert headers == {}
+    assert params == {
+        "language": "en-US",
+        "api_key": "1234567890abcdef1234567890abcdef",
+    }
 
 
 def test_build_request_options_v4_token_uses_bearer_header():

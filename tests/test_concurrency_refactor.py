@@ -141,6 +141,7 @@ async def test_candidate_refresh_uses_single_alter_table():
     assert len(create_index_statements) == 0
     # Fulltext is included in the single ALTER.
     assert "FULLTEXT" in alter_statements[0].upper()
+    assert "idx_movie_candidates_bucket_filter" in alter_statements[0]
 
 
 # ---------------------------------------------------------------------------

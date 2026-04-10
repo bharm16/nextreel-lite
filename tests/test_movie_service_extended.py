@@ -70,6 +70,26 @@ class TestNextMovie:
         assert result is None
         mm._navigator.next_movie.assert_not_awaited()
 
+    @pytest.mark.asyncio
+    @patch.dict(os.environ, TEST_ENV)
+    async def test_waits_for_inflight_home_prewarm_and_reloads_state(self):
+        mm = MovieManager(db_config=None)
+        mm._navigator = AsyncMock()
+        mm._navigator.next_movie = AsyncMock(return_value=NavigationOutcome(tconst="tt1234567"))
+        mm._home_prewarm_service = AsyncMock()
+        mm._home_prewarm_service.wait_for_session = AsyncMock(return_value=True)
+
+        state = _state()
+        result = await mm.next_movie(state)
+
+        assert result == NavigationOutcome(tconst="tt1234567")
+        mm._home_prewarm_service.wait_for_session.assert_awaited_once_with("state-1")
+        mm._navigator.next_movie.assert_awaited_once_with(
+            "state-1",
+            legacy_session=None,
+            current_state=None,
+        )
+
 
 class TestPreviousMovie:
     @pytest.mark.asyncio

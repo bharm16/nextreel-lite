@@ -51,6 +51,7 @@ class MoviePayloadFormatter:
 
         return {
             "title": full_data.get("title", "N/A"),
+            "tconst": tconst,
             "imdb_id": tconst,
             "tmdb_id": tmdb_id,
             "slug": slug,

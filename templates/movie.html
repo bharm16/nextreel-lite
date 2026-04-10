@@ -15,8 +15,8 @@
     
     <!-- Compiled Tailwind CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/output.css') }}?v={{ config.get('CSS_VERSION', '1') }}">
-    {% if movie and movie.poster_url %}
-    <link rel="preload" as="image" href="{{ movie.poster_url }}" fetchpriority="high" imagesizes="(min-width: 768px) 340px, 60vw">
+    {% if preload_image_url %}
+    <link rel="preload" as="image" href="{{ preload_image_url }}" fetchpriority="high"{% if preload_image_srcset %} imagesrcset="{{ preload_image_srcset }}"{% endif %}{% if hero_image_sizes %} imagesizes="{{ hero_image_sizes }}"{% endif %}>
     {% endif %}
     <script>
       (() => {

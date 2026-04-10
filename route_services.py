@@ -39,6 +39,9 @@ class MovieDetailService:
         )
         if not movie:
             return None
+        movie = dict(movie)
+        if not movie.get("tconst"):
+            movie["tconst"] = movie.get("imdb_id") or tconst
 
         return MovieDetailViewModel(
             movie=movie,
