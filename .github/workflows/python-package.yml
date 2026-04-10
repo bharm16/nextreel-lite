@@ -96,4 +96,4 @@ jobs:
         FLASK_ENV: testing
         RUN_SPIKE: '1'
       run: |
-        pytest tests/test_spike_resilience.py --ignore=venv --ignore=node_modules
+        pytest tests/integration/test_spike_resilience.py --ignore=venv --ignore=node_modules
