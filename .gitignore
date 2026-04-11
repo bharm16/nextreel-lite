@@ -32,6 +32,9 @@ htmlcov
 .idea
 .DS_Store
 
+# Local agent scratch files
+.superpowers/
+
 # Environment files with secrets
 .env
 .env.local
