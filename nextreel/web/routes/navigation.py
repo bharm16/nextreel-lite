@@ -22,6 +22,7 @@ from nextreel.web.routes.shared import (
     bp,
     logger,
 )
+from session.user_preferences import set_exclude_watched_default
 
 
 @bp.route("/next_movie", methods=["POST"])
@@ -146,6 +147,13 @@ async def filtered_movie_endpoint():
             status_code=400,
         )
 
+    if state.user_id:
+        await set_exclude_watched_default(
+            movie_manager.db_pool,
+            state.user_id,
+            bool(filters["exclude_watched"]),
+        )
+
     outcome = await movie_manager.apply_filters(
         state,
         filters,
@@ -161,16 +169,19 @@ async def filtered_movie_endpoint():
     if outcome is not None:
         if wants_json:
             if outcome.tconst:
-                return jsonify({
-                    "ok": True,
-                    "redirect": url_for("main.movie_detail", tconst=outcome.tconst),
-                })
+                return jsonify(
+                    {
+                        "ok": True,
+                        "redirect": url_for("main.movie_detail", tconst=outcome.tconst),
+                    }
+                )
             return _no_matches_response()
         return await _redirect_for_navigation_outcome(outcome)
     if wants_json:
         return _no_matches_response()
     await flash("No movies matched your filters. Try broadening your criteria.", "warning")
     return redirect(url_for("main.set_filters"))
+
 
 __all__ = [
     "filtered_movie_endpoint",
