@@ -74,21 +74,22 @@ class MovieNavigator:
             return ref
         return {"tconst": state.current_tconst, "title": None, "slug": None}
 
-    async def _refill_queue(self, state, desired_size: int) -> None:
+    async def _refill_queue(
+        self,
+        state,
+        desired_size: int,
+        *,
+        watched_exclusion: set[str] | None = None,
+    ) -> None:
         missing = max(0, desired_size - len(state.queue))
         if missing <= 0:
             return
 
         excluded = self._excluded_tconsts(state)
 
-        # Merge watched movies into excluded set if user is logged in and filter is on
-        if (
-            self.watched_store
-            and getattr(state, "user_id", None)
-            and state.filters.get("exclude_watched", True)
-        ):
-            watched = await self.watched_store.watched_tconsts(state.user_id)
-            excluded |= watched
+        if watched_exclusion is None:
+            watched_exclusion = await self._watched_exclusion_set(state)
+        excluded |= watched_exclusion
 
         refs = await self.candidate_store.fetch_candidate_refs(
             state.filters,
@@ -98,6 +99,30 @@ class MovieNavigator:
         if refs:
             state.queue.extend(refs)
             state.queue = state.queue[:QUEUE_TARGET]
+
+    async def _watched_exclusion_set(self, state) -> set[str]:
+        if (
+            not self.watched_store
+            or not getattr(state, "user_id", None)
+            or not state.filters.get("exclude_watched", True)
+        ):
+            return set()
+        return set(await self.watched_store.watched_tconsts(state.user_id))
+
+    async def _pop_next_queue_ref(
+        self,
+        state,
+        watched_exclusion: set[str] | None = None,
+    ) -> dict | None:
+        if watched_exclusion is None:
+            watched_exclusion = await self._watched_exclusion_set(state)
+        while state.queue:
+            next_ref = state.queue.pop(0)
+            tconst = next_ref.get("tconst")
+            if tconst and tconst in watched_exclusion:
+                continue
+            return next_ref
+        return None
 
     def _mark_seen(self, state, tconst: str | None) -> None:
         if not tconst or tconst in state.seen:
@@ -134,14 +159,27 @@ class MovieNavigator:
         async def mutate(state):
             prefilled_empty_queue = False
             next_ref = None
+            watched_exclusion = None
             if state.future:
                 next_ref = state.future.pop()
             else:
+                watched_exclusion = await self._watched_exclusion_set(state)
                 if not state.queue:
-                    await self._refill_queue(state, QUEUE_TARGET)
+                    await self._refill_queue(
+                        state,
+                        QUEUE_TARGET,
+                        watched_exclusion=watched_exclusion,
+                    )
                     prefilled_empty_queue = True
                 if state.queue:
-                    next_ref = state.queue.pop(0)
+                    next_ref = await self._pop_next_queue_ref(state, watched_exclusion)
+                if not next_ref and not prefilled_empty_queue:
+                    await self._refill_queue(
+                        state,
+                        QUEUE_TARGET,
+                        watched_exclusion=watched_exclusion,
+                    )
+                    next_ref = await self._pop_next_queue_ref(state, watched_exclusion)
 
             if not next_ref or not next_ref.get("tconst"):
                 return None
@@ -155,7 +193,11 @@ class MovieNavigator:
             self._mark_seen(state, state.current_tconst)
 
             if not prefilled_empty_queue and len(state.queue) < QUEUE_REFILL_THRESHOLD:
-                await self._refill_queue(state, QUEUE_TARGET)
+                await self._refill_queue(
+                    state,
+                    QUEUE_TARGET,
+                    watched_exclusion=watched_exclusion,
+                )
 
             return state.current_tconst
 

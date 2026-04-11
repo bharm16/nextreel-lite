@@ -11,13 +11,13 @@ from movie_navigator import MovieNavigator, NavigationOutcome, _movie_ref
 from routes import bp
 
 
-def _state() -> NavigationState:
+def _state(*, user_id: str | None = None, exclude_watched: bool = True) -> NavigationState:
     now = utcnow()
     return NavigationState(
         session_id="state-1",
         version=1,
         csrf_token="csrf",
-        filters=default_filter_state(),
+        filters={**default_filter_state(), "exclude_watched": exclude_watched},
         current_tconst=None,
         current_ref=None,
         queue=[],
@@ -27,6 +27,7 @@ def _state() -> NavigationState:
         created_at=now,
         last_activity_at=now,
         expires_at=now,
+        user_id=user_id,
     )
 
 
@@ -60,6 +61,16 @@ class NavigationStoreStub:
             result = await result
         self.state = working
         return MutationResult(state=self.state, result=result, conflicted=False)
+
+
+class WatchedStoreStub:
+    def __init__(self, watched):
+        self.watched = set(watched)
+        self.calls = []
+
+    async def watched_tconsts(self, user_id):
+        self.calls.append(user_id)
+        return set(self.watched)
 
 
 @pytest.fixture
@@ -167,6 +178,67 @@ async def test_next_movie_only_refills_once_when_queue_starts_empty(nav_app):
 
     assert outcome == NavigationOutcome(tconst="tt1")
     assert len(candidates.fetch_candidate_refs_calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_next_movie_skips_watched_refs_already_in_queue(nav_app):
+    state = _state(user_id="user-1", exclude_watched=True)
+    state.queue = [
+        {"tconst": "tt1", "title": "One", "slug": "one"},
+        {"tconst": "tt2", "title": "Two", "slug": "two"},
+    ]
+    store = NavigationStoreStub(state)
+    candidates = CandidateStoreStub()
+    watched_store = WatchedStoreStub({"tt1"})
+    navigator = MovieNavigator(candidates, store, watched_store=watched_store)
+
+    async with nav_app.app_context():
+        async with nav_app.test_request_context("/"):
+            outcome = await navigator.next_movie("state-1")
+
+    assert outcome == NavigationOutcome(tconst="tt2")
+    assert store.state.current_tconst == "tt2"
+    assert store.state.queue == []
+    assert watched_store.calls == ["user-1"]
+
+
+@pytest.mark.asyncio
+async def test_next_movie_refills_when_all_prefetched_refs_are_now_watched(nav_app):
+    state = _state(user_id="user-1", exclude_watched=True)
+    state.queue = [{"tconst": "tt1", "title": "One", "slug": "one"}]
+    store = NavigationStoreStub(state)
+    candidates = CandidateStoreStub(
+        refs=[{"tconst": "tt2", "title": "Two", "slug": "two"}],
+    )
+    watched_store = WatchedStoreStub({"tt1"})
+    navigator = MovieNavigator(candidates, store, watched_store=watched_store)
+
+    async with nav_app.app_context():
+        async with nav_app.test_request_context("/"):
+            outcome = await navigator.next_movie("state-1")
+
+    assert outcome == NavigationOutcome(tconst="tt2")
+    assert store.state.current_tconst == "tt2"
+    assert watched_store.calls
+    assert candidates.fetch_candidate_refs_calls
+
+
+@pytest.mark.asyncio
+async def test_next_movie_does_not_skip_queued_watched_when_exclude_watched_off(nav_app):
+    state = _state(user_id="user-1", exclude_watched=False)
+    state.queue = [{"tconst": "tt1", "title": "One", "slug": "one"}]
+    store = NavigationStoreStub(state)
+    candidates = CandidateStoreStub()
+    watched_store = WatchedStoreStub({"tt1"})
+    navigator = MovieNavigator(candidates, store, watched_store=watched_store)
+
+    async with nav_app.app_context():
+        async with nav_app.test_request_context("/"):
+            outcome = await navigator.next_movie("state-1")
+
+    assert outcome == NavigationOutcome(tconst="tt1")
+    assert store.state.current_tconst == "tt1"
+    assert watched_store.calls == []
 
 
 @pytest.mark.asyncio
