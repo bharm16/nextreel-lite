@@ -184,7 +184,9 @@ async def test_ensure_runtime_schema_runs_additive_repairs_without_blocking_full
         "infra.runtime_schema.ensure_movie_candidates_bucket_filter_index", AsyncMock()
     ) as ensure_bucket_filter_idx, patch(
         "infra.runtime_schema.ensure_popular_movies_cache_composite_index", AsyncMock()
-    ) as ensure_cache_composite_idx:
+    ) as ensure_cache_composite_idx, patch(
+        "infra.runtime_schema.ensure_users_exclude_watched_default_column", AsyncMock()
+    ) as ensure_users_exclude:
         await ensure_runtime_schema(mock_db_pool)
 
     assert mock_db_pool.execute.await_count == len(_RUNTIME_SCHEMA_STATEMENTS)
@@ -195,6 +197,7 @@ async def test_ensure_runtime_schema_runs_additive_repairs_without_blocking_full
     ensure_shuffle_idx.assert_awaited_once_with(mock_db_pool)
     ensure_bucket_filter_idx.assert_awaited_once_with(mock_db_pool)
     ensure_cache_composite_idx.assert_awaited_once_with(mock_db_pool)
+    ensure_users_exclude.assert_awaited_once_with(mock_db_pool)
     ensure_fulltext.assert_not_called()
 
 
