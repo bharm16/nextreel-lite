@@ -103,6 +103,19 @@ async def test_register_user_with_display_name(mock_db_pool):
     assert params[3] == "Alice"  # display_name param
 
 
+@pytest.mark.asyncio
+async def test_register_user_sets_exclude_watched_default_true(mock_db_pool):
+    mock_db_pool.execute.return_value = None
+
+    await register_user(mock_db_pool, "user@example.com", "password123")
+
+    insert_call = mock_db_pool.execute.call_args
+    query = insert_call[0][0]
+    params = insert_call[0][1]
+    assert "exclude_watched_default" in query
+    assert params[5] is True
+
+
 # ---------------------------------------------------------------------------
 # authenticate_user
 # ---------------------------------------------------------------------------
@@ -219,6 +232,24 @@ async def test_find_or_create_oauth_user_new(mock_db_pool):
     assert params[3] == "github"  # provider
     assert params[4] == "github-sub-456"  # oauth_sub
     assert insert_call[1]["fetch"] == "none"
+
+
+@pytest.mark.asyncio
+async def test_find_or_create_oauth_user_sets_exclude_watched_default_true(mock_db_pool):
+    mock_db_pool.execute.side_effect = [None, None]
+
+    await find_or_create_oauth_user(
+        mock_db_pool,
+        provider="google",
+        oauth_sub="sub-123",
+        email="user@example.com",
+    )
+
+    insert_call = mock_db_pool.execute.call_args_list[1]
+    query = insert_call[0][0]
+    params = insert_call[0][1]
+    assert "exclude_watched_default" in query
+    assert params[5] is True
 
 
 @pytest.mark.asyncio

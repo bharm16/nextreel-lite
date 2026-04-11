@@ -116,10 +116,10 @@ async def register_user(
         await db_pool.execute(
             """
             INSERT INTO users (user_id, email, password_hash, display_name,
-                               auth_provider, created_at, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+                               auth_provider, exclude_watched_default, created_at, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             """,
-            [user_id, email.lower().strip(), password_hash, display_name, "email", now, now],
+            [user_id, email.lower().strip(), password_hash, display_name, "email", True, now, now],
             fetch="none",
         )
     except pymysql.err.IntegrityError as exc:
@@ -182,10 +182,10 @@ async def find_or_create_oauth_user(
     await db_pool.execute(
         """
         INSERT INTO users (user_id, email, password_hash, display_name,
-                           auth_provider, oauth_sub, created_at, updated_at)
-        VALUES (%s, %s, NULL, %s, %s, %s, %s, %s)
+                           auth_provider, oauth_sub, exclude_watched_default, created_at, updated_at)
+        VALUES (%s, %s, NULL, %s, %s, %s, %s, %s, %s)
         """,
-        [user_id, email.lower().strip(), display_name, provider, oauth_sub, now, now],
+        [user_id, email.lower().strip(), display_name, provider, oauth_sub, True, now, now],
         fetch="none",
     )
     logger.info("Created OAuth user %s via %s", user_id, provider)
