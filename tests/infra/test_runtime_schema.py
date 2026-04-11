@@ -168,25 +168,35 @@ async def test_ensure_movie_candidates_refreshed_at_index_adds_when_missing(mock
 async def test_ensure_runtime_schema_runs_additive_repairs_without_blocking_fulltext(mock_db_pool):
     mock_db_pool.execute = AsyncMock()
 
-    with patch(
-        "infra.runtime_schema.ensure_user_navigation_current_ref_column", AsyncMock()
-    ) as ensure_current_ref, patch(
-        "infra.runtime_schema.ensure_movie_candidates_shuffle_key", AsyncMock()
-    ) as ensure_shuffle, patch(
-        "infra.runtime_schema.ensure_movie_candidates_refreshed_at_index", AsyncMock()
-    ) as ensure_refresh, patch(
-        "infra.runtime_schema.ensure_user_navigation_user_id_column", AsyncMock()
-    ) as ensure_user_id, patch(
-        "infra.runtime_schema.ensure_movie_candidates_fulltext_index", AsyncMock()
-    ) as ensure_fulltext, patch(
-        "infra.runtime_schema.ensure_movie_candidates_shuffle_key_index", AsyncMock()
-    ) as ensure_shuffle_idx, patch(
-        "infra.runtime_schema.ensure_movie_candidates_bucket_filter_index", AsyncMock()
-    ) as ensure_bucket_filter_idx, patch(
-        "infra.runtime_schema.ensure_popular_movies_cache_composite_index", AsyncMock()
-    ) as ensure_cache_composite_idx, patch(
-        "infra.runtime_schema.ensure_users_exclude_watched_default_column", AsyncMock()
-    ) as ensure_users_exclude:
+    with (
+        patch(
+            "infra.runtime_schema.ensure_user_navigation_current_ref_column", AsyncMock()
+        ) as ensure_current_ref,
+        patch(
+            "infra.runtime_schema.ensure_movie_candidates_shuffle_key", AsyncMock()
+        ) as ensure_shuffle,
+        patch(
+            "infra.runtime_schema.ensure_movie_candidates_refreshed_at_index", AsyncMock()
+        ) as ensure_refresh,
+        patch(
+            "infra.runtime_schema.ensure_user_navigation_user_id_column", AsyncMock()
+        ) as ensure_user_id,
+        patch(
+            "infra.runtime_schema.ensure_movie_candidates_fulltext_index", AsyncMock()
+        ) as ensure_fulltext,
+        patch(
+            "infra.runtime_schema.ensure_movie_candidates_shuffle_key_index", AsyncMock()
+        ) as ensure_shuffle_idx,
+        patch(
+            "infra.runtime_schema.ensure_movie_candidates_bucket_filter_index", AsyncMock()
+        ) as ensure_bucket_filter_idx,
+        patch(
+            "infra.runtime_schema.ensure_popular_movies_cache_composite_index", AsyncMock()
+        ) as ensure_cache_composite_idx,
+        patch(
+            "infra.runtime_schema.ensure_users_exclude_watched_default_column", AsyncMock()
+        ) as ensure_users_exclude,
+    ):
         await ensure_runtime_schema(mock_db_pool)
 
     assert mock_db_pool.execute.await_count == len(_RUNTIME_SCHEMA_STATEMENTS)
@@ -250,9 +260,7 @@ async def test_ensure_runtime_schema_creates_users_table(mock_db_pool):
 async def test_ensure_runtime_schema_creates_users_table_with_exclude_watched_default(
     mock_db_pool,
 ):
-    users_sql = [
-        s for s in _RUNTIME_SCHEMA_STATEMENTS if "CREATE TABLE IF NOT EXISTS users" in s
-    ]
+    users_sql = [s for s in _RUNTIME_SCHEMA_STATEMENTS if "CREATE TABLE IF NOT EXISTS users" in s]
     assert len(users_sql) == 1
     assert "exclude_watched_default" in users_sql[0]
     assert "DEFAULT TRUE" in users_sql[0].upper()
@@ -299,9 +307,7 @@ async def test_ensure_popular_movies_cache_composite_index_skips_when_index_pres
     mock_db_pool.execute.return_value = {"present": 1}
     # CREATE INDEX raises duplicate-key via DDL cursor.
     mock_db_pool._ddl_cursor.execute = AsyncMock(
-        side_effect=pymysql.err.OperationalError(
-            1061, "Duplicate key name 'idx_cache_filter_rand'"
-        )
+        side_effect=pymysql.err.OperationalError(1061, "Duplicate key name 'idx_cache_filter_rand'")
     )
 
     from infra.runtime_schema import ensure_popular_movies_cache_composite_index
