@@ -28,6 +28,7 @@ from nextreel.web.route_services import (
     WatchedListPresenter,
     WatchedMutationService,
 )
+from session import user_preferences
 
 if TYPE_CHECKING:
     from infra.metrics import MetricsCollector
@@ -62,7 +63,7 @@ def _tmdb_image_path(image_url: str | None) -> str | None:
     if not image_url.startswith(_TMDB_IMAGE_PREFIX):
         return None
 
-    remainder = image_url[len(_TMDB_IMAGE_PREFIX):]
+    remainder = image_url[len(_TMDB_IMAGE_PREFIX) :]
     if "/" not in remainder:
         return None
     _size, path = remainder.split("/", 1)
@@ -82,11 +83,7 @@ def _movie_image_context(movie: dict) -> dict[str, str | None]:
     backdrop_url = movie.get("backdrop_url")
     poster_url = movie.get("poster_url") or "/static/img/poster-placeholder.svg"
 
-    hero_image_url = (
-        _tmdb_sized_image_url(backdrop_url, size="w780")
-        or backdrop_url
-        or poster_url
-    )
+    hero_image_url = _tmdb_sized_image_url(backdrop_url, size="w780") or backdrop_url or poster_url
     hero_path = _tmdb_image_path(backdrop_url)
     hero_image_srcset = None
     hero_image_sizes = None
@@ -108,10 +105,12 @@ def _movie_image_context(movie: dict) -> dict[str, str | None]:
 
 def _no_matches_response():
     """JSON 'no movies matched' response shared by /filtered_movie branches."""
-    return jsonify({
-        "ok": False,
-        "errors": {"form": "No movies matched your filters. Try broadening your criteria."},
-    })
+    return jsonify(
+        {
+            "ok": False,
+            "errors": {"form": "No movies matched your filters. Try broadening your criteria."},
+        }
+    )
 
 
 def _wants_json_response() -> bool:
@@ -203,6 +202,24 @@ def _require_login():
     return None
 
 
+async def _attach_user_to_current_session(user_id: str):
+    state = _current_state()
+    services = _services()
+    exclude_watched = await user_preferences.get_exclude_watched_default(
+        services.movie_manager.db_pool,
+        user_id,
+    )
+    updated_state = await current_app.navigation_state_store.bind_user(
+        state,
+        user_id,
+        exclude_watched=exclude_watched,
+    )
+    if updated_state is None:
+        abort(409, description="Could not bind authenticated user to navigation state")
+    g.navigation_state = updated_state
+    return updated_state
+
+
 async def _render_filters_page(
     current_filters,
     *,
@@ -226,6 +243,7 @@ __all__ = [
     "NextReelServices",
     "_REQUEST_TIMEOUT",
     "_TCONST_RE",
+    "_attach_user_to_current_session",
     "_current_state",
     "_current_user_id",
     "_get_csrf_token",

@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from quart import g, session
+from werkzeug.exceptions import Conflict
 
 import routes
 from session.keys import SESSION_OAUTH_STATE_KEY
@@ -31,6 +32,7 @@ def _make_auth_app(extra_env: dict[str, str] | None = None):
         app.config["TESTING"] = True
         app.navigation_state_store = AsyncMock()
         app.navigation_state_store.set_user_id = AsyncMock()
+        app.navigation_state_store.bind_user = AsyncMock()
         yield app, manager
 
 
@@ -106,12 +108,14 @@ class TestRegisterRoute:
     @pytest.mark.asyncio
     async def test_register_duplicate_email_precheck_preserves_response(self):
         with _make_auth_app() as (app, _manager):
-            with patch(
-                "session.user_auth.get_user_by_email",
-                AsyncMock(return_value={"user_id": "existing-user"}),
-            ), patch("session.user_auth.hash_password_async", AsyncMock(return_value="hash")), patch(
-                "session.user_auth.register_user", AsyncMock()
-            ) as register_user:
+            with (
+                patch(
+                    "session.user_auth.get_user_by_email",
+                    AsyncMock(return_value={"user_id": "existing-user"}),
+                ),
+                patch("session.user_auth.hash_password_async", AsyncMock(return_value="hash")),
+                patch("session.user_auth.register_user", AsyncMock()) as register_user,
+            ):
                 async with app.test_request_context(
                     "/register",
                     method="POST",
@@ -136,12 +140,16 @@ class TestRegisterRoute:
         with _make_auth_app() as (app, _manager):
             from session.user_auth import DuplicateUserError
 
-            with patch(
-                "session.user_auth.get_user_by_email",
-                AsyncMock(return_value=None),
-            ), patch("session.user_auth.hash_password_async", AsyncMock(return_value="hash")), patch(
-                "session.user_auth.register_user",
-                AsyncMock(side_effect=DuplicateUserError("person@example.com")),
+            with (
+                patch(
+                    "session.user_auth.get_user_by_email",
+                    AsyncMock(return_value=None),
+                ),
+                patch("session.user_auth.hash_password_async", AsyncMock(return_value="hash")),
+                patch(
+                    "session.user_auth.register_user",
+                    AsyncMock(side_effect=DuplicateUserError("person@example.com")),
+                ),
             ):
                 async with app.test_request_context(
                     "/register",
@@ -164,11 +172,20 @@ class TestRegisterRoute:
     @pytest.mark.asyncio
     async def test_register_success_binds_session_and_redirects_home(self):
         with _make_auth_app() as (app, _manager):
-            with patch(
-                "session.user_auth.get_user_by_email",
-                AsyncMock(return_value=None),
-            ), patch("session.user_auth.hash_password_async", AsyncMock(return_value="hash")), patch(
-                "session.user_auth.register_user", AsyncMock(return_value="user-123")
+            bound_state = _nav_state(user_id="user-123")
+            bound_state.filters = {"exclude_watched": False}
+            app.navigation_state_store.bind_user.return_value = bound_state
+            with (
+                patch(
+                    "session.user_auth.get_user_by_email",
+                    AsyncMock(return_value=None),
+                ),
+                patch("session.user_auth.hash_password_async", AsyncMock(return_value="hash")),
+                patch("session.user_auth.register_user", AsyncMock(return_value="user-123")),
+                patch(
+                    "session.user_preferences.get_exclude_watched_default",
+                    AsyncMock(return_value=False),
+                ) as get_exclude_watched_default,
             ):
                 async with app.test_request_context(
                     "/register",
@@ -181,15 +198,25 @@ class TestRegisterRoute:
                     },
                     headers={"X-CSRFToken": "test-csrf-token"},
                 ):
-                    g.navigation_state = _nav_state()
+                    initial_state = _nav_state()
+                    g.navigation_state = initial_state
 
                     response = await routes.register_submit()
+                    attached_state = g.navigation_state
 
         assert response.status_code == 303
         assert response.location.endswith("/")
-        app.navigation_state_store.set_user_id.assert_awaited_once_with(
-            "test-session-id", "user-123"
+        get_exclude_watched_default.assert_awaited_once_with(
+            _manager.db_pool,
+            "user-123",
         )
+        app.navigation_state_store.bind_user.assert_awaited_once_with(
+            initial_state,
+            "user-123",
+            exclude_watched=False,
+        )
+        app.navigation_state_store.set_user_id.assert_not_awaited()
+        assert attached_state is bound_state
 
     @pytest.mark.asyncio
     async def test_register_missing_bcrypt_returns_service_unavailable(self):
@@ -215,6 +242,85 @@ class TestRegisterRoute:
 
 
 class TestLoginRoute:
+    @pytest.mark.asyncio
+    async def test_login_success_loads_preference_and_binds_session(self):
+        with _make_auth_app() as (app, _manager):
+            bound_state = _nav_state(user_id="user-123")
+            bound_state.filters = {"exclude_watched": True}
+            app.navigation_state_store.bind_user.return_value = bound_state
+            with (
+                patch(
+                    "session.user_auth.authenticate_user",
+                    AsyncMock(return_value="user-123"),
+                ),
+                patch(
+                    "session.user_preferences.get_exclude_watched_default",
+                    AsyncMock(return_value=True),
+                ) as get_exclude_watched_default,
+            ):
+                async with app.test_request_context(
+                    "/login",
+                    method="POST",
+                    form={
+                        "email": "person@example.com",
+                        "password": "password123",
+                    },
+                    headers={"X-CSRFToken": "test-csrf-token"},
+                ):
+                    initial_state = _nav_state()
+                    g.navigation_state = initial_state
+
+                    response = await routes.login_submit()
+                    attached_state = g.navigation_state
+
+        assert response.status_code == 303
+        assert response.location.endswith("/")
+        get_exclude_watched_default.assert_awaited_once_with(
+            _manager.db_pool,
+            "user-123",
+        )
+        app.navigation_state_store.bind_user.assert_awaited_once_with(
+            initial_state,
+            "user-123",
+            exclude_watched=True,
+        )
+        app.navigation_state_store.set_user_id.assert_not_awaited()
+        assert attached_state is bound_state
+
+    @pytest.mark.asyncio
+    async def test_login_bind_conflict_returns_409(self):
+        with _make_auth_app() as (app, _manager):
+            app.navigation_state_store.bind_user.return_value = None
+            with (
+                patch(
+                    "session.user_auth.authenticate_user",
+                    AsyncMock(return_value="user-123"),
+                ),
+                patch(
+                    "session.user_preferences.get_exclude_watched_default",
+                    AsyncMock(return_value=True),
+                ),
+            ):
+                async with app.test_request_context(
+                    "/login",
+                    method="POST",
+                    form={
+                        "email": "person@example.com",
+                        "password": "password123",
+                    },
+                    headers={"X-CSRFToken": "test-csrf-token"},
+                ):
+                    g.navigation_state = _nav_state()
+
+                    with pytest.raises(Conflict) as exc_info:
+                        await routes.login_submit()
+
+        assert exc_info.value.code == 409
+        assert exc_info.value.description == (
+            "Could not bind authenticated user to navigation state"
+        )
+        app.navigation_state_store.set_user_id.assert_not_awaited()
+
     @pytest.mark.asyncio
     async def test_login_missing_bcrypt_returns_service_unavailable(self):
         with _make_auth_app() as (app, _manager):
@@ -284,25 +390,28 @@ class TestGoogleOAuthCallback:
                 "GOOGLE_CLIENT_SECRET": "google-secret",
             }
         ) as (app, _manager):
-            with patch(
-                "auth_flows.httpx.AsyncClient",
-                return_value=_FakeAsyncClient(
-                    post_response=token_response,
-                    get_response=userinfo_response,
+            with (
+                patch(
+                    "auth_flows.httpx.AsyncClient",
+                    return_value=_FakeAsyncClient(
+                        post_response=token_response,
+                        get_response=userinfo_response,
+                    ),
                 ),
-            ), patch(
-                "session.user_auth.get_user_by_email",
-                AsyncMock(
-                    return_value={
-                        "user_id": "existing-user",
-                        "auth_provider": "email",
-                    }
+                patch(
+                    "session.user_auth.get_user_by_email",
+                    AsyncMock(
+                        return_value={
+                            "user_id": "existing-user",
+                            "auth_provider": "email",
+                        }
+                    ),
                 ),
-            ), patch(
-                "session.user_auth.find_or_create_oauth_user", AsyncMock()
-            ) as create_oauth_user, patch(
-                "nextreel.web.routes.auth.flash", AsyncMock()
-            ) as flash_mock:
+                patch(
+                    "session.user_auth.find_or_create_oauth_user", AsyncMock()
+                ) as create_oauth_user,
+                patch("nextreel.web.routes.auth.flash", AsyncMock()) as flash_mock,
+            ):
                 async with app.test_request_context(
                     "/auth/google/callback?state=expected&code=abc",
                     method="GET",
@@ -338,32 +447,52 @@ class TestGoogleOAuthCallback:
                 "GOOGLE_CLIENT_SECRET": "google-secret",
             }
         ) as (app, _manager):
-            with patch(
-                "auth_flows.httpx.AsyncClient",
-                return_value=_FakeAsyncClient(
-                    post_response=token_response,
-                    get_response=userinfo_response,
+            bound_state = _nav_state(user_id="oauth-user-123")
+            bound_state.filters = {"exclude_watched": False}
+            app.navigation_state_store.bind_user.return_value = bound_state
+            with (
+                patch(
+                    "auth_flows.httpx.AsyncClient",
+                    return_value=_FakeAsyncClient(
+                        post_response=token_response,
+                        get_response=userinfo_response,
+                    ),
                 ),
-            ), patch(
-                "session.user_auth.get_user_by_email",
-                AsyncMock(return_value=None),
-            ), patch(
-                "session.user_auth.find_or_create_oauth_user",
-                AsyncMock(return_value="oauth-user-123"),
-            ) as create_oauth_user:
+                patch(
+                    "session.user_auth.get_user_by_email",
+                    AsyncMock(return_value=None),
+                ),
+                patch(
+                    "session.user_auth.find_or_create_oauth_user",
+                    AsyncMock(return_value="oauth-user-123"),
+                ) as create_oauth_user,
+                patch(
+                    "session.user_preferences.get_exclude_watched_default",
+                    AsyncMock(return_value=False),
+                ) as get_exclude_watched_default,
+            ):
                 async with app.test_request_context(
                     "/auth/google/callback?state=expected&code=abc",
                     method="GET",
                 ):
-                    g.navigation_state = _nav_state()
+                    initial_state = _nav_state()
+                    g.navigation_state = initial_state
                     session[SESSION_OAUTH_STATE_KEY] = "expected"
 
                     response = await routes.auth_google_callback()
+                    attached_state = g.navigation_state
 
         assert response.status_code == 303
         assert response.location.endswith("/")
         create_oauth_user.assert_awaited_once()
-        app.navigation_state_store.set_user_id.assert_awaited_once_with(
-            "test-session-id",
+        get_exclude_watched_default.assert_awaited_once_with(
+            _manager.db_pool,
             "oauth-user-123",
         )
+        app.navigation_state_store.bind_user.assert_awaited_once_with(
+            initial_state,
+            "oauth-user-123",
+            exclude_watched=False,
+        )
+        app.navigation_state_store.set_user_id.assert_not_awaited()
+        assert attached_state is bound_state

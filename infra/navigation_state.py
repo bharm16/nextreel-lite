@@ -110,9 +110,7 @@ class NavigationState:
     # first serialization, reset to None by ``clone()`` so derived states do
     # not inherit a stale cache. Excluded from repr/eq so it cannot leak into
     # equality comparisons or logs.
-    _serialized_cache: dict[str, Any] | None = field(
-        default=None, repr=False, compare=False
-    )
+    _serialized_cache: dict[str, Any] | None = field(default=None, repr=False, compare=False)
 
     def clone(self) -> "NavigationState":
         # Shallow clone: filter values are immutable scalars/lists; queue/prev/future
@@ -281,6 +279,7 @@ class NavigationStateRepository:
         current_ref = self.normalize_current_ref(state)
         serialized = {
             "csrf_token": state.csrf_token,
+            "user_id": state.user_id,
             "filters_json": json.dumps(state.filters),
             "current_tconst": state.current_tconst,
             "current_ref_json": json.dumps(current_ref) if current_ref else None,
@@ -361,6 +360,7 @@ class NavigationStateRepository:
         params: list[Any] = [next_version]
         for field in (
             "csrf_token",
+            "user_id",
             "filters_json",
             "current_tconst",
             "current_ref_json",
@@ -572,7 +572,7 @@ class NavigationStateService:
             navigation_state_conflicts_total.inc()
             current_state = None
             if attempt < max_attempts - 1:
-                base_backoff_ms = 10 * (2 ** attempt)
+                base_backoff_ms = 10 * (2**attempt)
                 backoff_ms = random.randint(0, base_backoff_ms)
                 await asyncio.sleep(backoff_ms / 1000.0)
 
@@ -580,6 +580,28 @@ class NavigationStateService:
 
     async def set_user_id(self, session_id: str, user_id: str | None) -> None:
         await self.repository.set_user_id(session_id, user_id)
+
+    async def bind_user(
+        self,
+        state: NavigationState,
+        user_id: str,
+        *,
+        exclude_watched: bool,
+    ) -> NavigationState | None:
+        def mutator(working: NavigationState) -> NavigationState:
+            working.user_id = user_id
+            working.filters = dict(working.filters)
+            working.filters["exclude_watched"] = exclude_watched
+            return working
+
+        result = await self.mutate(
+            state.session_id,
+            mutator,
+            current_state=state,
+        )
+        if result.conflicted:
+            return None
+        return result.state
 
     async def delete_state(
         self,
@@ -697,6 +719,19 @@ class NavigationStateStore:
 
     async def set_user_id(self, session_id: str, user_id: str | None) -> None:
         await self.service.set_user_id(session_id, user_id)
+
+    async def bind_user(
+        self,
+        state: NavigationState,
+        user_id: str,
+        *,
+        exclude_watched: bool,
+    ) -> NavigationState | None:
+        return await self.service.bind_user(
+            state,
+            user_id,
+            exclude_watched=exclude_watched,
+        )
 
     async def delete_state(
         self, session_id: str, legacy_session: MutableMapping[str, Any] | None = None

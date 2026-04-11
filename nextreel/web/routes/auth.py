@@ -9,6 +9,7 @@ from quart import abort, current_app, flash, g, redirect, render_template, reque
 
 from infra.route_helpers import csrf_required, rate_limited
 from nextreel.web.routes.shared import (
+    _attach_user_to_current_session,
     _current_state,
     _current_user_id,
     _get_csrf_token,
@@ -79,9 +80,7 @@ async def login_submit():
             401,
         )
 
-    state = _current_state()
-    await current_app.navigation_state_store.set_user_id(state.session_id, user_id)
-    state.user_id = user_id
+    state = await _attach_user_to_current_session(user_id)
     logger.info("User %s logged in, session %s", user_id, state.session_id)
     return redirect(url_for("main.home"), code=303)
 
@@ -117,10 +116,8 @@ async def register_submit():
         status_code = 503 if outcome.kind == "service_unavailable" else 400
         return await render_template("register.html", errors=outcome.errors), status_code
 
-    state = _current_state()
     user_id = outcome.user_id
-    await current_app.navigation_state_store.set_user_id(state.session_id, user_id)
-    state.user_id = user_id
+    state = await _attach_user_to_current_session(user_id)
     logger.info("User %s registered, session %s", user_id, state.session_id)
     return redirect(url_for("main.home"), code=303)
 
@@ -169,7 +166,9 @@ async def auth_google_callback():
         db_pool=services.movie_manager.db_pool,
     )
     if outcome.kind == "failure":
-        if expected_state and not _hmac.compare_digest(expected_state, request.args.get("state", "")):
+        if expected_state and not _hmac.compare_digest(
+            expected_state, request.args.get("state", "")
+        ):
             logger.warning("OAuth state mismatch — possible CSRF attempt")
         await flash(outcome.error_message, "error")
         return redirect(url_for("main.login_page"))
@@ -177,10 +176,8 @@ async def auth_google_callback():
         await flash(outcome.error_message, "error")
         return redirect(url_for("main.login_page"))
 
-    state = _current_state()
     user_id = outcome.user_id
-    await current_app.navigation_state_store.set_user_id(state.session_id, user_id)
-    state.user_id = user_id
+    state = await _attach_user_to_current_session(user_id)
     logger.info("User %s logged in via Google, session %s", user_id, state.session_id)
     return redirect(url_for("main.home"), code=303)
 
@@ -196,6 +193,7 @@ async def auth_apple():
 @bp.route("/auth/apple/callback", methods=["POST"])
 async def auth_apple_callback():
     abort(501, "Apple sign-in coming soon")
+
 
 __all__ = [
     "auth_apple",
