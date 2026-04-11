@@ -162,6 +162,7 @@ _RUNTIME_SCHEMA_STATEMENTS = (
         display_name  VARCHAR(100) NULL,
         auth_provider VARCHAR(20) NOT NULL DEFAULT 'email',
         oauth_sub     VARCHAR(255) NULL,
+        exclude_watched_default BOOLEAN NOT NULL DEFAULT TRUE,
         created_at    DATETIME(6) NOT NULL,
         updated_at    DATETIME(6) NOT NULL,
         UNIQUE KEY idx_users_email (email),
@@ -191,6 +192,7 @@ async def ensure_runtime_schema(db_pool) -> None:
     await ensure_movie_candidates_bucket_filter_index(db_pool)
     await ensure_popular_movies_cache_composite_index(db_pool)
     await ensure_user_navigation_user_id_column(db_pool)
+    await ensure_users_exclude_watched_default_column(db_pool)
     logger.info("Runtime schema ensured")
 
 
@@ -217,6 +219,20 @@ async def ensure_user_navigation_user_id_column(db_pool) -> None:
         ALTER TABLE user_navigation_state
         ADD COLUMN user_id CHAR(32) NULL AFTER session_id,
         ADD KEY idx_nav_user_id (user_id)
+        """,
+    )
+
+
+async def ensure_users_exclude_watched_default_column(db_pool) -> None:
+    """Add the default watched-exclusion preference to existing users."""
+    await _ensure_column(
+        db_pool,
+        "users",
+        "exclude_watched_default",
+        """
+        ALTER TABLE users
+        ADD COLUMN exclude_watched_default BOOLEAN NOT NULL DEFAULT TRUE
+        AFTER oauth_sub
         """,
     )
 

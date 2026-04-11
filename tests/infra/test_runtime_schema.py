@@ -244,6 +244,28 @@ async def test_ensure_runtime_schema_creates_users_table(mock_db_pool):
     assert "password_hash" in users_sql[0]
 
 
+async def test_ensure_runtime_schema_creates_users_table_with_exclude_watched_default(
+    mock_db_pool,
+):
+    users_sql = [
+        s for s in _RUNTIME_SCHEMA_STATEMENTS if "CREATE TABLE IF NOT EXISTS users" in s
+    ]
+    assert len(users_sql) == 1
+    assert "exclude_watched_default" in users_sql[0]
+    assert "DEFAULT TRUE" in users_sql[0].upper()
+
+
+async def test_ensure_users_exclude_watched_default_column_adds_when_missing(mock_db_pool):
+    from infra.runtime_schema import ensure_users_exclude_watched_default_column
+
+    await ensure_users_exclude_watched_default_column(mock_db_pool)
+
+    mock_db_pool._ddl_cursor.execute.assert_awaited_once()
+    alter_query = mock_db_pool._ddl_cursor.execute.call_args[0][0]
+    assert "ALTER TABLE users" in alter_query
+    assert "ADD COLUMN exclude_watched_default BOOLEAN NOT NULL DEFAULT TRUE" in alter_query
+
+
 async def test_ensure_runtime_schema_creates_watched_table(mock_db_pool):
     from infra.runtime_schema import _RUNTIME_SCHEMA_STATEMENTS
 
