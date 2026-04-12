@@ -181,41 +181,7 @@
 
       <section class="watched-grid auth-fade-in" id="watched-grid">
         {% for movie in movies %}
-          {% set href = url_for('main.movie_detail', tconst=movie.tconst) %}
-          <div
-            class="watched-card"
-            data-tconst="{{ movie.tconst }}"
-            data-title="{{ movie.title }}"
-            data-year="{{ movie.year if movie.year else '' }}"
-            data-rating="{{ movie.tmdb_rating }}"
-            data-watched="{{ movie.watched_at }}"
-            data-search="{{ movie.title|lower }} {{ movie.year or '' }}"
-          >
-            <a class="watched-poster-link" href="{{ href }}">
-              <img
-                class="watched-poster"
-                src="{{ movie.poster_url }}"
-                alt="{{ movie.title }}{% if movie.year %} ({{ movie.year }}){% endif %} poster"
-                loading="{{ 'eager' if loop.index0 < 6 else 'lazy' }}"
-              />
-              <div class="watched-card-overlay" aria-hidden="true">
-                <div class="watched-card-meta">
-                  <div class="watched-card-title">{{ movie.title }}</div>
-                  {% if movie.year %}<div class="watched-card-year">{{ movie.year }}</div>{% endif %}
-                </div>
-              </div>
-            </a>
-            <button
-              type="button"
-              class="watched-remove"
-              data-tconst="{{ movie.tconst }}"
-              aria-label="Remove {{ movie.title }} from watched"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
-                <path d="M18 6L6 18M6 6l12 12"/>
-              </svg>
-            </button>
-          </div>
+          {% include '_watched_card.html' %}
         {% endfor %}
       </section>
     {% endif %}
