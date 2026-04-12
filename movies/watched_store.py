@@ -50,6 +50,43 @@ class WatchedStore:
         )
         await self._invalidate_cache(user_id)
 
+
+    async def add_bulk(self, user_id: str, tconsts: list[str]) -> int:
+        """Mark multiple movies as watched in a single bulk insert.
+
+        Uses multi-value INSERT with ON DUPLICATE KEY for idempotency.
+        Processes in chunks of 500 to avoid query size limits.
+
+        Returns:
+            Number of tconsts processed (not necessarily newly inserted).
+        """
+        if not tconsts:
+            return 0
+
+        now = utcnow()
+        chunk_size = 500
+        total = 0
+
+        for i in range(0, len(tconsts), chunk_size):
+            chunk = tconsts[i : i + chunk_size]
+            placeholders = ", ".join(["(%s, %s, %s)"] * len(chunk))
+            params = []
+            for tc in chunk:
+                params.extend([user_id, tc, now])
+
+            await self.db_pool.execute(
+                "INSERT INTO user_watched_movies (user_id, tconst, watched_at) "
+                "VALUES " + placeholders + " "
+                "ON DUPLICATE KEY UPDATE watched_at = VALUES(watched_at)",
+                params,
+                fetch="none",
+            )
+            total += len(chunk)
+
+        await self._invalidate_cache(user_id)
+        logger.info("Bulk-added %d watched movies for user %s", total, user_id)
+        return total
+
     async def remove(self, user_id: str, tconst: str) -> None:
         """Remove a movie from the watched list."""
         await self.db_pool.execute(

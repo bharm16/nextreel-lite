@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from unittest.mock import AsyncMock
 
 from movies.watched_store import WatchedStore
 
@@ -431,3 +432,45 @@ async def test_list_watched_joins_movie_candidates(mock_db_pool):
 
     query = mock_db_pool.execute.call_args[0][0]
     assert "LEFT JOIN movie_candidates" in query
+
+
+# ---------------------------------------------------------------------------
+# add_bulk
+# ---------------------------------------------------------------------------
+
+
+async def test_add_bulk_executes_multi_value_insert(mock_db_pool):
+    """add_bulk() builds a multi-value INSERT with ON DUPLICATE KEY."""
+    mock_db_pool.execute.return_value = None
+    store = _make_store(mock_db_pool)
+
+    count = await store.add_bulk("user-1", ["tt0000001", "tt0000002", "tt0000003"])
+
+    assert count == 3
+    call_args = mock_db_pool.execute.call_args
+    query = call_args[0][0]
+    assert "INSERT INTO user_watched_movies" in query
+    assert "ON DUPLICATE KEY UPDATE" in query
+    assert query.count("(%s, %s, %s)") == 3
+
+
+async def test_add_bulk_empty_list_returns_zero(mock_db_pool):
+    """add_bulk() with empty list does nothing."""
+    store = _make_store(mock_db_pool)
+
+    count = await store.add_bulk("user-1", [])
+
+    assert count == 0
+    mock_db_pool.execute.assert_not_awaited()
+
+
+async def test_add_bulk_invalidates_cache(mock_db_pool):
+    """add_bulk() invalidates watched cache after insert."""
+    mock_db_pool.execute.return_value = None
+    mock_cache = AsyncMock()
+    store = _make_store(mock_db_pool)
+    store.attach_cache(mock_cache)
+
+    await store.add_bulk("user-1", ["tt0000001"])
+
+    mock_cache.delete.assert_awaited_once()
