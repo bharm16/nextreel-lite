@@ -73,3 +73,79 @@ class TestParseWatchedCsv:
         csv_text = "Date,Name,Year,Letterboxd URI\n"
         result = parse_watched_csv(io.BytesIO(csv_text.encode("utf-8")))
         assert result == []
+
+
+from unittest.mock import AsyncMock
+
+from movies.letterboxd_import import match_films, MatchResult
+
+
+class TestMatchFilms:
+    async def test_exact_match(self, mock_db_pool):
+        mock_db_pool.execute.return_value = [
+            {"tconst": "tt0137523", "primaryTitle": "Fight Club", "startYear": 1999},
+        ]
+        films = [{"name": "Fight Club", "year": 1999}]
+
+        result = await match_films(mock_db_pool, films)
+
+        assert len(result.matched) == 1
+        assert result.matched[0] == "tt0137523"
+        assert result.unmatched == []
+        assert result.total == 1
+
+    async def test_normalized_match(self, mock_db_pool):
+        """Film with en-dash in Letterboxd matches hyphen in DB."""
+        mock_db_pool.execute.return_value = [
+            {"tconst": "tt0120915", "primaryTitle": "Star Wars: Episode I - The Phantom Menace", "startYear": 1999},
+        ]
+        films = [{"name": "Star Wars: Episode I \u2013 The Phantom Menace", "year": 1999}]
+
+        result = await match_films(mock_db_pool, films)
+
+        assert len(result.matched) == 1
+        assert result.matched[0] == "tt0120915"
+
+    async def test_unmatched_films(self, mock_db_pool):
+        mock_db_pool.execute.return_value = []
+        films = [{"name": "Nonexistent Movie", "year": 2099}]
+
+        result = await match_films(mock_db_pool, films)
+
+        assert result.matched == []
+        assert len(result.unmatched) == 1
+        assert result.unmatched[0] == {"name": "Nonexistent Movie", "year": 2099}
+
+    async def test_mixed_matched_and_unmatched(self, mock_db_pool):
+        mock_db_pool.execute.return_value = [
+            {"tconst": "tt0137523", "primaryTitle": "Fight Club", "startYear": 1999},
+        ]
+        films = [
+            {"name": "Fight Club", "year": 1999},
+            {"name": "Unknown Film", "year": 2050},
+        ]
+
+        result = await match_films(mock_db_pool, films)
+
+        assert len(result.matched) == 1
+        assert len(result.unmatched) == 1
+        assert result.total == 2
+
+    async def test_empty_input(self, mock_db_pool):
+        result = await match_films(mock_db_pool, [])
+
+        assert result.matched == []
+        assert result.unmatched == []
+        assert result.total == 0
+        mock_db_pool.execute.assert_not_awaited()
+
+    async def test_query_uses_parameterized_placeholders(self, mock_db_pool):
+        mock_db_pool.execute.return_value = []
+        films = [{"name": "Inception", "year": 2010}]
+
+        await match_films(mock_db_pool, films)
+
+        call_args = mock_db_pool.execute.call_args
+        query = call_args[0][0]
+        assert "%s" in query
+        assert "LOWER" in query
