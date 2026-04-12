@@ -28,6 +28,38 @@
 
   {% include 'navbar_modern.html' %}
 
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  <div class="max-w-5xl mx-auto px-4 pt-4">
+    {% for category, message in messages %}
+    <div role="alert" class="mb-4 rounded-lg border px-4 py-3 text-sm font-medium
+      {% if category == 'error' %}border-red-400 bg-red-50 text-red-800 dark:border-red-600 dark:bg-red-900/30 dark:text-red-200
+      {% elif category == 'warning' %}border-yellow-400 bg-yellow-50 text-yellow-800 dark:border-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-200
+      {% elif category == 'success' %}border-green-400 bg-green-50 text-green-800 dark:border-green-600 dark:bg-green-900/30 dark:text-green-200
+      {% else %}border-blue-400 bg-blue-50 text-blue-800 dark:border-blue-600 dark:bg-blue-900/30 dark:text-blue-200{% endif %}">
+      {{ message }}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% endwith %}
+
+  {% if session.get('letterboxd_unmatched') %}
+  <div class="max-w-5xl mx-auto px-4">
+    <details class="mb-4 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800/50">
+      <summary class="cursor-pointer px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300">
+        Show unmatched films ({{ session['letterboxd_unmatched']|length }})
+      </summary>
+      <ul class="px-4 pb-3 text-xs text-gray-500 dark:text-gray-400 columns-2 gap-4">
+        {% for film in session['letterboxd_unmatched'] %}
+        <li>{{ film }}</li>
+        {% endfor %}
+      </ul>
+    </details>
+  </div>
+  {% set _ = session.pop('letterboxd_unmatched', None) %}
+  {% endif %}
+
   <main id="main">
     {% if movies|length == 0 %}
       <header class="watched-header">
@@ -39,6 +71,34 @@
         <hr class="watched-empty-rule" />
         <p class="watched-empty-line">Your watched list is empty.</p>
         <a href="/" class="auth-submit watched-empty-cta">Pick a film</a>
+        <details class="mt-6">
+          <summary class="cursor-pointer text-sm font-medium text-gray-400 hover:text-gray-200 transition-colors">
+            Import from Letterboxd
+          </summary>
+          <div class="mt-3 rounded-lg border border-gray-700 bg-gray-800/50 p-4">
+            <p class="text-xs text-gray-400 mb-3">
+              Export your data from
+              <a href="https://letterboxd.com/settings/data/" target="_blank" rel="noopener"
+                 class="underline hover:text-gray-200">letterboxd.com/settings/data/</a>,
+              then upload <code class="text-gray-300">watched.csv</code> below.
+            </p>
+            <form method="POST" action="{{ url_for('main.import_letterboxd') }}" enctype="multipart/form-data">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+              <div class="flex items-center gap-3">
+                <input
+                  type="file"
+                  name="letterboxd_csv"
+                  accept=".csv"
+                  required
+                  class="text-xs text-gray-300 file:mr-3 file:rounded-md file:border-0 file:bg-gray-700 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-gray-200 hover:file:bg-gray-600"
+                />
+                <button type="submit" class="rounded-md bg-blue-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-blue-500 transition-colors">
+                  Import
+                </button>
+              </div>
+            </form>
+          </div>
+        </details>
       </div>
     {% else %}
       <header class="watched-header">
@@ -62,6 +122,34 @@
             <dd class="watched-stat-num">{{ stats.top_decade if stats.top_decade else '—' }}</dd>
           </div>
         </dl>
+        <details class="mt-4">
+          <summary class="cursor-pointer text-sm font-medium text-gray-400 hover:text-gray-200 transition-colors">
+            Import from Letterboxd
+          </summary>
+          <div class="mt-3 rounded-lg border border-gray-700 bg-gray-800/50 p-4">
+            <p class="text-xs text-gray-400 mb-3">
+              Export your data from
+              <a href="https://letterboxd.com/settings/data/" target="_blank" rel="noopener"
+                 class="underline hover:text-gray-200">letterboxd.com/settings/data/</a>,
+              then upload <code class="text-gray-300">watched.csv</code> below.
+            </p>
+            <form method="POST" action="{{ url_for('main.import_letterboxd') }}" enctype="multipart/form-data">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+              <div class="flex items-center gap-3">
+                <input
+                  type="file"
+                  name="letterboxd_csv"
+                  accept=".csv"
+                  required
+                  class="text-xs text-gray-300 file:mr-3 file:rounded-md file:border-0 file:bg-gray-700 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-gray-200 hover:file:bg-gray-600"
+                />
+                <button type="submit" class="rounded-md bg-blue-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-blue-500 transition-colors">
+                  Import
+                </button>
+              </div>
+            </form>
+          </div>
+        </details>
       </header>
 
       <div class="watched-toolbar">
