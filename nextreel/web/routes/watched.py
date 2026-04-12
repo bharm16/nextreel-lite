@@ -46,12 +46,24 @@ async def watched_list_page():
 
     page, per_page, offset = _parse_watched_pagination(request.args)
 
-    raw_rows, total_count = await asyncio.gather(
-        services.movie_manager.watched_store.list_watched(
-            user_id, limit=per_page, offset=offset
-        ),
-        services.movie_manager.watched_store.count(user_id),
-    )
+    from quart import session as quart_session
+
+    enrichment_pending = quart_session.get("letterboxd_enrichment_pending", False)
+
+    if enrichment_pending:
+        raw_rows, total_count = await asyncio.gather(
+            services.movie_manager.watched_store.list_watched_enriched(
+                user_id, limit=per_page, offset=offset
+            ),
+            services.movie_manager.watched_store.count_enriched(user_id),
+        )
+    else:
+        raw_rows, total_count = await asyncio.gather(
+            services.movie_manager.watched_store.list_watched(
+                user_id, limit=per_page, offset=offset
+            ),
+            services.movie_manager.watched_store.count(user_id),
+        )
 
     view_model = _watched_list_presenter.build(
         raw_rows=raw_rows,
@@ -67,6 +79,7 @@ async def watched_list_page():
         stats=view_model.stats,
         total=view_model.total,
         pagination=view_model.pagination,
+        enrichment_pending=enrichment_pending,
     )
 
 
@@ -217,4 +230,110 @@ async def import_letterboxd():
     )
     return redirect(url_for("main.watched_list_page"))
 
-__all__ = ["add_to_watched", "import_letterboxd", "remove_from_watched", "watched_list_page"]
+
+@bp.route("/watched/enrichment-progress")
+async def enrichment_progress():
+    redirect_response = _require_login()
+    if redirect_response:
+        return jsonify({"html": "", "new_count": 0, "total_ready": 0, "total": 0, "done": True})
+
+    from quart import session as quart_session
+
+    import_tconsts = quart_session.get("letterboxd_import_tconsts", [])
+    if not import_tconsts:
+        return jsonify({"html": "", "new_count": 0, "total_ready": 0, "total": 0, "done": True})
+
+    sent_tconsts = set(quart_session.get("letterboxd_sent_tconsts", []))
+    services = _services()
+
+    # Find newly READY tconsts we haven't sent yet
+    unsent = [tc for tc in import_tconsts if tc not in sent_tconsts]
+    if not unsent:
+        # All have been sent already — we're done
+        quart_session.pop("letterboxd_enrichment_pending", None)
+        quart_session.pop("letterboxd_import_tconsts", None)
+        quart_session.pop("letterboxd_sent_tconsts", None)
+        return jsonify({
+            "html": "", "new_count": 0,
+            "total_ready": len(sent_tconsts), "total": len(import_tconsts),
+            "done": True,
+        })
+
+    # Query which unsent tconsts are now READY
+    placeholders = ", ".join(["%s"] * len(unsent))
+    ready_rows = await services.movie_manager.db_pool.execute(
+        "SELECT tconst FROM movie_projection "
+        "WHERE tconst IN (" + placeholders + ") "
+        "AND projection_state = %s",
+        [*unsent, "ready"],
+        fetch="all",
+    )
+    newly_ready = {row["tconst"] for row in ready_rows} if ready_rows else set()
+
+    if not newly_ready:
+        total_ready = len(sent_tconsts)
+        total = len(import_tconsts)
+        return jsonify({
+            "html": "", "new_count": 0,
+            "total_ready": total_ready, "total": total,
+            "done": False,
+        })
+
+    # Fetch full movie data for newly ready tconsts
+    newly_ready_list = sorted(newly_ready)
+    placeholders2 = ", ".join(["%s"] * len(newly_ready_list))
+    rows = await services.movie_manager.db_pool.execute(
+        "SELECT w.tconst, w.watched_at, "
+        "c.primaryTitle, c.startYear, c.genres, c.slug, "
+        "p.payload_json "
+        "FROM user_watched_movies w "
+        "INNER JOIN movie_projection p ON w.tconst = p.tconst "
+        "LEFT JOIN movie_candidates c ON w.tconst = c.tconst "
+        "WHERE w.tconst IN (" + placeholders2 + ") "
+        "AND w.user_id = %s "
+        "AND p.projection_state = %s "
+        "ORDER BY w.watched_at DESC",
+        [*newly_ready_list, _current_user_id(), "ready"],
+        fetch="all",
+    )
+
+    # Build movie dicts using the presenter and render card partials
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    html_parts = []
+    if rows:
+        for row in rows:
+            movie, _, _ = _watched_list_presenter._normalize_row(row, now)
+            if movie:
+                html_parts.append(
+                    await render_template("_watched_card.html", movie=movie)
+                )
+
+    # Update sent tracking
+    new_sent = sent_tconsts | newly_ready
+    quart_session["letterboxd_sent_tconsts"] = list(new_sent)
+
+    total_ready = len(new_sent)
+    total = len(import_tconsts)
+    done = total_ready >= total
+
+    if done:
+        quart_session.pop("letterboxd_enrichment_pending", None)
+        quart_session.pop("letterboxd_import_tconsts", None)
+        quart_session.pop("letterboxd_sent_tconsts", None)
+
+    return jsonify({
+        "html": "".join(html_parts),
+        "new_count": len(newly_ready),
+        "total_ready": total_ready,
+        "total": total,
+        "done": done,
+    })
+
+
+__all__ = [
+    "add_to_watched",
+    "enrichment_progress",
+    "import_letterboxd",
+    "remove_from_watched",
+    "watched_list_page",
+]
