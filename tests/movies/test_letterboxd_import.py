@@ -149,3 +149,58 @@ class TestMatchFilms:
         query = call_args[0][0]
         assert "%s" in query
         assert "LOWER" in query
+
+
+from movies.letterboxd_import import enqueue_import_enrichment
+
+
+class TestEnqueueImportEnrichment:
+    async def test_enqueues_jobs_for_non_ready_tconsts(self, mock_db_pool):
+        """Only tconsts without READY projections get enqueued."""
+        # Simulate: tt0000001 is READY, tt0000002 has no projection
+        mock_db_pool.execute.return_value = [{"tconst": "tt0000001"}]
+
+        enqueue_fn = AsyncMock()
+        await enqueue_import_enrichment(
+            ["tt0000001", "tt0000002"], mock_db_pool, enqueue_fn
+        )
+
+        # Only tt0000002 should be enqueued (tt0000001 is already READY)
+        enqueue_fn.assert_awaited_once()
+        call_args = enqueue_fn.call_args
+        assert call_args[0][0] == "enrich_projection"
+        assert call_args[0][1] == "tt0000002"
+
+    async def test_empty_tconsts_does_nothing(self, mock_db_pool):
+        enqueue_fn = AsyncMock()
+        await enqueue_import_enrichment([], mock_db_pool, enqueue_fn)
+        enqueue_fn.assert_not_awaited()
+        mock_db_pool.execute.assert_not_awaited()
+
+    async def test_all_already_ready(self, mock_db_pool):
+        """If all tconsts are READY, no jobs enqueued."""
+        mock_db_pool.execute.return_value = [
+            {"tconst": "tt0000001"},
+            {"tconst": "tt0000002"},
+        ]
+        enqueue_fn = AsyncMock()
+        await enqueue_import_enrichment(
+            ["tt0000001", "tt0000002"], mock_db_pool, enqueue_fn
+        )
+        enqueue_fn.assert_not_awaited()
+
+    async def test_enqueue_failure_does_not_raise(self, mock_db_pool):
+        """Enqueue errors are caught, not propagated."""
+        mock_db_pool.execute.return_value = []
+        enqueue_fn = AsyncMock(side_effect=Exception("arq down"))
+        # Should not raise
+        await enqueue_import_enrichment(
+            ["tt0000001"], mock_db_pool, enqueue_fn
+        )
+
+    async def test_none_enqueue_fn_skips_silently(self, mock_db_pool):
+        """If enqueue_fn is None, skip without error."""
+        mock_db_pool.execute.return_value = []
+        await enqueue_import_enrichment(
+            ["tt0000001"], mock_db_pool, None
+        )
