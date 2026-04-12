@@ -178,6 +178,23 @@ async def import_letterboxd():
         await flash("Something went wrong during import. Please try again.", "error")
         return redirect(url_for("main.watched_list_page"))
 
+    # Fire non-blocking enrichment for un-enriched movies
+    from quart import current_app
+    from movies.letterboxd_import import enqueue_import_enrichment
+
+    enqueue_fn = getattr(current_app, "enqueue_runtime_job", None)
+    if enqueue_fn and result.matched:
+        asyncio.create_task(
+            enqueue_import_enrichment(
+                result.matched,
+                services.movie_manager.db_pool,
+                enqueue_fn,
+            )
+        )
+        quart_session["letterboxd_import_tconsts"] = result.matched
+        quart_session["letterboxd_enrichment_pending"] = True
+        quart_session["letterboxd_sent_tconsts"] = []
+
     # Build flash message
     matched_count = len(result.matched)
     unmatched_count = len(result.unmatched)
