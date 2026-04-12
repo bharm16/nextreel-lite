@@ -136,3 +136,16 @@ class TestNavigationStateRepository:
         params = db_pool.execute.await_args.args[1]
         assert "user_id = %s" in sql
         assert "user-123" in params
+
+    @pytest.mark.asyncio
+    async def test_set_user_id_invalidates_cached_state(self):
+        from infra.navigation_state import NavigationStateRepository
+
+        db_pool = AsyncMock()
+        db_pool.execute = AsyncMock(return_value=1)
+        repository = NavigationStateRepository(db_pool)
+        repository.attach_cache(AsyncMock())
+
+        await repository.set_user_id("test-session", None)
+
+        repository._cache.delete.assert_awaited_once()

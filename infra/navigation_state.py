@@ -400,6 +400,7 @@ class NavigationStateRepository:
             [user_id, utcnow(), session_id],
             fetch="none",
         )
+        await self.invalidate_cached_state(session_id)
 
     async def delete_state(self, session_id: str) -> None:
         await self.db_pool.execute(
