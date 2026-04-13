@@ -155,10 +155,45 @@ class WatchedStore:
             LEFT JOIN movie_candidates c ON w.tconst = c.tconst
             LEFT JOIN movie_projection p ON w.tconst = p.tconst
             WHERE w.user_id = %s
-            ORDER BY w.watched_at DESC
+            ORDER BY w.watched_at DESC, c.startYear DESC, c.primaryTitle ASC
             LIMIT %s OFFSET %s
             """,
             [user_id, limit, offset],
             fetch="all",
         )
         return rows if rows else []
+
+    async def list_watched_enriched(
+        self, user_id: str, limit: int = 20, offset: int = 0
+    ) -> list[dict[str, Any]]:
+        """Return watched movies that have READY projections, ordered by most recently watched."""
+        rows = await self.db_pool.execute(
+            """
+            SELECT w.tconst, w.watched_at,
+                   c.primaryTitle, c.startYear, c.genres, c.slug,
+                   p.payload_json
+            FROM user_watched_movies w
+            INNER JOIN movie_projection p ON w.tconst = p.tconst
+            LEFT JOIN movie_candidates c ON w.tconst = c.tconst
+            WHERE w.user_id = %s AND p.projection_state = %s
+            ORDER BY w.watched_at DESC, c.startYear DESC, c.primaryTitle ASC
+            LIMIT %s OFFSET %s
+            """,
+            [user_id, "ready", limit, offset],
+            fetch="all",
+        )
+        return rows if rows else []
+
+    async def count_enriched(self, user_id: str) -> int:
+        """Return count of watched movies with READY projections."""
+        row = await self.db_pool.execute(
+            """
+            SELECT COUNT(*) AS cnt
+            FROM user_watched_movies w
+            INNER JOIN movie_projection p ON w.tconst = p.tconst
+            WHERE w.user_id = %s AND p.projection_state = %s
+            """,
+            [user_id, "ready"],
+            fetch="one",
+        )
+        return row["cnt"] if row else 0

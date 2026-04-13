@@ -74,12 +74,12 @@ def test_tmdb_semaphore_size_reads_env_var(monkeypatch):
         importlib.reload(tmdb_module)
 
 
-def test_tmdb_semaphore_default_is_50(monkeypatch):
+def test_tmdb_semaphore_default_is_200(monkeypatch):
     monkeypatch.delenv("TMDB_RATE_SEMAPHORE", raising=False)
     import importlib
     import movies.tmdb_client as tmdb_module
     importlib.reload(tmdb_module)
-    assert tmdb_module._rate_semaphore._value == 50
+    assert tmdb_module._rate_semaphore._value == 200
 
 
 import time

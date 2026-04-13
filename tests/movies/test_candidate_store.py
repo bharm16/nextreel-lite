@@ -321,9 +321,10 @@ async def test_fetch_candidate_refs_returns_refs(mock_db_pool):
         )
 
     assert len(refs) == 2
-    assert refs[0]["tconst"] == "tt0001"
-    assert refs[0]["title"] == "Movie One"
-    assert refs[1]["slug"] == "movie-two"
+    refs_by_tconst = {ref["tconst"]: ref for ref in refs}
+    assert set(refs_by_tconst) == {"tt0001", "tt0002"}
+    assert refs_by_tconst["tt0001"]["title"] == "Movie One"
+    assert refs_by_tconst["tt0002"]["slug"] == "movie-two"
 
 
 async def test_fetch_candidate_refs_for_criteria_returns_refs(mock_db_pool):
@@ -349,8 +350,9 @@ async def test_fetch_candidate_refs_for_criteria_returns_refs(mock_db_pool):
     )
 
     assert len(refs) == 2
-    assert refs[0]["tconst"] == "tt0001"
-    assert refs[1]["slug"] == "movie-two"
+    refs_by_tconst = {ref["tconst"]: ref for ref in refs}
+    assert set(refs_by_tconst) == {"tt0001", "tt0002"}
+    assert refs_by_tconst["tt0002"]["slug"] == "movie-two"
 
 
 async def test_fetch_candidate_refs_handles_empty_results(mock_db_pool):

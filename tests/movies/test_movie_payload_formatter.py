@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from movies.tmdb_client import TMDbHelper
-from tests.test_tmdb_parsers import _sample_combined_response
+from tests.movies.test_tmdb_parsers import _sample_combined_response
 
 
 def test_assemble_preserves_existing_movie_payload_shape():

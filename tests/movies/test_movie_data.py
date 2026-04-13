@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch, MagicMock
 import pytest
 
 from movies.movie import Movie
-from tests.test_tmdb_parsers import _sample_combined_response
+from tests.movies.test_tmdb_parsers import _sample_combined_response
 
 
 @pytest.fixture

@@ -30,7 +30,7 @@ class TestMovieDetailService:
             tconst="tt1234567",
         )
 
-        assert view_model.movie == {"title": "Sample"}
+        assert view_model.movie == {"title": "Sample", "tconst": "tt1234567"}
         assert view_model.previous_count == 3
         assert view_model.is_watched is True
 

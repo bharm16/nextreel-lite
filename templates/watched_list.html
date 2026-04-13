@@ -318,6 +318,66 @@
     })();
   </script>
 
+  {% if enrichment_pending %}
+  <script>
+    (function () {
+      var grid = document.getElementById('watched-grid');
+      if (!grid) return;
+
+      var POLL_INTERVAL = 10000;
+      var MAX_POLL_DURATION = 600000; // 10 minutes
+      var startTime = Date.now();
+      var pollTimer = null;
+
+      function pollProgress() {
+        if (Date.now() - startTime > MAX_POLL_DURATION) {
+          return; // Stop after 10 minutes
+        }
+
+        fetch('/watched/enrichment-progress', {
+          credentials: 'same-origin',
+          headers: { 'Accept': 'application/json' },
+        })
+        .then(function (resp) {
+          if (!resp.ok) return null;
+          return resp.json();
+        })
+        .then(function (data) {
+          if (!data) return;
+
+          if (data.html) {
+            var temp = document.createElement('div');
+            temp.innerHTML = data.html;
+            var cards = temp.querySelectorAll('.watched-card');
+            cards.forEach(function (card) {
+              grid.appendChild(card);
+            });
+
+            // Update the allCards array and count if they exist
+            var countEl = document.getElementById('watched-count');
+            if (countEl) {
+              var currentCards = grid.querySelectorAll('.watched-card');
+              countEl.textContent = currentCards.length + ' of ' + currentCards.length;
+            }
+          }
+
+          if (data.done) {
+            return; // Stop polling
+          }
+
+          pollTimer = setTimeout(pollProgress, POLL_INTERVAL);
+        })
+        .catch(function () {
+          // Silently retry on network error
+          pollTimer = setTimeout(pollProgress, POLL_INTERVAL);
+        });
+      }
+
+      pollTimer = setTimeout(pollProgress, POLL_INTERVAL);
+    })();
+  </script>
+  {% endif %}
+
   {% include 'footer_modern.html' %}
 </body>
 </html>
