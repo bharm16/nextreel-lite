@@ -7,7 +7,7 @@ import time
 from quart import flash, g, jsonify, redirect, request, url_for
 
 from infra.metrics import user_actions_total
-from infra.navigation_state import normalize_filters, validate_filters
+from infra.filter_normalizer import normalize_filters, validate_filters
 from infra.route_helpers import csrf_required, rate_limited, with_timeout
 from nextreel.domain.filter_contracts import FilterState
 from nextreel.web.routes.shared import (

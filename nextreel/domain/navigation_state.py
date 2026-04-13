@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
-from filter_contracts import FilterState
+from nextreel.domain.filter_contracts import FilterState
 
 SESSION_COOKIE_NAME = "nr_sid"
 SESSION_COOKIE_MAX_AGE = 8 * 60 * 60

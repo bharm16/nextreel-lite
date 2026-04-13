@@ -50,7 +50,7 @@ def _missing_bcrypt_import():
 class TestRegistrationService:
     @pytest.mark.asyncio
     async def test_register_email_user_returns_validation_errors(self):
-        from auth_flows import RegistrationService
+        from nextreel.application.auth_flows import RegistrationService
 
         outcome = await RegistrationService().register_email_user(
             email="not-an-email",
@@ -69,7 +69,7 @@ class TestRegistrationService:
 
     @pytest.mark.asyncio
     async def test_register_email_user_returns_duplicate_email_on_precheck(self):
-        from auth_flows import RegistrationService
+        from nextreel.application.auth_flows import RegistrationService
 
         with patch(
             "session.user_auth.get_user_by_email",
@@ -91,7 +91,7 @@ class TestRegistrationService:
 
     @pytest.mark.asyncio
     async def test_register_email_user_returns_duplicate_email_on_race(self):
-        from auth_flows import RegistrationService
+        from nextreel.application.auth_flows import RegistrationService
         from session.user_auth import DuplicateUserError
 
         with patch(
@@ -114,7 +114,7 @@ class TestRegistrationService:
 
     @pytest.mark.asyncio
     async def test_register_email_user_returns_user_id_on_success(self):
-        from auth_flows import RegistrationService
+        from nextreel.application.auth_flows import RegistrationService
 
         with patch(
             "session.user_auth.get_user_by_email",
@@ -135,7 +135,7 @@ class TestRegistrationService:
 
     @pytest.mark.asyncio
     async def test_register_email_user_returns_service_unavailable_when_bcrypt_missing(self):
-        from auth_flows import RegistrationService
+        from nextreel.application.auth_flows import RegistrationService
 
         db_pool = AsyncMock()
         db_pool.execute = AsyncMock(return_value=None)
@@ -157,7 +157,7 @@ class TestRegistrationService:
 
 class TestGoogleOAuthService:
     def test_build_authorize_url_keeps_current_google_query_contract(self):
-        from auth_flows import GoogleOAuthService
+        from nextreel.application.auth_flows import GoogleOAuthService
 
         auth_url = GoogleOAuthService().build_authorize_url(
             oauth_config={
@@ -176,7 +176,7 @@ class TestGoogleOAuthService:
 
     @pytest.mark.asyncio
     async def test_complete_login_returns_failure_for_invalid_state(self):
-        from auth_flows import GoogleOAuthService
+        from nextreel.application.auth_flows import GoogleOAuthService
 
         outcome = await GoogleOAuthService().complete_login(
             oauth_config={
@@ -195,7 +195,7 @@ class TestGoogleOAuthService:
 
     @pytest.mark.asyncio
     async def test_complete_login_returns_provider_conflict(self):
-        from auth_flows import GoogleOAuthService
+        from nextreel.application.auth_flows import GoogleOAuthService
 
         token_response = MagicMock(status_code=200)
         token_response.json.return_value = {"access_token": "oauth-token"}
@@ -207,7 +207,7 @@ class TestGoogleOAuthService:
         }
 
         with patch(
-            "auth_flows.httpx.AsyncClient",
+            "nextreel.application.auth_flows.httpx.AsyncClient",
             return_value=_FakeAsyncClient(
                 post_response=token_response,
                 get_response=userinfo_response,
@@ -238,7 +238,7 @@ class TestGoogleOAuthService:
 
     @pytest.mark.asyncio
     async def test_complete_login_returns_user_id_on_success(self):
-        from auth_flows import GoogleOAuthService
+        from nextreel.application.auth_flows import GoogleOAuthService
 
         token_response = MagicMock(status_code=200)
         token_response.json.return_value = {"access_token": "oauth-token"}
@@ -250,7 +250,7 @@ class TestGoogleOAuthService:
         }
 
         with patch(
-            "auth_flows.httpx.AsyncClient",
+            "nextreel.application.auth_flows.httpx.AsyncClient",
             return_value=_FakeAsyncClient(
                 post_response=token_response,
                 get_response=userinfo_response,

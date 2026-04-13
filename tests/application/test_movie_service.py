@@ -4,11 +4,12 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from infra.navigation_state import NavigationState, default_filter_state
+from infra.filter_normalizer import default_filter_state
+from nextreel.domain.navigation_state import NavigationState
 from infra.time_utils import utcnow
-from movie_navigator import NavigationOutcome
+from nextreel.application.movie_navigator import NavigationOutcome
 from tests.helpers import TEST_ENV
-from movie_service import MovieManager
+from nextreel.application.movie_service import MovieManager
 
 
 def _state() -> NavigationState:
@@ -36,7 +37,7 @@ async def test_start_initializes_pool_schema_without_backdrop_warmup():
     movie_manager = MovieManager(db_config=None)
     movie_manager.db_pool.init_pool = AsyncMock()
 
-    with patch("movie_service.ensure_runtime_schema", AsyncMock()) as ensure_schema:
+    with patch("nextreel.application.movie_service.ensure_runtime_schema", AsyncMock()) as ensure_schema:
         with patch.object(MovieManager, "set_default_backdrop", AsyncMock()) as set_backdrop:
             await movie_manager.start()
 
@@ -53,7 +54,7 @@ async def test_start_leaves_default_backdrop_unset():
     movie_manager = MovieManager(db_config=None)
     movie_manager.db_pool.init_pool = AsyncMock()
 
-    with patch("movie_service.ensure_runtime_schema", AsyncMock()):
+    with patch("nextreel.application.movie_service.ensure_runtime_schema", AsyncMock()):
         await movie_manager.start()
 
     movie_manager.db_pool.init_pool.assert_awaited_once()

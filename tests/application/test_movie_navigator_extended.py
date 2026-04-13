@@ -5,10 +5,11 @@ import inspect
 import pytest
 from quart import Quart
 
-from infra.navigation_state import MutationResult, NavigationState, default_filter_state
+from infra.filter_normalizer import default_filter_state
+from nextreel.domain.navigation_state import MutationResult, NavigationState
 from infra.time_utils import utcnow
-from movie_navigator import MovieNavigator, NavigationOutcome, _movie_ref
-from routes import bp
+from nextreel.application.movie_navigator import MovieNavigator, NavigationOutcome, _movie_ref
+from nextreel.web.routes import bp
 
 
 def _state(*, user_id: str | None = None, exclude_watched: bool = True) -> NavigationState:

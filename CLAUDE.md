@@ -36,31 +36,69 @@ arq worker.MaintenanceWorkerSettings   # Optional: second worker for heavy maint
 ## Architecture
 
 ```
-app.py                  # Entry point — creates Quart app, wires dependencies
-routes.py               # All HTTP endpoints (Blueprint "main")
-movie_service.py        # MovieManager facade — coordinates navigation + rendering
-movie_navigator.py      # Prev/next stacks, queue management (backed by NavigationStateStore)
-movie_renderer.py       # Template rendering for movie detail pages
+app.py                  # Entry point — delegates to nextreel.web.app
+worker.py               # arq CLI entry point — delegates to nextreel.workers.worker
+settings.py             # Unified Config class (composes config/ sub-modules)
+env_bootstrap.py        # Minimal env detection helpers (no package side effects)
 logging_config.py       # setup_logging() — called by app.py, NOT at import time
-middleware.py            # Correlation ID tracking middleware
-settings.py             # Unified Config class
-worker.py               # arq background worker (Redis-backed enrichment/refresh jobs)
+nextreel/
+  application/
+    movie_service.py    # MovieManager facade — coordinates navigation + rendering
+    movie_navigator.py  # Prev/next stacks, queue management
+    auth_flows.py       # OAuth and registration orchestration services
+    navigation_state_service.py  # NavigationStateStore — mutate/load/bind state
+    home_prewarm_service.py      # Background queue prewarm on home load
+    letterboxd_import_service.py # Letterboxd CSV import orchestration
+    watched_progress_service.py  # Enrichment progress tracking
+  domain/
+    filter_contracts.py    # FilterState / MovieCriteria type contracts
+    navigation_state.py    # NavigationState dataclass, MutationResult, constants
+  web/
+    app.py              # create_app() — Quart factory, wires dependencies
+    middleware.py        # Correlation ID tracking middleware
+    movie_renderer.py    # Template rendering for movie detail pages
+    route_services.py    # Route-level presenters and mutation services
+    request_context.py   # Per-request state setup (g.state, g.services)
+    lifecycle.py         # before_serving / after_serving hooks
+    routes/
+      shared.py          # Blueprint, NextReelServices, shared helpers
+      auth.py            # Login, register, OAuth routes
+      movies.py          # Home, movie detail routes
+      navigation.py      # Next/previous/filtered movie routes
+      watched.py         # Watched list routes
+      ops.py             # Health, readiness, metrics routes
+  bootstrap/
+    movie_manager_factory.py  # Composition root for MovieManager
+  infra/
+    job_queue.py         # arq job queue installation helpers
+    redis_runtime.py     # Redis connection setup
+  workers/
+    worker.py            # arq WorkerSettings, job definitions
 movies/
   movie.py              # Movie class — fetches and assembles movie data from TMDb + DB
   tmdb_client.py        # TMDbHelper — async HTTP client with circuit breaker
   tmdb_parser.py        # TMDb response parsing
+  tmdb_metrics.py       # Prometheus emission for TMDb transport outcomes
   query_builder.py      # SQL query builder for random movie fetching (MovieQueryBuilder)
   interfaces.py         # MovieFetcher protocol
   candidate_store.py    # Data access layer for movie candidates
-  projection_store.py   # Data access layer for movie projections
-  projection_state.py   # Projection state machine (core/ready/stale/failed)
-  projection_enrichment.py # Async TMDb enrichment worker logic
+  candidate_filter_pool_cache.py  # Per-filter candidate pool cache
+  movie_count_cache.py  # Criteria-keyed count cache with generation invalidation
+  movie_payload.py      # Movie payload assembly helpers
+  projection_store.py   # Projection facade — coordinates enrichment + reads
+  projection_repository.py  # Projection SQL CRUD
+  projection_read_service.py # Projection read-path queries
+  projection_enrichment.py   # Enrichment coordinator (in-flight dedup)
+  projection_enrichment_service.py  # TMDb fetch + diff for enrichment
+  projection_state.py   # State enum, policy constants, EnrichmentResult
+  projection_payload_factory.py  # Payload shaping for projection rows
   watched_store.py      # Watched-list persistence
+  letterboxd_import.py  # Letterboxd CSV parsing and title matching
   filter_parser.py      # Filter query parsing and validation
-  migration/            # Projection/candidate schema migrations
 session/
   keys.py               # Session key constants
-  user_auth.py          # User registration/authentication helpers (register_user, authenticate_user, hash_password_async, find_or_create_oauth_user)
+  user_auth.py          # Registration/authentication helpers
+  user_preferences.py   # User preference persistence (exclude-watched default)
   quart_session_compat.py  # Compatibility shim for quart-session 3.0.0
 infra/
   pool.py               # SecureConnectionPool + DatabaseConnectionPool wrapper
@@ -75,13 +113,14 @@ infra/
   security_headers.py   # Baseline + production-only HTTP security headers
   rate_limit.py         # Redis-backed rate limiter with in-memory fallback
   client_ip.py          # Client IP extraction utilities
-  navigation_state.py   # DB-backed navigation state (NavigationStateStore)
+  navigation_state_repository.py  # Navigation state SQL persistence
   runtime_schema.py     # Runtime schema creation and validation
   ops_auth.py           # Authentication for ops/admin endpoints
-  route_helpers.py      # Shared route utilities
-  filter_normalizer.py  # Filter input normalization
+  route_helpers.py      # Shared route utilities (csrf, rate limit, timeout decorators)
+  filter_normalizer.py  # Filter input normalization and validation
   integrity_checks.py   # Data integrity validators
   legacy_migration.py   # One-shot legacy data migrations
+  maintenance_jobs.py   # Worker job bodies (refresh candidates, purge state)
   time_utils.py         # Time/timezone helpers
 config/
   env.py                # get_environment() — single source for env detection
@@ -121,7 +160,7 @@ Optional:
 - **Runtime schema helpers**: `infra.runtime_schema._ensure_index(pool, table, name, create_sql)` and `_ensure_column(...)` — run CREATE/ALTER directly and catch the MySQL duplicate-key (1061) / duplicate-column (1060) errnos as idempotent. Eliminates TOCTOU SELECT probes.
 
 ### Session State
-- Navigation state is **MySQL-backed** (`user_navigation_state` table) via `NavigationStateStore` in `infra/navigation_state.py`. Uses optimistic locking (version column, 5 retries on conflict with exponential full-jitter backoff).
+- Navigation state is **MySQL-backed** (`user_navigation_state` table) via `NavigationStateStore` in `nextreel/application/navigation_state_service.py`. Uses optimistic locking (version column, 5 retries on conflict with exponential full-jitter backoff).
 - Full movie data lives in Redis cache (`cache:movie:full:{tconst}`, 24h TTL). Session stores lightweight refs only.
 - Session cookie lifetime: defaults from `config/session.py` (`SESSION_IDLE_TIMEOUT_MINUTES`, `MAX_SESSION_DURATION_HOURS`, default 15min/8h). User authentication helpers live in `session/user_auth.py` (`register_user`, `authenticate_user`, `hash_password_async`, `find_or_create_oauth_user`).
 - **Migration period**: Dual-write from Redis session → MySQL is enabled by default for 7 days (`NAV_STATE_DUAL_WRITE_ENABLED`, `NAV_STATE_MIGRATION_MIN_DAYS`). The dual-write probe is cached in-process for 60s to avoid per-request DB round-trips.

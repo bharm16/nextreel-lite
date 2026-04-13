@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from filter_contracts import FilterState, MovieCriteria
+from nextreel.domain.filter_contracts import FilterState, MovieCriteria
 from infra.time_utils import utcnow
 from movies.filter_parser import VALID_GENRES, extract_movie_filter_criteria
 

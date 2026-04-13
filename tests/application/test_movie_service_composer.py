@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from movie_service import MovieManager
+from nextreel.application.movie_service import MovieManager
 
 
 def test_movie_manager_accepts_injected_dependencies():
-    from movie_service import HomePrewarmService
+    from nextreel.application.movie_service import HomePrewarmService
 
     db_pool = MagicMock()
     tmdb_helper = MagicMock()

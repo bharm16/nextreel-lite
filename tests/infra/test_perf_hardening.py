@@ -17,7 +17,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from infra.cache import CacheNamespace, SimpleCacheManager
-from infra.navigation_state import NavigationState
+from nextreel.domain.navigation_state import NavigationState
 from movies.query_builder import (
     _criteria_cache_key,
     _current_count_generation,

@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from movie_navigator import MovieNavigator
+from nextreel.application.movie_navigator import MovieNavigator
 from movies.candidate_store import CandidateStore
 from movies.watched_store import WatchedStore
 

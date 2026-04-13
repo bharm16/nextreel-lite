@@ -44,8 +44,8 @@ def test_feature_route_handlers_are_defined_in_feature_modules():
             assert handler.__module__ == module_name
 
 
-def test_public_routes_surface_reexports_feature_handlers():
-    routes = importlib.import_module("routes")
+def test_routes_init_reexports_feature_handlers():
+    routes = importlib.import_module("nextreel.web.routes")
     auth_routes = importlib.import_module("nextreel.web.routes.auth")
     movie_routes = importlib.import_module("nextreel.web.routes.movies")
     navigation_routes = importlib.import_module("nextreel.web.routes.navigation")

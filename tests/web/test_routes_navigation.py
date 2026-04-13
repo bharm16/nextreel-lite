@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from movie_navigator import NavigationOutcome
+from nextreel.application.movie_navigator import NavigationOutcome
 from tests.helpers import TEST_ENV
 
 

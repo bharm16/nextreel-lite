@@ -1,13 +1,11 @@
-"""Projection state enum and transition policy.
-
-Extracted from projection_store.py to make the state machine explicit
-rather than relying on string comparisons scattered across methods.
-"""
+"""Projection state enum, transition policy, and result contracts."""
 
 from __future__ import annotations
 
-from datetime import timedelta
+from dataclasses import dataclass
+from datetime import datetime, timedelta
 from enum import Enum
+from typing import Any, Literal
 
 
 class ProjectionState(Enum):
@@ -43,3 +41,14 @@ class ProjectionState(Enum):
 ENQUEUE_COOLDOWN = timedelta(minutes=15)
 STALE_AFTER = timedelta(days=7)
 FAILED_RETRY_COOLDOWN = timedelta(hours=6)
+
+
+@dataclass(slots=True)
+class EnrichmentResult:
+    status: Literal["ready", "failed"]
+    persistence_mode: Literal["READY_UPSERT", "READY_METADATA_ONLY", "FAILED_UPSERT"]
+    payload: dict[str, Any]
+    attempts: int
+    tmdb_id: int | None
+    error: str | None
+    timestamp: datetime

@@ -5,7 +5,7 @@ import json
 import random
 from typing import Any
 
-from filter_contracts import MovieCriteria
+from nextreel.domain.filter_contracts import MovieCriteria
 from infra.cache import CacheNamespace
 from logging_config import get_logger
 

@@ -7,7 +7,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from infra.navigation_state import NavigationState, default_filter_state, utcnow
+from infra.filter_normalizer import default_filter_state
+from infra.time_utils import utcnow
+from nextreel.domain.navigation_state import NavigationState
 
 
 def _make_state(**overrides) -> NavigationState:
@@ -34,7 +36,7 @@ def _make_state(**overrides) -> NavigationState:
 class TestNavigationStateService:
     @pytest.mark.asyncio
     async def test_load_for_request_returns_existing_state_without_new_cookie(self):
-        from infra.navigation_state import NavigationStateService
+        from nextreel.application.navigation_state_service import NavigationStateService
 
         repository = MagicMock()
         state = _make_state()
@@ -51,7 +53,8 @@ class TestNavigationStateService:
 
     @pytest.mark.asyncio
     async def test_bind_user_sets_user_id_and_exclude_watched_through_mutate(self):
-        from infra.navigation_state import MutationResult, NavigationStateService
+        from nextreel.application.navigation_state_service import NavigationStateService
+        from nextreel.domain.navigation_state import MutationResult
 
         repository = MagicMock()
         migration = MagicMock()
@@ -81,7 +84,8 @@ class TestNavigationStateService:
 
     @pytest.mark.asyncio
     async def test_bind_user_returns_none_on_mutation_conflict(self):
-        from infra.navigation_state import MutationResult, NavigationStateService
+        from nextreel.application.navigation_state_service import NavigationStateService
+        from nextreel.domain.navigation_state import MutationResult
 
         service = NavigationStateService(repository=MagicMock(), migration=MagicMock())
         state = _make_state()
@@ -97,7 +101,7 @@ class TestNavigationStateService:
 class TestNavigationStateRepository:
     @pytest.mark.asyncio
     async def test_save_with_version_invalidates_cache_on_success(self):
-        from infra.navigation_state import NavigationStateRepository
+        from infra.navigation_state_repository import NavigationStateRepository
 
         db_pool = AsyncMock()
         db_pool.execute = AsyncMock(return_value=1)
@@ -116,7 +120,7 @@ class TestNavigationStateRepository:
 
     @pytest.mark.asyncio
     async def test_save_with_version_persists_changed_user_id(self):
-        from infra.navigation_state import NavigationStateRepository
+        from infra.navigation_state_repository import NavigationStateRepository
 
         db_pool = AsyncMock()
         db_pool.execute = AsyncMock(return_value=1)
@@ -139,7 +143,7 @@ class TestNavigationStateRepository:
 
     @pytest.mark.asyncio
     async def test_set_user_id_invalidates_cached_state(self):
-        from infra.navigation_state import NavigationStateRepository
+        from infra.navigation_state_repository import NavigationStateRepository
 
         db_pool = AsyncMock()
         db_pool.execute = AsyncMock(return_value=1)

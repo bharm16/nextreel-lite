@@ -3,7 +3,7 @@ import logging
 import pytest
 from quart import Quart, g
 
-from middleware import add_correlation_id, _CORRELATION_LOG_SKIP_PREFIXES
+from nextreel.web.middleware import add_correlation_id, _CORRELATION_LOG_SKIP_PREFIXES
 
 
 def _make_app():

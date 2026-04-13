@@ -6,7 +6,7 @@ import random
 from datetime import datetime
 from typing import Any
 
-from filter_contracts import FilterState, MovieCriteria
+from nextreel.domain.filter_contracts import FilterState, MovieCriteria
 from infra.errors import DatabaseError
 from infra.filter_normalizer import criteria_from_filters
 from infra.time_utils import utcnow

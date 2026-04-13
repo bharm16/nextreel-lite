@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from quart import g
 
-import routes
+import nextreel.web.routes as routes
 from tests.helpers import TEST_ENV
 
 

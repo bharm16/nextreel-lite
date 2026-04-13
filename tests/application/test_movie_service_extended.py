@@ -5,10 +5,11 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from infra.navigation_state import NavigationState, default_filter_state
+from infra.filter_normalizer import default_filter_state
+from nextreel.domain.navigation_state import NavigationState
 from infra.time_utils import utcnow
-from movie_navigator import NavigationOutcome
-from movie_service import MovieManager
+from nextreel.application.movie_navigator import NavigationOutcome
+from nextreel.application.movie_service import MovieManager
 from tests.helpers import TEST_ENV
 
 

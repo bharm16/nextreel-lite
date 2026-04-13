@@ -21,7 +21,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from infra.navigation_state import NavigationState
+from nextreel.domain.navigation_state import NavigationState
 from infra.time_utils import utcnow
 
 
@@ -228,7 +228,7 @@ async def test_movie_data_cleans_up_tasks_on_no_tmdb_id():
 
 
 async def test_home_schedules_background_prewarm_when_dual_write_off(monkeypatch):
-    from movie_service import MovieManager
+    from nextreel.application.movie_service import MovieManager
 
     monkeypatch.setenv("NAV_STATE_DUAL_WRITE_ENABLED", "false")
 
@@ -261,7 +261,7 @@ async def test_home_schedules_background_prewarm_when_dual_write_off(monkeypatch
 
 
 async def test_home_uses_inline_prewarm_when_dual_write_on(monkeypatch):
-    from movie_service import MovieManager
+    from nextreel.application.movie_service import MovieManager
 
     monkeypatch.setenv("NAV_STATE_DUAL_WRITE_ENABLED", "true")
 
@@ -288,7 +288,7 @@ async def test_home_uses_inline_prewarm_when_dual_write_on(monkeypatch):
 
 
 async def test_home_uses_inline_prewarm_when_no_scheduler(monkeypatch):
-    from movie_service import MovieManager
+    from nextreel.application.movie_service import MovieManager
 
     monkeypatch.setenv("NAV_STATE_DUAL_WRITE_ENABLED", "false")
 

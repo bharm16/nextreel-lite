@@ -7,23 +7,25 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from infra.navigation_state import (
+from infra.filter_normalizer import (
     MAX_FILTER_VALUE_LEN,
-    PREV_STACK_MAX,
-    FUTURE_STACK_MAX,
-    QUEUE_TARGET,
-    SEEN_MAX,
-    MutationResult,
-    NavigationState,
-    NavigationStateStore,
-    _normalize_ref,
-    _normalize_ref_list,
-    _normalize_seen,
     criteria_from_filters,
     default_filter_state,
     filters_from_criteria,
     normalize_filters,
-    utcnow,
+)
+from infra.time_utils import utcnow
+from nextreel.application.navigation_state_service import NavigationStateStore
+from nextreel.domain.navigation_state import (
+    FUTURE_STACK_MAX,
+    PREV_STACK_MAX,
+    QUEUE_TARGET,
+    SEEN_MAX,
+    MutationResult,
+    NavigationState,
+    _normalize_ref,
+    _normalize_ref_list,
+    _normalize_seen,
 )
 
 
@@ -660,7 +662,7 @@ async def test_mutate_success_first_attempt(mock_db_pool):
         return "mutator-result"
 
     with patch(
-        "infra.navigation_state.NavigationStateStore.dual_write_enabled",
+        "nextreel.application.navigation_state_service.NavigationStateStore.dual_write_enabled",
         new_callable=AsyncMock,
         return_value=False,
     ):
@@ -710,7 +712,7 @@ async def test_mutate_retries_on_conflict_then_succeeds(mock_db_pool):
 
     with (
         patch(
-            "infra.navigation_state.NavigationStateStore.dual_write_enabled",
+            "nextreel.application.navigation_state_service.NavigationStateStore.dual_write_enabled",
             new_callable=AsyncMock,
             return_value=False,
         ),
@@ -766,7 +768,7 @@ async def test_mutate_returns_conflicted_after_exhausting_retries(mock_db_pool):
 
     with (
         patch(
-            "infra.navigation_state.NavigationStateStore.dual_write_enabled",
+            "nextreel.application.navigation_state_service.NavigationStateStore.dual_write_enabled",
             new_callable=AsyncMock,
             return_value=False,
         ),
@@ -824,7 +826,7 @@ async def test_mutate_supports_async_mutator(mock_db_pool):
         return "async-result"
 
     with patch(
-        "infra.navigation_state.NavigationStateStore.dual_write_enabled",
+        "nextreel.application.navigation_state_service.NavigationStateStore.dual_write_enabled",
         new_callable=AsyncMock,
         return_value=False,
     ):
@@ -845,7 +847,7 @@ async def test_mutate_uses_current_state_without_reloading(mock_db_pool):
         current.current_ref = _ref("tt333", "Three", "three")
 
     with patch(
-        "infra.navigation_state.NavigationStateStore.dual_write_enabled",
+        "nextreel.application.navigation_state_service.NavigationStateStore.dual_write_enabled",
         new_callable=AsyncMock,
         return_value=False,
     ):
@@ -883,7 +885,7 @@ async def test_mutate_passes_a_clone_not_the_shared_state(mock_db_pool):
         return "ok"
 
     with patch(
-        "infra.navigation_state.NavigationStateStore.dual_write_enabled",
+        "nextreel.application.navigation_state_service.NavigationStateStore.dual_write_enabled",
         new_callable=AsyncMock,
         return_value=False,
     ):
@@ -907,7 +909,8 @@ async def test_mutate_passes_a_clone_not_the_shared_state(mock_db_pool):
 
 
 async def test_navigation_state_has_user_id_field():
-    from infra.navigation_state import NavigationState, default_filter_state
+    from nextreel.domain.navigation_state import NavigationState
+    from infra.filter_normalizer import default_filter_state
     from infra.time_utils import utcnow
 
     now = utcnow()

@@ -17,7 +17,8 @@ logger = get_logger(__name__)
 
 
 async def update_languages():
-    from settings import Config, DatabaseConnectionPool
+    from infra.pool import DatabaseConnectionPool
+    from settings import Config
 
     db_pool = DatabaseConnectionPool(Config.get_db_config())
     await db_pool.init_pool()

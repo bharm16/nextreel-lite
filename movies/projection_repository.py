@@ -8,8 +8,7 @@ from typing import Any
 
 from infra.time_utils import utcnow
 from movies.projection_payload_factory import ProjectionPayloadFactory
-from movies.projection_results import EnrichmentResult
-from movies.projection_state import FAILED_RETRY_COOLDOWN, ProjectionState, STALE_AFTER
+from movies.projection_state import FAILED_RETRY_COOLDOWN, EnrichmentResult, ProjectionState, STALE_AFTER
 
 
 class ProjectionRepository:

@@ -9,8 +9,7 @@ from infra.metrics_groups import safe_emit
 from infra.time_utils import utcnow
 from logging_config import get_logger
 from movies.movie import Movie
-from movies.projection_results import EnrichmentResult
-from movies.projection_state import ProjectionState
+from movies.projection_state import EnrichmentResult, ProjectionState
 
 logger = get_logger(__name__)
 

@@ -4,7 +4,7 @@ import asyncio
 from typing import Any, Awaitable, Callable, MutableMapping
 
 from infra.metrics import home_prewarm_failed_total
-from infra.navigation_state import NavigationState
+from nextreel.domain.navigation_state import NavigationState
 from infra.time_utils import env_bool, env_float
 from logging_config import get_logger
 from nextreel.application.movie_navigator import MovieNavigator

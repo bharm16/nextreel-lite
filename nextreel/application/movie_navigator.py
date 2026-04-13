@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from nextreel.domain.filter_contracts import FilterState
-from infra.navigation_state import (
+from nextreel.domain.navigation_state import (
     FUTURE_STACK_MAX,
     PREV_STACK_MAX,
     QUEUE_REFILL_THRESHOLD,

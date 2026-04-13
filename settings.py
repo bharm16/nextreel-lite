@@ -35,7 +35,3 @@ class Config(DatabaseConfig, SessionConfig, ApiConfig):
     @property
     def TMDB_API_KEY(self):
         return self.get_tmdb_api_key()
-
-
-# Re-export DatabaseConnectionPool and pool helpers for backward compatibility.
-from infra.pool import DatabaseConnectionPool, init_pool, get_pool, close_pool

@@ -13,7 +13,7 @@ import pytest
 from quart import g, session
 from werkzeug.exceptions import Conflict
 
-import routes
+import nextreel.web.routes as routes
 from session.keys import SESSION_OAUTH_STATE_KEY
 from tests.helpers import TEST_ENV
 
@@ -392,7 +392,7 @@ class TestGoogleOAuthCallback:
         ) as (app, _manager):
             with (
                 patch(
-                    "auth_flows.httpx.AsyncClient",
+                    "nextreel.application.auth_flows.httpx.AsyncClient",
                     return_value=_FakeAsyncClient(
                         post_response=token_response,
                         get_response=userinfo_response,
@@ -452,7 +452,7 @@ class TestGoogleOAuthCallback:
             app.navigation_state_store.bind_user.return_value = bound_state
             with (
                 patch(
-                    "auth_flows.httpx.AsyncClient",
+                    "nextreel.application.auth_flows.httpx.AsyncClient",
                     return_value=_FakeAsyncClient(
                         post_response=token_response,
                         get_response=userinfo_response,

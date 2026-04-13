@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from movies.projection_state import STALE_AFTER
 from movies.projection_store import (
     PLACEHOLDER_BACKDROP,
     PLACEHOLDER_POSTER,
@@ -14,7 +15,6 @@ from movies.projection_store import (
     PROJECTION_FAILED,
     PROJECTION_READY,
     PROJECTION_STALE,
-    STALE_AFTER,
     ProjectionStore,
 )
 

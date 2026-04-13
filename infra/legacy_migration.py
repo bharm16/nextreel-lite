@@ -154,7 +154,7 @@ class LegacyMigrationHelper:
                 raw_filters["genres_selected"] = [genres]
             raw_filters.pop("genres[]", None)
 
-        from infra.navigation_state import default_filter_state
+        from infra.filter_normalizer import default_filter_state
 
         current_movie = legacy_session.get(CURRENT_MOVIE_KEY)
         current_ref = normalize_ref_fn(current_movie)

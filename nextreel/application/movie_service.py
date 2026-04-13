@@ -7,7 +7,8 @@ from typing import Any, Awaitable, Callable, MutableMapping
 from nextreel.domain.filter_contracts import FilterState
 from logging_config import get_logger
 
-from infra.navigation_state import NavigationState, NavigationStateStore
+from nextreel.application.navigation_state_service import NavigationStateStore
+from nextreel.domain.navigation_state import NavigationState
 from infra.pool import DatabaseConnectionPool
 from infra.runtime_schema import ensure_runtime_schema
 from movies.candidate_store import CandidateStore

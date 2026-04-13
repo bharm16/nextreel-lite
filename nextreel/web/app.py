@@ -25,7 +25,7 @@ from infra.metrics import (
     bucket_error_type,
     setup_metrics_middleware,
 )
-from infra.navigation_state import (
+from nextreel.domain.navigation_state import (
     SESSION_COOKIE_MAX_AGE,
     SESSION_COOKIE_NAME,
 )

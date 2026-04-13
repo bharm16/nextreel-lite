@@ -12,7 +12,7 @@ import pytest
 class TestMovieDetailService:
     @pytest.mark.asyncio
     async def test_get_returns_view_model_with_movie_previous_count_and_watch_flag(self):
-        from route_services import MovieDetailService
+        from nextreel.web.route_services import MovieDetailService
 
         movie_manager = MagicMock()
         movie_manager.watched_store = MagicMock()
@@ -36,7 +36,7 @@ class TestMovieDetailService:
 
     @pytest.mark.asyncio
     async def test_get_returns_none_when_projection_payload_missing(self):
-        from route_services import MovieDetailService
+        from nextreel.web.route_services import MovieDetailService
 
         movie_manager = MagicMock()
         movie_manager.watched_store = MagicMock()
@@ -57,7 +57,7 @@ class TestMovieDetailService:
 
 class TestWatchedListPresenter:
     def test_build_preserves_movies_stats_and_pagination_shape(self):
-        from route_services import WatchedListPresenter
+        from nextreel.web.route_services import WatchedListPresenter
 
         raw_rows = [
             {
@@ -113,7 +113,7 @@ class TestWatchedListPresenter:
 class TestWatchedMutationService:
     @pytest.mark.asyncio
     async def test_add_forwards_to_store(self):
-        from route_services import WatchedMutationService
+        from nextreel.web.route_services import WatchedMutationService
 
         watched_store = MagicMock()
         watched_store.add = AsyncMock()
@@ -128,7 +128,7 @@ class TestWatchedMutationService:
 
     @pytest.mark.asyncio
     async def test_remove_forwards_to_store(self):
-        from route_services import WatchedMutationService
+        from nextreel.web.route_services import WatchedMutationService
 
         watched_store = MagicMock()
         watched_store.remove = AsyncMock()

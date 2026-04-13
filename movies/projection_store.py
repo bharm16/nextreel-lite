@@ -15,10 +15,8 @@ from movies.projection_payload_factory import (
 )
 from movies.projection_read_service import ProjectionReadService
 from movies.projection_repository import ProjectionRepository
-from movies.projection_results import EnrichmentResult
 from movies.projection_state import (
-    FAILED_RETRY_COOLDOWN,
-    STALE_AFTER,
+    EnrichmentResult,
     ProjectionState,
 )
 
