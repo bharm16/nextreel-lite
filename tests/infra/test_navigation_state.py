@@ -708,11 +708,14 @@ async def test_mutate_retries_on_conflict_then_succeeds(mock_db_pool):
     def mutator(s):
         s.current_tconst = "tt888"
 
-    with patch(
-        "infra.navigation_state.NavigationStateStore.dual_write_enabled",
-        new_callable=AsyncMock,
-        return_value=False,
-    ), patch("infra.metrics.navigation_state_conflicts_total") as mock_metric:
+    with (
+        patch(
+            "infra.navigation_state.NavigationStateStore.dual_write_enabled",
+            new_callable=AsyncMock,
+            return_value=False,
+        ),
+        patch("infra.metrics.navigation_state_conflicts_total") as mock_metric,
+    ):
         result = await store.mutate("retry-session", mutator)
 
     assert result.conflicted is False
@@ -744,11 +747,16 @@ async def test_mutate_returns_conflicted_after_exhausting_retries(mock_db_pool):
     # 5 attempts × (get_state + save_state) + final get_state for return value
     mock_db_pool.execute = AsyncMock(
         side_effect=[
-            dict(row), 0,
-            dict(row), 0,
-            dict(row), 0,
-            dict(row), 0,
-            dict(row), 0,
+            dict(row),
+            0,
+            dict(row),
+            0,
+            dict(row),
+            0,
+            dict(row),
+            0,
+            dict(row),
+            0,
             dict(row),
         ]
     )
@@ -756,11 +764,14 @@ async def test_mutate_returns_conflicted_after_exhausting_retries(mock_db_pool):
     def mutator(s):
         s.current_tconst = "tt777"
 
-    with patch(
-        "infra.navigation_state.NavigationStateStore.dual_write_enabled",
-        new_callable=AsyncMock,
-        return_value=False,
-    ), patch("infra.metrics.navigation_state_conflicts_total"):
+    with (
+        patch(
+            "infra.navigation_state.NavigationStateStore.dual_write_enabled",
+            new_callable=AsyncMock,
+            return_value=False,
+        ),
+        patch("infra.metrics.navigation_state_conflicts_total"),
+    ):
         result = await store.mutate("exhaust-session", mutator)
 
     assert result.conflicted is True
@@ -876,9 +887,7 @@ async def test_mutate_passes_a_clone_not_the_shared_state(mock_db_pool):
         new_callable=AsyncMock,
         return_value=False,
     ):
-        result = await store.mutate(
-            state.session_id, mutator, current_state=state
-        )
+        result = await store.mutate(state.session_id, mutator, current_state=state)
 
     assert result.conflicted is False
     assert result.result == "ok"
@@ -938,7 +947,7 @@ def test_serialized_state_fields_memoizes_on_state(mock_db_pool, monkeypatch):
         call_count["n"] += 1
         return real_dumps(*args, **kwargs)
 
-    monkeypatch.setattr("infra.navigation_state.json.dumps", counting_dumps)
+    monkeypatch.setattr("infra.navigation_state_repository.json.dumps", counting_dumps)
 
     first = store._serialized_state_fields(state)
     dumps_after_first = call_count["n"]

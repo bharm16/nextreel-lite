@@ -111,7 +111,9 @@ class WatchedListPresenter:
         poster_url = payload.get("poster_url") or "/static/img/poster-placeholder.svg"
 
         watched_at = row.get("watched_at")
-        watched_iso = watched_at.isoformat() if hasattr(watched_at, "isoformat") else str(watched_at or "")
+        watched_iso = (
+            watched_at.isoformat() if hasattr(watched_at, "isoformat") else str(watched_at or "")
+        )
         is_this_month = (
             hasattr(watched_at, "year")
             and watched_at.year == now.year
@@ -131,6 +133,10 @@ class WatchedListPresenter:
             year_int,
             is_this_month,
         )
+
+    def normalize_movie(self, row, now: datetime) -> dict | None:
+        movie, _, _ = self._normalize_row(row, now)
+        return movie
 
     def _build_stats(self, total: int, this_month_count: int, year_values: list[int]) -> dict:
         avg_year = int(round(sum(year_values) / len(year_values))) if year_values else None

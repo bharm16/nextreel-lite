@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import asyncio
-import hashlib
-import json
 import random
 import time
 from datetime import datetime, timezone
@@ -10,42 +7,20 @@ from typing import Any
 
 from logging_config import get_logger
 
-from infra.cache import CacheNamespace, LruExpiringMap
 from infra.errors import DatabaseError
 from infra.time_utils import current_year as _current_year
+from movies.movie_count_cache import (
+    MovieCountCache,
+    bump_count_cache_generation,
+    criteria_cache_key as _criteria_cache_key,
+    current_count_generation as _current_count_generation,
+)
 from .interfaces import MovieFetcher
 
 logger = get_logger(__name__)
 
 
-_COUNT_GENERATION_KEY = "count_generation"
-
 _FETCH_MOVIES_LIMIT = 500
-
-
-def _criteria_cache_key(criteria: dict[str, Any], generation: int = 0) -> str:
-    """Build a deterministic cache key from filter criteria.
-
-    The ``generation`` value is bumped by ``bump_count_cache_generation`` after
-    ``refresh_movie_candidates`` runs so stale counts can never overshoot the
-    new row count and return empty result sets to ``/next_movie``.
-    """
-    blob = json.dumps(criteria, sort_keys=True, default=str).encode()
-    return f"count:{generation}:" + hashlib.sha256(blob).hexdigest()[:16]
-
-
-async def bump_count_cache_generation(cache) -> int:
-    """Increment the count-cache generation, invalidating all stored counts."""
-    if cache is None:
-        return 0
-    try:
-        current = await cache.get(CacheNamespace.TEMP, _COUNT_GENERATION_KEY)
-        next_gen = (int(current) if current is not None else 0) + 1
-        await cache.set(CacheNamespace.TEMP, _COUNT_GENERATION_KEY, next_gen, ttl=86400 * 7)
-        return next_gen
-    except Exception:
-        logger.warning("Failed to bump count cache generation", exc_info=True)
-        return 0
 
 
 def is_fulltext_index_error(exc: Exception) -> bool:
@@ -56,16 +31,6 @@ def is_fulltext_index_error(exc: Exception) -> bool:
     a single detector rather than independent string matchers.
     """
     return "fulltext" in str(exc).lower()
-
-
-async def _current_count_generation(cache) -> int:
-    if cache is None:
-        return 0
-    try:
-        current = await cache.get(CacheNamespace.TEMP, _COUNT_GENERATION_KEY)
-        return int(current) if current is not None else 0
-    except Exception:
-        return 0
 
 
 # Columns needed by downstream consumers (MovieNavigator only reads ``tconst``
@@ -287,9 +252,7 @@ class MovieQueryBuilder:
         ``CandidateStore._genre_clause`` and ``_build_query_with_genres``.
         """
         if use_fulltext:
-            return MovieQueryBuilder.build_genre_conditions_fulltext(
-                criteria, use_cache=use_cache
-            )
+            return MovieQueryBuilder.build_genre_conditions_fulltext(criteria, use_cache=use_cache)
         genre_params: list[Any] = []
         genre_conditions = MovieQueryBuilder.build_genre_conditions(
             criteria, genre_params, use_cache=use_cache
@@ -304,42 +267,7 @@ class ImdbRandomMovieFetcher(MovieFetcher):
         self.db_pool = database_pool
         self._cache = cache
         self.use_fulltext = True
-        # Per-key locks for single-flighting expensive COUNT(*) queries.
-        # When a generation bump invalidates the cache, 100 concurrent
-        # /next_movie requests would otherwise all issue the same 2-5s
-        # full-table COUNT scan. The lock ensures exactly one query hits
-        # MySQL; the rest await the shared result via the lock + re-read.
-        # Bounded LRU map prevents unbounded growth across long-lived
-        # processes; TTL is generous enough to outlast the slowest
-        # plausible COUNT scan.
-        self._count_locks: LruExpiringMap = LruExpiringMap(
-            max_keys=512, ttl_seconds=300
-        )
-        self._count_locks_guard = asyncio.Lock()
-
-    _COUNT_CACHE_TTL = 300  # 5 minutes
-
-    async def _get_cached_count(self, cache_key: str) -> int | None:
-        """Retrieve a cached row count from Redis."""
-        if not self._cache:
-            return None
-        try:
-            cached = await self._cache.get(CacheNamespace.TEMP, cache_key)
-            if cached is not None:
-                logger.debug("Count cache hit for %s: %d", cache_key, cached)
-                return int(cached)
-        except Exception:
-            logger.warning("Cache read failed for %s", cache_key, exc_info=True)
-        return None
-
-    async def _set_cached_count(self, cache_key: str, count: int) -> None:
-        """Store a row count in Redis with a short TTL."""
-        if not self._cache:
-            return
-        try:
-            await self._cache.set(CacheNamespace.TEMP, cache_key, count, ttl=self._COUNT_CACHE_TTL)
-        except Exception:
-            logger.warning("Cache write failed for %s", cache_key, exc_info=True)
+        self._count_cache = MovieCountCache(cache)
 
     @staticmethod
     def _table_label(use_recent: bool, use_cache: bool) -> str:
@@ -429,52 +357,6 @@ class ImdbRandomMovieFetcher(MovieFetcher):
         """Fetch random movies using optimized cache tables."""
         return await self._safe_fetch(self._fetch_random_movies_impl, criteria, limit)
 
-    async def _acquire_count_lock(self, cache_key: str) -> asyncio.Lock:
-        """Return a per-key lock, creating it under a guard if needed.
-
-        Keys embed the count-cache generation, so each
-        ``bump_count_cache_generation`` call creates a fresh namespace.
-        Stale-generation locks are evicted lazily on insert to keep the
-        dict from growing unbounded across long-lived processes.
-        """
-        async with self._count_locks_guard:
-            lock = self._count_locks.get(cache_key)
-            if lock is None:
-                self._evict_stale_count_locks(cache_key)
-                lock = asyncio.Lock()
-                self._count_locks[cache_key] = lock
-            return lock
-
-    def _evict_stale_count_locks(self, current_key: str) -> None:
-        """Drop locks whose generation prefix differs from ``current_key``.
-
-        Cache keys are formatted as ``count:{generation}:{hash}``. When a
-        new key is inserted with a generation not matching any existing
-        entry, purge all entries from prior generations — only locks for
-        the current generation remain useful.
-        """
-        try:
-            current_gen = current_key.split(":", 2)[1]
-        except IndexError:
-            return
-        stale = [
-            key
-            for key in self._count_locks
-            if key.split(":", 2)[1] != current_gen
-        ]
-        for key in stale:
-            self._count_locks.pop(key, None)
-
-    # Redis lock TTL for cross-worker COUNT single-flight. Long enough
-    # to cover a slow full-table scan but bounded so a crashed worker's
-    # lock releases naturally.
-    _COUNT_LOCK_TTL_SECONDS = 30
-    # How long a waiting caller polls the cache for the leader's result
-    # before giving up and running its own COUNT. Total wait capped so
-    # a slow leader doesn't block followers forever.
-    _COUNT_LOCK_POLL_INTERVAL = 0.1
-    _COUNT_LOCK_POLL_MAX_WAIT = 5.0
-
     async def _count_qualifying_rows(
         self,
         criteria: dict[str, Any],
@@ -483,97 +365,17 @@ class ImdbRandomMovieFetcher(MovieFetcher):
         use_recent: bool,
         lang: str,
     ) -> int:
-        """Count rows matching criteria, single-flighted + Redis-cached (5-min TTL).
-
-        Two-layer single-flight:
-        1. Redis SET NX lock collapses concurrent cache misses across
-           workers so only one process hits MySQL.
-        2. Per-process asyncio.Lock collapses callers within a worker
-           so we don't round-trip Redis N times for the same key.
-        """
-        generation = await _current_count_generation(self._cache)
-        cache_key = _criteria_cache_key(criteria, generation)
-
-        # Fast path: cache hit, no locks needed.
-        total_rows = await self._get_cached_count(cache_key)
-        if total_rows is not None:
-            return total_rows
-
-        lock = await self._acquire_count_lock(cache_key)
-        async with lock:
-            # Double-check: another coroutine in this worker may have
-            # populated the cache while we waited on the local lock.
-            total_rows = await self._get_cached_count(cache_key)
-            if total_rows is not None:
-                return total_rows
-
-            return await self._run_count_with_global_lock(
-                criteria=criteria,
-                parameters=parameters,
-                use_cache=use_cache,
-                use_recent=use_recent,
-                lang=lang,
-                cache_key=cache_key,
-            )
-
-    async def _run_count_with_global_lock(
-        self,
-        *,
-        criteria: dict[str, Any],
-        parameters: list[Any],
-        use_cache: bool,
-        use_recent: bool,
-        lang: str,
-        cache_key: str,
-    ) -> int:
-        """Execute COUNT under a Redis-backed cross-worker lock.
-
-        If we acquire the lock, we run the query and populate the cache.
-        If we lose, we poll the cache for the leader's result, falling
-        back to our own query if the leader is too slow.
-        """
-        lock_key = f"count_lock:{cache_key}"
-        acquired_global = False
-        if self._cache is not None:
-            acquired_global = await self._cache.try_acquire_lock(
-                CacheNamespace.TEMP,
-                lock_key,
-                ttl_seconds=self._COUNT_LOCK_TTL_SECONDS,
-            )
-        else:
-            acquired_global = True
-
-        if not acquired_global:
-            waited = 0.0
-            while waited < self._COUNT_LOCK_POLL_MAX_WAIT:
-                await asyncio.sleep(self._COUNT_LOCK_POLL_INTERVAL)
-                waited += self._COUNT_LOCK_POLL_INTERVAL
-                total_rows = await self._get_cached_count(cache_key)
-                if total_rows is not None:
-                    return total_rows
-            # Leader too slow — fall through and run our own COUNT.
-
-        try:
-            count_query = MovieQueryBuilder.build_count_query(
-                use_cache=use_cache, use_recent=use_recent, language=lang
-            )
-            count_query, count_params = self._build_query_with_genres(
-                count_query, criteria, parameters, use_cache or use_recent
-            )
-            try:
-                count_result = await self.db_pool.execute(count_query, count_params, fetch="one")
-            except DatabaseError:
-                count_result = None
-            total_rows = list(count_result.values())[0] if count_result else 0
-            # Only the lock holder writes the cache; followers that fell
-            # through after a slow leader would otherwise race with the
-            # eventual leader write.
-            if acquired_global:
-                await self._set_cached_count(cache_key, total_rows)
-            return total_rows
-        finally:
-            if acquired_global and self._cache is not None:
-                await self._cache.release_lock(CacheNamespace.TEMP, lock_key)
+        """Compatibility wrapper around MovieCountCache."""
+        return await self._count_cache.count_qualifying_rows(
+            criteria=criteria,
+            parameters=parameters,
+            use_cache=use_cache,
+            use_recent=use_recent,
+            lang=lang,
+            db_pool=self.db_pool,
+            query_builder=MovieQueryBuilder,
+            build_query_with_genres=self._build_query_with_genres,
+        )
 
     async def _fetch_random_movies_impl(self, criteria: dict[str, Any], limit: int):
         method_start_time = time.time()

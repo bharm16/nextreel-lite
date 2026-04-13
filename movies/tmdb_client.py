@@ -8,6 +8,7 @@ from typing import Optional
 import httpx
 
 from movies.tmdb_parser import TMDbResponseParser
+from movies.tmdb_metrics import TMDbMetricsRecorder
 
 
 def get_tmdb_api_key() -> str:
@@ -108,9 +109,7 @@ class _CircuitBreaker:
                     self._latency_ewma = duration_seconds
                 else:
                     alpha = self.latency_ewma_alpha
-                    self._latency_ewma = (
-                        alpha * duration_seconds + (1 - alpha) * self._latency_ewma
-                    )
+                    self._latency_ewma = alpha * duration_seconds + (1 - alpha) * self._latency_ewma
                 if (
                     self.latency_threshold_seconds is not None
                     and self._latency_ewma > self.latency_threshold_seconds
@@ -163,9 +162,7 @@ def _build_circuit_breaker() -> _CircuitBreaker:
             if value > 0:
                 threshold = value
         except ValueError:
-            logger.warning(
-                "Invalid TMDB_LATENCY_BREAKER_SECONDS=%r, ignoring", raw
-            )
+            logger.warning("Invalid TMDB_LATENCY_BREAKER_SECONDS=%r, ignoring", raw)
     return _CircuitBreaker(
         failure_threshold=5,
         recovery_timeout=30.0,
@@ -184,6 +181,7 @@ class TMDbHelper:
         self.image_base_url = TMDB_IMAGE_BASE_URL
         self._max_retries = 3
         self._response_parser: TMDbResponseParser | None = None
+        self._metrics_recorder = TMDbMetricsRecorder()
         self._auth_headers = {"Authorization": f"Bearer {self.api_key}"}
         self._client = httpx.AsyncClient(
             timeout=httpx.Timeout(10.0, connect=3.0),
@@ -215,39 +213,14 @@ class TMDbHelper:
         pass through. This keeps the ``status_code`` label bounded to ~8
         values regardless of what TMDb or httpx surface.
         """
-        from infra.metrics import (
-            bucket_http_status,
-            tmdb_api_calls_total,
-            tmdb_api_duration_seconds,
-        )
-        from infra.metrics_groups import safe_emit
-
-        safe_emit(
-            lambda: tmdb_api_calls_total.labels(
-                endpoint=logical_endpoint,
-                status_code=bucket_http_status(status_code),
-            ).inc()
-        )
-        safe_emit(
-            tmdb_api_duration_seconds.labels(endpoint=logical_endpoint).observe,
+        self._metrics_recorder.record_api_call(
+            logical_endpoint,
+            status_code,
             duration_seconds,
         )
 
     def _record_tmdb_rate_limit(self, response):
-        try:
-            remaining = response.headers.get("X-RateLimit-Remaining")
-        except Exception:  # pragma: no cover - best-effort
-            return
-        if remaining is None:
-            return
-        from infra.metrics import tmdb_rate_limit_remaining
-        from infra.metrics_groups import safe_emit
-
-        try:
-            value = float(remaining)
-        except (TypeError, ValueError):
-            return
-        safe_emit(tmdb_rate_limit_remaining.set, value)
+        self._metrics_recorder.record_rate_limit(response)
 
     async def _get(self, endpoint, params=None, *, metric_endpoint=None):
         """Fetch a TMDb endpoint.
@@ -290,9 +263,7 @@ class TMDbHelper:
                         self._max_retries,
                     )
                     await self._circuit_breaker.record_failure()
-                    self._record_tmdb_metrics(
-                        logical_endpoint, 429, time.time() - start_time
-                    )
+                    self._record_tmdb_metrics(logical_endpoint, 429, time.time() - start_time)
                     metric_recorded = True
                     if attempt < self._max_retries:
                         # Sleep OUTSIDE the rate semaphore (we already exited
@@ -312,18 +283,14 @@ class TMDbHelper:
                     response.status_code,
                 )
                 await self._circuit_breaker.record_success(duration_seconds=elapsed_time)
-                self._record_tmdb_metrics(
-                    logical_endpoint, response.status_code, elapsed_time
-                )
+                self._record_tmdb_metrics(logical_endpoint, response.status_code, elapsed_time)
                 return response.json()
 
             except httpx.RequestError as e:
                 elapsed_time = time.time() - start_time
                 await self._circuit_breaker.record_failure()
                 if not metric_recorded:
-                    self._record_tmdb_metrics(
-                        logical_endpoint, "transport_error", elapsed_time
-                    )
+                    self._record_tmdb_metrics(logical_endpoint, "transport_error", elapsed_time)
                     metric_recorded = True
                 if attempt < self._max_retries:
                     # Exponential backoff with jitter — prevents synchronized
@@ -367,9 +334,7 @@ class TMDbHelper:
                 elapsed_time = time.time() - start_time
                 await self._circuit_breaker.record_failure()
                 if not metric_recorded:
-                    self._record_tmdb_metrics(
-                        logical_endpoint, "error", elapsed_time
-                    )
+                    self._record_tmdb_metrics(logical_endpoint, "error", elapsed_time)
                     metric_recorded = True
                 logger.error(
                     "Unexpected error from %s: %s; Time elapsed: %.2fs",
@@ -450,9 +415,7 @@ class TMDbHelper:
         """Fetch limited number of images for a TMDB ID."""
         start_time = time.time()
         try:
-            data = await self._get(
-                f"movie/{tmdb_id}/images", metric_endpoint="movie_images"
-            )
+            data = await self._get(f"movie/{tmdb_id}/images", metric_endpoint="movie_images")
             images = self._parser().parse_images({"images": data}, limit=limit)
 
             logger.debug(

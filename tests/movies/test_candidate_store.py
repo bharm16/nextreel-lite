@@ -403,7 +403,8 @@ async def test_fetch_candidate_refs_deduplicates(mock_db_pool):
         )
 
     tconsts = [r["tconst"] for r in refs]
-    assert tconsts == ["tt0001", "tt0002"]
+    assert sorted(tconsts) == ["tt0001", "tt0002"]
+    assert len(tconsts) == len(set(tconsts))
 
 
 async def test_fetch_candidate_refs_respects_limit(mock_db_pool):

@@ -33,6 +33,8 @@ from infra.metrics_groups import (
     logging_metrics as logging_metrics_group,
 )
 
+logger = get_logger(__name__)
+
 # ── Backward-compatible aliases ──────────────────────────────────────
 # Existing code imports these names directly; keep them working.
 http_requests_total = http.requests_total
@@ -166,6 +168,7 @@ def bucket_http_status(status_code) -> str:
     if 500 <= code < 600:
         return "5xx"
     return "other"
+
 
 # ============================================================================
 # METRICS COLLECTION SERVICE

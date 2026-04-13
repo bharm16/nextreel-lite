@@ -50,7 +50,6 @@ class WatchedStore:
         )
         await self._invalidate_cache(user_id)
 
-
     async def add_bulk(self, user_id: str, tconsts: list[str]) -> int:
         """Mark multiple movies as watched in a single bulk insert.
 
@@ -112,6 +111,7 @@ class WatchedStore:
         TTL. Invalidated on add()/remove(). Falls back to a direct DB read when
         no cache is configured or Redis is unavailable.
         """
+
         async def _loader() -> list[str]:
             rows = await self.db_pool.execute(
                 "SELECT tconst FROM user_watched_movies WHERE user_id = %s",
@@ -197,3 +197,40 @@ class WatchedStore:
             fetch="one",
         )
         return row["cnt"] if row else 0
+
+    async def ready_tconsts_for_import(self, tconsts: list[str]) -> set[str]:
+        """Return imported tconsts that already have READY projections."""
+        if not tconsts:
+            return set()
+        unique = list(dict.fromkeys(tconsts))
+        placeholders = ", ".join(["%s"] * len(unique))
+        rows = await self.db_pool.execute(
+            "SELECT tconst FROM movie_projection "
+            "WHERE tconst IN (" + placeholders + ") "
+            "AND projection_state = %s",
+            [*unique, "ready"],
+            fetch="all",
+        )
+        return {row["tconst"] for row in rows} if rows else set()
+
+    async def ready_import_rows(self, user_id: str, tconsts: list[str]) -> list[dict[str, Any]]:
+        """Return watched rows for imported tconsts whose projections are READY."""
+        if not tconsts:
+            return []
+        unique = list(dict.fromkeys(tconsts))
+        placeholders = ", ".join(["%s"] * len(unique))
+        rows = await self.db_pool.execute(
+            "SELECT w.tconst, w.watched_at, "
+            "c.primaryTitle, c.startYear, c.genres, c.slug, "
+            "p.payload_json "
+            "FROM user_watched_movies w "
+            "INNER JOIN movie_projection p ON w.tconst = p.tconst "
+            "LEFT JOIN movie_candidates c ON w.tconst = c.tconst "
+            "WHERE w.tconst IN (" + placeholders + ") "
+            "AND w.user_id = %s "
+            "AND p.projection_state = %s "
+            "ORDER BY w.watched_at DESC",
+            [*unique, user_id, "ready"],
+            fetch="all",
+        )
+        return rows if rows else []

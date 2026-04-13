@@ -22,7 +22,9 @@ from quart import (
 from infra.time_utils import current_year as _current_year, env_bool, utcnow as _utcnow
 from logging_config import get_logger
 from nextreel.application.auth_flows import GoogleOAuthService, RegistrationService
+from nextreel.application.letterboxd_import_service import LetterboxdImportService
 from nextreel.application.movie_navigator import NavigationOutcome
+from nextreel.application.watched_progress_service import WatchedEnrichmentProgressService
 from nextreel.web.route_services import (
     MovieDetailService,
     WatchedListPresenter,
@@ -47,6 +49,8 @@ _google_oauth_service = GoogleOAuthService()
 _movie_detail_service = MovieDetailService()
 _watched_list_presenter = WatchedListPresenter()
 _watched_mutation_service = WatchedMutationService()
+_letterboxd_import_service = LetterboxdImportService()
+_watched_progress_service = WatchedEnrichmentProgressService()
 
 
 def _movie_detail_blocks_partial_render() -> bool:
@@ -249,6 +253,7 @@ __all__ = [
     "_get_csrf_token",
     "_google_oauth_service",
     "_legacy_session",
+    "_letterboxd_import_service",
     "_movie_detail_blocks_partial_render",
     "_movie_detail_service",
     "_movie_image_context",
@@ -261,6 +266,7 @@ __all__ = [
     "_wants_json_response",
     "_watched_list_presenter",
     "_watched_mutation_service",
+    "_watched_progress_service",
     "_current_year",
     "bp",
     "init_routes",

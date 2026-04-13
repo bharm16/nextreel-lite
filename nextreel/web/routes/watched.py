@@ -11,10 +11,12 @@ from infra.route_helpers import csrf_required, rate_limited, safe_referrer as _s
 from nextreel.web.routes.shared import (
     _TCONST_RE,
     _current_user_id,
+    _letterboxd_import_service,
     _require_login,
     _services,
     _watched_list_presenter,
     _watched_mutation_service,
+    _watched_progress_service,
     _wants_json_response,
     bp,
     logger,
@@ -101,11 +103,13 @@ async def add_to_watched(tconst):
     )
     logger.info("User %s marked %s as watched", user_id, tconst)
     if _wants_json_response():
-        return jsonify({
-            "ok": True,
-            "is_watched": True,
-            "tconst": tconst,
-        })
+        return jsonify(
+            {
+                "ok": True,
+                "is_watched": True,
+                "tconst": tconst,
+            }
+        )
 
     return redirect(_safe_referrer(tconst), code=303)
 
@@ -128,11 +132,13 @@ async def remove_from_watched(tconst):
     )
     logger.info("User %s removed %s from watched", user_id, tconst)
     if _wants_json_response():
-        return jsonify({
-            "ok": True,
-            "is_watched": False,
-            "tconst": tconst,
-        })
+        return jsonify(
+            {
+                "ok": True,
+                "is_watched": False,
+                "tconst": tconst,
+            }
+        )
 
     return redirect(_safe_referrer(tconst), code=303)
 
@@ -144,90 +150,43 @@ async def import_letterboxd():
     if redirect_response:
         return redirect_response
 
-    from quart import flash, session as quart_session
+    from quart import current_app, flash, session as quart_session
 
     user_id = _current_user_id()
     services = _services()
 
     files = await request.files
     uploaded = files.get("letterboxd_csv")
-    if not uploaded or not uploaded.filename:
-        await flash("Please select a CSV file.", "error")
-        return redirect(url_for("main.watched_list_page"))
-
-    # Check file size (5MB limit)
-    file_bytes = uploaded.stream.read()
-    if len(file_bytes) > 5 * 1024 * 1024:
-        await flash("File is too large. Maximum size is 5MB.", "error")
-        return redirect(url_for("main.watched_list_page"))
-
-    from movies.letterboxd_import import match_films, parse_watched_csv
-
-    import io
 
     try:
-        films = parse_watched_csv(io.BytesIO(file_bytes))
-    except ValueError as exc:
-        await flash(
-            "Invalid CSV format: %s. Please upload the watched.csv from your Letterboxd export." % exc,
-            "error",
-        )
-        return redirect(url_for("main.watched_list_page"))
-
-    if not films:
-        await flash("The CSV file contained no films.", "warning")
-        return redirect(url_for("main.watched_list_page"))
-
-    try:
-        result = await match_films(
-            services.movie_manager.db_pool,
-            films,
-        )
-        added = await services.movie_manager.watched_store.add_bulk(
-            user_id, result.matched
+        outcome = await _letterboxd_import_service.import_watched(
+            user_id=user_id,
+            uploaded=uploaded,
+            db_pool=services.movie_manager.db_pool,
+            watched_store=services.movie_manager.watched_store,
+            enqueue_fn=getattr(current_app, "enqueue_runtime_job", None),
         )
     except Exception:
         logger.exception("Letterboxd import failed for user %s", user_id)
         await flash("Something went wrong during import. Please try again.", "error")
         return redirect(url_for("main.watched_list_page"))
 
-    # Fire non-blocking enrichment for un-enriched movies
-    from quart import current_app
-    from movies.letterboxd_import import enqueue_import_enrichment
+    if outcome.kind == "success":
+        if outcome.enrichment_requested:
+            quart_session["letterboxd_import_tconsts"] = outcome.matched
+            quart_session["letterboxd_enrichment_pending"] = True
+            quart_session["letterboxd_sent_tconsts"] = []
+        if outcome.unmatched_labels:
+            quart_session["letterboxd_unmatched"] = outcome.unmatched_labels
 
-    enqueue_fn = getattr(current_app, "enqueue_runtime_job", None)
-    if enqueue_fn and result.matched:
-        asyncio.create_task(
-            enqueue_import_enrichment(
-                result.matched,
-                services.movie_manager.db_pool,
-                enqueue_fn,
-            )
+        logger.info(
+            "Letterboxd import for user %s: %d matched, %d unmatched",
+            user_id,
+            len(outcome.matched),
+            len(outcome.unmatched_labels),
         )
-        quart_session["letterboxd_import_tconsts"] = result.matched
-        quart_session["letterboxd_enrichment_pending"] = True
-        quart_session["letterboxd_sent_tconsts"] = []
 
-    # Build flash message
-    matched_count = len(result.matched)
-    unmatched_count = len(result.unmatched)
-    if unmatched_count:
-        await flash(
-            "Imported %d films. %d could not be matched." % (matched_count, unmatched_count),
-            "success",
-        )
-        quart_session["letterboxd_unmatched"] = [
-            "%s (%s)" % (u["name"], u["year"]) for u in result.unmatched[:50]
-        ]
-    else:
-        await flash("Imported all %d films." % matched_count, "success")
-
-    logger.info(
-        "Letterboxd import for user %s: %d matched, %d unmatched",
-        user_id,
-        matched_count,
-        unmatched_count,
-    )
+    await flash(outcome.flash_message, outcome.flash_category)
     return redirect(url_for("main.watched_list_page"))
 
 
@@ -239,95 +198,28 @@ async def enrichment_progress():
 
     from quart import session as quart_session
 
-    import_tconsts = quart_session.get("letterboxd_import_tconsts", [])
-    if not import_tconsts:
-        return jsonify({"html": "", "new_count": 0, "total_ready": 0, "total": 0, "done": True})
-
-    sent_tconsts = set(quart_session.get("letterboxd_sent_tconsts", []))
     services = _services()
-
-    # Find newly READY tconsts we haven't sent yet
-    unsent = [tc for tc in import_tconsts if tc not in sent_tconsts]
-    if not unsent:
-        # All have been sent already — we're done
-        quart_session.pop("letterboxd_enrichment_pending", None)
-        quart_session.pop("letterboxd_import_tconsts", None)
-        quart_session.pop("letterboxd_sent_tconsts", None)
-        return jsonify({
-            "html": "", "new_count": 0,
-            "total_ready": len(sent_tconsts), "total": len(import_tconsts),
-            "done": True,
-        })
-
-    # Query which unsent tconsts are now READY
-    placeholders = ", ".join(["%s"] * len(unsent))
-    ready_rows = await services.movie_manager.db_pool.execute(
-        "SELECT tconst FROM movie_projection "
-        "WHERE tconst IN (" + placeholders + ") "
-        "AND projection_state = %s",
-        [*unsent, "ready"],
-        fetch="all",
-    )
-    newly_ready = {row["tconst"] for row in ready_rows} if ready_rows else set()
-
-    if not newly_ready:
-        total_ready = len(sent_tconsts)
-        total = len(import_tconsts)
-        return jsonify({
-            "html": "", "new_count": 0,
-            "total_ready": total_ready, "total": total,
-            "done": False,
-        })
-
-    # Fetch full movie data for newly ready tconsts
-    newly_ready_list = sorted(newly_ready)
-    placeholders2 = ", ".join(["%s"] * len(newly_ready_list))
-    rows = await services.movie_manager.db_pool.execute(
-        "SELECT w.tconst, w.watched_at, "
-        "c.primaryTitle, c.startYear, c.genres, c.slug, "
-        "p.payload_json "
-        "FROM user_watched_movies w "
-        "INNER JOIN movie_projection p ON w.tconst = p.tconst "
-        "LEFT JOIN movie_candidates c ON w.tconst = c.tconst "
-        "WHERE w.tconst IN (" + placeholders2 + ") "
-        "AND w.user_id = %s "
-        "AND p.projection_state = %s "
-        "ORDER BY w.watched_at DESC",
-        [*newly_ready_list, _current_user_id(), "ready"],
-        fetch="all",
+    progress = await _watched_progress_service.progress(
+        session_state=quart_session,
+        user_id=_current_user_id(),
+        watched_store=services.movie_manager.watched_store,
+        presenter=_watched_list_presenter,
+        now=datetime.now(timezone.utc).replace(tzinfo=None),
     )
 
-    # Build movie dicts using the presenter and render card partials
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
-    html_parts = []
-    if rows:
-        for row in rows:
-            movie, _, _ = _watched_list_presenter._normalize_row(row, now)
-            if movie:
-                html_parts.append(
-                    await render_template("_watched_card.html", movie=movie)
-                )
+    html_parts = [
+        await render_template("_watched_card.html", movie=movie) for movie in progress.new_movies
+    ]
 
-    # Update sent tracking
-    new_sent = sent_tconsts | newly_ready
-    quart_session["letterboxd_sent_tconsts"] = list(new_sent)
-
-    total_ready = len(new_sent)
-    total = len(import_tconsts)
-    done = total_ready >= total
-
-    if done:
-        quart_session.pop("letterboxd_enrichment_pending", None)
-        quart_session.pop("letterboxd_import_tconsts", None)
-        quart_session.pop("letterboxd_sent_tconsts", None)
-
-    return jsonify({
-        "html": "".join(html_parts),
-        "new_count": len(newly_ready),
-        "total_ready": total_ready,
-        "total": total,
-        "done": done,
-    })
+    return jsonify(
+        {
+            "html": "".join(html_parts),
+            "new_count": progress.new_count,
+            "total_ready": progress.total_ready,
+            "total": progress.total,
+            "done": progress.done,
+        }
+    )
 
 
 __all__ = [

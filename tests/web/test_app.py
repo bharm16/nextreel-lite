@@ -16,8 +16,6 @@ def _make_test_app():
 
 async def _get_csrf_token(client):
     """Issue a GET to establish a session and extract the CSRF token."""
-    from quart import session as quart_session
-
     # Use /filters as a harmless GET endpoint that renders a template.
     # After the GET the session will contain our CSRF token.
     # We can't easily read the session from outside, so we inject the
@@ -177,9 +175,7 @@ async def test_movie_detail_normalizes_tmdb_backdrop_and_preloads_hero_image():
             'rel="preload" as="image" href="https://image.tmdb.org/t/p/w780/'
             'wid86tR3KvQ8SBzjmlcXMTSRXsy.jpg"'
         ) in body
-        assert (
-            'src="https://image.tmdb.org/t/p/w780/wid86tR3KvQ8SBzjmlcXMTSRXsy.jpg"'
-        ) in body
+        assert ('src="https://image.tmdb.org/t/p/w780/wid86tR3KvQ8SBzjmlcXMTSRXsy.jpg"') in body
         assert "w1280https://image.tmdb.org" not in body
 
 
@@ -336,8 +332,13 @@ async def test_handle_new_user_route_removed():
 
 async def test_startup_hook_initializes_movie_manager_without_db_warmup_queries():
     """Warm-up should avoid synthetic DB pings and use lazy job enqueueing."""
-    with patch.dict(os.environ, TEST_ENV), patch("app.MovieManager") as MockManager, patch(
-        "app.ensure_movie_candidates_fulltext_index", AsyncMock()
+    with (
+        patch.dict(os.environ, TEST_ENV),
+        patch("app.MovieManager") as MockManager,
+        patch(
+            "nextreel.web.lifecycle.ensure_movie_candidates_fulltext_index",
+            AsyncMock(),
+        ),
     ):
         manager = MockManager.return_value
         manager.start = AsyncMock()
@@ -358,15 +359,16 @@ async def test_startup_hook_initializes_movie_manager_without_db_warmup_queries(
 @pytest.mark.asyncio
 async def test_slow_request_logging_samples_when_rate_configured(monkeypatch):
     """With SLOW_LOG_SAMPLE_RATE=3, only 1 in 3 slow requests logs."""
-    import app as app_module
+    from nextreel.web import request_context
+
     monkeypatch.setenv("SLOW_LOG_SAMPLE_RATE", "3")
-    monkeypatch.setattr(app_module, "_slow_log_counter", 0)
+    monkeypatch.setattr(request_context, "_slow_log_counter", 0)
 
     mock_logger = MagicMock()
-    monkeypatch.setattr(app_module, "logger", mock_logger)
+    monkeypatch.setattr(request_context, "logger", mock_logger)
 
     for _ in range(6):
-        app_module._maybe_log_slow_request(
+        request_context.maybe_log_slow_request(
             endpoint="main.next_movie",
             elapsed=2.5,
             session_id="sess-1",
@@ -379,15 +381,16 @@ async def test_slow_request_logging_samples_when_rate_configured(monkeypatch):
 @pytest.mark.asyncio
 async def test_slow_request_logging_default_logs_all(monkeypatch):
     """Default SLOW_LOG_SAMPLE_RATE=1 logs every slow request."""
-    import app as app_module
+    from nextreel.web import request_context
+
     monkeypatch.delenv("SLOW_LOG_SAMPLE_RATE", raising=False)
-    monkeypatch.setattr(app_module, "_slow_log_counter", 0)
+    monkeypatch.setattr(request_context, "_slow_log_counter", 0)
 
     mock_logger = MagicMock()
-    monkeypatch.setattr(app_module, "logger", mock_logger)
+    monkeypatch.setattr(request_context, "logger", mock_logger)
 
     for _ in range(4):
-        app_module._maybe_log_slow_request(
+        request_context.maybe_log_slow_request(
             endpoint="main.next_movie",
             elapsed=1.5,
             session_id="sess-1",

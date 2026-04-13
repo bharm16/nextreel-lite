@@ -2,18 +2,16 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 import random
 from datetime import datetime
 from typing import Any
 
 from filter_contracts import FilterState, MovieCriteria
-from infra.cache import CacheNamespace
 from infra.errors import DatabaseError
 from infra.filter_normalizer import criteria_from_filters
 from infra.time_utils import utcnow
 from logging_config import get_logger
+from movies.candidate_filter_pool_cache import CandidateFilterPoolCache
 from movies.query_builder import MovieQueryBuilder, is_fulltext_index_error
 
 logger = get_logger(__name__)
@@ -29,19 +27,7 @@ _ALLOWED_CANDIDATE_TABLES = frozenset({"movie_candidates_next", "movie_candidate
 # combo (e.g., bots hitting unique filter pages) to one DB fetch per window.
 # We cache a larger pool than any single caller needs, then sample from it,
 # so concurrent callers still see varied results.
-_FILTER_RESULT_CACHE_TTL_SECONDS = 30
 _FILTER_RESULT_POOL_SIZE = 50
-
-
-def _filter_cache_key(criteria: MovieCriteria) -> str:
-    """Deterministic cache key: criteria hash only, not excluded set.
-
-    Excluded tconsts are per-session (seen list), so including them
-    would collapse the hit rate to nearly zero. We sample from the pool
-    and filter excluded tconsts client-side.
-    """
-    blob = json.dumps(dict(criteria), sort_keys=True, default=str).encode()
-    return "filter_pool:" + hashlib.sha256(blob).hexdigest()[:16]
 
 
 def _ref_from_row(row: dict[str, Any]) -> dict[str, Any]:
@@ -61,10 +47,12 @@ class CandidateStore:
         # filter-result pooling so repeated unique-filter queries don't
         # each run a shuffle_key sort.
         self._cache = None
+        self._filter_pool_cache = CandidateFilterPoolCache()
 
     def attach_cache(self, cache) -> None:
         """Attach a cache manager. Idempotent — callers may rebind."""
         self._cache = cache
+        self._filter_pool_cache.attach_cache(cache)
 
     async def latest_refresh_at(self) -> datetime | None:
         row = await self.db_pool.execute(
@@ -153,9 +141,7 @@ class CandidateStore:
         continue to work. New callers should use ``MovieQueryBuilder.genre_clause``
         directly.
         """
-        return MovieQueryBuilder.genre_clause(
-            criteria, use_fulltext=use_fulltext, use_cache=True
-        )
+        return MovieQueryBuilder.genre_clause(criteria, use_fulltext=use_fulltext, use_cache=True)
 
     @staticmethod
     def _is_fulltext_index_error(exc: DatabaseError) -> bool:
@@ -240,23 +226,11 @@ class CandidateStore:
         Returns None on miss, empty list when pool exists but yields
         nothing after exclusion, or a sampled subset on hit.
         """
-        if self._cache is None:
-            return None
-        cache_key = _filter_cache_key(criteria)
-        try:
-            pool = await self._cache.get(CacheNamespace.TEMP, cache_key)
-        except Exception:
-            return None
-        if not pool or not isinstance(pool, list):
-            return None
-        available = [
-            ref for ref in pool
-            if isinstance(ref, dict) and ref.get("tconst") not in excluded_tconsts
-        ]
-        if not available:
-            return None
-        random.shuffle(available)
-        return available[:limit]
+        return await self._filter_pool_cache.sample(
+            criteria=criteria,
+            excluded_tconsts=excluded_tconsts,
+            limit=limit,
+        )
 
     async def _store_filter_pool(
         self,
@@ -264,18 +238,7 @@ class CandidateStore:
         excluded_tconsts: set[str],
         refs: list[dict[str, Any]],
     ) -> None:
-        if self._cache is None or not refs:
-            return
-        cache_key = _filter_cache_key(criteria)
-        try:
-            await self._cache.set(
-                CacheNamespace.TEMP,
-                cache_key,
-                refs,
-                ttl=_FILTER_RESULT_CACHE_TTL_SECONDS,
-            )
-        except Exception:
-            logger.debug("Filter-pool cache write failed", exc_info=True)
+        await self._filter_pool_cache.store(criteria=criteria, refs=refs)
 
     async def fetch_candidate_refs_for_criteria(
         self,
@@ -286,9 +249,7 @@ class CandidateStore:
         desired_limit = max(1, limit)
 
         # Fast path: serve from the cached filter pool if available.
-        cached = await self._sample_from_cached_pool(
-            criteria, excluded_tconsts, desired_limit
-        )
+        cached = await self._sample_from_cached_pool(criteria, excluded_tconsts, desired_limit)
         if cached:
             return cached
 

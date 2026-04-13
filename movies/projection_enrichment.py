@@ -3,21 +3,18 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from typing import TYPE_CHECKING, Any
 
 from infra.metrics import (
     enrichment_backlog_drop_total,
-    enrichment_timeout_total,
 )
 from infra.metrics_groups import safe_emit
 from infra.time_utils import env_int, utcnow
 from logging_config import get_logger
 
 from infra.cache import CacheNamespace
-from movies.movie import Movie
-from movies.projection_results import EnrichmentResult
-from movies.projection_state import ENQUEUE_COOLDOWN, ProjectionState
+from movies.projection_enrichment_service import ProjectionEnrichmentService
+from movies.projection_state import ENQUEUE_COOLDOWN
 
 # Global enrichment dedup window. Long enough to cover the 25s
 # ENRICHMENT_TIMEOUT_SECONDS + ARQ hand-off + retry cooldown. A crashed
@@ -65,6 +62,11 @@ class ProjectionEnrichmentCoordinator:
     ) -> None:
         self.store = store
         self.tmdb_helper = tmdb_helper
+        self._enrichment_service = ProjectionEnrichmentService(
+            store=store,
+            tmdb_helper=tmdb_helper,
+            timeout_seconds=self.ENRICHMENT_TIMEOUT_SECONDS,
+        )
         self.enqueue_fn = enqueue_fn
         # Optional shared Redis cache for cross-worker enrichment dedup.
         # Wired by MovieManager.attach_cache when Redis is available.
@@ -117,9 +119,7 @@ class ProjectionEnrichmentCoordinator:
             if existing is not None and not existing.done():
                 return existing
 
-            task = asyncio.create_task(
-                self._run_inflight_enrichment(tconst, tmdb_id)
-            )
+            task = asyncio.create_task(self._run_inflight_enrichment(tconst, tmdb_id))
             self._inflight_enrichment[tconst] = task
 
             # Register with the app-level background task set so the task is
@@ -307,94 +307,12 @@ class ProjectionEnrichmentCoordinator:
         tconst: str,
         known_tmdb_id: int | None = None,
     ) -> dict[str, Any] | None:
-        now = utcnow()
-        row = await self.store.select_row(tconst)
-        attempts = int(row.get("attempt_count", 0)) + 1 if row else 1
-        tmdb_id = known_tmdb_id if known_tmdb_id is not None else (row or {}).get("tmdb_id")
-        try:
-            movie = Movie(tconst, self.store.db_pool, tmdb_helper=self.tmdb_helper)
-            try:
-                payload = await asyncio.wait_for(
-                    movie.get_movie_data(known_tmdb_id=tmdb_id),
-                    timeout=self.ENRICHMENT_TIMEOUT_SECONDS,
-                )
-            except asyncio.TimeoutError:
-                safe_emit(enrichment_timeout_total.inc)
-                raise RuntimeError(
-                    "enrichment timeout after %ss" % self.ENRICHMENT_TIMEOUT_SECONDS
-                )
-            if not payload:
-                raise RuntimeError("TMDB enrichment returned no payload")
-
-            payload["tmdb_id"] = payload.get("tmdb_id") or tmdb_id
-            payload["projection_state"] = ProjectionState.READY.value
-
-            # Skip the payload UPDATE when the new payload is byte-identical
-            # to what we already have on disk. The persisted shape strips
-            # ``images``/``credits`` so we compare against the same shape.
-            # We still need the row's metadata columns refreshed (state=ready,
-            # enriched_at, stale_after, last_attempt_at, attempt_count) so the
-            # row is not immediately re-enqueued — we just avoid rewriting the
-            # large payload_json blob.
-            if row:
-                existing = row.get("payload_json")
-                if isinstance(existing, str):
-                    try:
-                        existing = json.loads(existing)
-                    except (TypeError, ValueError):
-                        existing = None
-                if isinstance(existing, dict):
-                    new_persisted = self.store._persisted_payload(payload)
-                    new_serialized = json.dumps(new_persisted, sort_keys=True)
-                    existing_serialized = json.dumps(existing, sort_keys=True)
-                    if new_serialized == existing_serialized:
-                        logger.debug(
-                            "payload unchanged for %s, refreshing metadata only",
-                            tconst,
-                        )
-                        await self.store.apply_enrichment_result(
-                            tconst,
-                            EnrichmentResult(
-                                status="ready",
-                                persistence_mode="READY_METADATA_ONLY",
-                                payload=payload,
-                                attempts=attempts,
-                                tmdb_id=payload.get("tmdb_id"),
-                                error=None,
-                                timestamp=now,
-                            ),
-                        )
-                        return payload
-
-            await self.store.apply_enrichment_result(
-                tconst,
-                EnrichmentResult(
-                    status="ready",
-                    persistence_mode="READY_UPSERT",
-                    payload=payload,
-                    attempts=attempts,
-                    tmdb_id=payload.get("tmdb_id"),
-                    error=None,
-                    timestamp=now,
-                ),
-            )
-            return payload
-        except Exception as exc:
-            core_payload = await self.store.ensure_core_projection(tconst)
-            await self.store.apply_enrichment_result(
-                tconst,
-                EnrichmentResult(
-                    status="failed",
-                    persistence_mode="FAILED_UPSERT",
-                    payload=core_payload or {},
-                    attempts=attempts,
-                    tmdb_id=tmdb_id,
-                    error=str(exc),
-                    timestamp=now,
-                ),
-            )
-            logger.warning("Projection enrichment failed for %s: %s", tconst, exc)
-            return core_payload
+        self._enrichment_service.tmdb_helper = self.tmdb_helper
+        self._enrichment_service.timeout_seconds = self.ENRICHMENT_TIMEOUT_SECONDS
+        return await self._enrichment_service.enrich_projection(
+            tconst,
+            known_tmdb_id=known_tmdb_id,
+        )
 
     async def drain_pending(self, timeout: float = 5.0) -> None:
         tasks = list(self._local_enrichment_tasks)

@@ -474,3 +474,52 @@ async def test_add_bulk_invalidates_cache(mock_db_pool):
     await store.add_bulk("user-1", ["tt0000001"])
 
     mock_cache.delete.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
+# import enrichment progress lookups
+# ---------------------------------------------------------------------------
+
+
+async def test_ready_tconsts_for_import_queries_ready_projection_rows(mock_db_pool):
+    mock_db_pool.execute.return_value = [{"tconst": "tt1"}, {"tconst": "tt2"}]
+    store = WatchedStore(mock_db_pool)
+
+    ready = await store.ready_tconsts_for_import(["tt1", "tt2", "tt3"])
+
+    assert ready == {"tt1", "tt2"}
+    query, params = mock_db_pool.execute.call_args[0][0], mock_db_pool.execute.call_args[0][1]
+    assert "FROM movie_projection" in query
+    assert "projection_state = %s" in query
+    assert params == ["tt1", "tt2", "tt3", "ready"]
+
+
+async def test_ready_tconsts_for_import_empty_input_skips_db(mock_db_pool):
+    store = WatchedStore(mock_db_pool)
+
+    ready = await store.ready_tconsts_for_import([])
+
+    assert ready == set()
+    mock_db_pool.execute.assert_not_awaited()
+
+
+async def test_ready_import_rows_queries_ready_projection_rows(mock_db_pool):
+    mock_db_pool.execute.return_value = [{"tconst": "tt1", "primaryTitle": "Inception"}]
+    store = WatchedStore(mock_db_pool)
+
+    rows = await store.ready_import_rows("user-1", ["tt1"])
+
+    assert rows == [{"tconst": "tt1", "primaryTitle": "Inception"}]
+    query, params = mock_db_pool.execute.call_args[0][0], mock_db_pool.execute.call_args[0][1]
+    assert "INNER JOIN movie_projection" in query
+    assert "projection_state = %s" in query
+    assert params == ["tt1", "user-1", "ready"]
+
+
+async def test_ready_import_rows_empty_input_skips_db(mock_db_pool):
+    store = WatchedStore(mock_db_pool)
+
+    rows = await store.ready_import_rows("user-1", [])
+
+    assert rows == []
+    mock_db_pool.execute.assert_not_awaited()

@@ -15,9 +15,7 @@ async def test_maybe_enqueue_passes_dedup_job_id():
     store.select_row = AsyncMock(return_value=None)
 
     enqueue_fn = AsyncMock(return_value=object())
-    coord = ProjectionEnrichmentCoordinator(
-        store=store, tmdb_helper=None, enqueue_fn=enqueue_fn
-    )
+    coord = ProjectionEnrichmentCoordinator(store=store, tmdb_helper=None, enqueue_fn=enqueue_fn)
 
     await coord.maybe_enqueue("tt9999", row=None, tmdb_id=42)
 
@@ -38,15 +36,13 @@ async def test_enrich_projection_times_out_and_marks_failed():
     store.ensure_core_projection = AsyncMock(return_value={"title": "core"})
     store.apply_enrichment_result = AsyncMock()
 
-    coord = ProjectionEnrichmentCoordinator(
-        store=store, tmdb_helper=MagicMock(), enqueue_fn=None
-    )
+    coord = ProjectionEnrichmentCoordinator(store=store, tmdb_helper=MagicMock(), enqueue_fn=None)
     coord.ENRICHMENT_TIMEOUT_SECONDS = 0.05
 
     async def _slow(*args, **kwargs):
         await asyncio.sleep(10)
 
-    with patch("movies.projection_enrichment.Movie") as MockMovie:
+    with patch("movies.projection_enrichment_service.Movie") as MockMovie:
         MockMovie.return_value.get_movie_data = AsyncMock(side_effect=_slow)
         result = await coord.enrich_projection("tt1")
 
@@ -87,17 +83,15 @@ async def test_enrich_projection_timeout_increments_metric():
     store.ensure_core_projection = AsyncMock(return_value={"title": "core"})
     store.apply_enrichment_result = AsyncMock()
 
-    coord = ProjectionEnrichmentCoordinator(
-        store=store, tmdb_helper=MagicMock(), enqueue_fn=None
-    )
+    coord = ProjectionEnrichmentCoordinator(store=store, tmdb_helper=MagicMock(), enqueue_fn=None)
     coord.ENRICHMENT_TIMEOUT_SECONDS = 0.05
 
     async def _slow(*args, **kwargs):
         await asyncio.sleep(10)
 
     with (
-        patch("movies.projection_enrichment.Movie") as MockMovie,
-        patch("movies.projection_enrichment.enrichment_timeout_total") as mock_metric,
+        patch("movies.projection_enrichment_service.Movie") as MockMovie,
+        patch("movies.projection_enrichment_service.enrichment_timeout_total") as mock_metric,
     ):
         MockMovie.return_value.get_movie_data = AsyncMock(side_effect=_slow)
         await coord.enrich_projection("tt1")
@@ -125,24 +119,22 @@ async def test_enrich_projection_skips_upsert_when_payload_unchanged():
     store = MagicMock()
     store.db_pool = MagicMock()
     store._persisted_payload = ProjectionStore._persisted_payload
-    store.select_row = AsyncMock(return_value={
-        "tconst": "tt1",
-        "tmdb_id": 42,
-        "payload_json": existing_json,
-        "projection_state": "stale",
-        "attempt_count": 1,
-    })
+    store.select_row = AsyncMock(
+        return_value={
+            "tconst": "tt1",
+            "tmdb_id": 42,
+            "payload_json": existing_json,
+            "projection_state": "stale",
+            "attempt_count": 1,
+        }
+    )
     store.ensure_core_projection = AsyncMock()
     store.apply_enrichment_result = AsyncMock()
 
-    coord = ProjectionEnrichmentCoordinator(
-        store=store, tmdb_helper=MagicMock(), enqueue_fn=None
-    )
+    coord = ProjectionEnrichmentCoordinator(store=store, tmdb_helper=MagicMock(), enqueue_fn=None)
 
-    with patch("movies.projection_enrichment.Movie") as MockMovie:
-        MockMovie.return_value.get_movie_data = AsyncMock(
-            return_value=dict(new_payload)
-        )
+    with patch("movies.projection_enrichment_service.Movie") as MockMovie:
+        MockMovie.return_value.get_movie_data = AsyncMock(return_value=dict(new_payload))
         result = await coord.enrich_projection("tt1")
 
     store.apply_enrichment_result.assert_awaited_once()
@@ -160,11 +152,9 @@ async def test_enrich_projection_applies_ready_upsert_result():
     store.ensure_core_projection = AsyncMock()
     store.apply_enrichment_result = AsyncMock()
 
-    coord = ProjectionEnrichmentCoordinator(
-        store=store, tmdb_helper=MagicMock(), enqueue_fn=None
-    )
+    coord = ProjectionEnrichmentCoordinator(store=store, tmdb_helper=MagicMock(), enqueue_fn=None)
 
-    with patch("movies.projection_enrichment.Movie") as MockMovie:
+    with patch("movies.projection_enrichment_service.Movie") as MockMovie:
         MockMovie.return_value.get_movie_data = AsyncMock(
             return_value={"title": "Enriched", "tmdb_id": 42, "_full": True}
         )
