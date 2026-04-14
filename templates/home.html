@@ -1,6 +1,6 @@
 {% from "macros.html" import pick_movie_button with context %}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" {% if server_theme %}data-theme-server="{{ server_theme }}"{% endif %}>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -16,6 +16,11 @@
         const pref = localStorage.getItem('nr-theme');
         if (pref === 'light' || pref === 'dark') {
           document.documentElement.setAttribute('data-theme', pref);
+          return;
+        }
+        const server = document.documentElement.getAttribute('data-theme-server');
+        if (server === 'light' || server === 'dark') {
+          document.documentElement.setAttribute('data-theme', server);
         }
       } catch (e) {}
     })();

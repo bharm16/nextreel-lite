@@ -1611,6 +1611,185 @@
       mask-size: contain;
     }
   }
+
+  /* =========================
+     Account settings surface
+     ========================= */
+  .account-page {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem 1.25rem 4rem;
+  }
+
+  .account-tabs {
+    display: flex;
+    gap: 0.25rem;
+    border-bottom: 1px solid var(--color-border);
+    margin-bottom: 2rem;
+    overflow-x: auto;
+  }
+
+  .account-tab {
+    padding: 0.75rem 1rem;
+    color: var(--color-muted);
+    text-decoration: none;
+    border-bottom: 2px solid transparent;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .account-tab:hover { color: var(--color-text); }
+
+  .account-tab-active {
+    color: var(--color-text);
+    border-bottom-color: var(--color-accent);
+    font-weight: 600;
+  }
+
+  .account-tab-danger { color: #dc2626; }
+  .account-tab-danger.account-tab-active { border-bottom-color: #dc2626; }
+
+  .account-panel { display: flex; flex-direction: column; gap: 1.5rem; }
+
+  .account-section-title {
+    font-family: var(--font-serif, 'Merriweather', Georgia, serif);
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin: 0 0 0.25rem;
+  }
+
+  .account-section-description {
+    color: var(--color-muted);
+    margin: 0 0 1rem;
+    font-size: 0.9375rem;
+  }
+
+  .account-card {
+    border: 1px solid var(--color-border);
+    border-radius: 0.75rem;
+    padding: 1.25rem 1.5rem;
+    background: var(--color-surface, transparent);
+  }
+
+  .account-card + .account-card { margin-top: 1rem; }
+
+  .account-card-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    margin: 0 0 0.5rem;
+  }
+
+  .account-danger-card {
+    border-color: #dc2626;
+    border-left-width: 4px;
+  }
+
+  .account-field { display: flex; flex-direction: column; gap: 0.375rem; margin-bottom: 1rem; }
+  .account-field-readonly { color: var(--color-muted); font-size: 0.9375rem; }
+
+  .account-field-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  @media (min-width: 640px) {
+    .account-field-row { grid-template-columns: 1fr 1fr; }
+  }
+
+  .account-avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    font-weight: 600;
+    color: white;
+    letter-spacing: 0.03em;
+    user-select: none;
+  }
+  .account-avatar-sm { width: 2rem;   height: 2rem;   font-size: 0.8125rem; }
+  .account-avatar-md { width: 2.5rem; height: 2.5rem; font-size: 0.9375rem; }
+  .account-avatar-lg { width: 4.5rem; height: 4.5rem; font-size: 1.5rem;    }
+
+  .account-avatar-dropdown { position: relative; }
+  .account-avatar-dropdown-trigger {
+    background: none; border: 0; padding: 0; cursor: pointer;
+    display: inline-flex;
+  }
+  .account-avatar-dropdown-menu {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 0.5rem);
+    min-width: 11rem;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 0.5rem;
+    box-shadow: 0 10px 24px rgba(0,0,0,0.15);
+    display: none;
+    z-index: 40;
+  }
+  .account-avatar-dropdown-menu.open { display: block; }
+  .account-avatar-dropdown-menu a,
+  .account-avatar-dropdown-menu button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 0.625rem 0.875rem;
+    color: var(--color-text);
+    background: none;
+    border: 0;
+    cursor: pointer;
+    font: inherit;
+    text-decoration: none;
+  }
+  .account-avatar-dropdown-menu a:hover,
+  .account-avatar-dropdown-menu button:hover {
+    color: var(--color-accent);
+    background: rgba(0,0,0,0.04);
+  }
+
+  /* =========================
+     Danger button variant
+     ========================= */
+  .btn-danger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1.125rem;
+    font-weight: 600;
+    border-radius: 0.5rem;
+    background: #dc2626;
+    color: white;
+    border: 0;
+    cursor: pointer;
+  }
+  .btn-danger:hover { background: #b91c1c; }
+  .btn-danger:disabled { opacity: 0.55; cursor: not-allowed; }
+
+  /* =========================
+     Modal primitive
+     ========================= */
+  .modal-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.55);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+    padding: 1rem;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal-panel {
+    background: var(--color-bg);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    width: 100%;
+    max-width: 28rem;
+    box-shadow: 0 30px 60px rgba(0,0,0,0.35);
+  }
+  .modal-panel h3 { margin: 0 0 0.5rem; font-size: 1.125rem; font-weight: 600; }
+  .modal-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1.25rem; }
 }
 
 /* ── Utilities ────────────────────────────── */

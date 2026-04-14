@@ -1,0 +1,32 @@
+{% extends "account/layout.html" %}
+{% block panel %}
+  <div class="account-card">
+    <h2 class="account-card-title">Import from Letterboxd</h2>
+    <p class="account-section-description">
+      Upload your Letterboxd watched CSV (max 5 MB). We'll match titles to IMDb and add them to your watched list.
+    </p>
+    <form method="POST" action="{{ url_for('main.account_letterboxd_upload') }}"
+          enctype="multipart/form-data" class="space-y-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="file" name="csv" accept=".csv" required>
+      <button type="submit" class="auth-submit">Upload</button>
+    </form>
+  </div>
+
+  <div class="account-card">
+    <h2 class="account-card-title">Export your watched list</h2>
+    <p class="account-section-description">Download a copy for backup or to move to another tracker.</p>
+    <a href="{{ url_for('main.account_export_watched_csv') }}" class="auth-submit" style="display:inline-block; margin-right:0.5rem;">Download CSV</a>
+    <a href="{{ url_for('main.account_export_watched_json') }}" class="auth-submit" style="display:inline-block;">Download JSON</a>
+  </div>
+
+  <div class="account-card">
+    <h2 class="account-card-title">Clear watched history</h2>
+    <p class="account-section-description">Remove every movie from your watched list. This cannot be undone.</p>
+    <form method="POST" action="{{ url_for('main.account_watched_clear') }}"
+          onsubmit="return confirm('Clear all watched movies? This cannot be undone.');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn-danger">Clear all watched history</button>
+    </form>
+  </div>
+{% endblock %}

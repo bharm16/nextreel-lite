@@ -246,40 +246,48 @@
     var nextSibling = card.nextElementSibling;
     var cardHtml = card.outerHTML;
 
-    setTimeout(function () {
-      card.remove();
-
-      fetch("/watched/remove/" + encodeURIComponent(tconst), {
-        method: "POST",
-        headers: { "X-CSRFToken": csrfToken, Accept: "application/json" },
-        credentials: "same-origin",
-      }).catch(function (err) {
-        console.error("Failed to remove:", err);
-      });
-
-      lastRemoved = { tconst: tconst, html: cardHtml, nextSibling: nextSibling };
-
-      showToast("Removed from watched", function () {
-        var tmp = document.createElement("div");
-        tmp.innerHTML = lastRemoved.html;
-        var restored = tmp.firstElementChild;
-        restored.style.opacity = "1";
-        restored.style.transform = "";
-        if (lastRemoved.nextSibling) {
-          grid.insertBefore(restored, lastRemoved.nextSibling);
-        } else {
-          grid.appendChild(restored);
+    fetch("/watched/remove/" + encodeURIComponent(tconst), {
+      method: "POST",
+      headers: { "X-CSRFToken": csrfToken, Accept: "application/json" },
+      credentials: "same-origin",
+    })
+      .then(function (response) {
+        if (!response.ok) {
+          throw new Error("Remove failed with status " + response.status);
         }
-        fetch("/watched/add/" + encodeURIComponent(lastRemoved.tconst), {
-          method: "POST",
-          headers: { "X-CSRFToken": csrfToken, Accept: "application/json" },
-          credentials: "same-origin",
-        }).catch(function (err) {
-          console.error("Failed to undo remove:", err);
-        });
-        lastRemoved = null;
+
+        setTimeout(function () {
+          card.remove();
+          lastRemoved = { tconst: tconst, html: cardHtml, nextSibling: nextSibling };
+
+          showToast("Removed from watched", function () {
+            var tmp = document.createElement("div");
+            tmp.innerHTML = lastRemoved.html;
+            var restored = tmp.firstElementChild;
+            restored.style.opacity = "1";
+            restored.style.transform = "";
+            if (lastRemoved.nextSibling) {
+              grid.insertBefore(restored, lastRemoved.nextSibling);
+            } else {
+              grid.appendChild(restored);
+            }
+            fetch("/watched/add/" + encodeURIComponent(lastRemoved.tconst), {
+              method: "POST",
+              headers: { "X-CSRFToken": csrfToken, Accept: "application/json" },
+              credentials: "same-origin",
+            }).catch(function (err) {
+              console.error("Failed to undo remove:", err);
+            });
+            lastRemoved = null;
+          });
+        }, 200);
+      })
+      .catch(function (err) {
+        console.error("Failed to remove:", err);
+        card.style.opacity = "1";
+        card.style.transform = "";
+        showToast("Couldn't remove. Try again.");
       });
-    }, 200);
   });
 
   // ── Letterboxd import trigger ──

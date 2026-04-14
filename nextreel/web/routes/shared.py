@@ -44,6 +44,34 @@ _REQUEST_TIMEOUT = 30
 _TCONST_RE = re.compile(r"^tt\d{1,10}$")
 _TMDB_IMAGE_PREFIX = "https://image.tmdb.org/t/p/"
 
+_AVATAR_PALETTE = (
+    "#6366f1", "#8b5cf6", "#ec4899", "#f97316",
+    "#eab308", "#22c55e", "#14b8a6", "#0ea5e9",
+)
+
+
+def user_avatar_info(user) -> dict:
+    """Derive {initials, color} from a user dict/row for avatar rendering.
+
+    Accepts a dict-like user record with optional ``display_name`` and
+    ``email`` fields, plus ``user_id`` used to seed the background color.
+    Always returns 1-2 uppercase initials and a palette color.
+    """
+    if not user:
+        return {"initials": "?", "color": _AVATAR_PALETTE[0]}
+    name = (user.get("display_name") or "").strip()
+    if not name:
+        email = user.get("email") or ""
+        name = email.split("@", 1)[0] if email else ""
+    parts = name.split()
+    if len(parts) >= 2:
+        initials = (parts[0][:1] + parts[-1][:1]).upper()
+    else:
+        initials = (name[:2] or "?").upper()
+    seed = user.get("user_id") or name or ""
+    bucket = sum(ord(ch) for ch in seed) % len(_AVATAR_PALETTE)
+    return {"initials": initials, "color": _AVATAR_PALETTE[bucket]}
+
 _registration_service = RegistrationService()
 _google_oauth_service = GoogleOAuthService()
 _movie_detail_service = MovieDetailService()

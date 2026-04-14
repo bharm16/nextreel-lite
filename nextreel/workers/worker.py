@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import io
 import os
+import time
 
 from infra.integrity_checks import INTEGRITY_CHECKS
 from infra.maintenance_jobs import (
@@ -15,7 +17,7 @@ from infra.maintenance_jobs import (
     validate_referential_integrity_job,
 )
 from infra.pool import DatabaseConnectionPool
-from infra.time_utils import env_bool
+from infra.time_utils import env_bool, utcnow
 from infra.worker_metrics import (
     instrument_job,
     resolve_queue_key,
@@ -24,6 +26,7 @@ from infra.worker_metrics import (
 )
 from logging_config import get_logger
 from movies.candidate_store import CandidateStore
+from movies.letterboxd_import import match_films, parse_watched_csv
 from movies.projection_store import ProjectionStore
 from settings import Config
 
@@ -226,9 +229,183 @@ async def purge_expired_navigation_state(ctx):
     )
 
 
+_LETTERBOXD_CSV_KEY_FMT = "letterboxd:import:{import_id}:csv"
+_LETTERBOXD_FLUSH_EVERY_ROWS = 25
+_LETTERBOXD_FLUSH_EVERY_SECONDS = 2.0
+
+
+async def _run_letterboxd_import(ctx, import_id, user_id, csv_body):
+    """Parse CSV, match to tconsts, insert into user_watched_movies.
+
+    Flushes progress rows periodically so the progress page has real-time data.
+    Returns ``{matched, skipped, failed, total}``.
+    """
+    db_pool = ctx["db_pool"]
+
+    try:
+        films = parse_watched_csv(io.BytesIO(csv_body))
+    except ValueError as exc:
+        raise RuntimeError("Invalid CSV: %s" % exc) from exc
+
+    total = len(films)
+    now = utcnow()
+    await db_pool.execute(
+        "UPDATE letterboxd_imports SET total_rows = %s, updated_at = %s "
+        "WHERE import_id = %s",
+        [total, now, import_id],
+        fetch="none",
+    )
+
+    if not films:
+        return {"matched": 0, "skipped": 0, "failed": 0, "total": 0}
+
+    # Batch-match by normalized (title, year). match_films pushes unmatched
+    # into result.unmatched rather than raising.
+    try:
+        match_result = await match_films(db_pool, films)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Letterboxd match_films failed for import=%s", import_id)
+        raise
+
+    matched_tconsts = list(match_result.matched)
+    skipped = len(match_result.unmatched)
+    failed = 0
+    matched = 0
+
+    last_flush = time.monotonic()
+    for i, tconst in enumerate(matched_tconsts, start=1):
+        try:
+            await db_pool.execute(
+                """
+                INSERT INTO user_watched_movies (user_id, tconst, watched_at)
+                VALUES (%s, %s, %s)
+                ON DUPLICATE KEY UPDATE watched_at = VALUES(watched_at)
+                """,
+                [user_id, tconst, utcnow()],
+                fetch="none",
+            )
+            matched += 1
+        except Exception:  # noqa: BLE001
+            logger.exception("Row insert failed: %s", tconst)
+            failed += 1
+
+        processed = i + skipped  # rough running total
+        now_mono = time.monotonic()
+        if (
+            i % _LETTERBOXD_FLUSH_EVERY_ROWS == 0
+            or (now_mono - last_flush) > _LETTERBOXD_FLUSH_EVERY_SECONDS
+        ):
+            await db_pool.execute(
+                """
+                UPDATE letterboxd_imports
+                SET processed = %s, matched = %s, skipped = %s, failed = %s,
+                    updated_at = %s
+                WHERE import_id = %s
+                """,
+                [processed, matched, skipped, failed, utcnow(), import_id],
+                fetch="none",
+            )
+            last_flush = now_mono
+
+    return {
+        "matched": matched,
+        "skipped": skipped,
+        "failed": failed,
+        "total": total,
+    }
+
+
+@instrument_job("import_letterboxd")
+async def import_letterboxd(ctx, import_id: str) -> None:
+    """Run a queued Letterboxd CSV import, persisting progress to the DB."""
+    db_pool = ctx["db_pool"]
+    redis_client = ctx.get("redis")
+
+    row = await db_pool.execute(
+        "SELECT user_id FROM letterboxd_imports WHERE import_id = %s",
+        [import_id],
+        fetch="one",
+    )
+    if not row:
+        logger.warning("Letterboxd import row missing: %s", import_id)
+        return
+    user_id = row["user_id"]
+
+    await db_pool.execute(
+        "UPDATE letterboxd_imports SET status = 'running', updated_at = %s "
+        "WHERE import_id = %s",
+        [utcnow(), import_id],
+        fetch="none",
+    )
+
+    csv_key = _LETTERBOXD_CSV_KEY_FMT.format(import_id=import_id)
+    csv_body = None
+    if redis_client is not None:
+        try:
+            csv_body = await redis_client.get(csv_key)
+        except Exception:  # noqa: BLE001
+            logger.exception("Letterboxd CSV fetch failed for %s", import_id)
+
+    if csv_body is None:
+        await db_pool.execute(
+            """
+            UPDATE letterboxd_imports
+            SET status = 'failed', error_message = 'CSV blob missing',
+                updated_at = %s
+            WHERE import_id = %s
+            """,
+            [utcnow(), import_id],
+            fetch="none",
+        )
+        return
+
+    try:
+        counts = await _run_letterboxd_import(ctx, import_id, user_id, csv_body)
+    except Exception as exc:
+        await db_pool.execute(
+            """
+            UPDATE letterboxd_imports
+            SET status = 'failed', error_message = %s, updated_at = %s
+            WHERE import_id = %s
+            """,
+            [str(exc)[:500], utcnow(), import_id],
+            fetch="none",
+        )
+        raise
+
+    now = utcnow()
+    await db_pool.execute(
+        """
+        UPDATE letterboxd_imports
+        SET status = 'completed',
+            processed = %s, matched = %s, skipped = %s, failed = %s,
+            total_rows = %s, updated_at = %s, completed_at = %s
+        WHERE import_id = %s
+        """,
+        [
+            counts["total"],
+            counts["matched"],
+            counts["skipped"],
+            counts["failed"],
+            counts["total"],
+            now,
+            now,
+            import_id,
+        ],
+        fetch="none",
+    )
+
+    if redis_client is not None:
+        try:
+            await redis_client.delete(csv_key)
+        except Exception:  # noqa: BLE001 - best effort cleanup
+            logger.debug("Letterboxd CSV cleanup failed for %s", import_id, exc_info=True)
+
+
 HOT_PATH_FUNCTIONS = [
     ensure_core_projection,
     enrich_projection,
+    import_letterboxd,
 ]
 
 MAINTENANCE_FUNCTIONS = [

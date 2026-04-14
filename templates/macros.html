@@ -28,3 +28,8 @@
   <button type="submit" class="{{ class }}">{{ label }}</button>
 </form>
 {%- endmacro -%}
+
+{% macro user_avatar(user, size='md') -%}
+  {%- set info = user_avatar_info(user) -%}
+  <span class="account-avatar account-avatar-{{ size }}" style="background:{{ info.color }};" aria-hidden="true">{{ info.initials }}</span>
+{%- endmacro -%}

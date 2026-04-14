@@ -1,0 +1,53 @@
+{% extends "account/layout.html" %}
+{% block panel %}
+  <div class="account-card">
+    <h2 class="account-card-title">Viewing preferences</h2>
+    <form method="POST" action="{{ url_for('main.account_preferences_save') }}" class="space-y-4">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="account-field">
+        <label class="auth-input-label" for="exclude_watched_default">
+          <input id="exclude_watched_default" name="exclude_watched_default" type="checkbox"
+                 {% if exclude_watched_default %}checked{% endif %}>
+          Hide movies I've already watched
+        </label>
+      </div>
+
+      <fieldset class="account-field">
+        <legend class="auth-input-label">Theme</legend>
+        {% for value, label in [('light','Light'), ('dark','Dark'), ('system','Use system setting')] %}
+          <label style="display:block; margin:0.25rem 0;">
+            <input type="radio" name="theme_preference" value="{{ value }}"
+                   {% if (server_theme or 'system') == value %}checked{% endif %}> {{ label }}
+          </label>
+        {% endfor %}
+      </fieldset>
+
+      <button type="submit" class="auth-submit">Save preferences</button>
+    </form>
+  </div>
+
+  <div class="account-card">
+    <h2 class="account-card-title">Default filters</h2>
+    {% if default_filters %}
+      <p class="account-section-description">
+        When you open Nextreel, these filters apply by default.
+      </p>
+      <ul style="margin:0 0 1rem 1.25rem; font-size:0.9375rem;">
+        {% for k, v in default_filters.items() %}
+          <li><strong>{{ k | replace('_',' ') | capitalize }}</strong>: {{ v }}</li>
+        {% endfor %}
+      </ul>
+      <form method="POST" action="{{ url_for('main.account_filters_clear') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn-danger">Clear defaults</button>
+      </form>
+    {% else %}
+      <p class="account-section-description">
+        No default filters saved. Visit
+        <a href="{{ url_for('main.set_filters') }}" class="auth-switch-link">Filters</a>
+        and click <strong>Save as default</strong> to set them.
+      </p>
+    {% endif %}
+  </div>
+{% endblock %}

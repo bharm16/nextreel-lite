@@ -7,12 +7,18 @@ import time
 from quart import flash, g, jsonify, redirect, request, url_for
 
 from infra.metrics import user_actions_total
-from infra.filter_normalizer import normalize_filters, validate_filters
+from infra.filter_normalizer import (
+    default_filter_state,
+    filters_from_criteria,
+    normalize_filters,
+    validate_filters,
+)
 from infra.route_helpers import csrf_required, rate_limited, with_timeout
 from nextreel.domain.filter_contracts import FilterState
 from nextreel.web.routes.shared import (
     _REQUEST_TIMEOUT,
     _current_state,
+    _current_user_id,
     _legacy_session,
     _no_matches_response,
     _redirect_for_navigation_outcome,
@@ -22,6 +28,7 @@ from nextreel.web.routes.shared import (
     bp,
     logger,
 )
+from session import user_preferences
 from session.user_preferences import set_exclude_watched_default
 
 
@@ -80,6 +87,21 @@ async def previous_movie():
 async def set_filters():
     state = _current_state()
     current_filters = state.filters
+
+    # If the user has saved default filters and their session is still on the
+    # factory defaults, seed the form from those saved defaults. This gives a
+    # first-load UX: open Nextreel, hit Filters, and their last "Save as
+    # default" payload is prefilled.
+    user_id = _current_user_id()
+    if user_id and current_filters == default_filter_state():
+        try:
+            defaults = await user_preferences.get_default_filters(
+                _services().movie_manager.db_pool, user_id
+            )
+        except Exception:  # pragma: no cover - defensive
+            defaults = None
+        if defaults:
+            current_filters = filters_from_criteria(defaults)
 
     start_time = time.time()
     logger.info(

@@ -178,6 +178,23 @@ _RUNTIME_SCHEMA_STATEMENTS = (
         KEY idx_watched_user_date (user_id, watched_at DESC)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
+    """
+    CREATE TABLE IF NOT EXISTS letterboxd_imports (
+        import_id     CHAR(32) PRIMARY KEY,
+        user_id       CHAR(32) NOT NULL,
+        status        VARCHAR(16) NOT NULL,
+        total_rows    INT NULL,
+        processed     INT NOT NULL DEFAULT 0,
+        matched       INT NOT NULL DEFAULT 0,
+        skipped       INT NOT NULL DEFAULT 0,
+        failed        INT NOT NULL DEFAULT 0,
+        error_message TEXT NULL,
+        created_at    DATETIME(6) NOT NULL,
+        updated_at    DATETIME(6) NOT NULL,
+        completed_at  DATETIME(6) NULL,
+        KEY idx_letterboxd_user_created (user_id, created_at DESC)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """,
 )
 
 
@@ -193,6 +210,8 @@ async def ensure_runtime_schema(db_pool) -> None:
     await ensure_popular_movies_cache_composite_index(db_pool)
     await ensure_user_navigation_user_id_column(db_pool)
     await ensure_users_exclude_watched_default_column(db_pool)
+    await ensure_users_theme_preference_column(db_pool)
+    await ensure_users_default_filters_json_column(db_pool)
     logger.info("Runtime schema ensured")
 
 
@@ -233,6 +252,32 @@ async def ensure_users_exclude_watched_default_column(db_pool) -> None:
         ALTER TABLE users
         ADD COLUMN exclude_watched_default BOOLEAN NOT NULL DEFAULT TRUE
         AFTER oauth_sub
+        """,
+    )
+
+
+async def ensure_users_theme_preference_column(db_pool) -> None:
+    """Add the theme preference column to existing users."""
+    await _ensure_column(
+        db_pool,
+        "users",
+        "theme_preference",
+        """
+        ALTER TABLE users
+        ADD COLUMN theme_preference VARCHAR(10) NULL
+        """,
+    )
+
+
+async def ensure_users_default_filters_json_column(db_pool) -> None:
+    """Add the default filter presets column to existing users."""
+    await _ensure_column(
+        db_pool,
+        "users",
+        "default_filters_json",
+        """
+        ALTER TABLE users
+        ADD COLUMN default_filters_json JSON NULL
         """,
     )
 

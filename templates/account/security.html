@@ -1,0 +1,54 @@
+{% extends "account/layout.html" %}
+{% block panel %}
+  {% if user.auth_provider == 'email' %}
+    <div class="account-card">
+      <h2 class="account-card-title">Password</h2>
+      <p class="account-section-description">
+        Changing your password signs you out of all other devices.
+      </p>
+      <form method="POST" action="{{ url_for('main.account_password_change') }}" class="space-y-4">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        {% for field, label, autocomplete in [
+            ('current_password', 'Current password', 'current-password'),
+            ('new_password', 'New password', 'new-password'),
+            ('confirm_password', 'Confirm new password', 'new-password')
+        ] %}
+          <div class="account-field">
+            <label for="{{ field }}" class="auth-input-label">{{ label }}</label>
+            <input id="{{ field }}" name="{{ field }}" type="password" required
+                   autocomplete="{{ autocomplete }}"
+                   class="auth-input{% if errors and errors[field] %} auth-input-error{% endif %}">
+            {% if errors and errors[field] %}
+              <p class="auth-field-error">{{ errors[field] }}</p>
+            {% endif %}
+          </div>
+        {% endfor %}
+        <button type="submit" class="auth-submit">Update password</button>
+      </form>
+    </div>
+  {% else %}
+    <div class="account-card">
+      <h2 class="account-card-title">Password</h2>
+      <p class="account-section-description">
+        Your password is managed by your {{ user.auth_provider | capitalize }} account.
+        Visit your {{ user.auth_provider | capitalize }} settings to change it.
+      </p>
+    </div>
+  {% endif %}
+
+  <div class="account-card">
+    <h2 class="account-card-title">Signed in with</h2>
+    <p class="account-field-readonly">{{ user.auth_provider | capitalize }}</p>
+  </div>
+
+  <div class="account-card">
+    <h2 class="account-card-title">Other sessions</h2>
+    <p class="account-section-description">
+      Sign out of every other device where you're currently signed in.
+    </p>
+    <form method="POST" action="{{ url_for('main.account_sessions_revoke') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn-danger">Sign out everywhere else</button>
+    </form>
+  </div>
+{% endblock %}

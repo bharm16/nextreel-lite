@@ -1,0 +1,45 @@
+{% extends "account/layout.html" %}
+{% block panel %}
+  <div class="account-card account-danger-card">
+    <h2 class="account-card-title">Delete my account</h2>
+    <p class="account-section-description">
+      This removes your account and all associated data — your watched list, your preferences,
+      and any in-progress imports. This cannot be undone.
+    </p>
+    <button type="button" class="btn-danger"
+            onclick="document.getElementById('delete-modal').classList.add('open');">
+      Delete my account permanently
+    </button>
+  </div>
+
+  <div id="delete-modal" class="modal-backdrop" role="dialog" aria-modal="true">
+    <div class="modal-panel">
+      <h3>Confirm account deletion</h3>
+      <p class="account-section-description">
+        To confirm, type your email address below: <strong>{{ user.email }}</strong>
+      </p>
+      <form method="POST" action="{{ url_for('main.account_delete') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input id="confirm_email_input" name="confirm_email" type="email" required
+               autocomplete="off" class="auth-input" placeholder="you@example.com">
+        <div class="modal-actions">
+          <button type="button" class="auth-submit" style="background:var(--color-muted);"
+                  onclick="document.getElementById('delete-modal').classList.remove('open');">Cancel</button>
+          <button id="delete-confirm-btn" type="submit" class="btn-danger" disabled>Delete permanently</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const target = "{{ user.email | lower }}";
+      const input = document.getElementById('confirm_email_input');
+      const btn   = document.getElementById('delete-confirm-btn');
+      if (!input || !btn) return;
+      input.addEventListener('input', function () {
+        btn.disabled = input.value.trim().toLowerCase() !== target;
+      });
+    })();
+  </script>
+{% endblock %}

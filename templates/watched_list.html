@@ -1,6 +1,6 @@
 {% from "macros.html" import pick_movie_button with context %}
 <!DOCTYPE html>
-<html lang="en" class="scroll-smooth">
+<html lang="en" class="scroll-smooth" {% if server_theme %}data-theme-server="{{ server_theme }}"{% endif %}>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />

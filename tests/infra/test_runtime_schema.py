@@ -336,3 +336,42 @@ async def test_ensure_popular_movies_cache_composite_index_creates_when_missing(
     assert "CREATE INDEX idx_cache_filter_rand" in create_query
     assert "popular_movies_cache" in create_query
     assert "(startYear, averageRating, numVotes, rand_order)" in create_query
+
+
+async def test_ensure_users_theme_preference_column_adds_when_missing(mock_db_pool):
+    from infra.runtime_schema import ensure_users_theme_preference_column
+
+    await ensure_users_theme_preference_column(mock_db_pool)
+
+    mock_db_pool._ddl_cursor.execute.assert_awaited_once()
+    alter_sql = mock_db_pool._ddl_cursor.execute.call_args[0][0]
+    assert "ALTER TABLE users" in alter_sql
+    assert "theme_preference" in alter_sql
+    assert "VARCHAR(10)" in alter_sql
+
+
+async def test_ensure_users_default_filters_json_column_adds_when_missing(mock_db_pool):
+    from infra.runtime_schema import ensure_users_default_filters_json_column
+
+    await ensure_users_default_filters_json_column(mock_db_pool)
+
+    mock_db_pool._ddl_cursor.execute.assert_awaited_once()
+    alter_sql = mock_db_pool._ddl_cursor.execute.call_args[0][0]
+    assert "ALTER TABLE users" in alter_sql
+    assert "default_filters_json" in alter_sql
+    assert "JSON" in alter_sql
+
+
+async def test_ensure_runtime_schema_creates_letterboxd_imports_table(mock_db_pool):
+    from infra.runtime_schema import _RUNTIME_SCHEMA_STATEMENTS
+
+    matches = [s for s in _RUNTIME_SCHEMA_STATEMENTS
+               if "CREATE TABLE IF NOT EXISTS letterboxd_imports" in s]
+    assert len(matches) == 1
+    sql = matches[0]
+    for col in ("import_id", "user_id", "status", "total_rows",
+                "processed", "matched", "skipped", "failed",
+                "error_message", "created_at", "updated_at", "completed_at"):
+        assert col in sql, f"missing column {col} in letterboxd_imports DDL"
+    assert "PRIMARY KEY (import_id)" in sql or "import_id     CHAR(32) PRIMARY KEY" in sql
+    assert "idx_letterboxd_user_created" in sql

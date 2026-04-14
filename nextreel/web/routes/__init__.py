@@ -1,5 +1,21 @@
 """Feature-namespaced route modules built on the shared blueprint."""
 
+from nextreel.web.routes.account import (
+    account_delete,
+    account_export_watched_csv,
+    account_export_watched_json,
+    account_filters_clear,
+    account_filters_save,
+    account_import_progress,
+    account_import_status,
+    account_letterboxd_upload,
+    account_password_change,
+    account_preferences_save,
+    account_profile_save,
+    account_sessions_revoke,
+    account_view,
+    account_watched_clear,
+)
 from nextreel.web.routes.auth import (
     auth_apple,
     auth_apple_callback,
@@ -28,6 +44,20 @@ from nextreel.web.routes.watched import (
 from nextreel.web.routes.shared import bp, init_routes
 
 __all__ = [
+    "account_delete",
+    "account_export_watched_csv",
+    "account_export_watched_json",
+    "account_filters_clear",
+    "account_filters_save",
+    "account_import_progress",
+    "account_import_status",
+    "account_letterboxd_upload",
+    "account_password_change",
+    "account_preferences_save",
+    "account_profile_save",
+    "account_sessions_revoke",
+    "account_view",
+    "account_watched_clear",
     "add_to_watched",
     "auth_apple",
     "auth_apple_callback",

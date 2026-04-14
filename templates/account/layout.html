@@ -1,0 +1,56 @@
+{% from "macros.html" import user_avatar with context %}
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth" {% if server_theme %}data-theme-server="{{ server_theme }}"{% endif %}>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{ page_title or 'Account' }} – Nextreel</title>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,300;0,400;0,700;1,400&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/output.css') }}?v={{ config.get('CSS_VERSION', '1') }}">
+  <script>
+    (() => {
+      try {
+        const pref = localStorage.getItem('nr-theme');
+        if (pref === 'light' || pref === 'dark') {
+          document.documentElement.setAttribute('data-theme', pref);
+          return;
+        }
+        const server = document.documentElement.getAttribute('data-theme-server');
+        if (server === 'light' || server === 'dark') {
+          document.documentElement.setAttribute('data-theme', server);
+        }
+      } catch (e) {}
+    })();
+  </script>
+  <style> body { font-family: var(--font-sans, 'DM Sans', system-ui, sans-serif); } </style>
+</head>
+<body class="antialiased">
+  <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:shadow">Skip to content</a>
+  {% include 'navbar_modern.html' %}
+
+  <main id="main" class="account-page">
+    <h1 class="account-section-title" style="margin-bottom:1rem;">Account</h1>
+
+    <nav class="account-tabs" aria-label="Account sections">
+      {% set tabs = [
+        ('profile', 'Profile', false),
+        ('security', 'Security', false),
+        ('preferences', 'Preferences', false),
+        ('data', 'Data', false),
+        ('danger', 'Danger zone', true),
+      ] %}
+      {% for key, label, danger in tabs %}
+        <a href="{{ url_for('main.account_view') }}?tab={{ key }}"
+           class="account-tab{% if active_tab == key %} account-tab-active{% endif %}{% if danger %} account-tab-danger{% endif %}">{{ label }}</a>
+      {% endfor %}
+    </nav>
+
+    <section class="account-panel" aria-live="polite">
+      {% block panel %}{% endblock %}
+    </section>
+  </main>
+
+  {% include 'footer_modern.html' %}
+</body>
+</html>

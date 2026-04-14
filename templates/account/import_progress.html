@@ -1,0 +1,43 @@
+{% extends "account/layout.html" %}
+{% block panel %}
+  <div class="account-card">
+    <h2 class="account-card-title">Importing from Letterboxd…</h2>
+    <p class="account-section-description" data-import-id="{{ import_row.import_id }}">
+      <span id="import-status">{{ import_row.status }}</span> —
+      <span id="import-processed">{{ import_row.processed }}</span> of
+      <span id="import-total">{{ import_row.total_rows or '?' }}</span> rows
+    </p>
+    <ul style="font-size:0.9375rem;">
+      <li>Matched: <span id="import-matched">{{ import_row.matched }}</span></li>
+      <li>Skipped: <span id="import-skipped">{{ import_row.skipped }}</span></li>
+      <li>Failed: <span id="import-failed">{{ import_row.failed }}</span></li>
+    </ul>
+    <p><a href="{{ url_for('main.account_view') }}?tab=data" class="auth-switch-link">← Back to Data tab</a></p>
+  </div>
+
+  <script>
+    (function () {
+      const root = document.querySelector('[data-import-id]');
+      if (!root) return;
+      const id = root.dataset.importId;
+      let polling = true;
+      async function tick() {
+        if (!polling) return;
+        try {
+          const r = await fetch('/account/import/' + id + '/status');
+          if (!r.ok) { polling = false; return; }
+          const d = await r.json();
+          document.getElementById('import-status').textContent = d.status;
+          document.getElementById('import-processed').textContent = d.processed;
+          document.getElementById('import-total').textContent = d.total_rows ?? '?';
+          document.getElementById('import-matched').textContent = d.matched;
+          document.getElementById('import-skipped').textContent = d.skipped;
+          document.getElementById('import-failed').textContent = d.failed;
+          if (d.status === 'completed' || d.status === 'failed') { polling = false; return; }
+        } catch (e) {}
+        setTimeout(tick, 2000);
+      }
+      tick();
+    })();
+  </script>
+{% endblock %}

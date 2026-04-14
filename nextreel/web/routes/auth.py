@@ -20,8 +20,11 @@ from nextreel.web.routes.shared import (
     _current_year,
     bp,
     logger,
+    user_avatar_info,
 )
+from session import user_preferences
 from session.keys import SESSION_OAUTH_STATE_KEY
+from session.user_auth import get_user_by_id
 
 
 @bp.app_context_processor
@@ -37,7 +40,43 @@ def inject_csrf_token():
         "is_watched": getattr(g, "is_watched", False),
         "google_enabled": oauth_config.get("google_enabled", False),
         "apple_enabled": oauth_config.get("apple_enabled", False),
+        "user_avatar_info": user_avatar_info,
     }
+
+
+async def _load_current_user_once():
+    """Load the current user row and theme preference once per request.
+
+    Cached on ``g`` so repeated template renders (context processors fire on
+    every render) don't re-hit the DB. Returns ``(user, theme)``.
+    """
+    if hasattr(g, "_account_context_cache"):
+        return g._account_context_cache
+    user_id = _current_user_id()
+    user = None
+    theme = None
+    if user_id:
+        try:
+            db_pool = _services().movie_manager.db_pool
+        except Exception:
+            db_pool = None
+        if db_pool is not None:
+            try:
+                user = await get_user_by_id(db_pool, user_id)
+            except Exception:
+                user = None
+            try:
+                theme = await user_preferences.get_theme_preference(db_pool, user_id)
+            except Exception:
+                theme = None
+    g._account_context_cache = (user, theme)
+    return user, theme
+
+
+@bp.app_context_processor
+async def inject_account_context():
+    user, theme = await _load_current_user_once()
+    return {"current_user": user, "server_theme": theme}
 
 
 @bp.route("/login")

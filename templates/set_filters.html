@@ -1,6 +1,6 @@
 {% from "macros.html" import pick_movie_button, pick_movie_button_block with context %}
 <!DOCTYPE html>
-<html lang="en" class="scroll-smooth">
+<html lang="en" class="scroll-smooth" {% if server_theme %}data-theme-server="{{ server_theme }}"{% endif %}>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -17,6 +17,11 @@
         const pref = localStorage.getItem('nr-theme');
         if (pref === 'light' || pref === 'dark') {
           document.documentElement.setAttribute('data-theme', pref);
+          return;
+        }
+        const server = document.documentElement.getAttribute('data-theme-server');
+        if (server === 'light' || server === 'dark') {
+          document.documentElement.setAttribute('data-theme', server);
         }
       } catch (e) {}
     })();
@@ -104,12 +109,19 @@
           {% include '_filter_form.html' %}
 
           <!-- Buttons -->
-          <div class="mt-10 flex items-center justify-center gap-3">
+          <div class="mt-10 flex flex-wrap items-center justify-center gap-3">
             <button type="reset" class="inline-flex items-center justify-center rounded-full chip px-6 py-2.5 text-sm font-semibold text-body hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-primary/30">Reset</button>
             <button id="applyBtn" type="submit" class="inline-flex items-center justify-center gap-2 rounded-full bg-accent px-7 py-3 text-sm font-bold uppercase tracking-wide text-white shadow shadow-black/10 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-accent/40" aria-busy="false">
               <svg class="h-4 w-4 hidden animate-spin motion-reduce:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10" opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
               <span>Apply Filters</span>
             </button>
+            {% if current_user_id %}
+            <button type="submit"
+                    formaction="{{ url_for('main.account_filters_save') }}"
+                    class="inline-flex items-center justify-center rounded-full chip px-6 py-2.5 text-sm font-semibold text-body hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-primary/30">
+              Save as default
+            </button>
+            {% endif %}
           </div>
           <script>
             (function(){

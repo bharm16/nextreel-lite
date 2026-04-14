@@ -37,3 +37,11 @@ def test_movie_card_template_delegates_browser_behavior_to_static_assets():
     assert INLINE_SCRIPT_RE.findall(html) == []
 
     assert _asset("movie-card.js").exists()
+
+
+def test_watched_remove_waits_for_successful_response_before_committing_ui_removal():
+    script = _asset("watched.js").read_text(encoding="utf-8")
+
+    assert ".then(function (response)" in script
+    assert "response.ok" in script
+    assert "Couldn't remove. Try again." in script

@@ -1,0 +1,44 @@
+{% extends "account/layout.html" %}
+{% from "macros.html" import user_avatar with context %}
+{% block panel %}
+  <div class="account-card">
+    <h2 class="account-card-title">Profile</h2>
+    <p class="account-section-description">How your account appears in Nextreel.</p>
+
+    <div style="display:flex; align-items:center; gap:1rem; margin-bottom:1.5rem;">
+      {{ user_avatar(user, 'lg') }}
+      <div>
+        <div style="font-weight:600; font-size:1.125rem;">
+          {{ user.display_name or user.email.split('@')[0] }}
+        </div>
+        <div class="account-field-readonly">Member since
+          {{ user.created_at.strftime('%B %Y') if user.created_at else '—' }}
+        </div>
+      </div>
+    </div>
+
+    <form method="POST" action="{{ url_for('main.account_profile_save') }}" class="space-y-4">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="account-field">
+        <label for="display_name" class="auth-input-label">Display name</label>
+        <input id="display_name" name="display_name" type="text" maxlength="100"
+               value="{{ user.display_name or '' }}" class="auth-input">
+      </div>
+
+      <div class="account-field">
+        <label class="auth-input-label">Email</label>
+        <p class="account-field-readonly">{{ user.email }} — contact support to change.</p>
+      </div>
+
+      <div class="account-field">
+        <label class="auth-input-label">Signed in with</label>
+        <p class="account-field-readonly">{{ user.auth_provider | capitalize }}</p>
+      </div>
+
+      <div class="pt-2">
+        <button type="submit" class="auth-submit">Save</button>
+      </div>
+    </form>
+  </div>
+{% endblock %}
