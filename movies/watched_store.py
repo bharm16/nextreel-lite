@@ -12,6 +12,14 @@ logger = get_logger(__name__)
 # Short TTL: stale-ok for the navigation hot path; invalidated on add/remove.
 _WATCHED_CACHE_TTL = 300
 
+_SORT_MAP = {
+    "recent": "w.watched_at DESC",
+    "title_asc": "c.primaryTitle ASC",
+    "title_desc": "c.primaryTitle DESC",
+    "year_desc": "c.startYear DESC, c.primaryTitle ASC",
+    "rating_desc": "c.averageRating DESC, c.primaryTitle ASC",
+}
+
 
 class WatchedStore:
     """Data access layer for user watched-movie tracking."""
@@ -148,15 +156,19 @@ class WatchedStore:
         """Return watched movies with metadata, ordered by most recently watched."""
         rows = await self.db_pool.execute(
             """
-            SELECT w.tconst, w.watched_at,
-                   c.primaryTitle, c.startYear, c.genres, c.slug,
+            SELECT sub.tconst, sub.watched_at,
+                   sub.primaryTitle, sub.startYear, sub.genres, sub.slug,
                    p.payload_json
-            FROM user_watched_movies w
-            LEFT JOIN movie_candidates c ON w.tconst = c.tconst
-            LEFT JOIN movie_projection p ON w.tconst = p.tconst
-            WHERE w.user_id = %s
-            ORDER BY w.watched_at DESC, c.startYear DESC, c.primaryTitle ASC
-            LIMIT %s OFFSET %s
+            FROM (
+                SELECT w.tconst, w.watched_at,
+                       c.primaryTitle, c.startYear, c.genres, c.slug
+                FROM user_watched_movies w
+                LEFT JOIN movie_candidates c ON w.tconst = c.tconst
+                WHERE w.user_id = %s
+                ORDER BY w.watched_at DESC, c.startYear DESC, c.primaryTitle ASC
+                LIMIT %s OFFSET %s
+            ) sub
+            LEFT JOIN movie_projection p ON sub.tconst = p.tconst
             """,
             [user_id, limit, offset],
             fetch="all",
@@ -169,15 +181,20 @@ class WatchedStore:
         """Return watched movies that have READY projections, ordered by most recently watched."""
         rows = await self.db_pool.execute(
             """
-            SELECT w.tconst, w.watched_at,
-                   c.primaryTitle, c.startYear, c.genres, c.slug,
+            SELECT sub.tconst, sub.watched_at,
+                   sub.primaryTitle, sub.startYear, sub.genres, sub.slug,
                    p.payload_json
-            FROM user_watched_movies w
-            INNER JOIN movie_projection p ON w.tconst = p.tconst
-            LEFT JOIN movie_candidates c ON w.tconst = c.tconst
-            WHERE w.user_id = %s AND p.projection_state = %s
-            ORDER BY w.watched_at DESC, c.startYear DESC, c.primaryTitle ASC
-            LIMIT %s OFFSET %s
+            FROM (
+                SELECT w.tconst, w.watched_at,
+                       c.primaryTitle, c.startYear, c.genres, c.slug
+                FROM user_watched_movies w
+                INNER JOIN movie_projection p2 ON w.tconst = p2.tconst
+                LEFT JOIN movie_candidates c ON w.tconst = c.tconst
+                WHERE w.user_id = %s AND p2.projection_state = %s
+                ORDER BY w.watched_at DESC, c.startYear DESC, c.primaryTitle ASC
+                LIMIT %s OFFSET %s
+            ) sub
+            INNER JOIN movie_projection p ON sub.tconst = p.tconst
             """,
             [user_id, "ready", limit, offset],
             fetch="all",
@@ -197,6 +214,197 @@ class WatchedStore:
             fetch="one",
         )
         return row["cnt"] if row else 0
+
+    async def list_watched_filtered(
+        self,
+        user_id: str,
+        *,
+        sort: str = "recent",
+        limit: int = 60,
+        offset: int = 0,
+        decades: list[str] | None = None,
+        rating_min: float | None = None,
+        rating_max: float | None = None,
+        genres: list[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Return watched movies with optional filtering and sorting.
+
+        Filters combine as AND across categories, OR within a category.
+        """
+        where_clauses = ["w.user_id = %s"]
+        params: list[Any] = [user_id]
+
+        if decades:
+            decade_parts = []
+            for decade_str in decades:
+                try:
+                    decade_start = int(decade_str)
+                except (TypeError, ValueError):
+                    continue
+                decade_parts.append("(c.startYear >= %s AND c.startYear <= %s)")
+                params.extend([decade_start, decade_start + 9])
+            if decade_parts:
+                where_clauses.append("(" + " OR ".join(decade_parts) + ")")
+
+        if rating_min is not None:
+            where_clauses.append("c.averageRating >= %s")
+            params.append(rating_min)
+        if rating_max is not None:
+            where_clauses.append("c.averageRating <= %s")
+            params.append(rating_max)
+
+        if genres:
+            genre_parts = []
+            for genre in genres:
+                genre_parts.append("FIND_IN_SET(%s, c.genres) > 0")
+                params.append(genre)
+            if genre_parts:
+                where_clauses.append("(" + " OR ".join(genre_parts) + ")")
+
+        order_by = _SORT_MAP.get(sort, _SORT_MAP["recent"])
+        where_sql = " AND ".join(where_clauses)
+        params.extend([limit, offset])
+
+        rows = await self.db_pool.execute(
+            f"""
+            SELECT sub.tconst, sub.watched_at,
+                   sub.primaryTitle, sub.startYear, sub.genres, sub.slug,
+                   sub.averageRating,
+                   p.payload_json
+            FROM (
+                SELECT w.tconst, w.watched_at,
+                       c.primaryTitle, c.startYear, c.genres, c.slug,
+                       c.averageRating
+                FROM user_watched_movies w
+                LEFT JOIN movie_candidates c ON w.tconst = c.tconst
+                WHERE {where_sql}
+                ORDER BY {order_by}
+                LIMIT %s OFFSET %s
+            ) sub
+            LEFT JOIN movie_projection p ON sub.tconst = p.tconst
+            """,
+            params,
+            fetch="all",
+        )
+        return rows if rows else []
+
+    async def count_filtered(
+        self,
+        user_id: str,
+        *,
+        decades: list[str] | None = None,
+        rating_min: float | None = None,
+        rating_max: float | None = None,
+        genres: list[str] | None = None,
+    ) -> int:
+        """Return count of watched movies matching the given filters."""
+        where_clauses = ["w.user_id = %s"]
+        params: list[Any] = [user_id]
+
+        if decades:
+            decade_parts = []
+            for decade_str in decades:
+                try:
+                    decade_start = int(decade_str)
+                except (TypeError, ValueError):
+                    continue
+                decade_parts.append("(c.startYear >= %s AND c.startYear <= %s)")
+                params.extend([decade_start, decade_start + 9])
+            if decade_parts:
+                where_clauses.append("(" + " OR ".join(decade_parts) + ")")
+
+        if rating_min is not None:
+            where_clauses.append("c.averageRating >= %s")
+            params.append(rating_min)
+        if rating_max is not None:
+            where_clauses.append("c.averageRating <= %s")
+            params.append(rating_max)
+
+        if genres:
+            genre_parts = []
+            for genre in genres:
+                genre_parts.append("FIND_IN_SET(%s, c.genres) > 0")
+                params.append(genre)
+            if genre_parts:
+                where_clauses.append("(" + " OR ".join(genre_parts) + ")")
+
+        where_sql = " AND ".join(where_clauses)
+
+        row = await self.db_pool.execute(
+            f"""
+            SELECT COUNT(*) AS cnt
+            FROM user_watched_movies w
+            LEFT JOIN movie_candidates c ON w.tconst = c.tconst
+            WHERE {where_sql}
+            """,
+            params,
+            fetch="one",
+        )
+        return row["cnt"] if row else 0
+
+    async def available_filter_chips(self, user_id: str) -> dict[str, list]:
+        """Return available filter chip options based on the user's watched data."""
+        rows = await self.db_pool.execute(
+            """
+            SELECT c.startYear, c.genres, c.averageRating
+            FROM user_watched_movies w
+            LEFT JOIN movie_candidates c ON w.tconst = c.tconst
+            WHERE w.user_id = %s AND c.tconst IS NOT NULL
+            """,
+            [user_id],
+            fetch="all",
+        )
+        if not rows:
+            return {"decades": [], "genres": [], "ratings": []}
+
+        decade_set: set[str] = set()
+        genre_set: set[str] = set()
+        has_8_plus = False
+        has_6_8 = False
+        has_under_6 = False
+
+        for row in rows:
+            year = row.get("startYear")
+            if year:
+                try:
+                    decade = (int(year) // 10) * 10
+                    decade_set.add(f"{decade}s")
+                except (TypeError, ValueError):
+                    pass
+
+            genres_csv = row.get("genres")
+            if genres_csv and isinstance(genres_csv, str):
+                for g in genres_csv.split(","):
+                    g = g.strip()
+                    if g:
+                        genre_set.add(g)
+
+            rating = row.get("averageRating")
+            if rating is not None:
+                try:
+                    r = float(rating)
+                    if r >= 8.0:
+                        has_8_plus = True
+                    elif r >= 6.0:
+                        has_6_8 = True
+                    else:
+                        has_under_6 = True
+                except (TypeError, ValueError):
+                    pass
+
+        rating_tiers = []
+        if has_8_plus:
+            rating_tiers.append({"label": "8+", "min": 8.0, "max": 10.0})
+        if has_6_8:
+            rating_tiers.append({"label": "6\u20138", "min": 6.0, "max": 7.99})
+        if has_under_6:
+            rating_tiers.append({"label": "<6", "min": 0.0, "max": 5.99})
+
+        return {
+            "decades": sorted(decade_set, reverse=True),
+            "genres": sorted(genre_set),
+            "ratings": rating_tiers,
+        }
 
     async def ready_tconsts_for_import(self, tconsts: list[str]) -> set[str]:
         """Return imported tconsts that already have READY projections."""

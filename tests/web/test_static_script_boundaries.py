@@ -21,12 +21,12 @@ def test_watched_list_template_delegates_browser_behavior_to_static_assets():
     html = _template("watched_list.html")
 
     assert "js/theme-boot.js" in html
-    assert "js/watched-list.js" in html
+    assert "js/watched.js" in html
     assert "js/watched-enrichment-progress.js" in html
     assert INLINE_SCRIPT_RE.findall(html) == []
 
     assert _asset("theme-boot.js").exists()
-    assert _asset("watched-list.js").exists()
+    assert _asset("watched.js").exists()
     assert _asset("watched-enrichment-progress.js").exists()
 
 

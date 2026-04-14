@@ -52,136 +52,106 @@
   {% set _ = session.pop('letterboxd_unmatched', None) %}
   {% endif %}
 
-  <main id="main">
-    {% if movies|length == 0 %}
-      <header class="watched-header">
-        <h1 class="watched-title">Watched</h1>
-        <hr class="watched-hairline" />
-      </header>
+  <main id="main" aria-label="Watched films archive">
+    {% if movies|length == 0 and not (filter_chips is defined and filter_chips) %}
       <div class="watched-empty">
-        <blockquote class="watched-empty-quote">&ldquo;A film unseen is a door unopened.&rdquo;</blockquote>
+        <h1 class="watched-empty-title">Your film journey starts here</h1>
         <hr class="watched-empty-rule" />
-        <p class="watched-empty-line">Your watched list is empty.</p>
-        <a href="/" class="auth-submit watched-empty-cta">Pick a film</a>
-        <details class="mt-6">
-          <summary class="cursor-pointer text-sm font-medium text-gray-400 hover:text-gray-200 transition-colors">
+        <form method="POST" action="{{ url_for('main.import_letterboxd') }}" enctype="multipart/form-data" class="watched-empty-import">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <label class="watched-empty-cta watched-empty-cta--primary">
+            <svg class="watched-letterboxd-icon" viewBox="0 0 500 500" aria-hidden="true"><circle cx="108" cy="250" r="108" fill="#00e054"/><circle cx="250" cy="250" r="108" fill="#40bcf4"/><circle cx="392" cy="250" r="108" fill="#ff8000"/><path d="M179 170.6a108 108 0 000 158.8 108 108 0 000-158.8z" fill="#84d548"/><path d="M179 329.4a108 108 0 000-158.8 108 108 0 000 158.8z" fill="#84d548"/><path d="M321 170.6a108 108 0 010 158.8 108 108 0 010-158.8z" fill="#a8e0f4"/><path d="M321 329.4a108 108 0 010-158.8 108 108 0 010 158.8z" fill="#a8e0f4"/></svg>
             Import from Letterboxd
-          </summary>
-          <div class="mt-3 rounded-lg border border-gray-700 bg-gray-800/50 p-4">
-            <p class="text-xs text-gray-400 mb-3">
-              Export your data from
-              <a href="https://letterboxd.com/settings/data/" target="_blank" rel="noopener"
-                 class="underline hover:text-gray-200">letterboxd.com/settings/data/</a>,
-              then upload <code class="text-gray-300">watched.csv</code> below.
-            </p>
-            <form method="POST" action="{{ url_for('main.import_letterboxd') }}" enctype="multipart/form-data">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-              <div class="flex items-center gap-3">
-                <input
-                  type="file"
-                  name="letterboxd_csv"
-                  accept=".csv"
-                  required
-                  class="text-xs text-gray-300 file:mr-3 file:rounded-md file:border-0 file:bg-gray-700 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-gray-200 hover:file:bg-gray-600"
-                />
-                <button type="submit" class="rounded-md bg-blue-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-blue-500 transition-colors">
-                  Import
-                </button>
-              </div>
-            </form>
-          </div>
-        </details>
+            <input type="file" name="letterboxd_csv" accept=".csv" required class="sr-only" onchange="this.form.submit()" />
+          </label>
+        </form>
+        <a href="/" class="watched-empty-cta watched-empty-cta--secondary">Pick a Movie</a>
       </div>
     {% else %}
       <header class="watched-header">
         <h1 class="watched-title">Watched</h1>
-        <hr class="watched-hairline" />
-        <dl class="watched-stats">
-          <div class="watched-stat" role="group">
-            <dt class="watched-stat-label">Films</dt>
-            <dd class="watched-stat-num">{{ stats.total }}</dd>
-          </div>
-          <div class="watched-stat" role="group">
-            <dt class="watched-stat-label">This Month</dt>
-            <dd class="watched-stat-num">{{ stats.this_month }}</dd>
-          </div>
-          <div class="watched-stat" role="group">
-            <dt class="watched-stat-label">Avg Year</dt>
-            <dd class="watched-stat-num">{{ stats.avg_year if stats.avg_year else '—' }}</dd>
-          </div>
-          <div class="watched-stat" role="group">
-            <dt class="watched-stat-label">Top Decade</dt>
-            <dd class="watched-stat-num">{{ stats.top_decade if stats.top_decade else '—' }}</dd>
-          </div>
-        </dl>
-        <details class="mt-4">
-          <summary class="cursor-pointer text-sm font-medium text-gray-400 hover:text-gray-200 transition-colors">
-            Import from Letterboxd
-          </summary>
-          <div class="mt-3 rounded-lg border border-gray-700 bg-gray-800/50 p-4">
-            <p class="text-xs text-gray-400 mb-3">
-              Export your data from
-              <a href="https://letterboxd.com/settings/data/" target="_blank" rel="noopener"
-                 class="underline hover:text-gray-200">letterboxd.com/settings/data/</a>,
-              then upload <code class="text-gray-300">watched.csv</code> below.
-            </p>
-            <form method="POST" action="{{ url_for('main.import_letterboxd') }}" enctype="multipart/form-data">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-              <div class="flex items-center gap-3">
-                <input
-                  type="file"
-                  name="letterboxd_csv"
-                  accept=".csv"
-                  required
-                  class="text-xs text-gray-300 file:mr-3 file:rounded-md file:border-0 file:bg-gray-700 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-gray-200 hover:file:bg-gray-600"
-                />
-                <button type="submit" class="rounded-md bg-blue-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-blue-500 transition-colors">
-                  Import
-                </button>
-              </div>
-            </form>
-          </div>
-        </details>
+        <p class="watched-subtitle"><em>{{ total }} films and counting</em></p>
       </header>
 
-      <div class="watched-toolbar">
-        <div class="watched-search-wrap">
-          <svg class="watched-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
-          <input
-            type="search"
-            id="watched-search"
-            class="watched-search"
-            placeholder="Search films..."
-            aria-label="Search watched films"
-            autocomplete="off"
-          />
+      <div class="watched-toolbar" id="watched-toolbar">
+        <div class="watched-toolbar-row">
+          <div class="watched-search-wrap">
+            <svg class="watched-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input
+              type="search"
+              id="watched-search"
+              class="watched-search"
+              placeholder="Search films..."
+              aria-label="Search watched films"
+              autocomplete="off"
+            />
+          </div>
+          <div class="watched-toolbar-right">
+            <a href="javascript:void(0)" class="watched-letterboxd-link" title="Import from Letterboxd" id="watched-letterboxd-trigger">
+              <svg class="watched-letterboxd-icon" viewBox="0 0 500 500" aria-label="Import from Letterboxd"><circle cx="108" cy="250" r="108" fill="#00e054"/><circle cx="250" cy="250" r="108" fill="#40bcf4"/><circle cx="392" cy="250" r="108" fill="#ff8000"/><path d="M179 170.6a108 108 0 000 158.8 108 108 0 000-158.8z" fill="#84d548"/><path d="M179 329.4a108 108 0 000-158.8 108 108 0 000 158.8z" fill="#84d548"/><path d="M321 170.6a108 108 0 010 158.8 108 108 0 010-158.8z" fill="#a8e0f4"/><path d="M321 329.4a108 108 0 010-158.8 108 108 0 010 158.8z" fill="#a8e0f4"/></svg>
+            </a>
+            <select id="watched-sort" class="watched-sort" aria-label="Sort watched films">
+              <option value="recent" {% if current_sort == 'recent' %}selected{% endif %}>Recent</option>
+              <option value="title_asc" {% if current_sort == 'title_asc' %}selected{% endif %}>A – Z</option>
+              <option value="title_desc" {% if current_sort == 'title_desc' %}selected{% endif %}>Z – A</option>
+              <option value="year_desc" {% if current_sort == 'year_desc' %}selected{% endif %}>Year</option>
+              <option value="rating_desc" {% if current_sort == 'rating_desc' %}selected{% endif %}>Rating</option>
+            </select>
+          </div>
         </div>
-        <div class="watched-toolbar-right">
-          <span class="watched-count" id="watched-count" aria-live="polite">{{ stats.total }} of {{ stats.total }}</span>
-          <select id="watched-sort" class="watched-sort" aria-label="Sort watched films">
-            <option value="recent">Recent</option>
-            <option value="oldest">Oldest first</option>
-            <option value="year_desc">Year ↓</option>
-            <option value="year_asc">Year ↑</option>
-            <option value="rating_desc">Rating ↓</option>
-            <option value="title_asc">Title A–Z</option>
-          </select>
+
+        {% if filter_chips %}
+        <div class="watched-chips" role="group" aria-label="Filter by">
+          <button type="button" class="watched-chip watched-chip--active" data-filter="all" aria-pressed="true">All</button>
+          {% for decade in filter_chips.decades %}
+          <button type="button" class="watched-chip" data-filter="decade" data-value="{{ decade.rstrip('s') }}" aria-pressed="false">{{ decade }}</button>
+          {% endfor %}
+          {% for tier in filter_chips.ratings %}
+          <button type="button" class="watched-chip" data-filter="rating" data-value="{{ tier.label }}" data-min="{{ tier.min }}" data-max="{{ tier.max }}" aria-pressed="false">{{ tier.label }}</button>
+          {% endfor %}
+          {% for genre in filter_chips.genres %}
+          <button type="button" class="watched-chip" data-filter="genre" data-value="{{ genre }}" aria-pressed="false">{{ genre }}</button>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="watched-filter-count" id="watched-filter-count" aria-live="polite" hidden>
+          Showing <span id="watched-showing">0</span> of {{ total }} films
         </div>
       </div>
 
-      <section class="watched-grid auth-fade-in" id="watched-grid">
+      <section class="watched-grid" id="watched-grid" role="list">
         {% for movie in movies %}
           {% include '_watched_card.html' %}
         {% endfor %}
       </section>
+
+      <div class="watched-grid-footer" id="watched-grid-footer">
+        {% if has_more %}
+        <button type="button" class="watched-load-more" id="watched-load-more"
+                data-page="2" data-per-page="{{ pagination.per_page }}">
+          Load more
+        </button>
+        {% else %}
+        <div class="watched-end-mark">
+          <hr class="watched-end-rule" />
+          <p class="watched-end-text">That's all {{ total }}</p>
+        </div>
+        {% endif %}
+      </div>
     {% endif %}
   </main>
 
-  <div id="watched-toast" class="watched-toast" role="alert" aria-live="assertive" hidden></div>
+  <div id="watched-toast" class="watched-toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="{{ url_for('static', filename='js/watched-list.js') }}?v={{ config.get('CSS_VERSION', '1') }}" defer></script>
+  <form id="watched-letterboxd-form" method="POST" action="{{ url_for('main.import_letterboxd') }}" enctype="multipart/form-data" hidden>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <input type="file" name="letterboxd_csv" id="watched-letterboxd-file" accept=".csv" />
+  </form>
+
+  <script src="{{ url_for('static', filename='js/watched.js') }}?v={{ config.get('CSS_VERSION', '1') }}" defer></script>
 
   {% if enrichment_pending %}
   <script src="{{ url_for('static', filename='js/watched-enrichment-progress.js') }}?v={{ config.get('CSS_VERSION', '1') }}" defer></script>

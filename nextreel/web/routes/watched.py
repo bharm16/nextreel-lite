@@ -37,6 +37,35 @@ def _parse_watched_pagination(args) -> tuple[int, int, int]:
     return page, per_page, offset
 
 
+def _parse_filter_params(args) -> dict:
+    """Extract filter parameters from request query string."""
+    result = {}
+
+    decades_raw = args.get("decades", "")
+    if decades_raw:
+        result["decades"] = [d.strip().rstrip("s") for d in decades_raw.split(",") if d.strip()]
+
+    rating_tier = args.get("rating", "")
+    if rating_tier == "8+":
+        result["rating_min"] = 8.0
+        result["rating_max"] = 10.0
+    elif rating_tier == "6-8":
+        result["rating_min"] = 6.0
+        result["rating_max"] = 7.99
+    elif rating_tier == "<6":
+        result["rating_min"] = 0.0
+        result["rating_max"] = 5.99
+
+    genres_raw = args.get("genres", "")
+    if genres_raw:
+        result["genres"] = [g.strip() for g in genres_raw.split(",") if g.strip()]
+
+    return result
+
+
+_VALID_SORTS = {"recent", "title_asc", "title_desc", "year_desc", "rating_desc"}
+
+
 @bp.route("/watched")
 async def watched_list_page():
     redirect_response = _require_login()
@@ -45,27 +74,25 @@ async def watched_list_page():
 
     user_id = _current_user_id()
     services = _services()
+    watched_store = services.movie_manager.watched_store
 
     page, per_page, offset = _parse_watched_pagination(request.args)
+    sort = request.args.get("sort", "recent")
+    if sort not in _VALID_SORTS:
+        sort = "recent"
+    filter_params = _parse_filter_params(request.args)
 
     from quart import session as quart_session
 
     enrichment_pending = quart_session.get("letterboxd_enrichment_pending", False)
 
-    if enrichment_pending:
-        raw_rows, total_count = await asyncio.gather(
-            services.movie_manager.watched_store.list_watched_enriched(
-                user_id, limit=per_page, offset=offset
-            ),
-            services.movie_manager.watched_store.count_enriched(user_id),
-        )
-    else:
-        raw_rows, total_count = await asyncio.gather(
-            services.movie_manager.watched_store.list_watched(
-                user_id, limit=per_page, offset=offset
-            ),
-            services.movie_manager.watched_store.count(user_id),
-        )
+    raw_rows, total_count, filter_chips = await asyncio.gather(
+        watched_store.list_watched_filtered(
+            user_id, sort=sort, limit=per_page, offset=offset, **filter_params
+        ),
+        watched_store.count_filtered(user_id, **filter_params),
+        watched_store.available_filter_chips(user_id),
+    )
 
     view_model = _watched_list_presenter.build(
         raw_rows=raw_rows,
@@ -75,13 +102,32 @@ async def watched_list_page():
         now=datetime.now(timezone.utc).replace(tzinfo=None),
     )
 
+    has_more = (offset + per_page) < total_count
+
+    if _wants_json_response():
+        from quart import render_template as rt
+
+        html_parts = [
+            await rt("_watched_card.html", movie=movie) for movie in view_model.movies
+        ]
+        return jsonify(
+            {
+                "html": "".join(html_parts),
+                "total": total_count,
+                "has_more": has_more,
+                "page": page,
+            }
+        )
+
     return await render_template(
         "watched_list.html",
         movies=view_model.movies,
-        stats=view_model.stats,
         total=view_model.total,
+        filter_chips=filter_chips,
+        has_more=has_more,
         pagination=view_model.pagination,
         enrichment_pending=enrichment_pending,
+        current_sort=sort,
     )
 
 

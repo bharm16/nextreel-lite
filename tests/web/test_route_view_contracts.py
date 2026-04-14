@@ -53,6 +53,22 @@ def _make_route_app():
             ]
         )
         manager.watched_store.count = AsyncMock(return_value=1)
+        manager.watched_store.list_watched_filtered = AsyncMock(
+            return_value=[
+                {
+                    "tconst": "tt1234567",
+                    "watched_at": "2026-01-02T03:04:05",
+                    "primaryTitle": "Sample",
+                    "startYear": 2024,
+                    "slug": "sample",
+                    "payload_json": {"title": "Sample", "year": "2024"},
+                }
+            ]
+        )
+        manager.watched_store.count_filtered = AsyncMock(return_value=1)
+        manager.watched_store.available_filter_chips = AsyncMock(
+            return_value={"decades": ["2020s"], "genres": ["Drama"], "ratings": []}
+        )
         navigator = MagicMock()
         navigator.prev_stack_length = MagicMock(return_value=2)
         manager._navigator = navigator
@@ -107,4 +123,4 @@ class TestRouteViewContracts:
         assert response == "<html>watched</html>"
         render.assert_awaited_once()
         _, kwargs = render.await_args
-        assert set(kwargs) >= {"movies", "stats", "total", "pagination"}
+        assert set(kwargs) >= {"movies", "total", "filter_chips", "has_more", "pagination"}

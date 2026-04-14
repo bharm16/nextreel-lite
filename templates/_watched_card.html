@@ -1,6 +1,7 @@
 {% set href = url_for('main.movie_detail', tconst=movie.tconst) %}
 <div
   class="watched-card"
+  role="listitem"
   data-tconst="{{ movie.tconst }}"
   data-title="{{ movie.title }}"
   data-year="{{ movie.year if movie.year else '' }}"
@@ -12,14 +13,12 @@
     <img
       class="watched-poster"
       src="{{ movie.poster_url }}"
-      alt="{{ movie.title }}{% if movie.year %} ({{ movie.year }}){% endif %} poster"
+      alt="{{ movie.title }}{% if movie.year %} ({{ movie.year }}){% endif %}"
       loading="lazy"
     />
-    <div class="watched-card-overlay" aria-hidden="true">
-      <div class="watched-card-meta">
-        <div class="watched-card-title">{{ movie.title }}</div>
-        {% if movie.year %}<div class="watched-card-year">{{ movie.year }}</div>{% endif %}
-      </div>
+    <div class="watched-card-bar" aria-hidden="true">
+      <span class="watched-card-title">{{ movie.title }}</span>
+      <span class="watched-card-year">{{ movie.year if movie.year else '' }}</span>
     </div>
   </a>
   <button

@@ -523,3 +523,240 @@ async def test_ready_import_rows_empty_input_skips_db(mock_db_pool):
 
     assert rows == []
     mock_db_pool.execute.assert_not_awaited()
+
+
+# ---------------------------------------------------------------------------
+# list_watched_filtered
+# ---------------------------------------------------------------------------
+
+
+async def test_list_watched_filtered_default_sort_recent(mock_db_pool):
+    """list_watched_filtered() defaults to ORDER BY w.watched_at DESC."""
+    mock_db_pool.execute.return_value = []
+    store = _make_store(mock_db_pool)
+    await store.list_watched_filtered("user-1", sort="recent", limit=60, offset=0)
+    query = mock_db_pool.execute.call_args[0][0]
+    assert "ORDER BY w.watched_at DESC" in query
+
+
+async def test_list_watched_filtered_sort_title_az(mock_db_pool):
+    """list_watched_filtered() with sort='title_asc' orders A-Z."""
+    mock_db_pool.execute.return_value = []
+    store = _make_store(mock_db_pool)
+    await store.list_watched_filtered("user-1", sort="title_asc", limit=60, offset=0)
+    query = mock_db_pool.execute.call_args[0][0]
+    assert "ORDER BY c.primaryTitle ASC" in query
+
+
+async def test_list_watched_filtered_sort_title_za(mock_db_pool):
+    """list_watched_filtered() with sort='title_desc' orders Z-A."""
+    mock_db_pool.execute.return_value = []
+    store = _make_store(mock_db_pool)
+    await store.list_watched_filtered("user-1", sort="title_desc", limit=60, offset=0)
+    query = mock_db_pool.execute.call_args[0][0]
+    assert "ORDER BY c.primaryTitle DESC" in query
+
+
+async def test_list_watched_filtered_sort_year_desc(mock_db_pool):
+    """list_watched_filtered() with sort='year_desc' orders newest first."""
+    mock_db_pool.execute.return_value = []
+    store = _make_store(mock_db_pool)
+    await store.list_watched_filtered("user-1", sort="year_desc", limit=60, offset=0)
+    query = mock_db_pool.execute.call_args[0][0]
+    assert "ORDER BY c.startYear DESC" in query
+
+
+async def test_list_watched_filtered_sort_rating_desc(mock_db_pool):
+    """list_watched_filtered() with sort='rating_desc' orders highest first."""
+    mock_db_pool.execute.return_value = []
+    store = _make_store(mock_db_pool)
+    await store.list_watched_filtered("user-1", sort="rating_desc", limit=60, offset=0)
+    query = mock_db_pool.execute.call_args[0][0]
+    assert "ORDER BY" in query
+    assert "rating" in query.lower() or "averageRating" in query
+
+
+async def test_list_watched_filtered_decade_filter(mock_db_pool):
+    """list_watched_filtered() with decades=['2020'] filters to 2020-2029."""
+    mock_db_pool.execute.return_value = []
+    store = _make_store(mock_db_pool)
+    await store.list_watched_filtered("user-1", sort="recent", limit=60, offset=0, decades=["2020"])
+    query = mock_db_pool.execute.call_args[0][0]
+    params = mock_db_pool.execute.call_args[0][1]
+    assert "c.startYear >=" in query
+    assert 2020 in params
+    assert 2029 in params
+
+
+async def test_list_watched_filtered_multiple_decades(mock_db_pool):
+    """list_watched_filtered() with decades=['2020','2010'] uses OR within decade."""
+    mock_db_pool.execute.return_value = []
+    store = _make_store(mock_db_pool)
+    await store.list_watched_filtered("user-1", sort="recent", limit=60, offset=0, decades=["2020", "2010"])
+    params = mock_db_pool.execute.call_args[0][1]
+    assert 2020 in params
+    assert 2029 in params
+    assert 2010 in params
+    assert 2019 in params
+
+
+async def test_list_watched_filtered_rating_filter(mock_db_pool):
+    """list_watched_filtered() with rating_min filters by averageRating."""
+    mock_db_pool.execute.return_value = []
+    store = _make_store(mock_db_pool)
+    await store.list_watched_filtered("user-1", sort="recent", limit=60, offset=0, rating_min=8.0, rating_max=10.0)
+    query = mock_db_pool.execute.call_args[0][0]
+    assert "averageRating" in query
+
+
+async def test_list_watched_filtered_genre_filter(mock_db_pool):
+    """list_watched_filtered() with genres=['Horror'] filters by genre."""
+    mock_db_pool.execute.return_value = []
+    store = _make_store(mock_db_pool)
+    await store.list_watched_filtered("user-1", sort="recent", limit=60, offset=0, genres=["Horror"])
+    query = mock_db_pool.execute.call_args[0][0]
+    assert "genres" in query.lower()
+
+
+async def test_list_watched_filtered_combined_filters(mock_db_pool):
+    """list_watched_filtered() applies decade AND genre filters together."""
+    mock_db_pool.execute.return_value = []
+    store = _make_store(mock_db_pool)
+    await store.list_watched_filtered("user-1", sort="recent", limit=60, offset=0, decades=["2020"], genres=["Horror"])
+    query = mock_db_pool.execute.call_args[0][0]
+    assert "genres" in query.lower()
+    assert "startYear" in query
+
+
+async def test_list_watched_filtered_returns_rows(mock_db_pool):
+    """list_watched_filtered() returns the row list from DB."""
+    rows = [{"tconst": "tt1", "primaryTitle": "Test", "startYear": 2024, "genres": "Drama"}]
+    mock_db_pool.execute.return_value = rows
+    store = _make_store(mock_db_pool)
+    result = await store.list_watched_filtered("user-1", sort="recent", limit=60, offset=0)
+    assert result == rows
+
+
+async def test_list_watched_filtered_returns_empty_on_none(mock_db_pool):
+    """list_watched_filtered() returns [] when DB returns None."""
+    mock_db_pool.execute.return_value = None
+    store = _make_store(mock_db_pool)
+    result = await store.list_watched_filtered("user-1", sort="recent", limit=60, offset=0)
+    assert result == []
+
+
+async def test_list_watched_filtered_passes_limit_offset(mock_db_pool):
+    """list_watched_filtered() passes limit and offset as query params."""
+    mock_db_pool.execute.return_value = []
+    store = _make_store(mock_db_pool)
+    await store.list_watched_filtered("user-1", sort="recent", limit=30, offset=60)
+    params = mock_db_pool.execute.call_args[0][1]
+    assert params[-2] == 30
+    assert params[-1] == 60
+
+
+async def test_list_watched_filtered_invalid_sort_falls_back(mock_db_pool):
+    """list_watched_filtered() with invalid sort falls back to recent."""
+    mock_db_pool.execute.return_value = []
+    store = _make_store(mock_db_pool)
+    await store.list_watched_filtered("user-1", sort="invalid_sort", limit=60, offset=0)
+    query = mock_db_pool.execute.call_args[0][0]
+    assert "ORDER BY w.watched_at DESC" in query
+
+
+# ---------------------------------------------------------------------------
+# count_filtered
+# ---------------------------------------------------------------------------
+
+
+async def test_count_filtered_no_filters(mock_db_pool):
+    """count_filtered() without filters returns total watched count."""
+    mock_db_pool.execute.return_value = {"cnt": 100}
+    store = _make_store(mock_db_pool)
+    result = await store.count_filtered("user-1")
+    assert result == 100
+
+
+async def test_count_filtered_with_decade(mock_db_pool):
+    """count_filtered() with decade filter includes decade WHERE clause."""
+    mock_db_pool.execute.return_value = {"cnt": 42}
+    store = _make_store(mock_db_pool)
+    result = await store.count_filtered("user-1", decades=["2020"])
+    assert result == 42
+    query = mock_db_pool.execute.call_args[0][0]
+    assert "startYear" in query
+
+
+async def test_count_filtered_returns_zero_on_none(mock_db_pool):
+    """count_filtered() returns 0 when DB returns None."""
+    mock_db_pool.execute.return_value = None
+    store = _make_store(mock_db_pool)
+    result = await store.count_filtered("user-1")
+    assert result == 0
+
+
+# ---------------------------------------------------------------------------
+# available_filter_chips
+# ---------------------------------------------------------------------------
+
+
+async def test_available_filter_chips_returns_decades(mock_db_pool):
+    """available_filter_chips() returns decade labels from startYear values."""
+    mock_db_pool.execute.return_value = [
+        {"startYear": 2024, "genres": "Drama", "averageRating": 7.5},
+        {"startYear": 2015, "genres": "Horror,Comedy", "averageRating": 8.2},
+        {"startYear": 2023, "genres": "Drama", "averageRating": 5.0},
+    ]
+    store = _make_store(mock_db_pool)
+    chips = await store.available_filter_chips("user-1")
+    assert "2020s" in chips["decades"]
+    assert "2010s" in chips["decades"]
+
+
+async def test_available_filter_chips_returns_genres(mock_db_pool):
+    """available_filter_chips() returns unique genres from CSV genre column."""
+    mock_db_pool.execute.return_value = [
+        {"startYear": 2024, "genres": "Drama,Horror", "averageRating": 7.5},
+        {"startYear": 2015, "genres": "Horror,Comedy", "averageRating": 8.2},
+    ]
+    store = _make_store(mock_db_pool)
+    chips = await store.available_filter_chips("user-1")
+    assert "Drama" in chips["genres"]
+    assert "Horror" in chips["genres"]
+    assert "Comedy" in chips["genres"]
+
+
+async def test_available_filter_chips_returns_rating_tiers(mock_db_pool):
+    """available_filter_chips() returns rating tiers that have >=1 film."""
+    mock_db_pool.execute.return_value = [
+        {"startYear": 2024, "genres": "Drama", "averageRating": 8.5},
+        {"startYear": 2024, "genres": "Drama", "averageRating": 7.0},
+        {"startYear": 2024, "genres": "Drama", "averageRating": 4.0},
+    ]
+    store = _make_store(mock_db_pool)
+    chips = await store.available_filter_chips("user-1")
+    assert {"label": "8+", "min": 8.0, "max": 10.0} in chips["ratings"]
+    assert {"label": "6\u20138", "min": 6.0, "max": 7.99} in chips["ratings"]
+    assert {"label": "<6", "min": 0.0, "max": 5.99} in chips["ratings"]
+
+
+async def test_available_filter_chips_empty_watched(mock_db_pool):
+    """available_filter_chips() returns empty lists when user has no films."""
+    mock_db_pool.execute.return_value = []
+    store = _make_store(mock_db_pool)
+    chips = await store.available_filter_chips("user-1")
+    assert chips["decades"] == []
+    assert chips["genres"] == []
+    assert chips["ratings"] == []
+
+
+async def test_available_filter_chips_skips_null_genres(mock_db_pool):
+    """available_filter_chips() ignores rows with None/empty genres."""
+    mock_db_pool.execute.return_value = [
+        {"startYear": 2024, "genres": None, "averageRating": 7.0},
+        {"startYear": 2024, "genres": "", "averageRating": 7.0},
+        {"startYear": 2024, "genres": "Drama", "averageRating": 7.0},
+    ]
+    store = _make_store(mock_db_pool)
+    chips = await store.available_filter_chips("user-1")
+    assert chips["genres"] == ["Drama"]
