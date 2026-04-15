@@ -9,6 +9,7 @@
   --color-border: #d8d5ce;
   --color-primary: #f5f4f0;
   --color-accent: #b0654f;
+  --color-success: #16a34a;
   --color-chip: transparent;
   --color-chip-ring: #c8c5be;
   --color-elev-shadow: none;
@@ -43,6 +44,7 @@
     --color-border: #2a2a2a;
     --color-primary: #181818;
     --color-accent: #c67a5c;
+    --color-success: #22c55e;
     --color-chip: transparent;
     --color-chip-ring: #3a3a3a;
     color-scheme: dark;
@@ -59,6 +61,7 @@
   --color-border: #d8d5ce;
   --color-primary: #f5f4f0;
   --color-accent: #b0654f;
+  --color-success: #16a34a;
   --color-chip: transparent;
   --color-chip-ring: #c8c5be;
   color-scheme: light;
@@ -73,6 +76,7 @@
   --color-border: #2a2a2a;
   --color-primary: #181818;
   --color-accent: #c67a5c;
+  --color-success: #22c55e;
   --color-chip: transparent;
   --color-chip-ring: #3a3a3a;
   color-scheme: dark;
