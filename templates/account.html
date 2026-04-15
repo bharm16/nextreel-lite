@@ -1,0 +1,204 @@
+{% from "macros.html" import user_avatar with context %}
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth" {% if server_theme %}data-theme-server="{{ server_theme }}"{% endif %}>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Account – Nextreel</title>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,300;0,400;0,700;1,400&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/output.css') }}?v={{ config.get('CSS_VERSION', '1') }}">
+  <script src="{{ url_for('static', filename='js/theme-boot.js') }}?v={{ config.get('CSS_VERSION', '1') }}"></script>
+  <style>body { font-family: var(--font-sans, 'DM Sans', system-ui, sans-serif); background: var(--color-bg); color: var(--color-text); }</style>
+</head>
+<body class="antialiased">
+  <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:shadow">Skip to content</a>
+  {% include 'navbar_modern.html' %}
+
+  <main id="main" class="settings-page">
+    {# ── Page Header ── #}
+    <div class="settings-fade">
+      <h1 class="settings-page-title">Account</h1>
+      <p class="settings-user-identity">{{ user.email }}</p>
+    </div>
+
+    {# ── Profile ── #}
+    <section class="settings-section settings-fade" data-feedback-section="profile">
+      <h2 class="settings-section-heading">Profile</h2>
+      <form method="POST" action="{{ url_for('main.account_profile_save') }}" data-settings-form>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="settings-field">
+          <label for="display_name" class="settings-label">Display Name</label>
+          <input id="display_name" name="display_name" type="text" maxlength="100"
+                 value="{{ user.display_name or '' }}" class="settings-input"
+                 placeholder="How you'd like to be called">
+        </div>
+        <div class="settings-field">
+          <label class="settings-label">Email</label>
+          <p class="settings-field-readonly">{{ user.email }}</p>
+        </div>
+        <div class="settings-actions">
+          <button type="submit" class="settings-btn-primary">Save Profile</button>
+          <div class="settings-feedback" role="status" aria-live="polite"></div>
+        </div>
+      </form>
+    </section>
+
+    {# ── Preferences ── #}
+    <section class="settings-section settings-fade" data-feedback-section="preferences">
+      <h2 class="settings-section-heading">Preferences</h2>
+      <form method="POST" action="{{ url_for('main.account_preferences_save') }}" data-settings-form>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="settings-toggle-row">
+          <div>
+            <div class="settings-toggle-label">Exclude watched movies</div>
+            <div class="settings-toggle-desc">Hide movies you've already seen from recommendations</div>
+          </div>
+          <input type="hidden" name="exclude_watched_default" value="{{ 'on' if exclude_watched_default else '' }}">
+          <button type="button" class="settings-toggle" role="switch"
+                  aria-checked="{{ 'true' if exclude_watched_default else 'false' }}"
+                  aria-label="Exclude watched movies"></button>
+        </div>
+
+        <div class="settings-actions">
+          <button type="submit" class="settings-btn-primary">Save Preferences</button>
+          <div class="settings-feedback" role="status" aria-live="polite"></div>
+        </div>
+      </form>
+    </section>
+
+    {# ── Security ── #}
+    <section class="settings-section settings-fade" data-feedback-section="security">
+      <h2 class="settings-section-heading">Security</h2>
+
+      {% if user.auth_provider == 'email' %}
+      <form method="POST" action="{{ url_for('main.account_password_change') }}" data-settings-form>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="settings-field">
+          <label for="current_password" class="settings-label">Current Password</label>
+          <input id="current_password" name="current_password" type="password" required
+                 autocomplete="current-password" class="settings-input">
+          {% if errors and errors.current_password %}
+            <p class="settings-field-error">{{ errors.current_password }}</p>
+          {% endif %}
+        </div>
+        <div class="settings-field">
+          <label class="settings-label">New Password</label>
+          <div class="settings-field-row">
+            <div>
+              <input id="new_password" name="new_password" type="password" required
+                     autocomplete="new-password" class="settings-input"
+                     placeholder="New password" data-validate="min8">
+              {% if errors and errors.new_password %}
+                <p class="settings-field-error">{{ errors.new_password }}</p>
+              {% endif %}
+            </div>
+            <div>
+              <input id="confirm_password" name="confirm_password" type="password" required
+                     autocomplete="new-password" class="settings-input"
+                     placeholder="Confirm password" data-validate="match" data-match-target="new_password">
+              {% if errors and errors.confirm_password %}
+                <p class="settings-field-error">{{ errors.confirm_password }}</p>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        <div class="settings-actions" style="margin-bottom: 2.5rem;">
+          <button type="submit" class="settings-btn-primary">Update Password</button>
+          <div class="settings-feedback" role="status" aria-live="polite"></div>
+        </div>
+      </form>
+      {% else %}
+      <div class="settings-oauth-note" style="margin-bottom: 2.5rem;">
+        <span>Signed in with {{ user.auth_provider | capitalize }}</span>
+      </div>
+      {% endif %}
+
+      <div class="settings-label" style="margin-bottom: 1rem;">Active Sessions</div>
+      <div class="settings-session-row">
+        <div>
+          <div class="settings-session-device">
+            Current session
+            <span class="settings-session-badge">Current</span>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top: 1rem;">
+        <form method="POST" action="{{ url_for('main.account_sessions_revoke') }}" style="display:inline;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="button" class="settings-btn-text" data-revoke-btn>Sign out other devices</button>
+          <span class="settings-revoke-confirm" style="display:none;">
+            <button type="submit" class="settings-btn-text" style="color:#dc2626;">Confirm</button>
+            <button type="button" class="settings-confirm-cancel" data-revoke-cancel>Cancel</button>
+          </span>
+        </form>
+      </div>
+    </section>
+
+    {# ── Data ── #}
+    <section class="settings-section settings-fade" data-feedback-section="data">
+      <h2 class="settings-section-heading">Data</h2>
+
+      <div class="settings-field">
+        <div class="settings-label">Export</div>
+        <p class="settings-description">Download all your data including watched list, preferences, and ratings.</p>
+        <a href="{{ url_for('main.account_export_watched_csv') }}" class="settings-btn-secondary" style="display:inline-block;">Export My Data</a>
+      </div>
+
+      <div class="settings-field" style="margin-top: 2rem;">
+        <div class="settings-label">Import from Letterboxd</div>
+        <form id="letterboxd-import-form" method="POST"
+              action="{{ url_for('main.account_letterboxd_upload') }}"
+              enctype="multipart/form-data">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="file" id="letterboxd-csv-input" name="csv" accept=".csv"
+                 style="display:none;">
+          <div id="letterboxd-import-area" class="settings-import-area">
+            Drop your Letterboxd CSV here or <strong>browse</strong>
+          </div>
+        </form>
+      </div>
+
+      <div class="settings-field" style="margin-top: 2rem;">
+        <div class="settings-label">Clear Watched History</div>
+        <p class="settings-description">Remove every movie from your watched list. This cannot be undone.</p>
+        <button type="button" id="clear-watched-btn" class="settings-btn-danger">Clear All Watched</button>
+        <div id="clear-watched-confirm" class="settings-confirm">
+          <p>Are you sure? This will permanently delete all watched movies from your list.</p>
+          <form method="POST" action="{{ url_for('main.account_watched_clear') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="settings-confirm-actions">
+              <button type="submit" class="settings-btn-danger">Clear All</button>
+              <button type="button" class="settings-confirm-cancel" id="clear-watched-cancel">Cancel</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    {# ── Danger Zone ── #}
+    <section class="settings-section settings-fade">
+      <h2 class="settings-section-heading">Danger Zone</h2>
+      <p class="settings-description">Permanently delete your account and all associated data. This action cannot be undone.</p>
+      <button type="button" id="delete-account-btn" class="settings-btn-danger">Delete Account</button>
+      <div id="delete-account-confirm" class="settings-confirm">
+        <p>Type <strong>delete</strong> to confirm permanent account deletion.</p>
+        <form method="POST" action="{{ url_for('main.account_delete') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input id="delete-confirm-input" name="confirm_delete" type="text" class="settings-input"
+                 placeholder="Type 'delete' to confirm" autocomplete="off"
+                 aria-label="Type delete to confirm">
+          <div class="settings-confirm-actions">
+            <button id="delete-confirm-submit" type="submit" class="settings-btn-danger" disabled>Delete Forever</button>
+            <button type="button" class="settings-confirm-cancel" id="delete-cancel-btn">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  {% include 'footer_modern.html' %}
+  <script src="{{ url_for('static', filename='js/account.js') }}?v={{ config.get('CSS_VERSION', '1') }}"></script>
+</body>
+</html>
