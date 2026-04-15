@@ -39,7 +39,6 @@ from session.user_auth import (
 
 logger = get_logger(__name__)
 
-_VALID_TABS = ("profile", "security", "preferences", "data", "danger")
 MAX_DISPLAY_NAME_LENGTH = 100
 MAX_LETTERBOXD_CSV_BYTES = 5 * 1024 * 1024  # 5 MB
 
@@ -68,11 +67,7 @@ def _current_sid() -> str | None:
 @bp.route("/account")
 async def account_view():
     if not _current_user_id():
-        return redirect(url_for("main.login_page", next="/account?tab=profile"))
-
-    tab = request.args.get("tab", "profile")
-    if tab not in _VALID_TABS:
-        return redirect(url_for("main.account_view") + "?tab=profile")
+        return redirect(url_for("main.login_page", next="/account"))
 
     db_pool = _db_pool()
     user_id = _current_user_id()
@@ -88,13 +83,12 @@ async def account_view():
     default_filters = await user_preferences.get_default_filters(db_pool, user_id)
 
     return await render_template(
-        f"account/{tab}.html",
-        active_tab=tab,
+        "account.html",
         user=user,
         server_theme=theme_preference,
         exclude_watched_default=exclude_watched_default,
         default_filters=default_filters,
-        page_title=tab.title(),
+        page_title="Account",
     )
 
 
@@ -117,7 +111,7 @@ async def account_profile_save():
         fetch="none",
     )
     logger.info("Account action: %s user=%s", "profile_save", user_id)
-    return redirect(url_for("main.account_view") + "?tab=profile")
+    return redirect(url_for("main.account_view"))
 
 
 # ── Security ───────────────────────────────────────────────────────
@@ -157,13 +151,19 @@ async def account_password_change():
     if errors:
         user = await get_user_by_id(db_pool, user_id)
         theme = await user_preferences.get_theme_preference(db_pool, user_id)
+        exclude_watched = await user_preferences.get_exclude_watched_default(
+            db_pool, user_id
+        )
+        default_filters = await user_preferences.get_default_filters(db_pool, user_id)
         return (
             await render_template(
-                "account/security.html",
-                active_tab="security",
+                "account.html",
                 user=user,
                 server_theme=theme,
+                exclude_watched_default=exclude_watched,
+                default_filters=default_filters,
                 errors=errors,
+                page_title="Account",
             ),
             400,
         )
@@ -182,7 +182,7 @@ async def account_password_change():
         )
 
     logger.info("Account action: %s user=%s", "password_change", user_id)
-    return redirect(url_for("main.account_view") + "?tab=security")
+    return redirect(url_for("main.account_view"))
 
 
 @bp.route("/account/sessions/revoke", methods=["POST"])
@@ -198,7 +198,7 @@ async def account_sessions_revoke():
     logger.info(
         "Account action: %s user=%s revoked=%d", "sessions_revoke", user_id, revoked
     )
-    return redirect(url_for("main.account_view") + "?tab=security")
+    return redirect(url_for("main.account_view"))
 
 
 # ── Preferences ────────────────────────────────────────────────────
@@ -217,7 +217,7 @@ async def account_preferences_save():
     await user_preferences.set_exclude_watched_default(db_pool, user_id, exclude)
     await user_preferences.set_theme_preference(db_pool, user_id, theme)
     logger.info("Account action: %s user=%s", "preferences_save", user_id)
-    return redirect(url_for("main.account_view") + "?tab=preferences")
+    return redirect(url_for("main.account_view"))
 
 
 @bp.route("/account/preferences/filters/save", methods=["POST"])
@@ -228,7 +228,7 @@ async def account_filters_save():
     filters = extract_movie_filter_criteria(form)
     await user_preferences.set_default_filters(_db_pool(), user_id, filters)
     logger.info("Account action: %s user=%s", "filters_save_default", user_id)
-    return redirect(url_for("main.account_view") + "?tab=preferences")
+    return redirect(url_for("main.account_view"))
 
 
 @bp.route("/account/preferences/filters/clear", methods=["POST"])
@@ -237,7 +237,7 @@ async def account_filters_clear():
     user_id = _require_user()
     await user_preferences.clear_default_filters(_db_pool(), user_id)
     logger.info("Account action: %s user=%s", "filters_clear_default", user_id)
-    return redirect(url_for("main.account_view") + "?tab=preferences")
+    return redirect(url_for("main.account_view"))
 
 
 # ── Data tab: Letterboxd import ────────────────────────────────────
@@ -453,7 +453,7 @@ async def account_watched_clear():
         fetch="none",
     )
     logger.info("Account action: %s user=%s", "watched_clear", user_id)
-    return redirect(url_for("main.account_view") + "?tab=data")
+    return redirect(url_for("main.account_view"))
 
 
 # ── Danger: delete account ─────────────────────────────────────────
@@ -465,14 +465,15 @@ async def account_watched_clear():
 async def account_delete():
     user_id = _require_user()
     form = await request.form
-    typed = (form.get("confirm_email") or "").strip().lower()
+    typed = (form.get("confirm_delete") or "").strip().lower()
+
+    if typed != "delete":
+        abort(400, description="Please type 'delete' to confirm account deletion.")
 
     db_pool = _db_pool()
     user = await get_user_by_id(db_pool, user_id)
     if not user:
         abort(400)
-    if typed != user["email"].strip().lower():
-        abort(400, description="Typed email does not match your account.")
 
     # Ordered cascade
     await db_pool.execute(
