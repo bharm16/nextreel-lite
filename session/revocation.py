@@ -10,11 +10,13 @@ from __future__ import annotations
 
 import json
 
+from config.session import SessionConfig
 from logging_config import get_logger
 
 logger = get_logger(__name__)
 
-_SESSION_KEY_PATTERN = b"quart-session:*"
+_SESSION_KEY_PREFIX = SessionConfig.SESSION_KEY_PREFIX.encode()
+_SESSION_KEY_PATTERN = _SESSION_KEY_PREFIX + b"*"
 
 
 async def revoke_user_sessions(
@@ -31,16 +33,10 @@ async def revoke_user_sessions(
     """
     cursor: int = 0
     revoked = 0
-    except_suffix = (
-        ("quart-session:" + except_session_id).encode()
-        if except_session_id
-        else None
-    )
+    except_suffix = _SESSION_KEY_PREFIX + except_session_id.encode() if except_session_id else None
 
     while True:
-        cursor, keys = await redis_client.scan(
-            cursor=cursor, match=_SESSION_KEY_PATTERN, count=500
-        )
+        cursor, keys = await redis_client.scan(cursor=cursor, match=_SESSION_KEY_PATTERN, count=500)
         for key in keys:
             if except_suffix is not None and key == except_suffix:
                 continue
