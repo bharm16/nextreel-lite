@@ -207,6 +207,7 @@ async def ensure_runtime_schema(db_pool) -> None:
     await ensure_movie_candidates_refreshed_at_index(db_pool)
     await ensure_movie_candidates_shuffle_key_index(db_pool)
     await ensure_movie_candidates_bucket_filter_index(db_pool)
+    await ensure_movie_candidates_primaryTitle_index(db_pool)
     await ensure_popular_movies_cache_composite_index(db_pool)
     await ensure_user_navigation_user_id_column(db_pool)
     await ensure_users_exclude_watched_default_column(db_pool)
@@ -345,6 +346,26 @@ async def ensure_movie_candidates_shuffle_key_index(db_pool) -> None:
         "idx_movie_candidates_shuffle",
         "CREATE INDEX idx_movie_candidates_shuffle "
         "ON movie_candidates (shuffle_key, numVotes, averageRating)",
+    )
+
+
+async def ensure_movie_candidates_primaryTitle_index(db_pool) -> None:
+    """Add a 128-byte prefix index on primaryTitle to support /api/search.
+
+    Without this, the search endpoint falls back to full table scans on
+    every keystroke (debounced 150ms + rate-limited, but still expensive
+    at scale). The prefix index covers equality and LIKE 'term%' — the
+    LIKE '%term%' branch still scans, which is acceptable given the
+    debounce + rate limits.
+    """
+    await _ensure_index(
+        db_pool,
+        table="movie_candidates",
+        name="idx_movie_candidates_primaryTitle",
+        create_sql=(
+            "CREATE INDEX idx_movie_candidates_primaryTitle "
+            "ON movie_candidates (primaryTitle(128))"
+        ),
     )
 
 

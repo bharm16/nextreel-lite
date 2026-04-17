@@ -13,7 +13,6 @@ from quart import (
     g,
     jsonify,
     redirect,
-    render_template,
     request,
     session,
     url_for,
@@ -252,25 +251,6 @@ async def _attach_user_to_current_session(user_id: str):
     return updated_state
 
 
-async def _render_filters_page(
-    current_filters,
-    *,
-    validation_errors: dict[str, str] | None = None,
-    form_notice: str | None = None,
-    genres_notice: str | None = None,
-    status_code: int = 200,
-):
-    response = await render_template(
-        "set_filters.html",
-        current_filters=current_filters,
-        current_year=_current_year(),
-        validation_errors=validation_errors or {},
-        form_notice=form_notice,
-        genres_notice=genres_notice,
-    )
-    return response, status_code
-
-
 __all__ = [
     "NextReelServices",
     "_REQUEST_TIMEOUT",
@@ -288,7 +268,6 @@ __all__ = [
     "_no_matches_response",
     "_redirect_for_navigation_outcome",
     "_registration_service",
-    "_render_filters_page",
     "_require_login",
     "_services",
     "_wants_json_response",

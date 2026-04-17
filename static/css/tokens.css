@@ -31,6 +31,12 @@
   /* Rating star color */
   --color-star: #d4a843;
 
+  /* New navbar-redesign tokens (2026-04-17) */
+  --duration-surface: 250ms;
+  --duration-modal: 300ms;
+  --easing-measured: ease-in-out;
+  --color-accent-hover: #9e5843;
+
   color-scheme: light;
 }
 
@@ -45,6 +51,7 @@
     --color-border: #2a2a2a;
     --color-primary: #181818;
     --color-accent: #c67a5c;
+    --color-accent-hover: #b56a4d;
     --color-success: #22c55e;
     --color-watched: #9bc97b;
     --color-chip: transparent;
@@ -63,6 +70,7 @@
   --color-border: #d8d5ce;
   --color-primary: #f5f4f0;
   --color-accent: #b0654f;
+  --color-accent-hover: #9e5843;
   --color-success: #16a34a;
   --color-watched: #5a8a3c;
   --color-chip: transparent;
@@ -79,6 +87,7 @@
   --color-border: #2a2a2a;
   --color-primary: #181818;
   --color-accent: #c67a5c;
+  --color-accent-hover: #b56a4d;
   --color-success: #22c55e;
   --color-watched: #9bc97b;
   --color-chip: transparent;

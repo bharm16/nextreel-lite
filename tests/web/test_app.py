@@ -16,13 +16,13 @@ def _make_test_app():
 
 async def _get_csrf_token(client):
     """Issue a GET to establish a session and extract the CSRF token."""
-    # Use /filters as a harmless GET endpoint that renders a template.
+    # Use / (home) as a harmless GET endpoint that renders a template.
     # After the GET the session will contain our CSRF token.
     # We can't easily read the session from outside, so we inject the
     # token via the cookie-backed session before POST.
     #
     # Simpler approach: just set the session token directly via the
-    # test request context.  The CSRF machinery stores it at '_csrf_token'.
+    # test request context. The CSRF machinery stores it at '_csrf_token'.
     pass
 
 
@@ -39,14 +39,15 @@ async def test_home():
             assert response.status_code == 200
 
 
-async def test_set_filters_route():
+async def test_filters_route_returns_404():
+    """The standalone /filters page has been removed; the drawer replaces it."""
     with patch.dict(os.environ, TEST_ENV), patch("app.MovieManager") as MockManager:
         MockManager.return_value.start = AsyncMock()
         app = _make_test_app()
         async with app.app_context():
             client = app.test_client()
             response = await client.get("/filters")
-            assert response.status_code == 200
+            assert response.status_code == 404
 
 
 async def test_filtered_movie_endpoint():

@@ -92,9 +92,6 @@ def test_01_home_page_loads(page):
         pick_btn = page.locator("form[action='/next_movie'] button").first
         assert pick_btn.is_visible(), "Pick a Movie button not visible"
 
-        filters_link = page.locator("a[href='/filters']").first
-        assert filters_link.is_visible(), "Set Filters link not visible"
-
         csrf = page.locator("input[name='csrf_token']").first
         token = csrf.get_attribute("value")
         assert token and len(token) > 10, f"CSRF token looks invalid: {token}"
@@ -217,44 +214,21 @@ def test_05_previous_movie(page):
         record("Previous movie navigation", False, str(e), snap(page, "05_prev_fail"))
 
 
-def test_06_filters_page(page):
-    """Navigate to filters and verify all controls exist."""
+def test_07_apply_filters(page):
+    """Fill drawer filters and submit — should land on a filtered movie."""
     page.goto(BASE_URL)
     page.wait_for_load_state("networkidle")
 
     try:
-        page.locator("a[href='/filters']").first.click()
-        page.wait_for_load_state("networkidle")
-        s = snap(page, "06_filters")
+        # Need to be on a movie detail page for the drawer to exist
+        pick_movie(page)
 
-        assert "/filters" in page.url
+        # Open the drawer
+        page.locator("#filterDrawerTab").click()
+        page.wait_for_selector("#filterDrawer.open", timeout=2000)
+        s1 = snap(page, "07_drawer_open")
 
-        assert page.locator("input[name='imdb_score_min']").is_visible()
-        assert page.locator("input[name='imdb_score_max']").is_visible()
-        assert page.locator("input[name='num_votes_min']").is_visible()
-        assert page.locator("input[name='num_votes_max']").is_visible()
-        assert page.locator("input[name='year_min']").is_visible()
-        assert page.locator("input[name='year_max']").is_visible()
-        assert page.locator("select[name='language']").is_visible()
-
-        genre_count = page.locator("input[name='genres[]']").count()
-        assert genre_count >= 10, f"Expected 10+ genres, got {genre_count}"
-
-        submit = page.locator("button[type='submit'], input[type='submit']").first
-        assert submit.is_visible()
-
-        record("Filters page with all controls", True, f"{genre_count} genres", s)
-    except Exception as e:
-        record("Filters page with all controls", False, str(e), snap(page, "06_fail"))
-
-
-def test_07_apply_filters(page):
-    """Fill filters and submit — should return a filtered movie."""
-    page.goto(f"{BASE_URL}/filters")
-    page.wait_for_load_state("networkidle")
-
-    try:
-        # Broad filters to ensure a result
+        # Fill fields (shared partial — same input names as the old page)
         page.locator("input[name='imdb_score_min']").fill("7.0")
         page.locator("input[name='imdb_score_max']").fill("10.0")
         page.locator("input[name='num_votes_min']").fill("50000")
@@ -263,75 +237,29 @@ def test_07_apply_filters(page):
         page.locator("input[name='year_max']").fill("2025")
         page.locator("select[name='language']").select_option("en")
 
-        # Check Drama
         drama = page.locator("input[name='genres[]'][value='Drama']")
         if drama.count() > 0:
             drama.check()
 
-        s1 = snap(page, "07_filters_filled")
+        snap(page, "07_drawer_filled")
 
-        # Submit
-        page.locator("button[type='submit'], input[type='submit']").first.click()
+        # Submit via the drawer Apply button (AJAX → navigate on success)
+        current_url = page.url
+        page.locator("#drawerApplyBtn").click()
         page.wait_for_load_state("networkidle")
-        page.wait_for_timeout(500)
+        page.wait_for_timeout(1000)
         s2 = snap(page, "07_filtered_result")
 
-        # Should land on a movie page or show "no movies"
         body = page.inner_text("body")
         url = page.url
+        # Either we navigated to a new /movie/tt page, or we stayed (no match) with a flash
         has_movie = "/movie/tt" in url
         has_content = len(body) > 100
 
         assert has_movie or has_content, f"Empty result. URL: {url}"
-        record("Apply filters → result", True, f"url={url}", s2)
+        record("Apply filters (drawer) → result", True, f"url={url}", s2)
     except Exception as e:
-        record("Apply filters → result", False, str(e), snap(page, "07_fail"))
-
-
-def test_08_filter_genre_selection(page):
-    """Select multiple genres and verify they're checked."""
-    page.goto(f"{BASE_URL}/filters")
-    page.wait_for_load_state("networkidle")
-
-    try:
-        genres_to_check = ["Action", "Comedy", "Thriller"]
-        checked = 0
-
-        for genre in genres_to_check:
-            cb = page.locator(f"input[name='genres[]'][value='{genre}']")
-            if cb.count() > 0:
-                cb.check()
-                if cb.is_checked():
-                    checked += 1
-
-        s = snap(page, "08_genres")
-        assert checked == len(genres_to_check), f"Only {checked}/{len(genres_to_check)}"
-        record("Genre multi-selection", True, f"{checked} checked", s)
-    except Exception as e:
-        record("Genre multi-selection", False, str(e))
-
-
-def test_09_filter_reset(page):
-    """Reset button restores defaults."""
-    page.goto(f"{BASE_URL}/filters")
-    page.wait_for_load_state("networkidle")
-
-    try:
-        original = page.locator("input[name='imdb_score_min']").input_value()
-        page.locator("input[name='imdb_score_min']").fill("9.9")
-
-        reset = page.locator("button[type='reset']")
-        if reset.count() > 0:
-            reset.click()
-            page.wait_for_timeout(300)
-            restored = page.locator("input[name='imdb_score_min']").input_value()
-            s = snap(page, "09_reset")
-            assert restored == original, f"Expected {original}, got {restored}"
-            record("Filter reset button", True, screenshot=s)
-        else:
-            record("Filter reset button", True, "no reset button")
-    except Exception as e:
-        record("Filter reset button", False, str(e))
+        record("Apply filters (drawer) → result", False, str(e), snap(page, "07_fail"))
 
 
 def test_10_csrf_enforcement(page):
@@ -490,8 +418,10 @@ def test_18_no_console_errors(page):
         page.wait_for_load_state("networkidle")
         page.wait_for_timeout(500)
 
-        page.goto(f"{BASE_URL}/filters")
-        page.wait_for_load_state("networkidle")
+        # Exercise the drawer JS on a movie page
+        pick_movie(page)
+        page.locator("#filterDrawerTab").click()
+        page.wait_for_selector("#filterDrawer.open", timeout=2000)
         page.wait_for_timeout(500)
 
         if errors:
@@ -571,18 +501,21 @@ def test_20_full_browse_workflow(page):
 
 
 def test_21_full_filter_workflow(page):
-    """Full flow: Home → Filters → Fill → Apply → Movie."""
+    """Full flow: Home → Pick Movie → Open Drawer → Fill → Apply → Filtered Movie."""
     page.goto(BASE_URL)
     page.wait_for_load_state("networkidle")
 
     try:
-        # Step 1: Go to filters
-        page.locator("a[href='/filters']").first.click()
-        page.wait_for_load_state("networkidle")
-        assert "/filters" in page.url
-        snap(page, "21_s1_filters")
+        # Step 1: Pick a movie so the drawer is available
+        pick_movie(page)
+        snap(page, "21_s1_movie")
 
-        # Step 2: Fill form with broad filters
+        # Step 2: Open the drawer
+        page.locator("#filterDrawerTab").click()
+        page.wait_for_selector("#filterDrawer.open", timeout=2000)
+        snap(page, "21_s2_drawer_open")
+
+        # Step 3: Fill broad filters
         page.locator("input[name='imdb_score_min']").fill("7.0")
         page.locator("input[name='imdb_score_max']").fill("10.0")
         page.locator("input[name='num_votes_min']").fill("100000")
@@ -596,13 +529,13 @@ def test_21_full_filter_workflow(page):
             if cb.count() > 0:
                 cb.check()
 
-        snap(page, "21_s2_filled")
+        snap(page, "21_s3_filled")
 
-        # Step 3: Submit
-        page.locator("button[type='submit'], input[type='submit']").first.click()
+        # Step 4: Apply via drawer button
+        page.locator("#drawerApplyBtn").click()
         page.wait_for_load_state("networkidle")
-        page.wait_for_timeout(500)
-        s = snap(page, "21_s3_result")
+        page.wait_for_timeout(1000)
+        s = snap(page, "21_s4_result")
 
         body = page.inner_text("body")
         url = page.url
@@ -610,9 +543,9 @@ def test_21_full_filter_workflow(page):
         has_content = len(body) > 100
         assert has_movie or has_content, f"No result. URL: {url}"
 
-        record("Full filter: Home→Filters→Fill→Apply→Result", True, f"url={url}", s)
+        record("Full filter: Home→Pick→Drawer→Fill→Apply→Result", True, f"url={url}", s)
     except Exception as e:
-        record("Full filter workflow", False, str(e), snap(page, "21_fail"))
+        record("Full filter workflow (drawer)", False, str(e), snap(page, "21_fail"))
 
 
 def test_22_direct_movie_by_tconst(page):
@@ -672,10 +605,7 @@ def main():
             test_03_movie_page_elements,
             test_04_next_movie_navigation,
             test_05_previous_movie,
-            test_06_filters_page,
             test_07_apply_filters,
-            test_08_filter_genre_selection,
-            test_09_filter_reset,
             test_10_csrf_enforcement,
             test_11_method_enforcement,
             test_12_invalid_tconst,

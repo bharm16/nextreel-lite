@@ -31,9 +31,9 @@ from nextreel.web.routes.navigation import (
     filtered_movie_endpoint,
     next_movie,
     previous_movie,
-    set_filters,
 )
 from nextreel.web.routes.ops import health_check, metrics, readiness_check
+from nextreel.web.routes.search import search_titles
 from nextreel.web.routes.watched import (
     add_to_watched,
     remove_from_watched,
@@ -76,6 +76,6 @@ __all__ = [
     "register_page",
     "register_submit",
     "remove_from_watched",
-    "set_filters",
+    "search_titles",
     "watched_list_page",
 ]

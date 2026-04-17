@@ -4,31 +4,23 @@ from __future__ import annotations
 
 import time
 
-from quart import flash, g, jsonify, redirect, request, url_for
+from quart import g, jsonify, redirect, request, url_for
 
 from infra.metrics import user_actions_total
-from infra.filter_normalizer import (
-    default_filter_state,
-    filters_from_criteria,
-    normalize_filters,
-    validate_filters,
-)
+from infra.filter_normalizer import normalize_filters, validate_filters
 from infra.route_helpers import csrf_required, rate_limited, with_timeout
 from nextreel.domain.filter_contracts import FilterState
 from nextreel.web.routes.shared import (
     _REQUEST_TIMEOUT,
     _current_state,
-    _current_user_id,
     _legacy_session,
     _no_matches_response,
     _redirect_for_navigation_outcome,
-    _render_filters_page,
     _services,
     _wants_json_response,
     bp,
     logger,
 )
-from session import user_preferences
 from session.user_preferences import set_exclude_watched_default
 
 
@@ -83,44 +75,6 @@ async def previous_movie():
     return await _redirect_for_navigation_outcome(outcome)
 
 
-@bp.route("/filters")
-async def set_filters():
-    state = _current_state()
-    current_filters = state.filters
-
-    # If the user has saved default filters and their session is still on the
-    # factory defaults, seed the form from those saved defaults. This gives a
-    # first-load UX: open Nextreel, hit Filters, and their last "Save as
-    # default" payload is prefilled.
-    user_id = _current_user_id()
-    if user_id and current_filters == default_filter_state():
-        try:
-            defaults = await user_preferences.get_default_filters(
-                _services().movie_manager.db_pool, user_id
-            )
-        except Exception:  # pragma: no cover - defensive
-            defaults = None
-        if defaults:
-            current_filters = filters_from_criteria(defaults)
-
-    start_time = time.time()
-    logger.info(
-        "Starting to set filters for session_id: %s. Correlation ID: %s",
-        state.session_id,
-        g.correlation_id,
-    )
-
-    response = await _render_filters_page(current_filters)
-    elapsed_time = time.time() - start_time
-    logger.info(
-        "Completed setting filters for session_id: %s in %.2f seconds. Correlation ID: %s",
-        state.session_id,
-        elapsed_time,
-        g.correlation_id,
-    )
-    return response
-
-
 @bp.route("/filtered_movie", methods=["POST"])
 @csrf_required
 @rate_limited("filtered_movie")
@@ -155,19 +109,7 @@ async def filtered_movie_endpoint():
             elapsed_time,
             g.correlation_id,
         )
-        if wants_json:
-            return jsonify({"ok": False, "errors": validation_errors}), 400
-        return await _render_filters_page(
-            filters,
-            validation_errors=validation_errors,
-            form_notice="Fix the highlighted filters and try again.",
-            genres_notice=(
-                "No genres selected. Nextreel will use all genres."
-                if not filters.get("genres_selected")
-                else None
-            ),
-            status_code=400,
-        )
+        return jsonify({"ok": False, "errors": validation_errors}), 400
 
     if state.user_id:
         await set_exclude_watched_default(
@@ -201,13 +143,14 @@ async def filtered_movie_endpoint():
         return await _redirect_for_navigation_outcome(outcome)
     if wants_json:
         return _no_matches_response()
-    await flash("No movies matched your filters. Try broadening your criteria.", "warning")
-    return redirect(url_for("main.set_filters"))
+    tconst = movie_manager.get_current_movie_tconst(state)
+    if tconst:
+        return redirect(url_for("main.movie_detail", tconst=tconst), code=303)
+    return redirect(url_for("main.home"), code=303)
 
 
 __all__ = [
     "filtered_movie_endpoint",
     "next_movie",
     "previous_movie",
-    "set_filters",
 ]

@@ -1,0 +1,16 @@
+<!-- Spotlight search modal — triggered by navbar search icon or `/` keybind -->
+<div class="search-spotlight-backdrop" id="searchSpotlightBackdrop" aria-hidden="true"></div>
+<div class="search-spotlight" id="searchSpotlight" role="dialog" aria-modal="true"
+     aria-label="Search films" aria-hidden="true">
+  <input type="search"
+         class="search-spotlight-input"
+         id="searchSpotlightInput"
+         placeholder="Search films, actors…"
+         autocomplete="off"
+         spellcheck="false"
+         aria-controls="searchSpotlightResults"
+         aria-autocomplete="list">
+  <ul class="search-spotlight-results" id="searchSpotlightResults" role="listbox" aria-label="Search results">
+    <li class="search-spotlight-empty" id="searchSpotlightEmpty">Start typing to search…</li>
+  </ul>
+</div>

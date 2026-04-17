@@ -3,6 +3,7 @@
 import os
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
+from urllib.parse import urlparse
 
 import pytest
 
@@ -163,7 +164,7 @@ class TestFilteredMovieRoute:
             )
             assert response.status_code == 403
 
-    async def test_invalid_filters_render_form_with_400_without_calling_manager(self):
+    async def test_invalid_filters_return_json_400_without_calling_manager(self):
         app, manager = _make_app()
         async with app.app_context():
             client = app.test_client()
@@ -175,28 +176,11 @@ class TestFilteredMovieRoute:
                     "year_max": "1990",
                 },
             )
-            body = await response.get_data(as_text=True)
+            data = await response.get_json()
 
         assert response.status_code == 400
-        assert "Fix the highlighted filters and try again." in body
-        assert "Earliest year must be less than or equal to latest year." in body
-        manager.apply_filters.assert_not_awaited()
-
-    async def test_invalid_filters_with_no_genres_show_all_genres_notice(self):
-        app, manager = _make_app()
-        async with app.app_context():
-            client = app.test_client()
-            response = await client.post(
-                "/filtered_movie",
-                headers={"X-CSRFToken": "test-csrf-token"},
-                form={
-                    "year_min": "bad-year",
-                },
-            )
-            body = await response.get_data(as_text=True)
-
-        assert response.status_code == 400
-        assert "No genres selected. Nextreel will use all genres." in body
+        assert data["ok"] is False
+        assert "year_min" in data["errors"] or "year_max" in data["errors"]
         manager.apply_filters.assert_not_awaited()
 
     async def test_redirects_to_movie_when_filters_match(self):
@@ -313,10 +297,10 @@ class TestFilteredMovieRoute:
                         "exclude_watched": "off",
                     },
                 )
-                body = await response.get_data(as_text=True)
+                data = await response.get_json()
 
         assert response.status_code == 400
-        assert "Fix the highlighted filters and try again." in body
+        assert data["ok"] is False
         set_exclude_watched_default.assert_not_awaited()
         manager.apply_filters.assert_not_awaited()
 
@@ -422,6 +406,34 @@ class TestFilteredMovieRoute:
             assert data["ok"] is False
             assert "form" in data["errors"]
 
+    async def test_html_no_matches_redirects_to_current_movie(self):
+        app, manager = _make_app()
+        manager.apply_filters = AsyncMock(return_value=None)
+        manager.get_current_movie_tconst = MagicMock(return_value="tt7654321")
+        async with app.app_context():
+            client = app.test_client()
+            response = await client.post(
+                "/filtered_movie",
+                headers={"X-CSRFToken": "test-csrf-token"},
+                form={"year_min": "2000"},
+            )
+        assert response.status_code == 303
+        assert response.headers["Location"].endswith("/movie/tt7654321")
+
+    async def test_html_no_matches_redirects_to_home_when_no_current_movie(self):
+        app, manager = _make_app()
+        manager.apply_filters = AsyncMock(return_value=None)
+        manager.get_current_movie_tconst = MagicMock(return_value=None)
+        async with app.app_context():
+            client = app.test_client()
+            response = await client.post(
+                "/filtered_movie",
+                headers={"X-CSRFToken": "test-csrf-token"},
+                form={"year_min": "2000"},
+            )
+        assert response.status_code == 303
+        assert urlparse(response.headers["Location"]).path == "/"
+
 
 class TestLogoutRoute:
     async def test_post_without_csrf_rejected(self):
@@ -463,12 +475,13 @@ class TestMovieDetailRoute:
 
 
 class TestFiltersRoute:
-    async def test_get_returns_200(self):
+    async def test_get_returns_404(self):
+        """The /filters page was removed in favor of the drawer."""
         app, _ = _make_app()
         async with app.app_context():
             client = app.test_client()
             response = await client.get("/filters")
-            assert response.status_code == 200
+            assert response.status_code == 404
 
 
 class TestDrawerSaveAsDefaultButton:

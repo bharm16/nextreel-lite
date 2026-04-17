@@ -20,7 +20,6 @@ def test_feature_route_handlers_are_defined_in_feature_modules():
         "nextreel.web.routes.navigation": [
             "next_movie",
             "previous_movie",
-            "set_filters",
             "filtered_movie_endpoint",
         ],
         "nextreel.web.routes.ops": [
