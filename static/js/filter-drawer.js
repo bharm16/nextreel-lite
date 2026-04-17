@@ -291,6 +291,19 @@
 
   // ── AJAX form submission ───────────────────
   form.addEventListener("submit", function (e) {
+    // If a submitter button overrides formaction (e.g. "Save as default"),
+    // let the browser handle the submission natively instead of hijacking it.
+    if (e.submitter && e.submitter.hasAttribute("formaction")) {
+      try {
+        var targetPath = new URL(e.submitter.formAction).pathname;
+        if (targetPath !== "/filtered_movie") {
+          return;
+        }
+      } catch (err) {
+        if (!(err instanceof TypeError)) throw err;
+        // Malformed URL — fall through to AJAX
+      }
+    }
     e.preventDefault();
     clearErrors();
 

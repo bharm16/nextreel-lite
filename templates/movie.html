@@ -86,6 +86,14 @@
       <span>Apply Filters</span>
     </button>
     <button type="reset" form="drawerFilterForm" id="drawerResetBtn" class="filter-reset-btn">Reset</button>
+    {% if current_user_id %}
+    <button type="submit"
+            form="drawerFilterForm"
+            formaction="{{ url_for('main.account_filters_save') }}"
+            class="filter-reset-btn">
+      Save as default
+    </button>
+    {% endif %}
   </div>
 </aside>
 

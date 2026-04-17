@@ -71,6 +71,24 @@ def _nav_state(*, user_id=None):
     )
 
 
+def _authenticate_app(app, manager, *, user_id="user-123"):
+    """Wire a navigation_state_store mock so before_request loads a state with user_id set.
+
+    Mirrors the authenticated-mode setup in tests/web/test_account_routes.py::_make_account_app.
+    Kept inline here because the navigation tests need the projection/navigator mocks
+    that _make_app() provides, which _make_account_app does not.
+    """
+    logged_in_state = _nav_state(user_id=user_id)
+    store = AsyncMock()
+    store.load_for_request = AsyncMock(return_value=(logged_in_state, False))
+    store.set_user_id = AsyncMock()
+    store.bind_user = AsyncMock()
+    manager.start = AsyncMock()
+    manager.navigation_state_store = store
+    app.navigation_state_store = store
+    return logged_in_state
+
+
 class TestNextMovieRoute:
     async def test_post_without_csrf_rejected(self):
         app, _ = _make_app()
@@ -451,3 +469,30 @@ class TestFiltersRoute:
             client = app.test_client()
             response = await client.get("/filters")
             assert response.status_code == 200
+
+
+class TestDrawerSaveAsDefaultButton:
+    async def test_button_rendered_for_logged_in_user(self):
+        app, manager = _make_app()
+        _authenticate_app(app, manager, user_id="user-123")
+        async with app.app_context():
+            client = app.test_client()
+            response = await client.get("/movie/tt1234567")
+            body = await response.get_data(as_text=True)
+
+        assert response.status_code == 200
+        assert 'formaction="/account/preferences/filters/save"' in body
+        assert "Save as default" in body
+
+    async def test_button_absent_for_anonymous_user(self):
+        # Default _make_app leaves navigation_state_store as None,
+        # so before_request uses build_test_navigation_state() (user_id=None).
+        app, _ = _make_app()
+        async with app.app_context():
+            client = app.test_client()
+            response = await client.get("/movie/tt1234567")
+            body = await response.get_data(as_text=True)
+
+        assert response.status_code == 200
+        assert "Save as default" not in body
+        assert "/account/preferences/filters/save" not in body
