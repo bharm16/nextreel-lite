@@ -4,12 +4,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Nextreel – Discover Something New</title>
-  <meta name="description" content="Personalized movie discovery. Find films you've never seen or heard of before.">
+  <title>Nextreel – Cinema Discovery</title>
+  <meta name="description" content="One random film at a time, pulled from a catalog of tens of thousands.">
   <link rel="preconnect" href="https://image.tmdb.org" crossorigin>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,300;0,400;0,700;1,400&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Merriweather:ital,wght@0,300;0,400;0,700;1,400&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/output.css') }}?v={{ config.get('CSS_VERSION', '1') }}">
+  {% if landing_film and landing_film.backdrop_url %}
+  <link rel="preload" as="image" href="{{ landing_film.backdrop_url }}" fetchpriority="high">
+  {% endif %}
   <script>
     (() => {
       try {
@@ -26,153 +29,15 @@
     })();
   </script>
   <style>
-    body {
-      font-family: 'DM Sans', system-ui, sans-serif;
-      margin: 0; padding: 0;
-    }
+    body { font-family: 'DM Sans', system-ui, sans-serif; margin: 0; padding: 0; }
     html, body { height: 100%; overflow: hidden; }
 
-    /* Blurred + darkened backdrop */
-    .home-page {
-      position: relative;
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      background: var(--color-bg, #111111);
-    }
-    .home-page::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background:
-        url('https://image.tmdb.org/t/p/w1280/dMrAwwB7PMC4SjgsTbgmEJblaYd.jpg')
-        center center / cover no-repeat;
-      filter: blur(6px) brightness(0.3);
-      transform: scale(1.05);
-      z-index: 0;
-    }
-    .home-page::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background: radial-gradient(ellipse at center, transparent 30%, var(--color-bg, #111111) 100%);
-      z-index: 1;
-    }
-
-    /* Film grain overlay */
+    /* Film grain overlay — retained from previous design for analog texture */
     .home-grain {
-      position: fixed;
-      inset: 0;
-      z-index: 2;
-      pointer-events: none;
-      opacity: 0.04;
+      position: fixed; inset: 0; z-index: 2;
+      pointer-events: none; opacity: 0.04;
       background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
       background-size: 256px 256px;
-    }
-
-    /* Brand wordmark */
-    .home-brand {
-      position: absolute;
-      top: 1.5rem; left: 2rem;
-      z-index: 10;
-      font-family: 'Merriweather', Georgia, serif;
-      font-weight: 700;
-      font-size: 0.95rem;
-      color: rgba(255,255,255,0.6);
-      text-decoration: none;
-      letter-spacing: -0.02em;
-      text-shadow: 0 1px 10px rgba(0,0,0,0.5);
-      transition: color 200ms;
-    }
-    .home-brand:hover { color: rgba(255,255,255,0.9); }
-
-    /* Theme toggle */
-    .home-login-link {
-      position: absolute;
-      top: 1.65rem; right: 4.5rem;
-      z-index: 10;
-      font-size: 0.8rem;
-      font-weight: 600;
-      color: rgba(255,255,255,0.5);
-      text-decoration: none;
-      letter-spacing: 0.01em;
-      text-shadow: 0 1px 8px rgba(0,0,0,0.4);
-      transition: color 200ms;
-    }
-    .home-login-link:hover { color: rgba(255,255,255,0.9); }
-
-    .home-theme-toggle {
-      position: absolute;
-      top: 1.5rem; right: 2rem;
-      z-index: 10;
-      background: none; border: none;
-      color: rgba(255,255,255,0.4);
-      cursor: pointer; padding: 0.25rem;
-      text-shadow: 0 1px 8px rgba(0,0,0,0.4);
-      transition: color 200ms;
-    }
-    .home-theme-toggle:hover { color: rgba(255,255,255,0.7); }
-    .home-theme-toggle svg { width: 18px; height: 18px; }
-
-    /* Center content */
-    .home-content {
-      position: relative;
-      z-index: 10;
-      text-align: center;
-      padding: 2rem;
-    }
-    .home-heading {
-      font-family: 'Merriweather', Georgia, serif;
-      font-weight: 700;
-      font-size: clamp(2rem, 4.5vw, 3rem);
-      line-height: 1.2;
-      letter-spacing: -0.025em;
-      color: #fff;
-      text-shadow: 0 2px 30px rgba(0,0,0,0.6);
-      margin-bottom: 1.75rem;
-    }
-    .home-cta {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      font-family: 'DM Sans', system-ui, sans-serif;
-      font-size: 0.9rem;
-      font-weight: 600;
-      color: #fff;
-      background: var(--color-accent, #c67a5c);
-      border: none;
-      border-radius: 3px;
-      padding: 0.8rem 2rem;
-      cursor: pointer;
-      text-decoration: none;
-      letter-spacing: 0.02em;
-      transition: background 200ms, transform 200ms;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-    }
-    .home-cta:hover { background: var(--color-accent-hover, #b56a4d); }
-    .home-cta:active { transform: scale(0.97); }
-    .home-cta svg { width: 16px; height: 16px; }
-
-    .home-secondary {
-      display: block;
-      margin-top: 1rem;
-      font-size: 0.75rem;
-      font-weight: 500;
-      color: rgba(255,255,255,0.5);
-      text-decoration: none;
-      letter-spacing: 0.02em;
-      text-shadow: 0 1px 10px rgba(0,0,0,0.4);
-      transition: color 200ms;
-    }
-    .home-secondary:hover { color: rgba(255,255,255,0.8); }
-
-    @media (max-width: 640px) {
-      .home-brand { top: 1rem; left: 1.25rem; font-size: 0.85rem; }
-      .home-login-link { top: 1.15rem; right: 3.5rem; font-size: 0.75rem; }
-      .home-theme-toggle { top: 1rem; right: 1.25rem; }
-      .home-content { padding: 1.5rem; }
     }
   </style>
 </head>
@@ -180,56 +45,38 @@
 
   <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm">Skip to content</a>
 
-  <div class="home-grain"></div>
+  {% include 'navbar_modern.html' %}
 
-  <div class="home-page" id="main">
-    <!-- Brand — top left -->
-    <a class="home-brand" href="/">Nextreel</a>
+  <main id="main" class="landing-page">
+    <div class="landing-bg" style="background-image: url('{{ landing_film.backdrop_url }}');"></div>
+    <div class="landing-gradient"></div>
+    <div class="home-grain"></div>
 
-    <!-- Auth + Theme toggle — top right -->
-    {% if not current_user_id %}
-    <a href="{{ url_for('main.login_page') }}" class="home-login-link">Log In</a>
-    {% else %}
-    <a href="{{ url_for('main.watched_list_page') }}" class="home-login-link">My Watched List</a>
-    {% endif %}
-    <button class="home-theme-toggle" id="themeToggle" aria-pressed="false" aria-label="Toggle dark mode">
-      <svg id="iconSun" viewBox="0 0 24 24" fill="currentColor"><path d="M6.76 4.84l-1.8-1.79-1.41 1.41 1.79 1.8 1.42-1.42zM1 13h3v-2H1v2zm10 10h2v-3h-2v3zM4.96 19.78l1.41 1.41 1.8-1.79-1.42-1.42-1.79 1.8zM20 11v2h3v-2h-3zm-2.34-7.95l-1.41 1.41 1.79 1.8 1.41-1.42-1.79-1.79zM12 7a5 5 0 100 10 5 5 0 000-10zm7.04 12.78l-1.79-1.8-1.41 1.42 1.79 1.79 1.41-1.41zM13 1h-2v3h2V1z"/></svg>
-      <svg id="iconMoon" class="hidden" viewBox="0 0 24 24" fill="currentColor"><path d="M12.74 2.15A9 9 0 1021 12.26 7 7 0 0112.74 2.15z"/></svg>
-    </button>
+    <div class="landing-side-label" aria-hidden="true">Random · No Sign-up</div>
 
-    <!-- Center content -->
-    <div class="home-content">
-      <h1 class="home-heading">Discover something new</h1>
-      {{ pick_movie_button(class="home-cta") }}
+    <div class="landing-content">
+      <h1 class="landing-title">{{ landing_film.title }}</h1>
+
+      {% set meta_parts = [] %}
+      {% if landing_film.year %}{% set _ = meta_parts.append(landing_film.year) %}{% endif %}
+      {% if landing_film.director %}{% set _ = meta_parts.append(landing_film.director) %}{% endif %}
+      {% if landing_film.runtime %}{% set _ = meta_parts.append(landing_film.runtime) %}{% endif %}
+      {% if meta_parts %}
+      <div class="landing-meta">{{ meta_parts | join(' · ') }}</div>
+      {% endif %}
+
+      <div class="landing-actions">
+        <form method="POST" action="/next_movie" style="display:inline;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="landing-cta-primary">Pick Another →</button>
+        </form>
+        <a class="landing-cta-ghost" href="{{ url_for('main.movie_detail', tconst=landing_film.tconst) }}">See this film ↗</a>
+      </div>
     </div>
-  </div>
 
-  <!-- Theme script -->
-  <script>
-    (function() {
-      function setTheme(next) {
-        try { localStorage.setItem('nr-theme', next); } catch (e) {}
-        document.documentElement.setAttribute('data-theme', next);
-        const pressed = next === 'dark';
-        const tbtn = document.getElementById('themeToggle');
-        if (tbtn) tbtn.setAttribute('aria-pressed', String(pressed));
-        const sun = document.getElementById('iconSun');
-        const moon = document.getElementById('iconMoon');
-        if (sun && moon) {
-          sun.classList.toggle('hidden', pressed);
-          moon.classList.toggle('hidden', !pressed);
-        }
-      }
-      const t = document.getElementById('themeToggle');
-      if (t) t.addEventListener('click', () => {
-        const current = document.documentElement.getAttribute('data-theme');
-        setTheme(current === 'dark' ? 'light' : 'dark');
-      });
-      try {
-        const pref = localStorage.getItem('nr-theme');
-        if (pref === 'dark' || pref === 'light') setTheme(pref);
-      } catch (e) {}
-    })();
-  </script>
+    {% if landing_film.title and landing_film.year %}
+    <div class="landing-credit">Film still: {{ landing_film.title }} ({{ landing_film.year }})</div>
+    {% endif %}
+  </main>
 </body>
 </html>

@@ -7,7 +7,7 @@ from movies.projection_state import ProjectionState
 
 
 def _enrichment_blocks_render() -> bool:
-    return env_bool("PROJECTION_ENRICHMENT_BLOCKS_RENDER", default=True)
+    return env_bool("PROJECTION_ENRICHMENT_BLOCKS_RENDER", default=False)
 
 
 class ProjectionReadService:

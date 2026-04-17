@@ -180,7 +180,12 @@ async def test_movie_detail_normalizes_tmdb_backdrop_and_preloads_hero_image():
         assert "w1280https://image.tmdb.org" not in body
 
 
-async def test_movie_detail_rejects_partial_payload_when_render_blocking_enabled():
+async def test_movie_detail_renders_partial_payload_for_deep_link():
+    """Deep-link navigation (e.g. search-bar selection) must render the page
+    even when TMDb enrichment is unavailable, so users see a styled fallback
+    instead of a bare 503. The core payload's placeholders (Unknown director,
+    placeholder poster, "still loading" plot) are the intended degraded UX.
+    """
     with (
         patch.dict(
             os.environ,
@@ -224,7 +229,7 @@ async def test_movie_detail_rejects_partial_payload_when_render_blocking_enabled
         async with app.app_context():
             client = app.test_client()
             response = await client.get("/movie/tt1234567")
-            assert response.status_code == 503
+            assert response.status_code == 200
 
 
 async def test_movie_detail_allows_partial_payload_when_render_blocking_disabled():

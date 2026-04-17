@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import os
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -647,7 +648,12 @@ class TestFetchRenderablePayload:
         store = ProjectionStore(mock_db_pool, tmdb_helper=MagicMock())
         store.coordinator.enrich_projection = AsyncMock(return_value=enriched)
 
-        payload = await store.fetch_renderable_payload("tt1234567")
+        # Inline-enrichment-on-render is the explicit-opt-in mode. Default is
+        # async background enrichment (so deep-link/search clicks render
+        # instantly), but ops can flip this to "true" to trade latency for
+        # always-fresh content.
+        with patch.dict(os.environ, {"PROJECTION_ENRICHMENT_BLOCKS_RENDER": "true"}):
+            payload = await store.fetch_renderable_payload("tt1234567")
 
         assert payload["title"] == "Enriched Movie"
         assert payload["projection_state"] == "ready"
@@ -664,7 +670,8 @@ class TestFetchRenderablePayload:
         store = ProjectionStore(mock_db_pool, tmdb_helper=MagicMock())
         store.coordinator.enrich_projection = AsyncMock(return_value=enriched)
 
-        payload = await store.fetch_renderable_payload("tt1234567")
+        with patch.dict(os.environ, {"PROJECTION_ENRICHMENT_BLOCKS_RENDER": "true"}):
+            payload = await store.fetch_renderable_payload("tt1234567")
 
         assert payload["title"] == "Enriched Movie"
         assert payload["_full"] is True

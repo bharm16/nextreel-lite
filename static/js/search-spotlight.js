@@ -100,8 +100,11 @@
 
       var thumb = document.createElement('span');
       thumb.className = 'search-spotlight-result-thumb';
-      // Posters require TMDb enrichment that `movie_candidates` doesn't carry.
-      // The gradient placeholder provides consistent visual rhythm.
+      // Posters come from movie_projection when the title has been enriched.
+      // The gradient remains visible behind for results that haven't.
+      if (r.poster_url) {
+        thumb.style.backgroundImage = "url('" + r.poster_url.replace(/'/g, "\\'") + "')";
+      }
 
       var title = document.createElement('span');
       title.className = 'search-spotlight-result-title';

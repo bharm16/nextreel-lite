@@ -299,20 +299,29 @@ class MovieQueryBuilder:
         # movie_candidates default collation is utf8mb4_*_ci (case-insensitive),
         # so equality comparisons work without LOWER() — and leaving LOWER()
         # off lets us use a prefix index on primaryTitle.
+        #
+        # LEFT JOIN movie_projection to surface a poster_url for results that
+        # have already been enriched. The join is on a PK column and only ever
+        # touches the rows that matched the title filter (≤ LIMIT), so the
+        # JSON_EXTRACT cost is bounded.
         sql = (
-            "SELECT tconst, primaryTitle, startYear, averageRating "
-            "FROM movie_candidates "
-            "WHERE primaryTitle IS NOT NULL "
-            "  AND (primaryTitle = %s "
-            "       OR primaryTitle LIKE %s ESCAPE '|' "
-            "       OR primaryTitle LIKE %s ESCAPE '|') "
+            "SELECT mc.tconst, mc.primaryTitle, mc.startYear, mc.averageRating, "
+            "       JSON_UNQUOTE(JSON_EXTRACT(mp.payload_json, '$.poster_url')) AS poster_url "
+            "FROM movie_candidates mc "
+            "LEFT JOIN movie_projection mp "
+            "  ON mp.tconst = mc.tconst "
+            "  AND mp.projection_state IN ('ready', 'stale') "
+            "WHERE mc.primaryTitle IS NOT NULL "
+            "  AND (mc.primaryTitle = %s "
+            "       OR mc.primaryTitle LIKE %s ESCAPE '|' "
+            "       OR mc.primaryTitle LIKE %s ESCAPE '|') "
             "ORDER BY "
             "  CASE "
-            "    WHEN primaryTitle = %s THEN 0 "
-            "    WHEN primaryTitle LIKE %s ESCAPE '|' THEN 1 "
+            "    WHEN mc.primaryTitle = %s THEN 0 "
+            "    WHEN mc.primaryTitle LIKE %s ESCAPE '|' THEN 1 "
             "    ELSE 2 "
             "  END, "
-            "  COALESCE(averageRating, 0) DESC "
+            "  COALESCE(mc.averageRating, 0) DESC "
             "LIMIT %s"
         )
 

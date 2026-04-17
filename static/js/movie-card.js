@@ -156,3 +156,43 @@
     }
   });
 })();
+
+(function () {
+  // When the page renders a partial projection (background enrichment is
+  // still in flight or hasn't been attempted yet), poll the state endpoint
+  // and reload as soon as the row flips to a serveable state. The reload
+  // path gives us a fully populated render including the hero image preload.
+  var state = document.body.dataset.projectionState;
+  var tconst = document.body.dataset.tconst;
+  if (!tconst) return;
+  if (state === "ready" || state === "stale") return;
+
+  var attempts = 0;
+  var maxAttempts = 12;          // ~18s of polling at most
+  var intervalMs = 1500;
+
+  function poll() {
+    attempts += 1;
+    fetch("/api/projection-state/" + encodeURIComponent(tconst), {
+      credentials: "same-origin",
+      headers: { Accept: "application/json" },
+    })
+      .then(function (res) { return res.ok ? res.json() : {}; })
+      .then(function (data) {
+        if (data && (data.state === "ready" || data.state === "stale")) {
+          window.location.reload();
+          return;
+        }
+        if (attempts < maxAttempts) {
+          setTimeout(poll, intervalMs);
+        }
+      })
+      .catch(function () {
+        if (attempts < maxAttempts) {
+          setTimeout(poll, intervalMs * 2);
+        }
+      });
+  }
+
+  setTimeout(poll, 700);
+})();

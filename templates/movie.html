@@ -49,7 +49,7 @@
     </style>
 </head>
 
-<body class="bg-surface text-body">
+<body class="bg-surface text-body" data-projection-state="{{ movie.projection_state or '' }}" data-tconst="{{ movie.tconst or movie.imdb_id or '' }}">
 
 <!-- Include the modern navbar -->
 {% include 'navbar_modern.html' %}

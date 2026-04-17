@@ -33,7 +33,7 @@ from nextreel.web.routes.navigation import (
     previous_movie,
 )
 from nextreel.web.routes.ops import health_check, metrics, readiness_check
-from nextreel.web.routes.search import search_titles
+from nextreel.web.routes.search import projection_state, search_titles
 from nextreel.web.routes.watched import (
     add_to_watched,
     remove_from_watched,
@@ -72,6 +72,7 @@ __all__ = [
     "movie_detail",
     "next_movie",
     "previous_movie",
+    "projection_state",
     "readiness_check",
     "register_page",
     "register_submit",

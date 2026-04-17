@@ -18,7 +18,7 @@ from quart import (
     url_for,
 )
 
-from infra.time_utils import current_year as _current_year, env_bool, utcnow as _utcnow
+from infra.time_utils import current_year as _current_year, utcnow as _utcnow
 from logging_config import get_logger
 from nextreel.application.auth_flows import GoogleOAuthService, RegistrationService
 from nextreel.application.letterboxd_import_service import LetterboxdImportService
@@ -78,10 +78,6 @@ _watched_list_presenter = WatchedListPresenter()
 _watched_mutation_service = WatchedMutationService()
 _letterboxd_import_service = LetterboxdImportService()
 _watched_progress_service = WatchedEnrichmentProgressService()
-
-
-def _movie_detail_blocks_partial_render() -> bool:
-    return env_bool("PROJECTION_ENRICHMENT_BLOCKS_RENDER", default=True)
 
 
 def _tmdb_image_path(image_url: str | None) -> str | None:
@@ -262,7 +258,6 @@ __all__ = [
     "_google_oauth_service",
     "_legacy_session",
     "_letterboxd_import_service",
-    "_movie_detail_blocks_partial_render",
     "_movie_detail_service",
     "_movie_image_context",
     "_no_matches_response",
