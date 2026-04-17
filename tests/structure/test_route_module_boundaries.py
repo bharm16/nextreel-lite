@@ -12,8 +12,6 @@ def test_feature_route_handlers_are_defined_in_feature_modules():
             "logout",
             "auth_google",
             "auth_google_callback",
-            "auth_apple",
-            "auth_apple_callback",
         ],
         "nextreel.web.routes.movies": [
             "home",

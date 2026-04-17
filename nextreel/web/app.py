@@ -126,18 +126,12 @@ def _init_oauth(app):
     """Phase 1b: OAuth client setup (optional — skipped if no credentials configured)."""
     google_client_id = os.getenv("GOOGLE_CLIENT_ID")
     google_client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
-    apple_client_id = os.getenv("APPLE_CLIENT_ID")
     redirect_base = os.getenv("OAUTH_REDIRECT_BASE_URL", "http://127.0.0.1:5000")
 
     app.oauth_config = {
         "google_enabled": bool(google_client_id and google_client_secret),
-        "apple_enabled": bool(apple_client_id),
         "google_client_id": google_client_id,
         "google_client_secret": google_client_secret,
-        "apple_client_id": apple_client_id,
-        "apple_team_id": os.getenv("APPLE_TEAM_ID"),
-        "apple_key_id": os.getenv("APPLE_KEY_ID"),
-        "apple_private_key": os.getenv("APPLE_PRIVATE_KEY"),
         "redirect_base": redirect_base,
     }
 

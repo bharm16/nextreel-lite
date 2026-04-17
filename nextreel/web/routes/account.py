@@ -210,12 +210,13 @@ async def account_preferences_save():
     user_id = _require_user()
     form = await request.form
     exclude = form.get("exclude_watched_default") == "on"
-    theme_raw = form.get("theme_preference", "system")
-    theme = theme_raw if theme_raw in ("light", "dark") else None
 
     db_pool = _db_pool()
     await user_preferences.set_exclude_watched_default(db_pool, user_id, exclude)
-    await user_preferences.set_theme_preference(db_pool, user_id, theme)
+    if "theme_preference" in form:
+        theme_raw = form.get("theme_preference", "system")
+        theme = theme_raw if theme_raw in ("light", "dark") else None
+        await user_preferences.set_theme_preference(db_pool, user_id, theme)
     logger.info("Account action: %s user=%s", "preferences_save", user_id)
     return redirect(url_for("main.account_view"))
 

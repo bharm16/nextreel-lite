@@ -65,15 +65,19 @@
   var status = document.getElementById("movie-status");
   var addUrl = form.dataset.addUrl;
   var removeUrl = form.dataset.removeUrl;
-  var watchedClassName = "inline-flex items-center gap-1.5 rounded-full bg-green-600 px-4 py-2 text-xs font-semibold text-white hover:bg-green-700";
-  var unwatchedClassName = "inline-flex items-center gap-1.5 rounded-full chip px-4 py-2 text-xs font-semibold text-body hover:opacity-80";
-  var watchedMarkup = '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg> Watched';
-  var unwatchedMarkup = '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Mark as Watched';
+
+  var watchedMarkup =
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>' +
+    " Watched";
+  var unwatchedMarkup =
+    '<svg viewBox="0 0 24 24" aria-hidden="true">' +
+    '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>' +
+    '<circle cx="12" cy="12" r="3"/></svg> ' +
+    '<span class="nav-btn-watched__prefix">Mark as </span>Watched';
 
   function setWatchedState(isWatched) {
     form.dataset.watchedState = isWatched ? "watched" : "unwatched";
     form.action = isWatched ? removeUrl : addUrl;
-    button.className = isWatched ? watchedClassName : unwatchedClassName;
     button.innerHTML = isWatched ? watchedMarkup : unwatchedMarkup;
     button.setAttribute("aria-pressed", isWatched ? "true" : "false");
   }

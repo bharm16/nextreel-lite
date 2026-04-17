@@ -202,7 +202,8 @@
     -webkit-backdrop-filter: blur(8px);
   }
   .movie-nav-bar .nav-btn-prev,
-  .movie-nav-bar .nav-btn-next {
+  .movie-nav-bar .nav-btn-next,
+  .movie-nav-bar .nav-btn-watched {
     font-size: 0.75rem;
   }
 
@@ -392,6 +393,41 @@
   .nav-btn-next:hover { color: var(--color-text); }
   .nav-btn-prev:disabled { opacity: 0.3; cursor: not-allowed; }
   .nav-btn-prev:active, .nav-btn-next:active { transform: scale(0.97); }
+
+  /* Mark Watched — sticky nav bar, peer to Prev/Next */
+  .nav-btn-watched {
+    font-size: 0.8rem; font-weight: 600;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    background: none; border: none;
+    font-family: var(--font-sans);
+    display: inline-flex; align-items: center; gap: 0.35rem;
+    padding: 0.4rem 0;
+    transition: color var(--duration-normal) var(--easing-default), opacity var(--duration-normal) var(--easing-default);
+  }
+  .nav-btn-watched svg {
+    width: 16px; height: 16px;
+    stroke: currentColor; fill: none; stroke-width: 2;
+  }
+  form[data-watched-state="unwatched"] .nav-btn-watched {
+    color: var(--color-text-muted);
+  }
+  form[data-watched-state="unwatched"] .nav-btn-watched:hover {
+    color: var(--color-text);
+  }
+  form[data-watched-state="watched"] .nav-btn-watched {
+    color: var(--color-watched);
+  }
+  form[data-watched-state="watched"] .nav-btn-watched:hover {
+    opacity: 0.85;
+  }
+  .nav-btn-watched:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .nav-btn-watched:active {
+    transform: scale(0.97);
+  }
 
   /* Divider — generous editorial spacing */
   .divider {
@@ -1587,6 +1623,7 @@
     .title { font-size: 1.4rem; }
     .navbar { padding: 1rem 1rem; }
     .movie-nav-bar { padding: 0.5rem 1rem; }
+    .nav-btn-watched__prefix { display: none; }
     .filter-drawer { width: 100vw; }
     .filter-drawer-tab {
       top: auto;

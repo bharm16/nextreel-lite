@@ -152,6 +152,36 @@ async def test_account_ignores_old_tab_param():
             assert resp.status_code == 200
 
 
+# ── POST /account/preferences ────────────────────────────────────────────────
+
+
+async def test_preferences_save_without_theme_field_preserves_theme_preference():
+    """The redesigned preferences form must not clear theme when it omits the field."""
+    with _make_account_app(authenticated=True) as (app, _):
+        client = app.test_client()
+        with (
+            patch(
+                "nextreel.web.routes.account.user_preferences.set_exclude_watched_default",
+                new_callable=AsyncMock,
+            ) as set_exclude_watched_default,
+            patch(
+                "nextreel.web.routes.account.user_preferences.set_theme_preference",
+                new_callable=AsyncMock,
+            ) as set_theme_preference,
+        ):
+            resp = await client.post(
+                "/account/preferences",
+                form={
+                    "exclude_watched_default": "on",
+                    "csrf_token": "test-csrf-token",
+                },
+            )
+
+            assert resp.status_code == 302
+            set_exclude_watched_default.assert_awaited_once()
+            set_theme_preference.assert_not_awaited()
+
+
 # ── POST /account/delete ──────────────────────────────────────────────────────
 
 

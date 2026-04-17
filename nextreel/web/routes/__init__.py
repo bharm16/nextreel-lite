@@ -17,8 +17,6 @@ from nextreel.web.routes.account import (
     account_watched_clear,
 )
 from nextreel.web.routes.auth import (
-    auth_apple,
-    auth_apple_callback,
     auth_google,
     auth_google_callback,
     inject_csrf_token,
@@ -59,8 +57,6 @@ __all__ = [
     "account_view",
     "account_watched_clear",
     "add_to_watched",
-    "auth_apple",
-    "auth_apple_callback",
     "auth_google",
     "auth_google_callback",
     "bp",

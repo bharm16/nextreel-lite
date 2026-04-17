@@ -39,7 +39,6 @@ def inject_csrf_token():
         "current_year": _current_year(),
         "is_watched": getattr(g, "is_watched", False),
         "google_enabled": oauth_config.get("google_enabled", False),
-        "apple_enabled": oauth_config.get("apple_enabled", False),
         "user_avatar_info": user_avatar_info,
     }
 
@@ -221,22 +220,7 @@ async def auth_google_callback():
     return redirect(url_for("main.home"), code=303)
 
 
-@bp.route("/auth/apple")
-async def auth_apple():
-    oauth_config = getattr(current_app, "oauth_config", {})
-    if not oauth_config.get("apple_enabled"):
-        abort(404, "Apple sign-in not configured")
-    abort(501, "Apple sign-in coming soon")
-
-
-@bp.route("/auth/apple/callback", methods=["POST"])
-async def auth_apple_callback():
-    abort(501, "Apple sign-in coming soon")
-
-
 __all__ = [
-    "auth_apple",
-    "auth_apple_callback",
     "auth_google",
     "auth_google_callback",
     "inject_csrf_token",
