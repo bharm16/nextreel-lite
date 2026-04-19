@@ -10,14 +10,32 @@ from movies.query_builder import bump_count_cache_generation
 logger = get_logger(__name__)
 
 
+_COUNT_CACHE_BUMP_DELTA_THRESHOLD = 1
+
+
 async def refresh_movie_candidates_job(ctx):
-    await ctx["candidate_store"].refresh_movie_candidates()
+    result = await ctx["candidate_store"].refresh_movie_candidates()
     cache = ctx.get("redis_cache")
-    if cache is not None:
-        try:
-            await bump_count_cache_generation(cache)
-        except Exception as exc:  # pragma: no cover - defensive
-            logger.warning("Failed to bump count cache generation after refresh: %s", exc)
+    if cache is None:
+        return result
+
+    # Only bump the cached-count generation when the refresh actually changed
+    # the underlying dataset. The cron fires hourly even when upstream IMDb
+    # deltas are zero; bumping unconditionally would force every filter-count
+    # query to re-execute the expensive title.basics JOIN even though the
+    # answer is unchanged.
+    prev = int(result.get("prev_count", 0)) if isinstance(result, dict) else 0
+    new = int(result.get("new_count", 0)) if isinstance(result, dict) else 0
+    if abs(new - prev) < _COUNT_CACHE_BUMP_DELTA_THRESHOLD:
+        logger.debug(
+            "Skipping count cache bump; delta=%d below threshold", new - prev
+        )
+        return result
+    try:
+        await bump_count_cache_generation(cache)
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning("Failed to bump count cache generation after refresh: %s", exc)
+    return result
 
 
 async def ensure_core_projection_job(ctx, tconst: str):
@@ -66,6 +84,7 @@ async def purge_expired_navigation_state_job(
     while True:
         result = await ctx["db_pool"].execute(
             sql,
+            [batch_size],
             fetch="none",
         )
         batch_deleted = result if isinstance(result, int) else 0

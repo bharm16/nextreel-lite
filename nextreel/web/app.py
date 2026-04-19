@@ -60,6 +60,16 @@ logger = get_logger(__name__)
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
+def _navigation_cookie_max_age(config) -> int:
+    try:
+        max_session_hours = int(config.get("MAX_SESSION_DURATION_HOURS", 0))
+    except (TypeError, ValueError):
+        return SESSION_COOKIE_MAX_AGE
+    if max_session_hours <= 0:
+        return SESSION_COOKIE_MAX_AGE
+    return max_session_hours * 60 * 60
+
+
 def build_movie_manager(db_config: dict[str, object]) -> MovieManager:
     """Compatibility facade for tests/imports; implementation lives in bootstrap."""
     return _compose_movie_manager(
@@ -79,7 +89,7 @@ def _init_core(app):
     """Phase 1: Core app config and movie manager."""
     app.config.from_object(settings.Config())
     app.config["NR_SESSION_COOKIE_NAME"] = SESSION_COOKIE_NAME
-    app.config["NR_SESSION_COOKIE_MAX_AGE"] = SESSION_COOKIE_MAX_AGE
+    app.config["NR_SESSION_COOKIE_MAX_AGE"] = _navigation_cookie_max_age(app.config)
 
     # CSS cache-busting: use output.css mtime as version query param
     css_path = os.path.join(app.root_path, "static", "css", "output.css")

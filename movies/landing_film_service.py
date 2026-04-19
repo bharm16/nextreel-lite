@@ -9,6 +9,8 @@ selection) has no relationship to the stateful render-policy logic there.
 from __future__ import annotations
 
 import json
+import random
+import time
 from typing import Any
 
 from logging_config import get_logger
@@ -17,14 +19,29 @@ logger = get_logger(__name__)
 
 _LANDING_SENTINELS = ("Unknown", "N/A", "", "0 min")
 
-_LANDING_SQL = (
-    "SELECT tconst, payload_json "
-    "FROM movie_projection "
-    "WHERE projection_state = 'ready' "
-    "  AND JSON_UNQUOTE(JSON_EXTRACT(payload_json, '$.backdrop_url')) LIKE 'https://image.tmdb.org/%' "
-    "ORDER BY RAND() "
-    "LIMIT 1"
-)
+# The earlier implementation ran:
+#   WHERE ... AND JSON_UNQUOTE(JSON_EXTRACT(payload_json, '$.backdrop_url'))
+#              LIKE 'https://image.tmdb.org/%'
+#   ORDER BY RAND()
+#   LIMIT 1
+#
+# Both the JSON predicate and ORDER BY RAND() force a full table scan on
+# movie_projection (hundreds of thousands of rows) and a sort of every
+# matched row for a single output. On the hot landing-page path this
+# regularly saturated the DB pool.
+#
+# New strategy: cheap random-offset pick with Python-side backdrop
+# validation. The READY-row count is index-only via
+# idx_movie_projection_state_stale and is memoised in-process for a
+# short TTL. We fetch a small pool of candidates at a random offset and
+# return the first one whose backdrop is a real TMDb URL. In steady
+# state almost every READY row has a real backdrop, so this is
+# effectively a single indexed lookup.
+
+_LANDING_TMDB_PREFIX = "https://image.tmdb.org/"
+_LANDING_CANDIDATE_POOL_SIZE = 20
+_READY_COUNT_TTL_SECONDS = 300.0
+_READY_COUNT_CACHE: dict[str, float | int] = {"value": 0, "expires_at": 0.0}
 
 
 def _clean(value: Any) -> Any:
@@ -34,6 +51,34 @@ def _clean(value: Any) -> Any:
     return value
 
 
+async def _ready_row_count(pool) -> int:
+    """Count READY movie_projection rows with short-TTL in-process cache.
+
+    The COUNT is served by ``idx_movie_projection_state_stale`` and is
+    fast, but the landing page gets hit on every anonymous session. A
+    5-minute cache cuts the query out of the hot path entirely without
+    meaningfully skewing the random distribution (new READY rows land
+    at the tail, and the offset we pick is uniform regardless).
+    """
+    now = time.monotonic()
+    if _READY_COUNT_CACHE["expires_at"] > now:
+        return int(_READY_COUNT_CACHE["value"])
+    row = await pool.execute(
+        "SELECT COUNT(*) AS n FROM movie_projection WHERE projection_state = 'ready'",
+        fetch="one",
+    )
+    count = int(row["n"]) if row and row.get("n") is not None else 0
+    _READY_COUNT_CACHE["value"] = count
+    _READY_COUNT_CACHE["expires_at"] = now + _READY_COUNT_TTL_SECONDS
+    return count
+
+
+def _reset_ready_count_cache() -> None:
+    """Testing hook — callers should not use this in production paths."""
+    _READY_COUNT_CACHE["value"] = 0
+    _READY_COUNT_CACHE["expires_at"] = 0.0
+
+
 async def fetch_random_landing_film(pool) -> dict[str, Any] | None:
     """Pick one enriched film with a TMDb-sourced backdrop, at random.
 
@@ -41,22 +86,58 @@ async def fetch_random_landing_film(pool) -> dict[str, Any] | None:
     rows exist. Callers should apply a hardcoded fallback pool when None.
     """
     try:
-        rows = await pool.execute(_LANDING_SQL, (), fetch="all")
+        total = await _ready_row_count(pool)
+    except Exception as exc:  # noqa: BLE001 — defend the landing page
+        logger.warning("Landing-film count query failed: %s", exc)
+        return None
+
+    if total <= 0:
+        return None
+
+    offset = random.randint(0, max(0, total - _LANDING_CANDIDATE_POOL_SIZE))
+    try:
+        rows = await pool.execute(
+            """
+            SELECT tconst, payload_json
+            FROM movie_projection
+            WHERE projection_state = 'ready'
+            ORDER BY tconst
+            LIMIT %s OFFSET %s
+            """,
+            (_LANDING_CANDIDATE_POOL_SIZE, offset),
+            fetch="all",
+        )
     except Exception as exc:  # noqa: BLE001 — defense-in-depth, degrade silently
         logger.warning("Landing-film query failed: %s", exc)
         return None
+
     if not rows:
         return None
 
-    row = rows[0]
-    payload_raw = row["payload_json"]
-    payload = json.loads(payload_raw) if isinstance(payload_raw, str) else payload_raw
+    # Walk the fetched window in a shuffled order so repeated hits with
+    # the same offset don't always serve the same film.
+    rows = list(rows)
+    random.shuffle(rows)
+    for row in rows:
+        payload_raw = row["payload_json"]
+        try:
+            payload = json.loads(payload_raw) if isinstance(payload_raw, str) else payload_raw
+        except (TypeError, ValueError):
+            continue
+        if not isinstance(payload, dict):
+            continue
+        backdrop_url = payload.get("backdrop_url")
+        if not isinstance(backdrop_url, str) or not backdrop_url.startswith(
+            _LANDING_TMDB_PREFIX
+        ):
+            continue
+        return {
+            "tconst": row["tconst"],
+            "title": payload.get("title"),
+            "year": _clean(payload.get("year")),
+            "director": _clean(payload.get("directors")),
+            "runtime": _clean(payload.get("runtime")),
+            "backdrop_url": backdrop_url,
+        }
 
-    return {
-        "tconst": row["tconst"],
-        "title": payload.get("title"),
-        "year": _clean(payload.get("year")),
-        "director": _clean(payload.get("directors")),
-        "runtime": _clean(payload.get("runtime")),
-        "backdrop_url": payload.get("backdrop_url"),
-    }
+    return None

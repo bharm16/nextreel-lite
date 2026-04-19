@@ -7,7 +7,32 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from movies.landing_film_service import fetch_random_landing_film, _clean
+from movies.landing_film_service import (
+    _clean,
+    _reset_ready_count_cache,
+    fetch_random_landing_film,
+)
+
+
+@pytest.fixture(autouse=True)
+def _clear_ready_count_cache():
+    """Reset the module-level count cache between tests so each sees a cold load."""
+    _reset_ready_count_cache()
+    yield
+    _reset_ready_count_cache()
+
+
+def _make_pool(*, count: int, rows: list[dict] | None):
+    """Build an AsyncMock pool whose execute() returns count, then rows."""
+    pool = AsyncMock()
+
+    async def _execute(sql, *args, **kwargs):
+        if "COUNT(*)" in sql:
+            return {"n": count}
+        return rows if rows is not None else []
+
+    pool.execute = AsyncMock(side_effect=_execute)
+    return pool
 
 
 def test_clean_returns_value_for_real_strings():
@@ -26,8 +51,14 @@ def test_clean_returns_none_for_sentinels():
 
 @pytest.mark.asyncio
 async def test_fetch_returns_none_when_pool_empty():
-    pool = AsyncMock()
-    pool.execute = AsyncMock(return_value=[])
+    pool = _make_pool(count=0, rows=None)
+    result = await fetch_random_landing_film(pool)
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_fetch_returns_none_when_count_positive_but_no_rows():
+    pool = _make_pool(count=100, rows=[])
     result = await fetch_random_landing_film(pool)
     assert result is None
 
@@ -35,9 +66,9 @@ async def test_fetch_returns_none_when_pool_empty():
 @pytest.mark.asyncio
 async def test_fetch_returns_flat_dict_from_row_with_dict_payload():
     """payload_json comes back already-parsed as a dict from aiomysql (recent drivers)."""
-    pool = AsyncMock()
-    pool.execute = AsyncMock(
-        return_value=[
+    pool = _make_pool(
+        count=10,
+        rows=[
             {
                 "tconst": "tt0109424",
                 "payload_json": {
@@ -48,7 +79,7 @@ async def test_fetch_returns_flat_dict_from_row_with_dict_payload():
                     "backdrop_url": "https://image.tmdb.org/t/p/original/foo.jpg",
                 },
             }
-        ]
+        ],
     )
     result = await fetch_random_landing_film(pool)
     assert result == {
@@ -64,9 +95,9 @@ async def test_fetch_returns_flat_dict_from_row_with_dict_payload():
 @pytest.mark.asyncio
 async def test_fetch_returns_flat_dict_from_row_with_string_payload():
     """payload_json comes back as a JSON-encoded string from some driver versions."""
-    pool = AsyncMock()
-    pool.execute = AsyncMock(
-        return_value=[
+    pool = _make_pool(
+        count=10,
+        rows=[
             {
                 "tconst": "tt0118694",
                 "payload_json": json.dumps(
@@ -79,7 +110,7 @@ async def test_fetch_returns_flat_dict_from_row_with_string_payload():
                     }
                 ),
             }
-        ]
+        ],
     )
     result = await fetch_random_landing_film(pool)
     assert result["title"] == "In the Mood for Love"
@@ -88,9 +119,9 @@ async def test_fetch_returns_flat_dict_from_row_with_string_payload():
 
 @pytest.mark.asyncio
 async def test_fetch_scrubs_sentinel_values_for_missing_metadata():
-    pool = AsyncMock()
-    pool.execute = AsyncMock(
-        return_value=[
+    pool = _make_pool(
+        count=10,
+        rows=[
             {
                 "tconst": "tt000001",
                 "payload_json": {
@@ -101,7 +132,7 @@ async def test_fetch_scrubs_sentinel_values_for_missing_metadata():
                     "backdrop_url": "https://image.tmdb.org/t/p/original/x.jpg",
                 },
             }
-        ]
+        ],
     )
     result = await fetch_random_landing_film(pool)
     assert result["title"] == "Partial Record"
@@ -112,15 +143,80 @@ async def test_fetch_scrubs_sentinel_values_for_missing_metadata():
 
 
 @pytest.mark.asyncio
-async def test_fetch_sql_filters_to_ready_state_with_tmdb_backdrop():
-    """The SQL must restrict to READY + TMDb-sourced backdrops."""
-    pool = AsyncMock()
-    pool.execute = AsyncMock(return_value=[])
+async def test_fetch_skips_rows_with_non_tmdb_backdrop():
+    """Rows whose backdrop doesn't live on image.tmdb.org are filtered out in Python."""
+    pool = _make_pool(
+        count=10,
+        rows=[
+            {
+                "tconst": "tt_no_backdrop",
+                "payload_json": {"title": "Missing", "backdrop_url": None},
+            },
+            {
+                "tconst": "tt_wrong_host",
+                "payload_json": {
+                    "title": "Wrong host",
+                    "backdrop_url": "https://example.com/foo.jpg",
+                },
+            },
+            {
+                "tconst": "tt_ok",
+                "payload_json": {
+                    "title": "Good one",
+                    "backdrop_url": "https://image.tmdb.org/t/p/original/ok.jpg",
+                },
+            },
+        ],
+    )
+    result = await fetch_random_landing_film(pool)
+    assert result is not None
+    assert result["tconst"] == "tt_ok"
+
+
+@pytest.mark.asyncio
+async def test_fetch_returns_none_when_no_row_has_tmdb_backdrop():
+    pool = _make_pool(
+        count=10,
+        rows=[
+            {
+                "tconst": "tt_none",
+                "payload_json": {"title": "None", "backdrop_url": None},
+            },
+            {
+                "tconst": "tt_wrong",
+                "payload_json": {
+                    "title": "Wrong",
+                    "backdrop_url": "https://example.com/foo.jpg",
+                },
+            },
+        ],
+    )
+    result = await fetch_random_landing_film(pool)
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_fetch_uses_ready_state_filter_and_limit_offset_not_rand():
+    """The SQL must restrict to READY state and use LIMIT/OFFSET, not ORDER BY RAND()."""
+    pool = _make_pool(count=100, rows=[])
     await fetch_random_landing_film(pool)
-    # First positional arg to pool.execute is the SQL
-    sql = pool.execute.call_args.args[0]
+    select_calls = [c for c in pool.execute.await_args_list if "payload_json" in c.args[0]]
+    assert select_calls, "expected a SELECT for payload_json"
+    sql = select_calls[0].args[0]
     assert "movie_projection" in sql
     assert "projection_state = 'ready'" in sql
-    assert "image.tmdb.org" in sql
-    assert "ORDER BY RAND()" in sql
-    assert "LIMIT 1" in sql
+    assert "LIMIT %s OFFSET %s" in sql
+    assert "ORDER BY RAND()" not in sql
+    assert "JSON_UNQUOTE" not in sql
+
+
+@pytest.mark.asyncio
+async def test_fetch_skips_count_on_second_call_when_cached():
+    """The READY-row count is cached in-process across calls within the TTL."""
+    pool = _make_pool(count=100, rows=[])
+    await fetch_random_landing_film(pool)
+    count_calls_1 = sum(1 for c in pool.execute.await_args_list if "COUNT(*)" in c.args[0])
+    await fetch_random_landing_film(pool)
+    count_calls_2 = sum(1 for c in pool.execute.await_args_list if "COUNT(*)" in c.args[0])
+    assert count_calls_1 == 1
+    assert count_calls_2 == 1  # still 1 — second call hit the cache

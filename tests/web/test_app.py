@@ -154,6 +154,30 @@ async def test_movie_detail_normalizes_tmdb_backdrop_and_preloads_hero_image():
                 "imdb_id": "tt1234567",
                 "_full": True,
                 "projection_state": "ready",
+                "collection": {
+                    "name": "Definitely Maybe Collection",
+                    "poster_url": "https://image.tmdb.org/t/p/w185/collection.jpg",
+                },
+                "watch_providers": {
+                    "justwatch_link": "https://www.justwatch.com/us/movie/definitely-maybe",
+                    "stream": [
+                        {
+                            "provider_name": "Example Stream",
+                            "logo_path": "https://image.tmdb.org/t/p/w92/provider.jpg",
+                        }
+                    ],
+                    "rent": [],
+                    "buy": [],
+                    "ads": [],
+                },
+                "recommendations": [
+                    {
+                        "title": "Related Movie",
+                        "year": "2009",
+                        "poster_url": "https://image.tmdb.org/t/p/w342/recommendation.jpg",
+                        "vote_average": 6.4,
+                    }
+                ],
             }
         )
         manager.projection_store.coordinator = MagicMock()
@@ -177,6 +201,23 @@ async def test_movie_detail_normalizes_tmdb_backdrop_and_preloads_hero_image():
             'wid86tR3KvQ8SBzjmlcXMTSRXsy.jpg"'
         ) in body
         assert ('src="https://image.tmdb.org/t/p/w780/wid86tR3KvQ8SBzjmlcXMTSRXsy.jpg"') in body
+        assert 'class="poster-thumb"' in body
+        assert 'loading="eager"' in body
+        assert 'fetchpriority="high"' in body
+        assert "removeAttribute('srcset')" in body
+        assert (
+            'src="https://image.tmdb.org/t/p/w185/collection.jpg" '
+            'alt="Definitely Maybe Collection" loading="lazy" decoding="async" '
+            'fetchpriority="low"'
+        ) in body
+        assert (
+            'src="https://image.tmdb.org/t/p/w92/provider.jpg" '
+            'alt="Example Stream" loading="lazy" decoding="async" fetchpriority="low"'
+        ) in body
+        assert (
+            'src="https://image.tmdb.org/t/p/w342/recommendation.jpg" '
+            'alt="Related Movie" loading="lazy" decoding="async" fetchpriority="low"'
+        ) in body
         assert "w1280https://image.tmdb.org" not in body
 
 

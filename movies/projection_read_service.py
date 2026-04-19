@@ -17,25 +17,14 @@ class ProjectionReadService:
         self._enrich_projection = enrich_projection
 
     async def fetch_renderable_payload(self, tconst: str):
-        inflight = self.coordinator.get_inflight(tconst) if self.coordinator else None
-        if inflight is not None:
-            try:
-                enriched = await inflight
-            except Exception:
-                enriched = None
-            if enriched:
-                return enriched
-
+        # Never wait for pending enrichment on the render path: HTML delivery
+        # is what lets the browser discover the hero image.
         row = await self.repository.select_row(tconst)
         now = utcnow()
         if row:
             state = row["projection_state"]
             stale_after = row.get("stale_after")
-            if (
-                state == ProjectionState.READY.value
-                and stale_after
-                and stale_after <= now
-            ):
+            if state == ProjectionState.READY.value and stale_after and stale_after <= now:
                 await self.repository.mark_ready_stale_if_due(tconst)
                 row["projection_state"] = ProjectionState.STALE.value
                 state = ProjectionState.STALE.value

@@ -7,9 +7,9 @@
     <!-- Left column: backdrop image -->
     <div class="movie-poster-col">
       {% if hero_image_url %}
-      <img class="poster-thumb" src="{{ hero_image_url }}" alt="Scene from {{ movie.title }}" fetchpriority="high" decoding="async"{% if hero_image_srcset %} srcset="{{ hero_image_srcset }}"{% endif %}{% if hero_image_sizes %} sizes="{{ hero_image_sizes }}"{% endif %} onerror="this.src='{{ poster_url }}'">
+      <img class="poster-thumb" src="{{ hero_image_url }}" alt="Scene from {{ movie.title }}" loading="eager" fetchpriority="high" decoding="async"{% if hero_image_srcset %} srcset="{{ hero_image_srcset }}"{% endif %}{% if hero_image_sizes %} sizes="{{ hero_image_sizes }}"{% endif %} onerror="this.onerror=null;this.removeAttribute('srcset');this.src='{{ poster_url }}'">
       {% else %}
-      <img class="poster-thumb" src="{{ poster_url }}" alt="Poster for {{ movie.title }}" fetchpriority="high" decoding="async">
+      <img class="poster-thumb" src="{{ poster_url }}" alt="Poster for {{ movie.title }}" loading="eager" fetchpriority="high" decoding="async">
       {% endif %}
     </div>
 
@@ -78,7 +78,7 @@
     {% if movie.collection %}
     <div class="collection-banner mb-4">
       {% if movie.collection.poster_url %}
-      <img src="{{ movie.collection.poster_url }}" alt="{{ movie.collection.name }}">
+      <img src="{{ movie.collection.poster_url }}" alt="{{ movie.collection.name }}" loading="lazy" decoding="async" fetchpriority="low">
       {% endif %}
       <div>
         <div class="collection-label">Part of</div>
@@ -101,7 +101,7 @@
             <a href="{{ movie.watch_providers.justwatch_link if movie.watch_providers.justwatch_link else '#' }}" target="_blank" class="provider-logo-link" title="{{ provider.provider_name }}">
               <div class="provider-logo">
                 {% if provider.logo_path %}
-                <img src="{{ provider.logo_path }}" alt="{{ provider.provider_name }}">
+                <img src="{{ provider.logo_path }}" alt="{{ provider.provider_name }}" loading="lazy" decoding="async" fetchpriority="low">
                 {% else %}
                 <span style="display:flex;align-items:center;justify-content:center;height:100%;font-size:.55rem;padding:.15rem;text-align:center;">{{ provider.provider_name }}</span>
                 {% endif %}
@@ -159,7 +159,7 @@
           {% for rec in movie.recommendations %}
           <div class="rec-card" title="{{ rec.title }}" tabindex="0">
             {% if rec.poster_url %}
-            <img src="{{ rec.poster_url }}" alt="{{ rec.title }}" loading="lazy">
+            <img src="{{ rec.poster_url }}" alt="{{ rec.title }}" loading="lazy" decoding="async" fetchpriority="low">
             {% else %}
             <div style="height:195px; display:flex; align-items:center; justify-content:center; color:var(--color-text-muted); font-size:.75rem; padding:.5rem; text-align:center; border:1px solid var(--color-border); border-radius:var(--radius-sharp);">{{ rec.title }}</div>
             {% endif %}

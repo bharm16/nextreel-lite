@@ -124,6 +124,21 @@ def test_request_context_builds_test_navigation_state():
     assert state.filters["exclude_watched"] is True
 
 
+def test_navigation_cookie_max_age_tracks_configured_session_duration():
+    from nextreel.web.app import _navigation_cookie_max_age
+
+    assert _navigation_cookie_max_age({"MAX_SESSION_DURATION_HOURS": 24}) == 24 * 60 * 60
+
+
+def test_navigation_cookie_max_age_uses_safe_fallback_for_invalid_duration():
+    from nextreel.domain.navigation_state import SESSION_COOKIE_MAX_AGE
+    from nextreel.web.app import _navigation_cookie_max_age
+
+    assert _navigation_cookie_max_age({"MAX_SESSION_DURATION_HOURS": "invalid"}) == (
+        SESSION_COOKIE_MAX_AGE
+    )
+
+
 @pytest.mark.asyncio
 async def test_lifecycle_startup_schedules_candidate_refresh(app, monkeypatch):
     from nextreel.web.lifecycle import register_lifecycle_handlers

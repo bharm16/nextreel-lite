@@ -8,7 +8,7 @@ Covers:
 - /watched route runs list + count concurrently
 - MovieManager background scheduler + home() prewarm branching
 - ProjectionEnrichmentCoordinator in-flight task map reuse and cleanup
-- ProjectionStore.fetch_renderable_payload reuses in-flight task
+- ProjectionStore.fetch_renderable_payload does not block on in-flight task
 - ProjectionStore stale-path skips ARQ enqueue when local task in-flight
 - session.user_auth async bcrypt helpers + register_user precomputed_hash
 """
@@ -71,7 +71,10 @@ async def test_integrity_checks_gather_counts_issues_and_caps_concurrency():
     mock_pool.execute = fake_execute
     ctx = {"db_pool": mock_pool}
 
-    checks = [(f"c{i}", f"SELECT {'Q1' if i == 0 else 'Q2' if i == 1 else 'Q0'} FROM t {i}") for i in range(6)]
+    checks = [
+        (f"c{i}", f"SELECT {'Q1' if i == 0 else 'Q2' if i == 1 else 'Q0'} FROM t {i}")
+        for i in range(6)
+    ]
     with patch("worker.INTEGRITY_CHECKS", checks):
         result = await validate_referential_integrity(ctx)
 
@@ -211,7 +214,9 @@ async def test_movie_data_cleans_up_tasks_on_no_tmdb_id():
     from movies.movie import Movie
 
     mock_pool = MagicMock()
-    mock_pool.execute = AsyncMock(return_value={"slug": None, "tconst": "tt1", "averageRating": 0, "numVotes": 0})
+    mock_pool.execute = AsyncMock(
+        return_value={"slug": None, "tconst": "tt1", "averageRating": 0, "numVotes": 0}
+    )
 
     tmdb = MagicMock()
     tmdb.get_tmdb_id_by_tconst = AsyncMock(return_value=None)
@@ -330,8 +335,7 @@ async def test_get_or_start_inflight_dedupes_concurrent_callers():
 
     # Fire three concurrent calls for the same tconst.
     tasks = [
-        asyncio.create_task(coordinator.get_or_start_inflight("tt1", tmdb_id=1))
-        for _ in range(3)
+        asyncio.create_task(coordinator.get_or_start_inflight("tt1", tmdb_id=1)) for _ in range(3)
     ]
     await asyncio.sleep(0)  # yield
     # All callers should share the same underlying task.
@@ -392,31 +396,45 @@ async def test_inflight_new_task_starts_after_previous_failure():
 
 
 # ---------------------------------------------------------------------------
-# ProjectionStore fetch_renderable_payload reuses in-flight task
+# ProjectionStore fetch_renderable_payload in-flight behavior
 # ---------------------------------------------------------------------------
 
 
-async def test_fetch_renderable_reuses_inflight_task():
+async def test_fetch_renderable_ignores_pending_inflight_and_returns_ready_row():
     from movies.projection_store import ProjectionStore
 
     store = ProjectionStore(MagicMock(), tmdb_helper=MagicMock())
 
-    # Pre-populate an in-flight task for tt5.
-    expected = {"tconst": "tt5", "_full": True, "title": "InFlight"}
+    blocker = asyncio.Event()
 
     async def fake_enrich(tconst, known_tmdb_id=None):
-        await asyncio.sleep(0.01)
-        return expected
+        await blocker.wait()
+        return {"tconst": tconst, "_full": True, "title": "InFlight"}
 
     store.coordinator.enrich_projection = fake_enrich
     task = await store.coordinator.get_or_start_inflight("tt5", tmdb_id=None)
-    # The store should reuse the pending task and not hit the DB at all.
-    store._select_row = AsyncMock(return_value=None)
+    store._select_row = AsyncMock(
+        return_value={
+            "tconst": "tt5",
+            "tmdb_id": 5,
+            "payload_json": '{"title": "Ready Row", "_full": true}',
+            "projection_state": "ready",
+            "enriched_at": None,
+            "stale_after": utcnow() + timedelta(days=1),
+            "last_attempt_at": None,
+            "attempt_count": 0,
+            "last_error": None,
+        }
+    )
 
-    result = await store.fetch_renderable_payload("tt5")
-    assert result == expected
-    store._select_row.assert_not_called()
-    await task  # clean up
+    try:
+        result = await asyncio.wait_for(store.fetch_renderable_payload("tt5"), timeout=0.05)
+    finally:
+        blocker.set()
+        await asyncio.gather(task, return_exceptions=True)
+
+    assert result["title"] == "Ready Row"
+    store._select_row.assert_awaited_once_with("tt5")
 
 
 async def test_stale_path_skips_arq_enqueue_when_local_task_inflight():
@@ -451,51 +469,45 @@ async def test_stale_path_skips_arq_enqueue_when_local_task_inflight():
         return {"tconst": tconst, "_full": True}
 
     store.coordinator.enrich_projection = never_completes
-    inflight_task = await store.coordinator.get_or_start_inflight(
-        "tt6", tmdb_id=999
-    )
+    inflight_task = await store.coordinator.get_or_start_inflight("tt6", tmdb_id=999)
     assert store.coordinator.has_inflight("tt6")
 
-    # The first thing fetch_renderable_payload does is await the in-flight
-    # task. We want to exercise the stale-path branch specifically, so we
-    # make a SECOND tconst look stale while "tt6" is still pending — and
-    # then assert that calling fetch_renderable_payload on "tt6" reuses the
-    # in-flight task and never falls into the stale branch at all (covering
-    # the reuse path), AND separately that calling the stale branch with a
-    # distinct tconst that has its own in-flight task does not enqueue.
-
-    # Test A: reuse path short-circuits everything. Because the task never
-    # completes, we need to unblock it to let the test finish — do so after
-    # asserting the branch we care about.
+    # Test A: fetch_renderable_payload returns the stale row immediately and
+    # leaves the pending enrichment task alone. That keeps /movie TTFB tied to
+    # the projection read instead of a TMDb enrichment tail.
     select_called = False
 
     async def fake_select(t):
         nonlocal select_called
         select_called = True
-        return None
+        return {
+            "tconst": "tt6",
+            "tmdb_id": 999,
+            "payload_json": '{"title": "Stale Row", "_full": true}',
+            "projection_state": ProjectionState.STALE.value,
+            "stale_after": utcnow() - timedelta(days=1),
+            "enriched_at": None,
+            "last_attempt_at": None,
+            "attempt_count": 0,
+            "last_error": None,
+        }
 
     store._select_row = fake_select  # type: ignore[assignment]
 
-    async def unblock_soon():
-        await asyncio.sleep(0.01)
+    try:
+        result = await asyncio.wait_for(store.fetch_renderable_payload("tt6"), timeout=0.05)
+    finally:
         blocker.set()
+        await asyncio.gather(inflight_task, return_exceptions=True)
 
-    unblock = asyncio.create_task(unblock_soon())
-    result = await store.fetch_renderable_payload("tt6")
-    await unblock
-    assert result == {"tconst": "tt6", "_full": True}
-    # The reuse path returned before _select_row was called.
-    assert select_called is False
+    assert result["title"] == "Stale Row"
+    assert select_called is True
     # ARQ enqueue was never invoked.
     enqueue_fn.assert_not_awaited()
 
     # Test B: direct stale-path mutual-exclusion. Plant a NEW in-flight task
-    # for "tt7" and then run the real fetch_renderable_payload with a stale
-    # row for "tt7". The reuse path will fire too (that's correct — it's
-    # a superset of the stale-path guard). To isolate the stale path,
-    # bypass the reuse check by making get_inflight return None temporarily,
-    # then assert maybe_enqueue_if_not_inflight was reached but did NOT
-    # call the inner maybe_enqueue.
+    # for "tt7", then assert maybe_enqueue_if_not_inflight short-circuits
+    # before it can call the inner enqueue path.
     blocker2 = asyncio.Event()
 
     async def never_completes2(tconst, known_tmdb_id=None):
@@ -521,9 +533,7 @@ async def test_stale_path_skips_arq_enqueue_when_local_task_inflight():
         "attempt_count": 0,
         "last_error": None,
     }
-    enqueued = await store.coordinator.maybe_enqueue_if_not_inflight(
-        "tt7", stale_row, tmdb_id=777
-    )
+    enqueued = await store.coordinator.maybe_enqueue_if_not_inflight("tt7", stale_row, tmdb_id=777)
     assert enqueued is False
     inner_enqueue.assert_not_awaited()
 
@@ -536,7 +546,6 @@ async def test_stale_path_skips_arq_enqueue_when_local_task_inflight():
         )
     except (asyncio.TimeoutError, Exception):
         pass
-    # inflight_task already completed via unblock above; nothing left to do.
     assert inflight_task.done()
 
 
@@ -553,9 +562,7 @@ async def test_maybe_enqueue_if_not_inflight_proceeds_when_no_inflight():
     coordinator.maybe_enqueue = inner_enqueue  # type: ignore[assignment]
 
     row = {"tconst": "tt8", "last_attempt_at": None}
-    result = await coordinator.maybe_enqueue_if_not_inflight(
-        "tt8", row, tmdb_id=8
-    )
+    result = await coordinator.maybe_enqueue_if_not_inflight("tt8", row, tmdb_id=8)
     assert result is True
     inner_enqueue.assert_awaited_once_with("tt8", row, tmdb_id=8)
 

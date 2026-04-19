@@ -272,8 +272,8 @@ async def test_purge_expired_navigation_state_exact_1000():
 
 
 async def test_purge_uses_correct_sql():
-    """Should pass the expected DELETE ... LIMIT 1000 SQL to execute."""
-    from worker import purge_expired_navigation_state
+    """Should pass DELETE ... LIMIT %s SQL with the batch-size parameter."""
+    from worker import purge_expired_navigation_state, _PURGE_BATCH_SIZE
 
     mock_pool = AsyncMock()
     mock_pool.execute = AsyncMock(return_value=0)
@@ -283,8 +283,11 @@ async def test_purge_uses_correct_sql():
 
     call_args = mock_pool.execute.call_args
     sql = call_args[0][0]
+    params = call_args[0][1]
     assert "DELETE FROM user_navigation_state" in sql
-    assert "LIMIT 1000" in sql
+    assert "LIMIT %s" in sql
+    assert "LIMIT 1000" not in sql
+    assert params == [_PURGE_BATCH_SIZE]
     assert call_args[1]["fetch"] == "none"
 
 

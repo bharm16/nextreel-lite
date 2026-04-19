@@ -44,7 +44,11 @@ async def bump_count_cache_generation(cache) -> int:
 
 
 class MovieCountCache:
-    COUNT_CACHE_TTL = 300
+    # Cold-cache count queries join title.basics and title.ratings which can
+    # take multi-second on a freshly-invalidated cache. 1 hour is long enough
+    # to absorb any per-hour refresh cadence while still reflecting data
+    # changes within acceptable latency for a filter-count hint.
+    COUNT_CACHE_TTL = 3600
     COUNT_LOCK_TTL_SECONDS = 30
     COUNT_LOCK_POLL_INTERVAL = 0.1
     COUNT_LOCK_POLL_MAX_WAIT = 5.0

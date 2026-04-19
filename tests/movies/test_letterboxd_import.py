@@ -145,10 +145,16 @@ class TestMatchFilms:
 
         await match_films(mock_db_pool, films)
 
-        call_args = mock_db_pool.execute.call_args
-        query = call_args[0][0]
+        # Pass 1: exact-match query. Must be parameterized and must NOT
+        # wrap primaryTitle in LOWER/REPLACE — doing so defeated the
+        # primaryTitle prefix index on movie_candidates.
+        first_call = mock_db_pool.execute.await_args_list[0]
+        query = first_call.args[0]
         assert "%s" in query
-        assert "LOWER" in query
+        assert "LOWER" not in query
+        assert "REPLACE" not in query
+        assert "primaryTitle IN" in query
+        assert "startYear IN" in query
 
 
 from movies.letterboxd_import import enqueue_import_enrichment

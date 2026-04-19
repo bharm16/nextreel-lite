@@ -103,19 +103,23 @@ class CandidateStore:
         # in the input collapse to a single SELECT param.
         unique = list(dict.fromkeys(tconsts))
         placeholders = ",".join(["%s"] * len(unique))
+        # Drop the NOT IN subquery the previous implementation used to keep
+        # title.basics rows out when movie_candidates already had them. The
+        # subquery scanned movie_candidates twice (once per leg). We instead
+        # tag each leg with a source_priority, sort by it, and let the
+        # Python-side `seen` dedup below keep the first occurrence —
+        # movie_candidates wins because its priority is 0.
         sql = f"""
-            SELECT tconst, primaryTitle, slug
+            SELECT tconst, primaryTitle, slug, 0 AS source_priority
             FROM movie_candidates
             WHERE tconst IN ({placeholders})
             UNION ALL
-            SELECT tconst, primaryTitle, slug
+            SELECT tconst, primaryTitle, slug, 1 AS source_priority
             FROM `title.basics`
             WHERE tconst IN ({placeholders})
-              AND tconst NOT IN (
-                  SELECT tconst FROM movie_candidates WHERE tconst IN ({placeholders})
-              )
+            ORDER BY source_priority
         """
-        params = unique + unique + unique
+        params = unique + unique
         rows = await self.db_pool.execute(sql, params, fetch="all")
         if not rows:
             return []
@@ -192,11 +196,19 @@ class CandidateStore:
         genre_clause, genre_params = self._genre_clause(criteria, use_fulltext=use_fulltext)
         params.extend(genre_params)
 
+        # ORDER BY uses only (shuffle_key, tconst). The old tail of
+        # (numVotes DESC, averageRating DESC) was a tiebreaker for
+        # shuffle_key collisions, but shuffle_key is ~uniform over
+        # 0..2^31-1 on a ~200k row table so real collisions are vanishingly
+        # rare. Dropping the DESC tail lets the ASC-only composite
+        # idx_movie_candidates_shuffle (shuffle_key, numVotes, averageRating)
+        # serve the sort without a filesort. tconst as the secondary
+        # sort is the table's PK, giving deterministic ordering on ties.
         query = f"""
             SELECT tconst, primaryTitle, slug
             FROM movie_candidates
             WHERE {' AND '.join(clauses)}{genre_clause}
-            ORDER BY shuffle_key, numVotes DESC, averageRating DESC
+            ORDER BY shuffle_key, tconst
             LIMIT %s
         """
         params.append(desired_limit * _OVERFETCH_FACTOR)
@@ -306,7 +318,15 @@ class CandidateStore:
     async def validate_bucket_distribution(self, table_name: str = "movie_candidates_next") -> None:
         return await self._maintainer.validate_bucket_distribution(table_name)
 
-    async def refresh_movie_candidates(self) -> None:
+    async def refresh_movie_candidates(self) -> dict[str, int]:
+        """Refresh the candidate table. Returns prev/new row counts for callers.
+
+        The return shape is ``{"prev_count": int, "new_count": int}`` so a
+        caller like ``refresh_movie_candidates_job`` can decide whether to
+        invalidate downstream count caches. A near-zero delta is the steady
+        state (title.basics + title.ratings change slowly) and does not
+        warrant a count-cache stampede.
+        """
         return await self._maintainer.refresh_movie_candidates()
 
     @property
@@ -353,8 +373,13 @@ class CandidateTableMaintainer:
                     f"{table_name} bucket distribution skew detected: {count} outside {lower:.2f}-{upper:.2f}"
                 )
 
-    async def refresh_movie_candidates(self) -> None:
+    async def refresh_movie_candidates(self) -> dict[str, int]:
         logger.info("Refreshing movie_candidates")
+        prev_count_row = await self.db_pool.execute(
+            "SELECT COUNT(*) AS total FROM movie_candidates",
+            fetch="one",
+        )
+        prev_count = int(prev_count_row["total"]) if prev_count_row else 0
         await self.db_pool.execute("DROP TABLE IF EXISTS movie_candidates_next", fetch="none")
         await self.db_pool.execute(
             """
@@ -435,5 +460,12 @@ class CandidateTableMaintainer:
         )
         if not row or row["total"] <= 0:
             raise RuntimeError("movie_candidates swap produced an empty active table")
+        new_count = int(row["total"])
         await self.db_pool.execute("DROP TABLE IF EXISTS movie_candidates_prev", fetch="none")
-        logger.info("movie_candidates refresh complete")
+        logger.info(
+            "movie_candidates refresh complete prev=%d new=%d delta=%d",
+            prev_count,
+            new_count,
+            new_count - prev_count,
+        )
+        return {"prev_count": prev_count, "new_count": new_count}

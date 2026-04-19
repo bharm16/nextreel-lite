@@ -541,7 +541,7 @@ def test_build_candidate_query_orders_by_shuffle_key_first(mock_db_pool):
         use_fulltext=True,
     )
 
-    assert "ORDER BY shuffle_key, numVotes DESC, averageRating DESC" in query
+    assert "ORDER BY shuffle_key, tconst" in query
 
 
 async def test_fetch_candidate_refs_retries_like_clause_when_fulltext_missing(mock_db_pool):

@@ -38,8 +38,55 @@ class Movie:
         return False
 
     async def fetch_slug_and_ratings(self):
-        """Fetch slug and ratings in a single query via JOIN."""
+        """Fetch slug and ratings for ``self.tconst``.
+
+        Prefers the denormalized ``movie_candidates`` row (which already
+        carries slug + averageRating + numVotes) to avoid a redundant JOIN
+        against ``title.basics`` + ``title.ratings``. Falls back to the
+        JOIN only when the tconst is absent from ``movie_candidates``
+        (e.g. newly-imported titles not yet swept into the candidate
+        cache).
+        """
         start_time = time.time()
+        try:
+            candidate_row = await self.db_pool.execute(
+                """
+                SELECT slug, averageRating, numVotes
+                FROM movie_candidates
+                WHERE tconst = %s
+                """,
+                [self.tconst],
+                fetch="one",
+            )
+        except DatabaseError as e:
+            logger.warning(
+                "Database error fetching candidate ratings for %s: %s", self.tconst, e
+            )
+            candidate_row = None
+
+        if candidate_row:
+            self.slug = candidate_row.get("slug")
+            ratings_data = {
+                "tconst": self.tconst,
+                "averageRating": (
+                    candidate_row["averageRating"]
+                    if candidate_row.get("averageRating") is not None
+                    else "N/A"
+                ),
+                "numVotes": (
+                    candidate_row["numVotes"]
+                    if candidate_row.get("numVotes") is not None
+                    else "N/A"
+                ),
+            }
+            query_time = time.time() - start_time
+            logger.info(
+                "Fetched slug+ratings for %s from movie_candidates in %.2fs",
+                self.tconst,
+                query_time,
+            )
+            return ratings_data
+
         try:
             result = await self.db_pool.execute(
                 """
@@ -70,7 +117,11 @@ class Movie:
         }
 
         query_time = time.time() - start_time
-        logger.info("Fetched slug+ratings for %s in %.2f seconds", self.tconst, query_time)
+        logger.info(
+            "Fetched slug+ratings for %s from title.basics JOIN in %.2fs",
+            self.tconst,
+            query_time,
+        )
         return ratings_data
 
     async def get_movie_data(self, known_tmdb_id: int | None = None) -> dict[str, Any] | None:

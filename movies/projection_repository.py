@@ -100,7 +100,7 @@ class ProjectionRepository:
         payload = self.build_core_payload(row)
         now = utcnow()
         await self.db_pool.execute(
-            f"""
+            """
             INSERT INTO movie_projection (
                 tconst, tmdb_id, payload_json, projection_state,
                 enriched_at, stale_after, last_attempt_at, attempt_count, last_error
@@ -109,11 +109,11 @@ class ProjectionRepository:
             AS new_row
             ON DUPLICATE KEY UPDATE
                 payload_json = CASE
-                    WHEN movie_projection.projection_state IN ('{ProjectionState.READY.value}', '{ProjectionState.STALE.value}') THEN movie_projection.payload_json
+                    WHEN movie_projection.projection_state IN (%s, %s) THEN movie_projection.payload_json
                     ELSE new_row.payload_json
                 END,
                 projection_state = CASE
-                    WHEN movie_projection.projection_state IN ('{ProjectionState.READY.value}', '{ProjectionState.STALE.value}') THEN movie_projection.projection_state
+                    WHEN movie_projection.projection_state IN (%s, %s) THEN movie_projection.projection_state
                     ELSE new_row.projection_state
                 END,
                 last_attempt_at = COALESCE(movie_projection.last_attempt_at, %s)
@@ -123,6 +123,10 @@ class ProjectionRepository:
                 None,
                 json.dumps(self.persisted_payload(payload)),
                 ProjectionState.CORE.value,
+                ProjectionState.READY.value,
+                ProjectionState.STALE.value,
+                ProjectionState.READY.value,
+                ProjectionState.STALE.value,
                 now,
             ],
             fetch="none",

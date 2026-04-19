@@ -119,7 +119,7 @@ def register_request_context_handlers(app, *, ensure_movie_manager_started) -> N
             response.set_cookie(
                 SESSION_COOKIE_NAME,
                 state.session_id,
-                max_age=SESSION_COOKIE_MAX_AGE,
+                max_age=app.config.get("NR_SESSION_COOKIE_MAX_AGE", SESSION_COOKIE_MAX_AGE),
                 secure=app.config.get("SESSION_COOKIE_SECURE", False),
                 httponly=True,
                 samesite=app.config.get("SESSION_COOKIE_SAMESITE", "Lax"),

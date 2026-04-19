@@ -153,7 +153,15 @@ class WatchedStore:
     async def list_watched(
         self, user_id: str, limit: int = 20, offset: int = 0
     ) -> list[dict[str, Any]]:
-        """Return watched movies with metadata, ordered by most recently watched."""
+        """Return watched movies with metadata, ordered by most recently watched.
+
+        ORDER BY uses only (watched_at DESC, tconst) so the existing
+        ``idx_watched_user_date`` composite index can serve the sort
+        directly. Adding c.startYear / c.primaryTitle tail columns forced
+        MySQL into a filesort after the JOIN for users with many watches.
+        w.tconst is the table's second PK column and gives deterministic
+        ordering on ties with zero additional cost.
+        """
         rows = await self.db_pool.execute(
             """
             SELECT sub.tconst, sub.watched_at,
@@ -165,7 +173,7 @@ class WatchedStore:
                 FROM user_watched_movies w
                 LEFT JOIN movie_candidates c ON w.tconst = c.tconst
                 WHERE w.user_id = %s
-                ORDER BY w.watched_at DESC, c.startYear DESC, c.primaryTitle ASC
+                ORDER BY w.watched_at DESC, w.tconst
                 LIMIT %s OFFSET %s
             ) sub
             LEFT JOIN movie_projection p ON sub.tconst = p.tconst
@@ -191,7 +199,7 @@ class WatchedStore:
                 INNER JOIN movie_projection p2 ON w.tconst = p2.tconst
                 LEFT JOIN movie_candidates c ON w.tconst = c.tconst
                 WHERE w.user_id = %s AND p2.projection_state = %s
-                ORDER BY w.watched_at DESC, c.startYear DESC, c.primaryTitle ASC
+                ORDER BY w.watched_at DESC, w.tconst
                 LIMIT %s OFFSET %s
             ) sub
             INNER JOIN movie_projection p ON sub.tconst = p.tconst

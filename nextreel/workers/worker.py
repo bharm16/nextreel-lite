@@ -214,8 +214,7 @@ async def validate_referential_integrity(ctx):
 
 
 _PURGE_NAV_STATE_SQL = (
-    "DELETE FROM user_navigation_state WHERE expires_at < UTC_TIMESTAMP(6) LIMIT "
-    + str(_PURGE_BATCH_SIZE)
+    "DELETE FROM user_navigation_state WHERE expires_at < UTC_TIMESTAMP(6) LIMIT %s"
 )
 
 
