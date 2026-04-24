@@ -30,6 +30,7 @@ from nextreel.domain.navigation_state import (
     SESSION_COOKIE_NAME,
 )
 from infra.secrets import secrets_manager
+from infra.time_utils import env_int
 from logging_config import get_logger, setup_logging
 from nextreel.bootstrap.movie_manager_factory import (
     build_movie_manager as _compose_movie_manager,
@@ -223,7 +224,7 @@ def find_free_port(start_port=5000, host="127.0.0.1"):
 
 def main() -> None:
     app = create_app()
-    port = int(os.getenv("PORT", find_free_port()))
+    port = env_int("PORT", find_free_port())
     logger.info("Starting development server on http://127.0.0.1:%s", port)
     app.run(host="127.0.0.1", port=port)
 

@@ -198,7 +198,7 @@ class TestCSRFValidation:
     async def test_post_without_csrf_returns_403(self):
         with patch.dict(os.environ, TEST_ENV), patch("app.MovieManager") as MockManager:
             manager = MockManager.return_value
-            manager.filtered_movie = AsyncMock(return_value="ok")
+            manager.apply_filters = AsyncMock(return_value="ok")
 
             from app import create_app
 

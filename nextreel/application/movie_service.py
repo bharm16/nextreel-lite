@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Awaitable, Callable, MutableMapping
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, MutableMapping
 
 
 from nextreel.domain.filter_contracts import FilterState
@@ -17,8 +17,10 @@ from movies.tmdb_client import TMDbHelper
 from movies.watched_store import WatchedStore
 from nextreel.application.home_prewarm_service import HomePrewarmService
 from nextreel.application.movie_navigator import MovieNavigator, NavigationOutcome
-from nextreel.web.movie_renderer import MovieRenderer
 from settings import Config
+
+if TYPE_CHECKING:
+    from nextreel.web.movie_renderer import MovieRenderer
 
 logger = get_logger(__name__)
 
@@ -35,7 +37,7 @@ class MovieManager:
         candidate_store: CandidateStore | None = None,
         projection_store: ProjectionStore | None = None,
         watched_store: WatchedStore | None = None,
-        renderer: MovieRenderer | None = None,
+        renderer: "MovieRenderer | None" = None,
         navigation_state_store: NavigationStateStore | None = None,
         navigator: MovieNavigator | None = None,
         home_prewarm_service: HomePrewarmService | None = None,
@@ -55,7 +57,7 @@ class MovieManager:
         self.projection_coordinator = self.projection_store.coordinator
         self.navigation_state_store = navigation_state_store
         self._navigator = navigator
-        self._renderer = renderer or MovieRenderer(self.projection_store)
+        self._renderer = renderer
         self.watched_store = watched_store or WatchedStore(self.db_pool)
         self._home_prewarm_service = home_prewarm_service or HomePrewarmService()
         # Background-task scheduler hook wired from ``app.create_app()``. When
@@ -195,6 +197,11 @@ class MovieManager:
         tconst: str,
         template_name: str = "movie.html",
     ) -> str | tuple[str, int]:
+        if self._renderer is None:
+            raise RuntimeError(
+                "MovieManager has no renderer configured; "
+                "construct via nextreel.bootstrap.movie_manager_factory.build_movie_manager"
+            )
         previous_count = (
             self._navigator.prev_stack_length(state) if self._navigator and state else 0
         )
@@ -254,18 +261,6 @@ class MovieManager:
             filters,
             legacy_session=legacy_session,
             current_state=state,
-        )
-
-    async def filtered_movie(
-        self,
-        state: NavigationState | None,
-        filters: FilterState,
-        legacy_session: MutableMapping[str, Any] | None = None,
-    ) -> NavigationOutcome | None:
-        return await self.apply_filters(
-            state,
-            filters,
-            legacy_session=legacy_session,
         )
 
     async def logout(

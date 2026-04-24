@@ -83,7 +83,7 @@ async def test_home_prewarm_only_runs_for_empty_queue():
 
 @pytest.mark.asyncio
 @patch.dict(os.environ, TEST_ENV)
-async def test_filtered_movie_normalizes_and_delegates():
+async def test_apply_filters_delegates_to_navigator():
     movie_manager = MovieManager(db_config=None)
     movie_manager._navigator = AsyncMock()
     movie_manager._navigator.apply_filters = AsyncMock(
@@ -98,7 +98,7 @@ async def test_filtered_movie_normalizes_and_delegates():
         "genres_selected": ["Drama", "Comedy"],
     }
 
-    result = await movie_manager.filtered_movie(state, filters)
+    result = await movie_manager.apply_filters(state, filters)
 
     assert result == NavigationOutcome(tconst="tt1234567")
     movie_manager._navigator.apply_filters.assert_awaited_once()

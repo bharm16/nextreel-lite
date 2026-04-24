@@ -97,6 +97,7 @@ async def account_view():
 
 @bp.route("/account/profile", methods=["POST"])
 @csrf_required
+@rate_limited("account_profile")
 async def account_profile_save():
     user_id = _require_user()
     form = await request.form
@@ -187,6 +188,7 @@ async def account_password_change():
 
 @bp.route("/account/sessions/revoke", methods=["POST"])
 @csrf_required
+@rate_limited("account_sessions_revoke")
 async def account_sessions_revoke():
     user_id = _require_user()
     redis_client = _redis_client()
@@ -206,6 +208,7 @@ async def account_sessions_revoke():
 
 @bp.route("/account/preferences", methods=["POST"])
 @csrf_required
+@rate_limited("account_preferences")
 async def account_preferences_save():
     user_id = _require_user()
     form = await request.form
@@ -223,6 +226,7 @@ async def account_preferences_save():
 
 @bp.route("/account/preferences/filters/save", methods=["POST"])
 @csrf_required
+@rate_limited("account_filters_save")
 async def account_filters_save():
     user_id = _require_user()
     form = await request.form
@@ -234,6 +238,7 @@ async def account_filters_save():
 
 @bp.route("/account/preferences/filters/clear", methods=["POST"])
 @csrf_required
+@rate_limited("account_filters_clear")
 async def account_filters_clear():
     user_id = _require_user()
     await user_preferences.clear_default_filters(_db_pool(), user_id)
@@ -446,6 +451,7 @@ async def account_export_watched_json():
 
 @bp.route("/account/watched/clear", methods=["POST"])
 @csrf_required
+@rate_limited("account_watched_clear")
 async def account_watched_clear():
     user_id = _require_user()
     await _db_pool().execute(

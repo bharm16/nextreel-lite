@@ -413,7 +413,7 @@ async def test_fetch_renderable_ignores_pending_inflight_and_returns_ready_row()
 
     store.coordinator.enrich_projection = fake_enrich
     task = await store.coordinator.get_or_start_inflight("tt5", tmdb_id=None)
-    store._select_row = AsyncMock(
+    store.select_row = AsyncMock(
         return_value={
             "tconst": "tt5",
             "tmdb_id": 5,
@@ -434,7 +434,7 @@ async def test_fetch_renderable_ignores_pending_inflight_and_returns_ready_row()
         await asyncio.gather(task, return_exceptions=True)
 
     assert result["title"] == "Ready Row"
-    store._select_row.assert_awaited_once_with("tt5")
+    store.select_row.assert_awaited_once_with("tt5")
 
 
 async def test_stale_path_skips_arq_enqueue_when_local_task_inflight():
@@ -492,7 +492,7 @@ async def test_stale_path_skips_arq_enqueue_when_local_task_inflight():
             "last_error": None,
         }
 
-    store._select_row = fake_select  # type: ignore[assignment]
+    store.select_row = fake_select  # type: ignore[assignment]
 
     try:
         result = await asyncio.wait_for(store.fetch_renderable_payload("tt6"), timeout=0.05)

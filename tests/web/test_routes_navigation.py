@@ -19,7 +19,6 @@ def _make_app():
         manager.previous_movie = AsyncMock(return_value=None)
         manager.apply_filters = AsyncMock(return_value=None)
         manager.db_pool = object()
-        manager.filtered_movie = AsyncMock(return_value=None)
         manager.render_movie_by_tconst = AsyncMock(return_value="<html>movie</html>")
         manager.get_current_movie_tconst = MagicMock(return_value=None)
         manager.logout = AsyncMock()

@@ -54,7 +54,6 @@ async def test_filtered_movie_endpoint():
     with patch.dict(os.environ, TEST_ENV), patch("app.MovieManager") as MockManager:
         manager = MockManager.return_value
         manager.apply_filters = AsyncMock(return_value="filtered")
-        manager.filtered_movie = AsyncMock(return_value="filtered")
 
         app = _make_test_app()
         async with app.app_context():
@@ -86,7 +85,6 @@ async def test_filtered_movie_rejects_without_csrf():
     with patch.dict(os.environ, TEST_ENV), patch("app.MovieManager") as MockManager:
         manager = MockManager.return_value
         manager.apply_filters = AsyncMock(return_value="filtered")
-        manager.filtered_movie = AsyncMock(return_value="filtered")
 
         app = _make_test_app()
         async with app.app_context():

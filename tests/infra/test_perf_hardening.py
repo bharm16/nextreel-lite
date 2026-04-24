@@ -84,10 +84,10 @@ async def test_local_enrichment_caps_concurrency(monkeypatch):
     from movies.projection_enrichment import ProjectionEnrichmentCoordinator
 
     store = MagicMock()
-    store._mark_attempt = AsyncMock()
-    store._select_row = AsyncMock(return_value=None)
-    store._upsert_failed = AsyncMock()
-    store._upsert_ready = AsyncMock()
+    store.mark_attempt = AsyncMock()
+    store.select_row = AsyncMock(return_value=None)
+    store.upsert_failed = AsyncMock()
+    store.upsert_ready = AsyncMock()
     store.ensure_core_projection = AsyncMock(return_value={})
     store.db_pool = MagicMock()
 

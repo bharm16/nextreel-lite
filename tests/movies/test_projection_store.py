@@ -46,7 +46,7 @@ def _core_db_row(**overrides):
 
 
 def _projection_row(**overrides):
-    """Minimal row returned by _select_row."""
+    """Minimal row returned by select_row."""
     base = {
         "tconst": "tt1234567",
         "tmdb_id": 42,
@@ -87,12 +87,12 @@ class TestConstants:
 
 
 # ---------------------------------------------------------------------------
-# _payload_from_row
+# payload_from_row
 # ---------------------------------------------------------------------------
 
 
 class TestPayloadFromRow:
-    """ProjectionStore._payload_from_row() parsing and fallback logic."""
+    """ProjectionStore.payload_from_row() parsing and fallback logic."""
 
     def test_parses_json_string(self, mock_db_pool):
         store = _make_store(mock_db_pool)
@@ -100,7 +100,7 @@ class TestPayloadFromRow:
             "payload_json": '{"title": "Foo", "year": "2020"}',
             "projection_state": PROJECTION_READY,
         }
-        result = store._payload_from_row(row)
+        result = store.payload_from_row(row)
         assert result["title"] == "Foo"
         assert result["year"] == "2020"
         assert result["projection_state"] == PROJECTION_READY
@@ -111,27 +111,27 @@ class TestPayloadFromRow:
             "payload_json": {"title": "Bar"},
             "projection_state": PROJECTION_CORE,
         }
-        result = store._payload_from_row(row)
+        result = store.payload_from_row(row)
         assert result["title"] == "Bar"
         assert result["projection_state"] == PROJECTION_CORE
 
     def test_none_payload_returns_empty_dict_with_state(self, mock_db_pool):
         store = _make_store(mock_db_pool)
         row = {"payload_json": None, "projection_state": PROJECTION_FAILED}
-        result = store._payload_from_row(row)
+        result = store.payload_from_row(row)
         assert result == {"projection_state": PROJECTION_FAILED, "tconst": None}
 
     def test_invalid_json_returns_empty_dict(self, mock_db_pool):
         store = _make_store(mock_db_pool)
         row = {"payload_json": "not valid json{{{", "projection_state": PROJECTION_CORE}
         with pytest.raises(json.JSONDecodeError):
-            store._payload_from_row(row)
+            store.payload_from_row(row)
 
     def test_non_dict_payload_returns_empty_dict(self, mock_db_pool):
         """payload_json that is a list or number yields empty dict."""
         store = _make_store(mock_db_pool)
         row = {"payload_json": "[1, 2, 3]", "projection_state": PROJECTION_READY}
-        result = store._payload_from_row(row)
+        result = store.payload_from_row(row)
         assert result == {"projection_state": PROJECTION_READY, "tconst": None}
 
     def test_existing_projection_state_not_overwritten(self, mock_db_pool):
@@ -141,7 +141,7 @@ class TestPayloadFromRow:
             "payload_json": '{"projection_state": "ready", "title": "X"}',
             "projection_state": PROJECTION_CORE,
         }
-        result = store._payload_from_row(row)
+        result = store.payload_from_row(row)
         assert result["projection_state"] == PROJECTION_READY
 
 
@@ -360,7 +360,7 @@ class TestEnrichProjectionSuccess:
         enriched = {"title": "Enriched", "tmdb_id": 99, "_full": True}
         mock_db_pool.execute = AsyncMock(
             side_effect=[
-                _projection_row(),  # _select_row
+                _projection_row(),  # select_row
                 None,  # INSERT for ready state
             ]
         )
@@ -432,7 +432,7 @@ class TestEnrichProjectionSuccess:
     async def test_first_attempt_when_no_existing_row(self, mock_db_pool):
         mock_db_pool.execute = AsyncMock(
             side_effect=[
-                None,  # _select_row returns None
+                None,  # select_row returns None
                 None,  # INSERT
             ]
         )
@@ -457,7 +457,7 @@ class TestEnrichProjectionFailure:
     async def test_falls_back_to_core_on_exception(self, mock_db_pool):
         mock_db_pool.execute = AsyncMock(
             side_effect=[
-                _projection_row(),  # _select_row
+                _projection_row(),  # select_row
                 _core_db_row(),  # ensure_core_projection SELECT
                 None,  # ensure_core_projection INSERT
                 None,  # failure INSERT
@@ -640,7 +640,7 @@ class TestFetchRenderablePayload:
         mock_db_pool.execute = AsyncMock(
             side_effect=[
                 _projection_row(projection_state=PROJECTION_CORE),
-                # enrich_projection calls: _select_row, _upsert_ready
+                # enrich_projection calls: select_row, upsert_ready
                 _projection_row(projection_state=PROJECTION_CORE),
                 None,
             ]

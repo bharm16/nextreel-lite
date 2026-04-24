@@ -77,22 +77,11 @@ class ProjectionStore:
     def _local_enrichment_tasks(self) -> "set[asyncio.Task]":
         return self.coordinator._local_enrichment_tasks
 
-    def _payload_from_row(self, row: dict[str, Any]) -> dict[str, Any]:
+    def payload_from_row(self, row: dict[str, Any]) -> dict[str, Any]:
         return self.repository.payload_from_row(row)
 
-    def payload_from_row(self, row: dict[str, Any]) -> dict[str, Any]:
-        return self._payload_from_row(row)
-
-    async def _select_row(self, tconst: str) -> dict[str, Any] | None:
-        return await self.repository.select_row(tconst)
-
     async def select_row(self, tconst: str) -> dict[str, Any] | None:
-        """Public accessor for the row-select implementation.
-
-        Delegates to :meth:`_select_row` so tests that patch the private
-        name continue to work transparently.
-        """
-        return await self._select_row(tconst)
+        return await self.repository.select_row(tconst)
 
     async def fetch_renderable_payload(self, tconst: str) -> dict[str, Any] | None:
         return await self.read_service.fetch_renderable_payload(tconst)
@@ -117,12 +106,8 @@ class ProjectionStore:
     def _persisted_payload(payload: dict[str, Any]) -> dict[str, Any]:
         return ProjectionPayloadFactory.persisted_payload(payload)
 
-    async def _mark_attempt(self, tconst: str, now: datetime) -> None:
-        await self.repository.mark_attempt(tconst, now)
-
     async def mark_attempt(self, tconst: str, now: datetime) -> None:
-        """Public accessor for the mark-attempt implementation."""
-        await self._mark_attempt(tconst, now)
+        await self.repository.mark_attempt(tconst, now)
 
     async def mark_ready_stale_if_due(self, tconst: str) -> None:
         await self.repository.mark_ready_stale_if_due(tconst)
@@ -150,7 +135,7 @@ class ProjectionStore:
     async def ready_check(self) -> bool:
         return await self.repository.ready_check()
 
-    async def _upsert_ready(
+    async def upsert_ready(
         self,
         tconst: str,
         payload: dict[str, Any],
@@ -159,16 +144,6 @@ class ProjectionStore:
     ) -> None:
         await self.repository.upsert_ready(tconst, payload, now, attempts)
 
-    async def upsert_ready(
-        self,
-        tconst: str,
-        payload: dict[str, Any],
-        now: datetime,
-        attempts: int,
-    ) -> None:
-        """Public accessor for the upsert-ready implementation."""
-        await self._upsert_ready(tconst, payload, now, attempts)
-
     async def refresh_ready_metadata(
         self,
         tconst: str,
@@ -176,24 +151,6 @@ class ProjectionStore:
         attempts: int,
     ) -> None:
         await self.repository.refresh_ready_metadata(tconst, now, attempts)
-
-    async def _upsert_failed(
-        self,
-        tconst: str,
-        payload: dict[str, Any],
-        now: datetime,
-        attempts: int,
-        error: str,
-        tmdb_id: int | None = None,
-    ) -> None:
-        await self.repository.upsert_failed(
-            tconst,
-            payload,
-            now,
-            attempts,
-            error,
-            tmdb_id=tmdb_id,
-        )
 
     async def upsert_failed(
         self,
@@ -204,8 +161,7 @@ class ProjectionStore:
         error: str,
         tmdb_id: int | None = None,
     ) -> None:
-        """Public accessor for the upsert-failed implementation."""
-        await self._upsert_failed(
+        await self.repository.upsert_failed(
             tconst,
             payload,
             now,
