@@ -48,7 +48,7 @@ def test_movie_manager_factory_composes_injected_dependencies():
 
 
 def test_resolve_redis_url_uses_local_default(monkeypatch):
-    from nextreel.infra.redis_runtime import resolve_redis_url
+    from infra.redis_runtime import resolve_redis_url
 
     monkeypatch.delenv("REDIS_URL", raising=False)
 
@@ -56,7 +56,7 @@ def test_resolve_redis_url_uses_local_default(monkeypatch):
 
 
 def test_resolve_redis_url_requires_production_host_and_port(monkeypatch):
-    from nextreel.infra.redis_runtime import resolve_redis_url
+    from infra.redis_runtime import resolve_redis_url
 
     monkeypatch.delenv("UPSTASH_REDIS_HOST", raising=False)
     monkeypatch.delenv("UPSTASH_REDIS_PORT", raising=False)
@@ -67,7 +67,7 @@ def test_resolve_redis_url_requires_production_host_and_port(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_runtime_job_queue_forwards_enqueue_kwargs():
-    from nextreel.infra.job_queue import RuntimeJobQueue
+    from infra.job_queue import RuntimeJobQueue
 
     pool = MagicMock()
     pool.enqueue_job = AsyncMock(return_value=object())
@@ -99,7 +99,7 @@ async def test_runtime_job_queue_forwards_enqueue_kwargs():
 
 @pytest.mark.asyncio
 async def test_runtime_job_queue_returns_none_when_pool_unavailable():
-    from nextreel.infra.job_queue import RuntimeJobQueue
+    from infra.job_queue import RuntimeJobQueue
 
     app = SimpleNamespace(
         arq_redis=None,

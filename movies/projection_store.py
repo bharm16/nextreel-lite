@@ -1,20 +1,24 @@
-"""Projection-table rendering source and async enrichment hooks."""
+"""Projection manager: facade that coordinates persistence, enrichment, and read-path policy.
+
+This module owns the public ``ProjectionStore`` facade plus the read-path
+decision logic (``ProjectionReadService``). Persistence lives in
+:mod:`movies.projection_repository` and enrichment scheduling/execution lives
+in :mod:`movies.projection_enrichment`.
+"""
 
 from __future__ import annotations
 
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from infra.time_utils import utcnow
+from infra.time_utils import env_bool, utcnow
 from logging_config import get_logger
 from movies.projection_enrichment import ProjectionEnrichmentCoordinator
-from movies.projection_payload_factory import (
+from movies.projection_repository import (
     PLACEHOLDER_BACKDROP,
     PLACEHOLDER_POSTER,
-    ProjectionPayloadFactory,
+    ProjectionRepository,
 )
-from movies.projection_read_service import ProjectionReadService
-from movies.projection_repository import ProjectionRepository
 from movies.projection_state import (
     EnrichmentResult,
     ProjectionState,
@@ -25,18 +29,107 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-# Backward-compatible string constants (used by tests and callers).
+# Backward-compatible string constants (used by tests and callers that
+# predate the enum).
 PROJECTION_READY = ProjectionState.READY.value
 PROJECTION_STALE = ProjectionState.STALE.value
 PROJECTION_CORE = ProjectionState.CORE.value
 PROJECTION_FAILED = ProjectionState.FAILED.value
 
+__all__ = [
+    "ProjectionStore",
+    "ProjectionReadService",
+    "PLACEHOLDER_BACKDROP",
+    "PLACEHOLDER_POSTER",
+    "PROJECTION_READY",
+    "PROJECTION_STALE",
+    "PROJECTION_CORE",
+    "PROJECTION_FAILED",
+]
+
+
+def _enrichment_blocks_render() -> bool:
+    return env_bool("PROJECTION_ENRICHMENT_BLOCKS_RENDER", default=False)
+
+
+class ProjectionReadService:
+    """Read-path policy: decide whether to serve, mark stale, or enqueue.
+
+    Absorbed from ``movies.projection_read_service``. Kept as a distinct
+    class so the decision tree is easy to unit-test in isolation. The
+    store delegates every read through an instance of this service.
+    """
+
+    def __init__(self, *, repository, coordinator, enrich_projection):
+        self.repository = repository
+        self.coordinator = coordinator
+        self._enrich_projection = enrich_projection
+
+    async def fetch_renderable_payload(self, tconst: str):
+        # Never wait for pending enrichment on the render path: HTML delivery
+        # is what lets the browser discover the hero image.
+        row = await self.repository.select_row(tconst)
+        now = utcnow()
+        if row:
+            state = row["projection_state"]
+            stale_after = row.get("stale_after")
+            if state == ProjectionState.READY.value and stale_after and stale_after <= now:
+                await self.repository.mark_ready_stale_if_due(tconst)
+                row["projection_state"] = ProjectionState.STALE.value
+                state = ProjectionState.STALE.value
+
+            if state == ProjectionState.READY.value:
+                return self.repository.payload_from_row(row)
+
+            if state == ProjectionState.STALE.value:
+                if self.coordinator is not None:
+                    await self.coordinator.maybe_enqueue_if_not_inflight(
+                        tconst,
+                        row,
+                        tmdb_id=row.get("tmdb_id"),
+                    )
+                return self.repository.payload_from_row(row)
+
+            if ProjectionState(state).needs_enrichment():
+                if _enrichment_blocks_render():
+                    enriched = await self._enrich_projection(
+                        tconst,
+                        known_tmdb_id=row.get("tmdb_id"),
+                    )
+                    if enriched:
+                        return enriched
+                else:
+                    if self.coordinator is not None:
+                        await self.coordinator.maybe_enqueue_if_not_inflight(
+                            tconst,
+                            row,
+                            tmdb_id=row.get("tmdb_id"),
+                        )
+
+                payload = self.repository.payload_from_row(row)
+                if not payload or payload.get("projection_state") == ProjectionState.FAILED.value:
+                    payload = await self.repository.ensure_core_projection(tconst)
+                return payload
+
+        if _enrichment_blocks_render():
+            enriched = await self._enrich_projection(tconst)
+            if enriched:
+                return enriched
+
+        payload = await self.repository.ensure_core_projection(tconst)
+        if not _enrichment_blocks_render() and self.coordinator is not None and payload:
+            await self.coordinator.maybe_enqueue_if_not_inflight(
+                tconst,
+                None,
+                tmdb_id=None,
+            )
+        return payload
+
 
 class ProjectionStore:
     def __init__(self, db_pool, tmdb_helper=None, enqueue_fn=None):
         self.db_pool = db_pool
-        self.payload_factory = ProjectionPayloadFactory()
-        self.repository = ProjectionRepository(db_pool, payload_factory=self.payload_factory)
+        self.repository = ProjectionRepository(db_pool)
         self.coordinator = ProjectionEnrichmentCoordinator(
             self,
             tmdb_helper=tmdb_helper,
@@ -104,7 +197,7 @@ class ProjectionStore:
 
     @staticmethod
     def _persisted_payload(payload: dict[str, Any]) -> dict[str, Any]:
-        return ProjectionPayloadFactory.persisted_payload(payload)
+        return ProjectionRepository.persisted_payload(payload)
 
     async def mark_attempt(self, tconst: str, now: datetime) -> None:
         await self.repository.mark_attempt(tconst, now)
@@ -130,7 +223,7 @@ class ProjectionStore:
         return await self.repository.ensure_core_projection(tconst)
 
     def build_core_payload(self, row: dict[str, Any]) -> dict[str, Any]:
-        return self.payload_factory.build_core_payload(row)
+        return self.repository.build_core_payload(row)
 
     async def ready_check(self) -> bool:
         return await self.repository.ready_check()

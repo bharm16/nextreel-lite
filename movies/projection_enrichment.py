@@ -1,20 +1,39 @@
-"""Projection enrichment orchestration and local task lifecycle."""
+"""Projection enrichment orchestration and local task lifecycle.
+
+Owns the full enrichment pipeline:
+- :class:`ProjectionPayloadDiffer` — detects whether a TMDb-fetched payload
+  differs from what is already persisted (lets us skip a full UPSERT).
+- :class:`ProjectionEnrichmentService` — fetches TMDb data for a single
+  tconst and persists the result through the store.
+- :class:`ProjectionEnrichmentCoordinator` — schedules, dedupes, and caps
+  concurrency for enrichment work across in-process tasks, ARQ worker
+  jobs, and cross-worker Redis locks.
+
+These three were previously in separate files (``projection_enrichment.py``
+and ``projection_enrichment_service.py``). They are coupled — the service is
+only ever instantiated by the coordinator — so they live together.
+"""
 
 from __future__ import annotations
 
 import asyncio
+import json
 from typing import TYPE_CHECKING, Any
 
+from infra.cache import CacheNamespace
 from infra.metrics import (
     enrichment_backlog_drop_total,
+    enrichment_timeout_total,
 )
 from infra.metrics_groups import safe_emit
 from infra.time_utils import env_int, utcnow
 from logging_config import get_logger
-
-from infra.cache import CacheNamespace
-from movies.projection_enrichment_service import ProjectionEnrichmentService
-from movies.projection_state import ENQUEUE_COOLDOWN
+from movies.movie import Movie
+from movies.projection_state import (
+    ENQUEUE_COOLDOWN,
+    EnrichmentResult,
+    ProjectionState,
+)
 
 # Global enrichment dedup window. Long enough to cover the 25s
 # ENRICHMENT_TIMEOUT_SECONDS + ARQ hand-off + retry cooldown. A crashed
@@ -25,6 +44,130 @@ if TYPE_CHECKING:
     from movies.projection_store import ProjectionStore
 
 logger = get_logger(__name__)
+
+
+class ProjectionPayloadDiffer:
+    """Compare a freshly-fetched payload to the one already persisted.
+
+    When enrichment returns unchanged data we can skip a full UPSERT and
+    just refresh metadata columns (enriched_at, stale_after, etc.). That
+    keeps the hot enrichment path cheap during steady-state refreshes.
+    """
+
+    def persisted_payload_matches(
+        self,
+        *,
+        store,
+        existing,
+        payload: dict[str, Any],
+    ) -> bool:
+        if isinstance(existing, str):
+            try:
+                existing = json.loads(existing)
+            except (TypeError, ValueError):
+                existing = None
+        if not isinstance(existing, dict):
+            return False
+        new_persisted = store._persisted_payload(payload)
+        new_serialized = json.dumps(new_persisted, sort_keys=True)
+        existing_serialized = json.dumps(existing, sort_keys=True)
+        return new_serialized == existing_serialized
+
+
+class ProjectionEnrichmentService:
+    """Fetch TMDb data for a single tconst and persist the result.
+
+    Encapsulates the wait_for timeout + payload-diff decision so the
+    coordinator can stay focused on scheduling and concurrency.
+    """
+
+    def __init__(
+        self,
+        *,
+        store,
+        tmdb_helper,
+        timeout_seconds: float,
+        payload_differ: ProjectionPayloadDiffer | None = None,
+    ) -> None:
+        self.store = store
+        self.tmdb_helper = tmdb_helper
+        self.timeout_seconds = timeout_seconds
+        self.payload_differ = payload_differ or ProjectionPayloadDiffer()
+
+    async def enrich_projection(
+        self,
+        tconst: str,
+        known_tmdb_id: int | None = None,
+    ) -> dict[str, Any] | None:
+        now = utcnow()
+        row = await self.store.select_row(tconst)
+        attempts = int(row.get("attempt_count", 0)) + 1 if row else 1
+        tmdb_id = known_tmdb_id if known_tmdb_id is not None else (row or {}).get("tmdb_id")
+        try:
+            movie = Movie(tconst, self.store.db_pool, tmdb_helper=self.tmdb_helper)
+            try:
+                payload = await asyncio.wait_for(
+                    movie.get_movie_data(known_tmdb_id=tmdb_id),
+                    timeout=self.timeout_seconds,
+                )
+            except asyncio.TimeoutError:
+                safe_emit(enrichment_timeout_total.inc)
+                raise RuntimeError("enrichment timeout after %ss" % self.timeout_seconds)
+            if not payload:
+                raise RuntimeError("TMDB enrichment returned no payload")
+
+            payload["tmdb_id"] = payload.get("tmdb_id") or tmdb_id
+            payload["projection_state"] = ProjectionState.READY.value
+
+            if row and self.payload_differ.persisted_payload_matches(
+                store=self.store,
+                existing=row.get("payload_json"),
+                payload=payload,
+            ):
+                logger.debug("payload unchanged for %s, refreshing metadata only", tconst)
+                await self.store.apply_enrichment_result(
+                    tconst,
+                    EnrichmentResult(
+                        status="ready",
+                        persistence_mode="READY_METADATA_ONLY",
+                        payload=payload,
+                        attempts=attempts,
+                        tmdb_id=payload.get("tmdb_id"),
+                        error=None,
+                        timestamp=now,
+                    ),
+                )
+                return payload
+
+            await self.store.apply_enrichment_result(
+                tconst,
+                EnrichmentResult(
+                    status="ready",
+                    persistence_mode="READY_UPSERT",
+                    payload=payload,
+                    attempts=attempts,
+                    tmdb_id=payload.get("tmdb_id"),
+                    error=None,
+                    timestamp=now,
+                ),
+            )
+            return payload
+        except Exception as exc:
+            core_payload = await self.store.ensure_core_projection(tconst)
+            await self.store.apply_enrichment_result(
+                tconst,
+                EnrichmentResult(
+                    status="failed",
+                    persistence_mode="FAILED_UPSERT",
+                    payload=core_payload or {},
+                    attempts=attempts,
+                    tmdb_id=tmdb_id,
+                    error=str(exc),
+                    timestamp=now,
+                ),
+            )
+            logger.warning("Projection enrichment failed for %s: %s", tconst, exc)
+            return core_payload
 
 
 class ProjectionEnrichmentCoordinator:

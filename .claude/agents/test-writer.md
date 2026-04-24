@@ -47,7 +47,7 @@ async def test_with_mocked_service():
 
 ### Important Rules
 - `MovieManager.home()` returns `{"default_backdrop_url": ...}` — NOT a rendered template.
-- `MovieManager.add_user()` calls `navigator.load_initial_queue()` (public method name).
+- `MovieNavigator.prewarm_queue()` is the canonical entry for priming the queue (called from `home_prewarm_service`).
 - `_is_full_movie()` checks for `"_full"` sentinel key, NOT `"cast"` or `"plot"`.
 - Use `%s`-style logging in any helpers (never f-strings).
 - Parameterized SQL only (`%s` placeholders).

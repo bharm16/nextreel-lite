@@ -362,10 +362,7 @@ async def test_post_next_movie_rejects_without_csrf():
 
 async def test_handle_new_user_route_removed():
     """handle_new_user was removed — any request should return 404."""
-    with patch.dict(os.environ, TEST_ENV), patch("app.MovieManager") as MockManager:
-        manager = MockManager.return_value
-        manager.add_user = AsyncMock()
-
+    with patch.dict(os.environ, TEST_ENV), patch("app.MovieManager"):
         app = _make_test_app()
         async with app.app_context():
             client = app.test_client()

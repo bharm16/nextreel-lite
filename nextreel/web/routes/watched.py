@@ -202,6 +202,9 @@ async def import_letterboxd():
             db_pool=services.movie_manager.db_pool,
             watched_store=services.movie_manager.watched_store,
             enqueue_fn=getattr(current_app, "enqueue_runtime_job", None),
+            background_scheduler=getattr(
+                services.movie_manager, "schedule_background", None
+            ),
         )
     except Exception:
         logger.exception("Letterboxd import failed for user %s", user_id)

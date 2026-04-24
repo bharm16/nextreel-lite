@@ -298,7 +298,12 @@ class CandidateStore:
                     pool.append(_ref_from_row(row))
                     if len(pool) >= fetch_limit:
                         break
-                await self._store_filter_pool(criteria, excluded_tconsts, pool)
+                # Only cache when the fetch used no caller-specific exclusions.
+                # Otherwise the stored pool would be polluted with one user's
+                # exclusions and later readers with different exclusions would
+                # sample from an inappropriately narrowed pool.
+                if not excluded_tconsts:
+                    await self._store_filter_pool(criteria, excluded_tconsts, pool)
                 # Return only what the caller asked for, randomized so
                 # two concurrent callers miss the cache → see different orders.
                 random.shuffle(pool)

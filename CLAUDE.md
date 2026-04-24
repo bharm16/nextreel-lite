@@ -69,9 +69,6 @@ nextreel/
       ops.py             # Health, readiness, metrics routes
   bootstrap/
     movie_manager_factory.py  # Composition root for MovieManager
-  infra/
-    job_queue.py         # arq job queue installation helpers
-    redis_runtime.py     # Redis connection setup
   workers/
     worker.py            # arq WorkerSettings, job definitions
 movies/
@@ -84,13 +81,10 @@ movies/
   candidate_store.py    # Data access layer for movie candidates
   candidate_filter_pool_cache.py  # Per-filter candidate pool cache
   movie_payload.py      # Movie payload assembly helpers
-  projection_store.py   # Projection facade — coordinates enrichment + reads
-  projection_repository.py  # Projection SQL CRUD
-  projection_read_service.py # Projection read-path queries
-  projection_enrichment.py   # Enrichment coordinator (in-flight dedup)
-  projection_enrichment_service.py  # TMDb fetch + diff for enrichment
+  projection_store.py   # Projection manager — read-path + enrichment orchestration facade (contains ProjectionReadService)
+  projection_repository.py  # Projection SQL persistence + payload shaping helpers
+  projection_enrichment.py   # Enrichment coordinator + TMDb fetch service + payload differ
   projection_state.py   # State enum, policy constants, EnrichmentResult
-  projection_payload_factory.py  # Payload shaping for projection rows
   watched_store.py      # Watched-list persistence
   letterboxd_import.py  # Letterboxd CSV parsing and title matching
   filter_parser.py      # Filter query parsing and validation
@@ -120,6 +114,8 @@ infra/
   integrity_checks.py   # Data integrity validators
   legacy_migration.py   # One-shot legacy data migrations
   maintenance_jobs.py   # Worker job bodies (refresh candidates, purge state)
+  job_queue.py          # arq job queue installation helpers
+  redis_runtime.py      # Redis connection setup
   time_utils.py         # Time/timezone helpers
 config/
   env.py                # get_environment() — single source for env detection
@@ -194,7 +190,7 @@ All queries must use parameterized placeholders (`%s`), including LIMIT and OFFS
 
 - pytest-asyncio with `asyncio_mode = "auto"` in `tests/`
 - `MovieManager.home()` returns a dict `{"default_backdrop_url": ...}` — not a rendered template
-- `MovieManager.add_user()` is a backward-compatible no-op. Navigator queue is primed via `prewarm_queue()`.
+- Navigator queue is primed via `prewarm_queue()` (called from `home_prewarm_service`).
 - Mock targets: `movie_service.MovieManager`, use `patch.dict(os.environ, {...})` for env vars (not module-level attribute patches)
 
 ## Gotchas

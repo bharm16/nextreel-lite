@@ -234,6 +234,7 @@ async def test_movie_data_cleans_up_tasks_on_no_tmdb_id():
 
 async def test_home_schedules_background_prewarm_when_dual_write_off(monkeypatch):
     from nextreel.application.movie_service import MovieManager
+    from nextreel.application.home_prewarm_service import HomePrewarmService
 
     monkeypatch.setenv("NAV_STATE_DUAL_WRITE_ENABLED", "false")
 
@@ -242,6 +243,7 @@ async def test_home_schedules_background_prewarm_when_dual_write_off(monkeypatch
     mgr._navigator = MagicMock()
     mgr._navigator.prewarm_queue = AsyncMock()
     mgr.default_backdrop_url = None
+    mgr._home_prewarm_service = HomePrewarmService()
 
     scheduled: list = []
 
@@ -267,6 +269,7 @@ async def test_home_schedules_background_prewarm_when_dual_write_off(monkeypatch
 
 async def test_home_uses_inline_prewarm_when_dual_write_on(monkeypatch):
     from nextreel.application.movie_service import MovieManager
+    from nextreel.application.home_prewarm_service import HomePrewarmService
 
     monkeypatch.setenv("NAV_STATE_DUAL_WRITE_ENABLED", "true")
 
@@ -276,6 +279,7 @@ async def test_home_uses_inline_prewarm_when_dual_write_on(monkeypatch):
     prewarm_mock = AsyncMock()
     mgr._navigator.prewarm_queue = prewarm_mock
     mgr.default_backdrop_url = None
+    mgr._home_prewarm_service = HomePrewarmService()
 
     scheduled: list = []
 
@@ -294,6 +298,7 @@ async def test_home_uses_inline_prewarm_when_dual_write_on(monkeypatch):
 
 async def test_home_uses_inline_prewarm_when_no_scheduler(monkeypatch):
     from nextreel.application.movie_service import MovieManager
+    from nextreel.application.home_prewarm_service import HomePrewarmService
 
     monkeypatch.setenv("NAV_STATE_DUAL_WRITE_ENABLED", "false")
 
@@ -304,6 +309,7 @@ async def test_home_uses_inline_prewarm_when_no_scheduler(monkeypatch):
     mgr._navigator.prewarm_queue = prewarm_mock
     mgr.default_backdrop_url = None
     mgr._background_scheduler = None  # no scheduler
+    mgr._home_prewarm_service = HomePrewarmService()
 
     state = _make_state("sid-3")
     await mgr.home(state)

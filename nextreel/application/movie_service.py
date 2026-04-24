@@ -55,10 +55,21 @@ class MovieManager:
             tmdb_helper=self.tmdb_helper,
         )
         self.projection_coordinator = self.projection_store.coordinator
-        self.navigation_state_store = navigation_state_store
-        self._navigator = navigator
-        self._renderer = renderer
         self.watched_store = watched_store or WatchedStore(self.db_pool)
+        # Eager wiring: navigation_state_store and navigator are constructed at
+        # __init__ rather than at start(). SQL calls inside these collaborators
+        # still require the pool to be initialized first, but holding the
+        # reference is cheap and removes a temporal-coupling footgun where
+        # callers invoke nav methods before start().
+        self.navigation_state_store = navigation_state_store or NavigationStateStore(
+            self.db_pool
+        )
+        self._navigator = navigator or MovieNavigator(
+            self.candidate_store,
+            self.navigation_state_store,
+            watched_store=self.watched_store,
+        )
+        self._renderer = renderer
         self._home_prewarm_service = home_prewarm_service or HomePrewarmService()
         # Background-task scheduler hook wired from ``app.create_app()``. When
         # present, request handlers can schedule best-effort work (queue
@@ -124,13 +135,6 @@ class MovieManager:
         await self.db_pool.init_pool()
         await ensure_runtime_schema(self.db_pool)
 
-        self.navigation_state_store = NavigationStateStore(self.db_pool)
-        self._navigator = MovieNavigator(
-            self.candidate_store,
-            self.navigation_state_store,
-            watched_store=self.watched_store,
-        )
-
     async def close(self) -> None:
         try:
             if self.projection_coordinator:
@@ -154,12 +158,8 @@ class MovieManager:
             logger.error("Error closing MovieManager: %s", e)
 
     def prev_stack_length(self, state: NavigationState | None) -> int:
-        """Number of entries currently in the prev stack for this navigation state.
-
-        Facade over the underlying navigator so callers don't reach into
-        ``_navigator`` directly.
-        """
-        if self._navigator is None or state is None:
+        """Number of entries currently in the prev stack for this navigation state."""
+        if state is None:
             return 0
         return self._navigator.prev_stack_length(state)
 
@@ -168,19 +168,13 @@ class MovieManager:
         state: NavigationState | None,
         legacy_session: MutableMapping[str, Any] | None = None,
     ) -> dict[str, Any]:
-        prewarm_service = getattr(self, "_home_prewarm_service", None)
-        if prewarm_service is None:
-            prewarm_service = HomePrewarmService()
-            self._home_prewarm_service = prewarm_service
-
-        await prewarm_service.prewarm(
+        await self._home_prewarm_service.prewarm(
             state=state,
             navigator=self._navigator,
             legacy_session=legacy_session,
             background_scheduler=self._background_scheduler,
             schedule_background=self.schedule_background,
         )
-
         return {"default_backdrop_url": self.default_backdrop_url}
 
     async def set_default_backdrop(self) -> None:
@@ -202,9 +196,7 @@ class MovieManager:
                 "MovieManager has no renderer configured; "
                 "construct via nextreel.bootstrap.movie_manager_factory.build_movie_manager"
             )
-        previous_count = (
-            self._navigator.prev_stack_length(state) if self._navigator and state else 0
-        )
+        previous_count = self._navigator.prev_stack_length(state) if state else 0
         return await self._renderer.render_movie_by_tconst(
             tconst,
             previous_count=previous_count,
@@ -212,7 +204,7 @@ class MovieManager:
         )
 
     def get_current_movie_tconst(self, state: NavigationState | None) -> str | None:
-        if not self._navigator or not state:
+        if not state:
             return None
         return self._navigator.get_current_movie_tconst(state)
 
@@ -221,10 +213,10 @@ class MovieManager:
         state: NavigationState | None,
         legacy_session: MutableMapping[str, Any] | None = None,
     ) -> NavigationOutcome | None:
-        if not self._navigator or not state:
+        if not state:
             return None
         current_state = state
-        if not state.queue and self._home_prewarm_service is not None:
+        if not state.queue:
             waited = await self._home_prewarm_service.wait_for_session(state.session_id)
             if waited:
                 current_state = None
@@ -239,7 +231,7 @@ class MovieManager:
         state: NavigationState | None,
         legacy_session: MutableMapping[str, Any] | None = None,
     ) -> NavigationOutcome | None:
-        if not self._navigator or not state:
+        if not state:
             return None
         return await self._navigator.previous_movie(
             state.session_id,
@@ -253,9 +245,8 @@ class MovieManager:
         filters: FilterState,
         legacy_session: MutableMapping[str, Any] | None = None,
     ) -> NavigationOutcome | None:
-        if not self._navigator or not state:
+        if not state:
             return None
-
         return await self._navigator.apply_filters(
             state.session_id,
             filters,

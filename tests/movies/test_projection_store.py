@@ -364,7 +364,7 @@ class TestEnrichProjectionSuccess:
                 None,  # INSERT for ready state
             ]
         )
-        with patch("movies.projection_enrichment_service.Movie") as MockMovie:
+        with patch("movies.projection_enrichment.Movie") as MockMovie:
             mock_movie = MockMovie.return_value
             mock_movie.get_movie_data = AsyncMock(return_value=enriched)
 
@@ -383,7 +383,7 @@ class TestEnrichProjectionSuccess:
                 None,
             ]
         )
-        with patch("movies.projection_enrichment_service.Movie") as MockMovie:
+        with patch("movies.projection_enrichment.Movie") as MockMovie:
             MockMovie.return_value.get_movie_data = AsyncMock(return_value=enriched)
             store = _make_store(mock_db_pool)
             await store.enrich_projection("tt1234567")
@@ -401,7 +401,7 @@ class TestEnrichProjectionSuccess:
                 None,
             ]
         )
-        with patch("movies.projection_enrichment_service.Movie") as MockMovie:
+        with patch("movies.projection_enrichment.Movie") as MockMovie:
             MockMovie.return_value.get_movie_data = AsyncMock(return_value=enriched)
             store = _make_store(mock_db_pool)
             await store.enrich_projection("tt1234567")
@@ -419,7 +419,7 @@ class TestEnrichProjectionSuccess:
                 None,
             ]
         )
-        with patch("movies.projection_enrichment_service.Movie") as MockMovie:
+        with patch("movies.projection_enrichment.Movie") as MockMovie:
             MockMovie.return_value.get_movie_data = AsyncMock(return_value={"title": "X"})
             store = _make_store(mock_db_pool)
             await store.enrich_projection("tt1234567")
@@ -436,7 +436,7 @@ class TestEnrichProjectionSuccess:
                 None,  # INSERT
             ]
         )
-        with patch("movies.projection_enrichment_service.Movie") as MockMovie:
+        with patch("movies.projection_enrichment.Movie") as MockMovie:
             MockMovie.return_value.get_movie_data = AsyncMock(return_value={"title": "X"})
             store = _make_store(mock_db_pool)
             await store.enrich_projection("tt1234567")
@@ -463,7 +463,7 @@ class TestEnrichProjectionFailure:
                 None,  # failure INSERT
             ]
         )
-        with patch("movies.projection_enrichment_service.Movie") as MockMovie:
+        with patch("movies.projection_enrichment.Movie") as MockMovie:
             MockMovie.return_value.get_movie_data = AsyncMock(side_effect=RuntimeError("TMDb down"))
             store = _make_store(mock_db_pool)
             result = await store.enrich_projection("tt1234567")
@@ -480,7 +480,7 @@ class TestEnrichProjectionFailure:
                 None,
             ]
         )
-        with patch("movies.projection_enrichment_service.Movie") as MockMovie:
+        with patch("movies.projection_enrichment.Movie") as MockMovie:
             MockMovie.return_value.get_movie_data = AsyncMock(side_effect=ValueError("bad data"))
             store = _make_store(mock_db_pool)
             await store.enrich_projection("tt1234567")
@@ -501,7 +501,7 @@ class TestEnrichProjectionFailure:
                 None,
             ]
         )
-        with patch("movies.projection_enrichment_service.Movie") as MockMovie:
+        with patch("movies.projection_enrichment.Movie") as MockMovie:
             MockMovie.return_value.get_movie_data = AsyncMock(return_value=None)
             store = _make_store(mock_db_pool)
             result = await store.enrich_projection("tt1234567")

@@ -54,15 +54,6 @@ class TestNextMovie:
 
     @pytest.mark.asyncio
     @patch.dict(os.environ, TEST_ENV)
-    async def test_returns_none_when_navigator_missing(self):
-        mm = MovieManager(db_config=None)
-        mm._navigator = None
-
-        result = await mm.next_movie(_state())
-        assert result is None
-
-    @pytest.mark.asyncio
-    @patch.dict(os.environ, TEST_ENV)
     async def test_returns_none_when_state_is_none(self):
         mm = MovieManager(db_config=None)
         mm._navigator = AsyncMock()
@@ -109,16 +100,6 @@ class TestPreviousMovie:
             legacy_session=None,
             current_state=state,
         )
-
-    @pytest.mark.asyncio
-    @patch.dict(os.environ, TEST_ENV)
-    async def test_returns_none_when_navigator_missing(self):
-        mm = MovieManager(db_config=None)
-        mm._navigator = None
-
-        result = await mm.previous_movie(_state())
-        assert result is None
-
 
 class TestRenderMovieByTconst:
     @pytest.mark.asyncio

@@ -36,8 +36,8 @@ from nextreel.bootstrap.movie_manager_factory import (
     build_movie_manager as _compose_movie_manager,
 )
 from nextreel.application.movie_service import MovieManager
-from nextreel.infra.job_queue import install_runtime_job_queue
-from nextreel.infra.redis_runtime import setup_redis_runtime as _setup_redis
+from infra.job_queue import install_runtime_job_queue
+from infra.redis_runtime import setup_redis_runtime as _setup_redis
 from nextreel.web.lifecycle import register_lifecycle_handlers
 from nextreel.web.request_context import register_request_context_handlers
 from nextreel.web.routes import bp as routes_bp, init_routes

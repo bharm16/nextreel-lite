@@ -14,7 +14,7 @@ from movies.projection_store import PROJECTION_READY, PROJECTION_STALE
 class TestProjectionReadService:
     @pytest.mark.asyncio
     async def test_pending_inflight_does_not_block_ready_row_return(self):
-        from movies.projection_read_service import ProjectionReadService
+        from movies.projection_store import ProjectionReadService
 
         started = asyncio.Event()
         release = asyncio.Event()
@@ -59,7 +59,7 @@ class TestProjectionReadService:
 
     @pytest.mark.asyncio
     async def test_ready_row_returns_payload_without_enqueue(self):
-        from movies.projection_read_service import ProjectionReadService
+        from movies.projection_store import ProjectionReadService
 
         repository = MagicMock()
         repository.select_row = AsyncMock(
@@ -86,7 +86,7 @@ class TestProjectionReadService:
 
     @pytest.mark.asyncio
     async def test_stale_row_enqueues_and_returns_existing_payload(self):
-        from movies.projection_read_service import ProjectionReadService
+        from movies.projection_store import ProjectionReadService
 
         row = {
             "tconst": "tt1234567",

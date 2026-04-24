@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import asyncio
 import io
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable
 
+from logging_config import get_logger
 from movies.letterboxd_import import (
     MatchResult,
     enqueue_import_enrichment,
@@ -12,10 +12,39 @@ from movies.letterboxd_import import (
     parse_watched_csv,
 )
 
+logger = get_logger(__name__)
+
 MAX_LETTERBOXD_UPLOAD_BYTES = 5 * 1024 * 1024
 
 MatchFilmsFn = Callable[[Any, list[dict]], Awaitable[MatchResult]]
-ScheduleEnrichmentFn = Callable[[list[str], Any, Any], Awaitable[bool]]
+# Scheduler contract mirrors ``MovieManager.schedule_background``: accepts a
+# coroutine, wraps it in a task registered with the app's drain set, returns
+# True on success / False if no scheduler is wired (in which case the coro
+# must be closed by the scheduler itself).
+BackgroundScheduler = Callable[[Awaitable[Any]], bool]
+ScheduleEnrichmentFn = Callable[
+    [list[str], Any, Any, "BackgroundScheduler | None"],
+    Awaitable[bool],
+]
+
+
+async def _schedule_import_enrichment(
+    tconsts: list[str],
+    db_pool,
+    enqueue_fn,
+    background_scheduler: BackgroundScheduler | None = None,
+) -> bool:
+    if not tconsts or enqueue_fn is None:
+        return False
+    coro = enqueue_import_enrichment(tconsts, db_pool, enqueue_fn)
+    if background_scheduler is None:
+        try:
+            await coro
+        except Exception:
+            logger.exception("Letterboxd enrichment enqueue failed")
+            return False
+        return True
+    return bool(background_scheduler(coro))
 
 
 @dataclass(slots=True)
@@ -26,17 +55,6 @@ class LetterboxdImportOutcome:
     matched: list[str] = field(default_factory=list)
     unmatched_labels: list[str] = field(default_factory=list)
     enrichment_requested: bool = False
-
-
-async def _schedule_import_enrichment(
-    tconsts: list[str],
-    db_pool,
-    enqueue_fn,
-) -> bool:
-    if not tconsts or enqueue_fn is None:
-        return False
-    asyncio.create_task(enqueue_import_enrichment(tconsts, db_pool, enqueue_fn))
-    return True
 
 
 class LetterboxdImportService:
@@ -59,6 +77,7 @@ class LetterboxdImportService:
         db_pool,
         watched_store,
         enqueue_fn,
+        background_scheduler: BackgroundScheduler | None = None,
     ) -> LetterboxdImportOutcome:
         if not uploaded or not getattr(uploaded, "filename", None):
             return LetterboxdImportOutcome(
@@ -102,6 +121,7 @@ class LetterboxdImportService:
             result.matched,
             db_pool,
             enqueue_fn,
+            background_scheduler,
         )
 
         matched_count = len(result.matched)

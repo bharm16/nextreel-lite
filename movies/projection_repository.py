@@ -7,23 +7,87 @@ from datetime import datetime
 from typing import Any
 
 from infra.time_utils import utcnow
-from movies.projection_payload_factory import ProjectionPayloadFactory
-from movies.projection_state import FAILED_RETRY_COOLDOWN, EnrichmentResult, ProjectionState, STALE_AFTER
+from movies.projection_state import (
+    FAILED_RETRY_COOLDOWN,
+    EnrichmentResult,
+    ProjectionState,
+    STALE_AFTER,
+)
+
+PLACEHOLDER_POSTER = "/static/img/poster-placeholder.svg"
+PLACEHOLDER_BACKDROP = "/static/img/backdrop-placeholder.svg"
 
 
 class ProjectionRepository:
-    def __init__(self, db_pool, payload_factory: ProjectionPayloadFactory | None = None):
+    def __init__(self, db_pool):
         self.db_pool = db_pool
-        self.payload_factory = payload_factory or ProjectionPayloadFactory()
+
+    # ------------------------------------------------------------------
+    # Payload shaping helpers (absorbed from projection_payload_factory).
+    # These are data-mapping concerns that belong with the row model.
+    # ------------------------------------------------------------------
 
     def payload_from_row(self, row: dict[str, Any]) -> dict[str, Any]:
-        return self.payload_factory.payload_from_row(row)
+        payload = row.get("payload_json")
+        if isinstance(payload, str):
+            payload = json.loads(payload)
+        if not isinstance(payload, dict):
+            payload = {}
+        payload.setdefault("projection_state", row.get("projection_state"))
+        payload.setdefault("tconst", row.get("tconst"))
+        return payload
 
-    def persisted_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
-        return self.payload_factory.persisted_payload(payload)
+    @staticmethod
+    def persisted_payload(payload: dict[str, Any]) -> dict[str, Any]:
+        slimmed = dict(payload)
+        slimmed.pop("images", None)
+        slimmed.pop("credits", None)
+        return slimmed
 
     def build_core_payload(self, row: dict[str, Any]) -> dict[str, Any]:
-        return self.payload_factory.build_core_payload(row)
+        language = row.get("language") or "unknown"
+        genres = row.get("genres") or "Unknown"
+        rating = row.get("averageRating") or 0
+        votes = row.get("numVotes") or 0
+        return {
+            "title": row.get("primaryTitle") or "Unknown",
+            "tconst": row["tconst"],
+            "imdb_id": row["tconst"],
+            "tmdb_id": None,
+            "slug": row.get("slug"),
+            "genres": genres,
+            "directors": "Unknown",
+            "rating": float(rating),
+            "votes": int(votes),
+            "plot": "Additional details are still loading for this title.",
+            "poster_url": PLACEHOLDER_POSTER,
+            "year": str(row.get("startYear") or "Unknown"),
+            "cast": [],
+            "trailer": None,
+            "backdrop_url": PLACEHOLDER_BACKDROP,
+            "original_language": language,
+            "spoken_languages": [language] if language != "unknown" else [],
+            "age_rating": "Not Rated",
+            "budget": "Unknown",
+            "revenue": "Unknown",
+            "runtime": "Unknown",
+            "production_countries": "Unknown",
+            "status": "Unknown",
+            "tagline": "",
+            "watch_providers": None,
+            "key_crew": [],
+            "keywords": [],
+            "recommendations": [],
+            "external_ids": {},
+            "collection": None,
+            "homepage": "",
+            "_full": False,
+            "projection_state": ProjectionState.CORE.value,
+        }
+
+    # ------------------------------------------------------------------
+    # SQL persistence.
+    # ------------------------------------------------------------------
 
     async def select_row(self, tconst: str) -> dict[str, Any] | None:
         return await self.db_pool.execute(
