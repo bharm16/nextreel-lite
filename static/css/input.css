@@ -543,7 +543,9 @@
     width: 16px; height: 16px;
     stroke: currentColor; fill: none; stroke-width: 2;
   }
-  form[data-watched-state="unwatched"] .nav-btn-watched,
+  form[data-watched-state="unwatched"] .nav-btn-watched {
+    color: var(--color-text-muted);
+  }
   .nav-btn-watched--login {
     color: var(--color-text-muted);
     text-decoration: none;

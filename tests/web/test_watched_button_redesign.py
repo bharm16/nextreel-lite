@@ -104,13 +104,19 @@ def _media_blocks(css: str, query: str) -> list[str]:
     return blocks
 
 
-def test_nav_btn_watched_prefix_hidden_on_mobile():
+def test_nav_btn_watched_prefix_hidden_on_narrow_mobile():
+    """The 'Mark as ' prefix should be hidden on very narrow phones (≤360px).
+
+    Earlier revisions hid the prefix on all mobile (≤640px), but the current
+    design keeps it visible at typical phone sizes and only hides on the
+    narrowest viewports where Prev/Next/Watched would otherwise overflow.
+    """
     css = _input_css()
-    blocks = _media_blocks(css, "@media (max-width: 640px)")
-    assert blocks, "could not locate any @media (max-width: 640px) block"
+    blocks = _media_blocks(css, "@media (max-width: 360px)")
+    assert blocks, "could not locate any @media (max-width: 360px) block"
     joined = "\n".join(blocks)
     assert ".nav-btn-watched__prefix" in joined, (
-        ".nav-btn-watched__prefix must be defined inside a 640px media query"
+        ".nav-btn-watched__prefix must be defined inside a 360px media query"
     )
     prefix_idx = joined.index(".nav-btn-watched__prefix")
     nearby = joined[prefix_idx : prefix_idx + 100]
