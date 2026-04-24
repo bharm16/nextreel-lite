@@ -25,16 +25,6 @@
     <!-- Watched top-level link -->
     <a href="{{ url_for('main.watched_list_page') }}" class="navbar-link">Watched</a>
 
-    <!-- Pick a Movie primary action -->
-    <a href="/next_movie" class="navbar-pill"
-       onclick="event.preventDefault(); document.getElementById('pickMovieFormNav').submit();">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3l14 9-14 9V3z"/></svg>
-      <span>Pick a Movie</span>
-    </a>
-    <form id="pickMovieFormNav" method="POST" action="/next_movie" class="hidden">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    </form>
-
     <!-- Avatar dropdown -->
     <div class="account-avatar-dropdown">
       <button type="button" class="account-avatar-dropdown-trigger" id="avatarBtn"
@@ -45,11 +35,6 @@
       <div id="avatarMenu" class="account-avatar-dropdown-menu" role="menu">
         <a href="{{ url_for('main.account_view') }}?tab=profile" role="menuitem">Account</a>
         <div class="avatar-menu-divider" role="separator"></div>
-        <button type="button" role="menuitem" id="themeToggleDesktop" data-theme-toggle>
-          <span>Theme</span>
-          <span class="avatar-menu-state" data-theme-state>Dark ●</span>
-        </button>
-        <div class="avatar-menu-divider" role="separator"></div>
         <form method="POST" action="/logout" style="display:contents;">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button type="submit" role="menuitem" class="avatar-menu-logout">Log out</button>
@@ -58,20 +43,6 @@
     </div>
 
     {% else %}
-    <!-- Logged-out: Pick stays primary; Log In as simple link -->
-    <a href="/next_movie" class="navbar-pill"
-       onclick="event.preventDefault(); document.getElementById('pickMovieFormNav').submit();">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3l14 9-14 9V3z"/></svg>
-      <span>Pick a Movie</span>
-    </a>
-    <form id="pickMovieFormNav" method="POST" action="/next_movie" class="hidden">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    </form>
-    <button type="button" class="navbar-icon-btn" data-theme-toggle aria-label="Toggle theme">
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-      </svg>
-    </button>
     <a href="/login" class="navbar-link">Log In</a>
     {% endif %}
   </nav>
@@ -86,14 +57,6 @@
         <path d="m21 21-4.3-4.3"/>
       </svg>
     </button>
-    <a href="/next_movie" class="navbar-pill"
-       style="padding: 7px 12px; font-size: 9.5px;"
-       onclick="event.preventDefault(); document.getElementById('pickMovieFormMobile').submit();">
-      <span>Pick</span>
-    </a>
-    <form id="pickMovieFormMobile" method="POST" action="/next_movie" class="hidden">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    </form>
     <button id="menuBtn" class="navbar-icon-btn" aria-controls="mobileMenu"
             aria-expanded="false" aria-label="Open menu"
             style="width: 30px; height: 30px;">
@@ -113,20 +76,12 @@
     {% if current_user_id %}
     <a href="{{ url_for('main.watched_list_page') }}">Watched</a>
     <a href="{{ url_for('main.account_view') }}?tab=profile">Account</a>
-    <button type="button" id="themeToggleMobile" data-theme-toggle>
-      <span>Theme</span>
-      <span class="mobile-menu-state" data-theme-state>Dark ●</span>
-    </button>
     <form method="POST" action="/logout" style="display:contents;">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button type="submit">Log Out</button>
     </form>
     {% else %}
     <a href="/login">Log In</a>
-    <button type="button" id="themeToggleMobile" data-theme-toggle>
-      <span>Theme</span>
-      <span class="mobile-menu-state" data-theme-state>Dark ●</span>
-    </button>
     {% endif %}
   </nav>
 </div>
@@ -134,17 +89,9 @@
 <!-- Spotlight search modal -->
 {% include '_search_spotlight.html' %}
 
-<!-- Theme, dropdown, mobile menu scripts -->
+<!-- Dropdown and mobile menu scripts -->
 <script>
   (function() {
-    function setTheme(next) {
-      try { localStorage.setItem('nr-theme', next); } catch (e) {}
-      document.documentElement.setAttribute('data-theme', next);
-      document.querySelectorAll('[data-theme-state]').forEach(function (el) {
-        el.textContent = next === 'dark' ? 'Dark ●' : 'Light ○';
-      });
-    }
-
     // Mobile menu open/close
     var menuBtn = document.getElementById('menuBtn');
     var menuClose = document.getElementById('menuClose');
@@ -162,16 +109,6 @@
       });
     }
 
-    // Theme toggle (any element with data-theme-toggle)
-    document.querySelectorAll('[data-theme-toggle]').forEach(function (btn) {
-      btn.addEventListener('click', function (e) {
-        e.preventDefault();
-        e.stopPropagation();
-        var current = document.documentElement.getAttribute('data-theme') || 'dark';
-        setTheme(current === 'dark' ? 'light' : 'dark');
-      });
-    });
-
     // Avatar dropdown
     var avatarBtn = document.getElementById('avatarBtn');
     var avatarMenu = document.getElementById('avatarMenu');
@@ -188,15 +125,11 @@
       avatarMenu.addEventListener('click', function (e) { e.stopPropagation(); });
     }
 
-    // Sync theme state on load
+    // Mirror persisted theme preference to data-theme on load.
     try {
       var pref = localStorage.getItem('nr-theme');
-      if (pref === 'dark' || pref === 'light') setTheme(pref);
-      else {
-        var current = document.documentElement.getAttribute('data-theme') || 'dark';
-        document.querySelectorAll('[data-theme-state]').forEach(function (el) {
-          el.textContent = current === 'dark' ? 'Dark ●' : 'Light ○';
-        });
+      if (pref === 'dark' || pref === 'light') {
+        document.documentElement.setAttribute('data-theme', pref);
       }
     } catch (e) {}
   })();

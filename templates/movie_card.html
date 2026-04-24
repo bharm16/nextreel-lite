@@ -49,7 +49,7 @@
     <!-- Plot -->
     <p class="plot mb-6">{{ movie.plot }}</p>
 
-    <!-- Actions: Trailer + External Links -->
+    <!-- Actions: Trailer + IMDb only -->
     <div class="action-row mb-6">
       {% if movie.trailer %}
       <button class="trailer-btn" id="play-button" data-video-url="{{ movie.trailer }}">
@@ -59,18 +59,6 @@
       {% endif %}
       {% if movie.external_ids and movie.external_ids.imdb_url %}
       <a href="{{ movie.external_ids.imdb_url }}" target="_blank" rel="noopener" class="ext-link">IMDb</a>
-      {% endif %}
-      {% if movie.homepage %}
-      <a href="{{ movie.homepage }}" target="_blank" rel="noopener" class="ext-link">Website</a>
-      {% endif %}
-      {% if movie.external_ids and movie.external_ids.facebook_url %}
-      <a href="{{ movie.external_ids.facebook_url }}" target="_blank" rel="noopener" class="ext-link">Facebook</a>
-      {% endif %}
-      {% if movie.external_ids and movie.external_ids.instagram_url %}
-      <a href="{{ movie.external_ids.instagram_url }}" target="_blank" rel="noopener" class="ext-link">Instagram</a>
-      {% endif %}
-      {% if movie.external_ids and movie.external_ids.twitter_url %}
-      <a href="{{ movie.external_ids.twitter_url }}" target="_blank" rel="noopener" class="ext-link">X</a>
       {% endif %}
     </div>
 
@@ -199,24 +187,24 @@
     </div>
     {% endif %}
 
-    <!-- Details Footer -->
+    <!-- Details -->
     <div class="divider"></div>
-    <div class="details-footer mb-10">
-      {% if movie.runtime and movie.runtime != "0 min" and movie.runtime != "Unknown" %}
-      <span>{{ movie.runtime }}</span>
-      {% endif %}
-      {% if movie.original_language and movie.original_language != "unknown" %}
-      <span>{{ movie.original_language.upper() }}</span>
-      {% endif %}
-      {% if movie.budget and movie.budget != "Unknown" and movie.budget != "$0" %}
-      <span>Budget: {{ movie.budget }}</span>
-      {% endif %}
-      {% if movie.revenue and movie.revenue != "Unknown" and movie.revenue != "$0" %}
-      <span>Revenue: {{ movie.revenue }}</span>
-      {% endif %}
-      {% if movie.production_countries and movie.production_countries != "Unknown" %}
-      <span>{{ movie.production_countries }}</span>
-      {% endif %}
+    <div class="mb-10">
+      <div class="section-heading">Details</div>
+      <ul class="crew-list">
+        {% if movie.runtime and movie.runtime != "0 min" and movie.runtime != "Unknown" %}
+        <li class="crew-item"><span class="crew-role">Runtime</span> {{ movie.runtime }}</li>
+        {% endif %}
+        {% if movie.original_language and movie.original_language != "unknown" %}
+        <li class="crew-item"><span class="crew-role">Language</span> {{ movie.original_language | language_name }}</li>
+        {% endif %}
+        {% if movie.budget and movie.budget != "Unknown" and movie.budget != "$0" %}
+        <li class="crew-item"><span class="crew-role">Budget</span> {{ movie.budget }}</li>
+        {% endif %}
+        {% if movie.revenue and movie.revenue != "Unknown" and movie.revenue != "$0" %}
+        <li class="crew-item"><span class="crew-role">Revenue</span> {{ movie.revenue }}</li>
+        {% endif %}
+      </ul>
     </div>
 
     </div><!-- /movie-content-col -->
@@ -231,8 +219,8 @@
       </button>
     </form>
 
-    {% if current_user_id %}
     {% set watch_tconst = movie.tconst or movie.imdb_id %}
+    {% if current_user_id %}
     <form method="POST"
           action="{% if is_watched %}/watched/remove/{{ watch_tconst }}{% else %}/watched/add/{{ watch_tconst }}{% endif %}"
           class="inline"
@@ -250,10 +238,17 @@
         Watched
         {% else %}
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-        <span class="nav-btn-watched__prefix">Mark as </span>Watched
+        <span><span class="nav-btn-watched__prefix">Mark as </span>Watched</span>
         {% endif %}
       </button>
     </form>
+    {% else %}
+    <a href="{{ url_for('main.login_page', next='/movie/' ~ watch_tconst) }}"
+       class="nav-btn-watched nav-btn-watched--login"
+       aria-label="Log in to mark as watched">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+      <span><span class="nav-btn-watched__prefix">Mark as </span>Watched</span>
+    </a>
     {% endif %}
 
     <form method="POST" action="/next_movie" class="inline">

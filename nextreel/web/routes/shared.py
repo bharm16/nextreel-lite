@@ -44,6 +44,35 @@ _AVATAR_PALETTE = (
     "#eab308", "#22c55e", "#14b8a6", "#0ea5e9",
 )
 
+_LANGUAGE_NAMES = {
+    "en": "English", "es": "Spanish", "fr": "French", "de": "German",
+    "it": "Italian", "pt": "Portuguese", "ru": "Russian", "ja": "Japanese",
+    "ko": "Korean", "zh": "Chinese", "cn": "Chinese", "hi": "Hindi",
+    "ar": "Arabic", "tr": "Turkish", "pl": "Polish", "nl": "Dutch",
+    "sv": "Swedish", "no": "Norwegian", "nb": "Norwegian", "da": "Danish",
+    "fi": "Finnish", "el": "Greek", "he": "Hebrew", "cs": "Czech",
+    "ro": "Romanian", "hu": "Hungarian", "th": "Thai", "vi": "Vietnamese",
+    "id": "Indonesian", "uk": "Ukrainian", "bg": "Bulgarian", "hr": "Croatian",
+    "sr": "Serbian", "sk": "Slovak", "sl": "Slovenian", "et": "Estonian",
+    "lv": "Latvian", "lt": "Lithuanian", "ms": "Malay", "tl": "Tagalog",
+    "fa": "Persian", "ur": "Urdu", "bn": "Bengali", "ta": "Tamil",
+    "te": "Telugu", "ml": "Malayalam", "kn": "Kannada", "mr": "Marathi",
+    "gu": "Gujarati", "pa": "Punjabi", "la": "Latin", "is": "Icelandic",
+    "ga": "Irish", "cy": "Welsh", "ca": "Catalan", "eu": "Basque",
+    "gl": "Galician", "af": "Afrikaans", "sw": "Swahili", "am": "Amharic",
+    "yi": "Yiddish", "eo": "Esperanto", "xx": "No Language",
+    # TMDb occasionally returns 3-letter codes for Chinese-language films.
+    "cmn": "Mandarin", "yue": "Cantonese", "nan": "Min Nan", "wuu": "Wu",
+}
+
+
+def language_name(code: str | None) -> str:
+    """Map an ISO 639-1 code to its English name; fall back to uppercase code."""
+    if not code:
+        return ""
+    key = str(code).strip().lower()
+    return _LANGUAGE_NAMES.get(key, key.upper())
+
 
 def user_avatar_info(user) -> dict:
     """Derive {initials, color} from a user dict/row for avatar rendering.
@@ -150,6 +179,7 @@ def init_routes(app, movie_manager, metrics_collector):
         movie_manager=movie_manager,
         metrics_collector=metrics_collector,
     )
+    app.jinja_env.filters["language_name"] = language_name
 
 
 def _services() -> NextReelServices:

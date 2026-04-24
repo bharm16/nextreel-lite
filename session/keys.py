@@ -16,3 +16,4 @@ CURRENT_FILTERS_KEY = "current_filters"
 
 # ── OAuth ──────────────────────────────────────────────────────────
 SESSION_OAUTH_STATE_KEY = "oauth_state"
+SESSION_OAUTH_NEXT_KEY = "oauth_next"
