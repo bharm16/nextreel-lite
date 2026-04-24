@@ -136,6 +136,7 @@ Required (app fails to start without these):
 
 Optional:
 - `REDIS_URL` — Redis connection (required for worker, rate limiting, caching)
+- `DB_USE_SSL` — Overrides the environment-based SSL default for the MySQL pool. Set to `false` on Railway (the `*.railway.internal` mesh is already network-isolated and serves a self-signed cert). Leave unset elsewhere so production defaults to SSL on.
 - `OPS_AUTH_TOKEN` — Auth for `/ready` and `/metrics` endpoints (unauthenticated in dev)
 - `TRUSTED_PROXIES` — Comma-separated IPs for `X-Forwarded-For` trust (rate limiting)
 - `GRAFANA_LOKI_KEY` — Enables Grafana Loki log shipping

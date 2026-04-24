@@ -3,7 +3,7 @@
 import os
 
 from config.env import get_environment
-from infra.time_utils import env_int
+from infra.time_utils import env_bool, env_int
 
 
 class DatabaseConfig:
@@ -42,4 +42,10 @@ class DatabaseConfig:
 
     @staticmethod
     def use_ssl():
+        # Explicit DB_USE_SSL overrides the environment-based default. Required
+        # on Railway's private mesh: *.railway.internal MySQL serves a
+        # self-signed cert on an already-isolated IPv6 network and does not
+        # publish a CA bundle for chain verification.
+        if os.getenv("DB_USE_SSL") is not None:
+            return env_bool("DB_USE_SSL", True)
         return get_environment() != "development"

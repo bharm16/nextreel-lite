@@ -77,6 +77,20 @@ class TestDatabaseConfig:
             Config = self._reimport()
             assert Config.use_ssl() is True
 
+    def test_db_use_ssl_override_disables_in_production(self):
+        with patch.dict(
+            os.environ, {"NEXTREEL_ENV": "production", "DB_USE_SSL": "false"}
+        ):
+            Config = self._reimport()
+            assert Config.use_ssl() is False
+
+    def test_db_use_ssl_override_enables_in_development(self):
+        with patch.dict(
+            os.environ, {"NEXTREEL_ENV": "development", "DB_USE_SSL": "true"}
+        ):
+            Config = self._reimport()
+            assert Config.use_ssl() is True
+
     def test_ssl_cert_path_from_env(self):
         with patch.dict(os.environ, {"SSL_CERT_PATH": "/certs/ca.pem"}):
             Config = self._reimport()
