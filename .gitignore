@@ -61,6 +61,11 @@ prometheus.yml
 # Database backups (contain sensitive data and are too large for git)
 backups/
 backup.sh
+*.sql
+*.sql.gz
+*.sql.bz2
+*.sql.zst
+dump.err
 
 # Log files (runtime data, can be large, may contain sensitive info)
 app.log
@@ -86,3 +91,4 @@ execute_prod_db_optimization.py
 test_performance_improvements.py
 
 firebase-debug.log
+.env.railway

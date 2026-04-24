@@ -15,12 +15,15 @@ logger = get_logger(__name__)
 def resolve_redis_url(*, environment: str | None = None, environ=os.environ) -> str:
     env = environment or get_environment()
     if env == "production":
+        redis_url = environ.get("REDIS_URL")
+        if redis_url:
+            return redis_url
         redis_host = environ.get("UPSTASH_REDIS_HOST")
         redis_port = environ.get("UPSTASH_REDIS_PORT")
         redis_pw = environ.get("UPSTASH_REDIS_PASSWORD")
         if not redis_host or not redis_port:
             raise RuntimeError(
-                "UPSTASH_REDIS_HOST and UPSTASH_REDIS_PORT must be set in production"
+                "REDIS_URL or UPSTASH_REDIS_HOST/UPSTASH_REDIS_PORT must be set in production"
             )
         return f"rediss://:{redis_pw}@{redis_host}:{redis_port}"
     return environ.get("REDIS_URL", "redis://localhost:6379")

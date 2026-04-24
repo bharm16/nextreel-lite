@@ -58,11 +58,40 @@ def test_resolve_redis_url_uses_local_default(monkeypatch):
 def test_resolve_redis_url_requires_production_host_and_port(monkeypatch):
     from infra.redis_runtime import resolve_redis_url
 
+    monkeypatch.delenv("REDIS_URL", raising=False)
     monkeypatch.delenv("UPSTASH_REDIS_HOST", raising=False)
     monkeypatch.delenv("UPSTASH_REDIS_PORT", raising=False)
 
     with pytest.raises(RuntimeError):
         resolve_redis_url(environment="production")
+
+
+def test_resolve_redis_url_prefers_redis_url_in_production(monkeypatch):
+    from infra.redis_runtime import resolve_redis_url
+
+    monkeypatch.setenv("REDIS_URL", "redis://default:secret@redis.railway.internal:6379")
+    monkeypatch.setenv("UPSTASH_REDIS_HOST", "upstash.example.com")
+    monkeypatch.setenv("UPSTASH_REDIS_PORT", "6379")
+    monkeypatch.setenv("UPSTASH_REDIS_PASSWORD", "ignored")
+
+    assert (
+        resolve_redis_url(environment="production")
+        == "redis://default:secret@redis.railway.internal:6379"
+    )
+
+
+def test_resolve_redis_url_falls_back_to_upstash_when_redis_url_absent(monkeypatch):
+    from infra.redis_runtime import resolve_redis_url
+
+    monkeypatch.delenv("REDIS_URL", raising=False)
+    monkeypatch.setenv("UPSTASH_REDIS_HOST", "upstash.example.com")
+    monkeypatch.setenv("UPSTASH_REDIS_PORT", "6379")
+    monkeypatch.setenv("UPSTASH_REDIS_PASSWORD", "pw")
+
+    assert (
+        resolve_redis_url(environment="production")
+        == "rediss://:pw@upstash.example.com:6379"
+    )
 
 
 @pytest.mark.asyncio

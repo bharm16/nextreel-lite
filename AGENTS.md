@@ -121,7 +121,7 @@ python scripts/check_2024_movies.py
 
 ## Environment Caveats
 
-- The main app configuration is centered on `DB_*`, `REDIS_URL` for local Redis, and `UPSTASH_REDIS_HOST` / `UPSTASH_REDIS_PORT` / `UPSTASH_REDIS_PASSWORD` for production Redis.
+- The main app configuration is centered on `DB_*` and `REDIS_URL`. In production, `resolve_redis_url()` prefers `REDIS_URL` (e.g. `redis://default:pw@redis.railway.internal:6379` for Railway) and falls back to `UPSTASH_REDIS_HOST` / `UPSTASH_REDIS_PORT` / `UPSTASH_REDIS_PASSWORD` if `REDIS_URL` is unset.
 - `REDIS_PASSWORD` is an optional legacy secret recognized by `infra/secrets.py`, but runtime Redis connectivity prefers `REDIS_URL` or the Upstash variables.
 - `setup_production_env.py` is intentionally dead code right now. Do not build workflows around it.
 
