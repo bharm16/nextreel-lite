@@ -29,6 +29,7 @@ from infra.metrics_groups import safe_emit
 from infra.time_utils import env_int, utcnow
 from logging_config import get_logger
 from movies.movie import Movie
+from movies.projection_repository import _dumps as _json_dumps
 from movies.projection_state import (
     ENQUEUE_COOLDOWN,
     EnrichmentResult,
@@ -69,8 +70,8 @@ class ProjectionPayloadDiffer:
         if not isinstance(existing, dict):
             return False
         new_persisted = store._persisted_payload(payload)
-        new_serialized = json.dumps(new_persisted, sort_keys=True)
-        existing_serialized = json.dumps(existing, sort_keys=True)
+        new_serialized = _json_dumps(new_persisted, sort_keys=True)
+        existing_serialized = _json_dumps(existing, sort_keys=True)
         return new_serialized == existing_serialized
 
 

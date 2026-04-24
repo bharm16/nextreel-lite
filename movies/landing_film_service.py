@@ -96,9 +96,16 @@ async def fetch_random_landing_film(pool) -> dict[str, Any] | None:
 
     offset = random.randint(0, max(0, total - _LANDING_CANDIDATE_POOL_SIZE))
     try:
-        rows = await pool.execute(
+        # Step 1: pick the candidate tconsts using an index-only scan.
+        # Ordering the projection table directly by tconst with a LIMIT/OFFSET
+        # forces MySQL to filesort on the wide payload_json TEXT column and
+        # the sort_buffer_size runs out — see error 1038. Selecting just
+        # tconst in the ORDER BY pipeline keeps rows narrow enough to sort
+        # in memory; fetching the JSON payloads in a second keyed lookup
+        # avoids the filesort entirely.
+        id_rows = await pool.execute(
             """
-            SELECT tconst, payload_json
+            SELECT tconst
             FROM movie_projection
             WHERE projection_state = 'ready'
             ORDER BY tconst
@@ -108,7 +115,29 @@ async def fetch_random_landing_film(pool) -> dict[str, Any] | None:
             fetch="all",
         )
     except Exception as exc:  # noqa: BLE001 — defense-in-depth, degrade silently
-        logger.warning("Landing-film query failed: %s", exc)
+        logger.warning("Landing-film tconst query failed: %s", exc)
+        return None
+
+    if not id_rows:
+        return None
+
+    tconsts = [row["tconst"] for row in id_rows if row.get("tconst")]
+    if not tconsts:
+        return None
+
+    placeholders = ",".join(["%s"] * len(tconsts))
+    try:
+        rows = await pool.execute(
+            f"""
+            SELECT tconst, payload_json
+            FROM movie_projection
+            WHERE tconst IN ({placeholders})
+            """,
+            tconsts,
+            fetch="all",
+        )
+    except Exception as exc:  # noqa: BLE001 — defense-in-depth, degrade silently
+        logger.warning("Landing-film payload query failed: %s", exc)
         return None
 
     if not rows:

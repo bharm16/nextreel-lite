@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, date
+from decimal import Decimal
 from typing import Any
 
 from infra.time_utils import utcnow
@@ -16,6 +17,21 @@ from movies.projection_state import (
 
 PLACEHOLDER_POSTER = "/static/img/poster-placeholder.svg"
 PLACEHOLDER_BACKDROP = "/static/img/backdrop-placeholder.svg"
+
+
+def _json_default(value: Any) -> Any:
+    # aiomysql returns DECIMAL columns (averageRating, numVotes sums, etc.)
+    # as Decimal and DATE columns as date — neither are JSON-serializable by
+    # default, so every projection upsert silently failed.
+    if isinstance(value, Decimal):
+        return float(value)
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
+
+
+def _dumps(obj: Any, **kwargs: Any) -> str:
+    return json.dumps(obj, default=_json_default, **kwargs)
 
 
 class ProjectionRepository:
@@ -185,7 +201,7 @@ class ProjectionRepository:
             [
                 tconst,
                 None,
-                json.dumps(self.persisted_payload(payload)),
+                _dumps(self.persisted_payload(payload)),
                 ProjectionState.CORE.value,
                 ProjectionState.READY.value,
                 ProjectionState.STALE.value,
@@ -236,7 +252,7 @@ class ProjectionRepository:
             [
                 tconst,
                 payload.get("tmdb_id"),
-                json.dumps(self.persisted_payload(payload)),
+                _dumps(self.persisted_payload(payload)),
                 ProjectionState.READY.value,
                 now,
                 now + STALE_AFTER,
@@ -302,7 +318,7 @@ class ProjectionRepository:
             [
                 tconst,
                 tmdb_id,
-                json.dumps(self.persisted_payload(payload)),
+                _dumps(self.persisted_payload(payload)),
                 ProjectionState.FAILED.value,
                 now,
                 attempts,

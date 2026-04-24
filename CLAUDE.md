@@ -162,7 +162,7 @@ Optional:
 
 ### Navigation Routes
 - `/next_movie` and `/previous_movie` are **POST-only** with CSRF tokens. All "Pick a Movie" buttons in templates use `<form method="POST">` with hidden `csrf_token` field.
-- `/filters` (not `/setFilters`) is the filter page. GET to view, POST to `/filtered_movie` to apply.
+- Filters are **inline on the movie detail page** — there is no dedicated `/filters` page (removed per `docs/superpowers/plans/2026-04-16-remove-set-filters-page.md`). POST to `/filtered_movie` applies the form.
 
 ### Environment Detection
 Always use `from config.env import get_environment` — never inline `os.getenv("NEXTREEL_ENV", os.getenv("FLASK_ENV", ...))`.

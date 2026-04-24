@@ -185,7 +185,7 @@ _RUNTIME_SCHEMA_TABLE_DEFINITIONS = (
         primaryTitle VARCHAR(512) NOT NULL,
         startYear INT NOT NULL,
         genres TEXT NULL,
-        language VARCHAR(16) NULL,
+        language VARCHAR(128) NULL,
         titleType VARCHAR(32) NOT NULL,
         slug VARCHAR(512) NULL,
         averageRating DECIMAL(4,2) NOT NULL DEFAULT 0,

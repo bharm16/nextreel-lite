@@ -23,8 +23,11 @@ def build_search_query(raw_query: str, limit: int = 10) -> tuple[str | None, lis
     without hitting the DB.
 
     Ranks results by: (1) exact title match, (2) title starts with the term,
-    (3) title contains the term. Within each bucket rows are ordered by
-    ``averageRating`` desc.
+    (3) title starts with ``The``/``A``/``An`` + term, (4) title contains
+    the term. Within each bucket rows are ordered by ``numVotes`` desc
+    (popularity proxy) and then ``averageRating``. Without the article-stripped
+    bucket a search for ``godfather`` buried the classic ``The Godfather``
+    below dozens of obscure exact-name matches.
 
     Metacharacters (``%``, ``_``, and the ``|`` escape char) in the user
     query are escaped so they're treated as literal characters.
@@ -38,6 +41,9 @@ def build_search_query(raw_query: str, limit: int = 10) -> tuple[str | None, lis
 
     prefix = f"{escaped}%"
     contains = f"%{escaped}%"
+    article_the = f"The {escaped}%"
+    article_a = f"A {escaped}%"
+    article_an = f"An {escaped}%"
 
     sql = (
         "SELECT mc.tconst, mc.primaryTitle, mc.startYear, mc.averageRating, "
@@ -49,16 +55,31 @@ def build_search_query(raw_query: str, limit: int = 10) -> tuple[str | None, lis
         "WHERE mc.primaryTitle IS NOT NULL "
         "  AND (mc.primaryTitle = %s "
         "       OR mc.primaryTitle LIKE %s ESCAPE '|' "
+        "       OR mc.primaryTitle LIKE %s ESCAPE '|' "
+        "       OR mc.primaryTitle LIKE %s ESCAPE '|' "
         "       OR mc.primaryTitle LIKE %s ESCAPE '|') "
+        # Popularity (numVotes) dominates because the bucket approach alone
+        # buried ``The Godfather`` (2.15M votes) under obscure exact matches
+        # like ``Godfather`` (8K votes). Within similar popularity the bucket
+        # rank still acts as a tiebreaker so a search for "it" surfaces the
+        # exact "It" film ahead of coincidental contains-matches.
         "ORDER BY "
+        "  COALESCE(mc.numVotes, 0) DESC, "
         "  CASE "
         "    WHEN mc.primaryTitle = %s THEN 0 "
         "    WHEN mc.primaryTitle LIKE %s ESCAPE '|' THEN 1 "
-        "    ELSE 2 "
+        "    WHEN mc.primaryTitle LIKE %s ESCAPE '|' "
+        "         OR mc.primaryTitle LIKE %s ESCAPE '|' "
+        "         OR mc.primaryTitle LIKE %s ESCAPE '|' THEN 2 "
+        "    ELSE 3 "
         "  END, "
         "  COALESCE(mc.averageRating, 0) DESC "
         "LIMIT %s"
     )
 
-    params = [escaped, prefix, contains, escaped, prefix, int(limit)]
+    params = [
+        escaped, prefix, article_the, article_a, article_an,  # WHERE
+        escaped, prefix, article_the, article_a, article_an,  # CASE
+        int(limit),
+    ]
     return sql, params
