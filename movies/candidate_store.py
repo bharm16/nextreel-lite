@@ -139,17 +139,8 @@ class CandidateStore:
         *,
         use_fulltext: bool = True,
     ) -> tuple[str, list[Any]]:
-        """Thin delegate to ``MovieQueryBuilder.genre_clause`` (use_cache=True).
-
-        Retained so existing tests that patch/call ``store._genre_clause``
-        continue to work. New callers should use ``MovieQueryBuilder.genre_clause``
-        directly.
-        """
+        """Genre clause built against the candidate-table column set."""
         return MovieQueryBuilder.genre_clause(criteria, use_fulltext=use_fulltext, use_cache=True)
-
-    @staticmethod
-    def _is_fulltext_index_error(exc: DatabaseError) -> bool:
-        return is_fulltext_index_error(exc)
 
     def _build_candidate_query(
         self,
@@ -282,7 +273,7 @@ class CandidateStore:
             try:
                 rows = await self.db_pool.execute(query, params, fetch="all")
             except DatabaseError as exc:
-                if not criteria.get("genres") or not self._is_fulltext_index_error(exc):
+                if not criteria.get("genres") or not is_fulltext_index_error(exc):
                     raise
                 logger.warning(
                     "movie_candidates FULLTEXT genre search failed; retrying with LIKE fallback: %s",

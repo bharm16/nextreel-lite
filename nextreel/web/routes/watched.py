@@ -15,7 +15,6 @@ from nextreel.web.routes.shared import (
     _require_login,
     _services,
     _watched_list_presenter,
-    _watched_mutation_service,
     _watched_progress_service,
     _wants_json_response,
     bp,
@@ -142,11 +141,7 @@ async def add_to_watched(tconst):
         abort(401, "Login required")
 
     services = _services()
-    await _watched_mutation_service.add(
-        user_id=user_id,
-        tconst=tconst,
-        watched_store=services.movie_manager.watched_store,
-    )
+    await services.movie_manager.watched_store.add(user_id, tconst)
     logger.info("User %s marked %s as watched", user_id, tconst)
     if _wants_json_response():
         return jsonify(
@@ -171,11 +166,7 @@ async def remove_from_watched(tconst):
         abort(401, "Login required")
 
     services = _services()
-    await _watched_mutation_service.remove(
-        user_id=user_id,
-        tconst=tconst,
-        watched_store=services.movie_manager.watched_store,
-    )
+    await services.movie_manager.watched_store.remove(user_id, tconst)
     logger.info("User %s removed %s from watched", user_id, tconst)
     if _wants_json_response():
         return jsonify(

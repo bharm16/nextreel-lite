@@ -38,7 +38,6 @@ _RUNTIME_SCHEMA_REPAIR_HELPERS = [
     "ensure_movie_candidates_primaryTitle_index",
     "ensure_movie_candidates_fulltext_index",
     "ensure_movie_projection_state_last_attempt_index",
-    "ensure_popular_movies_cache_composite_index",
     "ensure_user_navigation_user_id_column",
     "ensure_users_exclude_watched_default_column",
     "ensure_users_theme_preference_column",
@@ -260,9 +259,6 @@ async def test_ensure_runtime_schema_runs_additive_repairs_including_fulltext(mo
             "infra.runtime_schema.ensure_movie_projection_state_last_attempt_index", AsyncMock()
         ) as ensure_state_last_attempt_idx,
         patch(
-            "infra.runtime_schema.ensure_popular_movies_cache_composite_index", AsyncMock()
-        ) as ensure_cache_composite_idx,
-        patch(
             "infra.runtime_schema.ensure_users_exclude_watched_default_column", AsyncMock()
         ) as ensure_users_exclude,
     ):
@@ -276,7 +272,6 @@ async def test_ensure_runtime_schema_runs_additive_repairs_including_fulltext(mo
     ensure_shuffle_idx.assert_awaited_once_with(mock_db_pool)
     ensure_bucket_filter_idx.assert_awaited_once_with(mock_db_pool)
     ensure_state_last_attempt_idx.assert_awaited_once_with(mock_db_pool)
-    ensure_cache_composite_idx.assert_awaited_once_with(mock_db_pool)
     ensure_users_exclude.assert_awaited_once_with(mock_db_pool)
     ensure_fulltext.assert_awaited_once_with(mock_db_pool)
 
@@ -385,54 +380,6 @@ async def test_ensure_runtime_schema_creates_watched_table(mock_db_pool):
     assert len(watched_sql) == 1
     assert "user_id" in watched_sql[0]
     assert "tconst" in watched_sql[0]
-
-
-async def test_ensure_popular_movies_cache_composite_index_skips_when_table_missing(mock_db_pool):
-    mock_db_pool.execute.return_value = None  # table existence check returns None
-
-    from infra.runtime_schema import ensure_popular_movies_cache_composite_index
-
-    await ensure_popular_movies_cache_composite_index(mock_db_pool)
-
-    assert mock_db_pool.execute.await_count == 1
-    lookup_query = mock_db_pool.execute.await_args.args[0]
-    assert "information_schema.tables" in lookup_query.lower()
-
-
-async def test_ensure_popular_movies_cache_composite_index_skips_when_index_present(mock_db_pool):
-    # Table-existence probe returns a row via db_pool.execute.
-    mock_db_pool.execute.return_value = {"present": 1}
-    # CREATE INDEX raises duplicate-key via DDL cursor.
-    mock_db_pool._ddl_cursor.execute = AsyncMock(
-        side_effect=pymysql.err.OperationalError(1061, "Duplicate key name 'idx_cache_filter_rand'")
-    )
-
-    from infra.runtime_schema import ensure_popular_movies_cache_composite_index
-
-    await ensure_popular_movies_cache_composite_index(mock_db_pool)
-
-    # First call is the table-existence probe via db_pool.execute.
-    assert mock_db_pool.execute.await_count == 1
-    assert "information_schema.tables" in mock_db_pool.execute.await_args.args[0].lower()
-    # DDL cursor received the CREATE INDEX attempt that errored with duplicate key.
-    mock_db_pool._ddl_cursor.execute.assert_awaited_once()
-    assert "CREATE INDEX" in mock_db_pool._ddl_cursor.execute.call_args[0][0]
-
-
-async def test_ensure_popular_movies_cache_composite_index_creates_when_missing(mock_db_pool):
-    # Table exists via db_pool.execute, CREATE INDEX succeeds via DDL cursor.
-    mock_db_pool.execute.return_value = {"present": 1}
-
-    from infra.runtime_schema import ensure_popular_movies_cache_composite_index
-
-    await ensure_popular_movies_cache_composite_index(mock_db_pool)
-
-    assert mock_db_pool.execute.await_count == 1
-    mock_db_pool._ddl_cursor.execute.assert_awaited_once()
-    create_query = mock_db_pool._ddl_cursor.execute.call_args[0][0]
-    assert "CREATE INDEX idx_cache_filter_rand" in create_query
-    assert "popular_movies_cache" in create_query
-    assert "(startYear, averageRating, numVotes, rand_order)" in create_query
 
 
 async def test_ensure_users_theme_preference_column_adds_when_missing(mock_db_pool):

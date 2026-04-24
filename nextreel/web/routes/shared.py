@@ -21,15 +21,11 @@ from quart import (
 from infra.time_utils import current_year as _current_year, utcnow as _utcnow
 from logging_config import get_logger
 from nextreel.application.auth_flows import GoogleOAuthService, RegistrationService
-from nextreel.application.auth_session_service import AuthenticatedSessionBinder
 from nextreel.application.letterboxd_import_service import LetterboxdImportService
 from nextreel.application.movie_navigator import NavigationOutcome
 from nextreel.application.watched_progress_service import WatchedEnrichmentProgressService
-from nextreel.web.route_services import (
-    MovieDetailService,
-    WatchedListPresenter,
-    WatchedMutationService,
-)
+from nextreel.web.route_services import MovieDetailService, WatchedListPresenter
+from session import user_preferences
 
 if TYPE_CHECKING:
     from infra.metrics import MetricsCollector
@@ -73,10 +69,8 @@ def user_avatar_info(user) -> dict:
 
 _registration_service = RegistrationService()
 _google_oauth_service = GoogleOAuthService()
-_authenticated_session_binder = AuthenticatedSessionBinder()
 _movie_detail_service = MovieDetailService()
 _watched_list_presenter = WatchedListPresenter()
-_watched_mutation_service = WatchedMutationService()
 _letterboxd_import_service = LetterboxdImportService()
 _watched_progress_service = WatchedEnrichmentProgressService()
 
@@ -233,11 +227,11 @@ def _require_login():
 async def _attach_user_to_current_session(user_id: str):
     state = _current_state()
     services = _services()
-    updated_state = await _authenticated_session_binder.bind_user(
-        db_pool=services.movie_manager.db_pool,
-        navigation_state_store=current_app.navigation_state_store,
-        state=state,
-        user_id=user_id,
+    exclude_watched = await user_preferences.get_exclude_watched_default(
+        services.movie_manager.db_pool, user_id
+    )
+    updated_state = await current_app.navigation_state_store.bind_user(
+        state, user_id, exclude_watched=exclude_watched
     )
     if updated_state is None:
         abort(409, description="Could not bind authenticated user to navigation state")
@@ -251,7 +245,6 @@ __all__ = [
     "_REQUEST_TIMEOUT",
     "_TCONST_RE",
     "_attach_user_to_current_session",
-    "_authenticated_session_binder",
     "_current_state",
     "_current_user_id",
     "_get_csrf_token",
@@ -267,7 +260,6 @@ __all__ = [
     "_services",
     "_wants_json_response",
     "_watched_list_presenter",
-    "_watched_mutation_service",
     "_watched_progress_service",
     "_current_year",
     "bp",

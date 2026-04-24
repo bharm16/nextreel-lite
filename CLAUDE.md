@@ -79,11 +79,10 @@ movies/
   tmdb_client.py        # TMDbHelper — async HTTP client with circuit breaker
   tmdb_parser.py        # TMDb response parsing
   tmdb_metrics.py       # Prometheus emission for TMDb transport outcomes
-  query_builder.py      # SQL query builder for random movie fetching (MovieQueryBuilder)
-  interfaces.py         # MovieFetcher protocol
+  query_builder.py      # Genre-clause SQL helper (MovieQueryBuilder)
+  search_queries.py     # Title-search SQL for /api/search (navbar Spotlight)
   candidate_store.py    # Data access layer for movie candidates
   candidate_filter_pool_cache.py  # Per-filter candidate pool cache
-  movie_count_cache.py  # Criteria-keyed count cache with generation invalidation
   movie_payload.py      # Movie payload assembly helpers
   projection_store.py   # Projection facade — coordinates enrichment + reads
   projection_repository.py  # Projection SQL CRUD
@@ -207,7 +206,7 @@ All queries must use parameterized placeholders (`%s`), including LIMIT and OFFS
 - **`get_async_connection()`**: Raises `NotImplementedError`. Use `async with pool.acquire() as conn:` instead.
 - **`.env` files**: Contain live credentials in git history. Hooks block Claude from editing them. Secrets must be rotated and managed via environment variables or a secrets manager.
 - **Runtime tables**: `ensure_runtime_schema()` creates `runtime_metadata`, `user_navigation_state`, `movie_projection`, and `movie_candidates` on startup (`IF NOT EXISTS`). Don't create these manually.
-- **Runtime-created indexes**: `infra/runtime_schema.py` adds indexes at startup that aren't in the base CREATE TABLE definitions. Current list: `idx_movie_candidates_refreshed_at`, `idx_movie_candidates_shuffle` (supports the hot candidate-fetch ORDER BY at `movies/candidate_store.py:147`), `idx_cache_filter_rand` on `popular_movies_cache` (supports filter+random queries at `movies/query_builder.py:414-415`, conditional on the ops table existing), and `idx_movie_candidates_primaryTitle` (128-byte prefix index supporting `/api/search` title lookup via `MovieQueryBuilder.build_search_query`). When checking indexes manually, don't rely solely on `infra/runtime_schema.py`'s `_RUNTIME_SCHEMA_STATEMENTS` — check the `ensure_*_index` helpers too.
+- **Runtime-created indexes**: `infra/runtime_schema.py` adds indexes at startup that aren't in the base CREATE TABLE definitions. The authoritative list is `_RUNTIME_REPAIR_HELPER_NAMES` in that file. Current helpers include `idx_movie_candidates_refreshed_at`, `idx_movie_candidates_shuffle` (supports the hot candidate-fetch ORDER BY at `movies/candidate_store.py:147`), `idx_movie_candidates_bucket_filter`, `idx_movie_candidates_primaryTitle` (128-byte prefix index supporting `/api/search` title lookup via `movies/search_queries.build_search_query`), and the `movie_candidates` FULLTEXT genres index. When checking indexes manually, don't rely solely on `_RUNTIME_SCHEMA_STATEMENTS` — the repair helpers run alongside it.
 - **Projection states**: `core` (minimal IMDb data) → `ready` (TMDb-enriched) → `stale` (>7 days) → `failed` (enrichment error). Enrichment is async-enqueued via `enrich_projection` worker job with 15-min cooldown.
 - **CI security gates**: TruffleHog blocks the build on verified secrets. Bandit and pip-audit run but are warnings only (`|| true`). Tests require 40% coverage on Python 3.11 and 3.12.
 - **`.claude.local.md`**: Not in `.gitignore` — add it if you use local Claude overrides to avoid committing personal preferences.

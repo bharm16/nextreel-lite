@@ -16,7 +16,6 @@ from nextreel.web.routes.shared import (
     _google_oauth_service,
     _registration_service,
     _services,
-    _watched_mutation_service,
     _current_year,
     bp,
     logger,

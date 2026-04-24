@@ -18,11 +18,6 @@ import pytest
 
 from infra.cache import CacheNamespace, SimpleCacheManager
 from nextreel.domain.navigation_state import NavigationState
-from movies.query_builder import (
-    _criteria_cache_key,
-    _current_count_generation,
-    bump_count_cache_generation,
-)
 
 
 # ---------------------------------------------------------------------------
@@ -222,43 +217,3 @@ async def test_get_or_load_returns_cached_value_without_loader_call():
     assert result == {"cached": True}
 
 
-# ---------------------------------------------------------------------------
-# Count cache generation invalidation
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_bump_count_cache_generation_increments():
-    storage: dict = {}
-
-    cache = MagicMock()
-
-    async def fake_get(namespace, key):
-        return storage.get(key)
-
-    async def fake_set(namespace, key, value, ttl=None):
-        storage[key] = value
-
-    cache.get = fake_get
-    cache.set = fake_set
-
-    gen0 = await _current_count_generation(cache)
-    assert gen0 == 0
-
-    new_gen = await bump_count_cache_generation(cache)
-    assert new_gen == 1
-
-    gen1 = await _current_count_generation(cache)
-    assert gen1 == 1
-
-    new_gen2 = await bump_count_cache_generation(cache)
-    assert new_gen2 == 2
-
-
-def test_criteria_cache_key_includes_generation():
-    crit = {"language": "en", "min_year": 2000}
-    k0 = _criteria_cache_key(crit, generation=0)
-    k1 = _criteria_cache_key(crit, generation=1)
-    assert k0 != k1
-    assert k0.startswith("count:0:")
-    assert k1.startswith("count:1:")

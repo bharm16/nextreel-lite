@@ -72,8 +72,14 @@ class MovieManager:
         The scheduler is called with a single coroutine argument and is
         expected to wrap it in ``asyncio.create_task`` and register the task
         in ``app.background_tasks`` so it is awaited on shutdown.
+
+        Propagates the same scheduler into the projection enrichment
+        coordinator so its in-flight prefetch tasks share the same drain
+        set — callers should not also wire the coordinator separately.
         """
         self._background_scheduler = scheduler
+        if self.projection_coordinator is not None:
+            self.projection_coordinator.attach_background_scheduler(scheduler)
 
     def schedule_background(self, coro: Awaitable[Any]) -> bool:
         """Hand a coroutine to the app scheduler, closing it on failure."""

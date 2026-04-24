@@ -2,6 +2,18 @@
 -- NextReel Production Database Optimization
 -- Safe Execution Script for DigitalOcean MySQL
 -- =====================================================
+--
+-- HISTORICAL — PARTIALLY SUPERSEDED (2026-04):
+--   The `popular_movies_cache` / `recent_movies_cache` tables and the
+--   `refresh_movie_caches()` stored procedure defined below are no longer
+--   read by any live code path. The random-movie read path now goes through
+--   `movie_candidates` (see `movies/candidate_store.py` and the
+--   `movie_candidates` table managed by `infra/runtime_schema.py`).
+--
+--   These sections are kept only for manual rollback — running them is a
+--   no-op from the application's perspective. The PHASE 1 / PHASE 2 index
+--   work on `title.basics` / `title.ratings` remains relevant.
+-- =====================================================
 
 USE imdb;
 

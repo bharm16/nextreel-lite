@@ -67,9 +67,10 @@ class HomePrewarmService:
             if isinstance(task, asyncio.Task):
                 self._remember_task(session_id, task)
                 return task
+            return None
 
-        scheduled = schedule_background(factory())
-        return None if scheduled else None
+        schedule_background(factory())
+        return None
 
     async def prewarm(
         self,

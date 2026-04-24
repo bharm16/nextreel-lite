@@ -6,7 +6,7 @@ from quart import abort, jsonify, request
 
 from infra.route_helpers import rate_limited, with_timeout
 from logging_config import get_logger
-from movies.query_builder import MovieQueryBuilder
+from movies.search_queries import build_search_query
 from nextreel.web.routes.shared import _REQUEST_TIMEOUT, _TCONST_RE, _services, bp
 
 logger = get_logger(__name__)
@@ -54,7 +54,7 @@ async def search_titles():
     list, so the frontend UI never renders an error state mid-typing.
     """
     raw_query = request.args.get("q", "").strip()
-    sql, params = MovieQueryBuilder.build_search_query(raw_query, limit=_SEARCH_LIMIT)
+    sql, params = build_search_query(raw_query, limit=_SEARCH_LIMIT)
 
     if sql is None:
         return jsonify({"results": []})

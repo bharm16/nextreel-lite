@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import sys
+
 import pymysql
 
 from logging_config import get_logger
@@ -258,22 +260,21 @@ _RUNTIME_SCHEMA_STATEMENTS = tuple(
 
 
 async def ensure_runtime_schema(db_pool) -> None:
-    """Create runtime-owned tables if they do not already exist."""
+    """Create runtime-owned tables if they do not already exist.
+
+    Repair helpers are dispatched in declaration order. Add a new column or
+    index by appending its name to ``_RUNTIME_REPAIR_HELPER_NAMES`` below —
+    no need to edit this orchestrator. Names (not function refs) are resolved
+    against the module at call time so test patches via
+    ``patch("infra.runtime_schema.X", ...)`` take effect. Tradeoff: a typo in
+    the tuple fails at startup with ``AttributeError`` rather than at import
+    time — acceptable because this runs on every boot.
+    """
     for table, statement in _RUNTIME_SCHEMA_TABLE_DEFINITIONS:
         await _ensure_table(db_pool, table, statement)
-    await ensure_user_navigation_current_ref_column(db_pool)
-    await ensure_movie_candidates_shuffle_key(db_pool)
-    await ensure_movie_candidates_refreshed_at_index(db_pool)
-    await ensure_movie_candidates_shuffle_key_index(db_pool)
-    await ensure_movie_candidates_bucket_filter_index(db_pool)
-    await ensure_movie_candidates_primaryTitle_index(db_pool)
-    await ensure_movie_candidates_fulltext_index(db_pool)
-    await ensure_movie_projection_state_last_attempt_index(db_pool)
-    await ensure_popular_movies_cache_composite_index(db_pool)
-    await ensure_user_navigation_user_id_column(db_pool)
-    await ensure_users_exclude_watched_default_column(db_pool)
-    await ensure_users_theme_preference_column(db_pool)
-    await ensure_users_default_filters_json_column(db_pool)
+    module = sys.modules[__name__]
+    for name in _RUNTIME_REPAIR_HELPER_NAMES:
+        await getattr(module, name)(db_pool)
     logger.info("Runtime schema ensured")
 
 
@@ -502,38 +503,6 @@ async def ensure_movie_candidates_bucket_filter_index(db_pool) -> None:
     )
 
 
-async def ensure_popular_movies_cache_composite_index(db_pool) -> None:
-    """Add a filter+rand composite index to popular_movies_cache if it exists.
-
-    popular_movies_cache is defined in ops/production_db_optimization.sql
-    and may not exist in dev environments. Check table presence first so
-    dev bootstraps are cleanly no-op. Supports the filter+random queries
-    in movies/query_builder.py:414-415 by covering both the WHERE predicate
-    prefix and the ORDER BY suffix in a single index.
-    """
-    table_present = await db_pool.execute(
-        """
-        SELECT 1 AS present
-        FROM information_schema.tables
-        WHERE table_schema = DATABASE()
-          AND table_name = 'popular_movies_cache'
-        LIMIT 1
-        """,
-        fetch="one",
-    )
-    if not table_present:
-        logger.debug("popular_movies_cache not present; skipping composite index")
-        return
-
-    await _ensure_index(
-        db_pool,
-        "popular_movies_cache",
-        "idx_cache_filter_rand",
-        "CREATE INDEX idx_cache_filter_rand "
-        "ON popular_movies_cache (startYear, averageRating, numVotes, rand_order)",
-    )
-
-
 async def ensure_movie_candidates_fulltext_index(db_pool) -> None:
     """Repair the active movie_candidates FULLTEXT index when it is missing.
 
@@ -568,3 +537,22 @@ async def ensure_movie_projection_state_last_attempt_index(db_pool) -> None:
         "CREATE INDEX idx_movie_projection_state_last_attempt "
         "ON movie_projection (projection_state, last_attempt_at)",
     )
+
+
+# Order matches the historical orchestrator sequence — kept stable so add-column
+# / add-index ordering remains predictable. Append new helper names to the end.
+# Names (not function refs) so test patches against the module attribute apply.
+_RUNTIME_REPAIR_HELPER_NAMES = (
+    "ensure_user_navigation_current_ref_column",
+    "ensure_movie_candidates_shuffle_key",
+    "ensure_movie_candidates_refreshed_at_index",
+    "ensure_movie_candidates_shuffle_key_index",
+    "ensure_movie_candidates_bucket_filter_index",
+    "ensure_movie_candidates_primaryTitle_index",
+    "ensure_movie_candidates_fulltext_index",
+    "ensure_movie_projection_state_last_attempt_index",
+    "ensure_user_navigation_user_id_column",
+    "ensure_users_exclude_watched_default_column",
+    "ensure_users_theme_preference_column",
+    "ensure_users_default_filters_json_column",
+)

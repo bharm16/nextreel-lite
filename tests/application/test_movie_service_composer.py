@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from nextreel.application.movie_service import MovieManager
 
@@ -41,27 +41,27 @@ def test_movie_manager_accepts_injected_dependencies():
 
 
 def test_build_movie_manager_composes_runtime_dependencies():
-    with (
-        patch("app.DatabaseConnectionPool") as mock_pool_cls,
-        patch("app.TMDbHelper") as mock_tmdb_cls,
-        patch("app.CandidateStore") as mock_candidate_cls,
-        patch("app.ProjectionStore") as mock_projection_cls,
-        patch("app.WatchedStore") as mock_watched_cls,
-        patch("app.MovieRenderer") as mock_renderer_cls,
-        patch("app.HomePrewarmService") as mock_prewarm_cls,
-    ):
-        mock_pool = mock_pool_cls.return_value
-        mock_tmdb = mock_tmdb_cls.return_value
-        mock_candidate = mock_candidate_cls.return_value
-        mock_projection = mock_projection_cls.return_value
-        mock_projection.coordinator = MagicMock()
-        mock_watched = mock_watched_cls.return_value
-        mock_renderer = mock_renderer_cls.return_value
-        mock_prewarm = mock_prewarm_cls.return_value
+    from nextreel.bootstrap.movie_manager_factory import build_movie_manager
 
-        from app import build_movie_manager
+    mock_pool = MagicMock()
+    mock_tmdb = MagicMock()
+    mock_candidate = MagicMock()
+    mock_projection = MagicMock()
+    mock_projection.coordinator = MagicMock()
+    mock_watched = MagicMock()
+    mock_renderer = MagicMock()
+    mock_prewarm = MagicMock()
 
-        manager = build_movie_manager({"host": "localhost"})
+    manager = build_movie_manager(
+        {"host": "localhost"},
+        db_pool_cls=MagicMock(return_value=mock_pool),
+        tmdb_helper_cls=MagicMock(return_value=mock_tmdb),
+        candidate_store_cls=MagicMock(return_value=mock_candidate),
+        projection_store_cls=MagicMock(return_value=mock_projection),
+        watched_store_cls=MagicMock(return_value=mock_watched),
+        renderer_cls=MagicMock(return_value=mock_renderer),
+        home_prewarm_service_cls=MagicMock(return_value=mock_prewarm),
+    )
 
     assert isinstance(manager, MovieManager)
     assert manager.db_pool is mock_pool

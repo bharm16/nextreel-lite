@@ -29,22 +29,16 @@ from nextreel.domain.navigation_state import (
     SESSION_COOKIE_MAX_AGE,
     SESSION_COOKIE_NAME,
 )
-from infra.pool import DatabaseConnectionPool
 from infra.secrets import secrets_manager
 from logging_config import get_logger, setup_logging
 from nextreel.bootstrap.movie_manager_factory import (
     build_movie_manager as _compose_movie_manager,
 )
-from nextreel.application.movie_service import HomePrewarmService, MovieManager
+from nextreel.application.movie_service import MovieManager
 from nextreel.infra.job_queue import install_runtime_job_queue
 from nextreel.infra.redis_runtime import setup_redis_runtime as _setup_redis
 from nextreel.web.lifecycle import register_lifecycle_handlers
-from nextreel.web.movie_renderer import MovieRenderer
 from nextreel.web.request_context import register_request_context_handlers
-from movies.candidate_store import CandidateStore
-from movies.projection_store import ProjectionStore
-from movies.tmdb_client import TMDbHelper
-from movies.watched_store import WatchedStore
 from nextreel.web.routes import bp as routes_bp, init_routes
 
 
@@ -70,21 +64,6 @@ def _navigation_cookie_max_age(config) -> int:
     return max_session_hours * 60 * 60
 
 
-def build_movie_manager(db_config: dict[str, object]) -> MovieManager:
-    """Compatibility facade for tests/imports; implementation lives in bootstrap."""
-    return _compose_movie_manager(
-        db_config,
-        db_pool_cls=DatabaseConnectionPool,
-        tmdb_helper_cls=TMDbHelper,
-        candidate_store_cls=CandidateStore,
-        projection_store_cls=ProjectionStore,
-        watched_store_cls=WatchedStore,
-        renderer_cls=MovieRenderer,
-        home_prewarm_service_cls=HomePrewarmService,
-        movie_manager_cls=MovieManager,
-    )
-
-
 def _init_core(app):
     """Phase 1: Core app config and movie manager."""
     app.config.from_object(settings.Config())
@@ -97,7 +76,14 @@ def _init_core(app):
         str(int(os.path.getmtime(css_path))) if os.path.exists(css_path) else "1"
     )
 
-    movie_manager = build_movie_manager(settings.Config.get_db_config())
+    # Pass the locally-imported MovieManager so tests that patch
+    # ``app.MovieManager`` intercept production composition. The bootstrap
+    # factory keeps the rest of the wiring; this single explicit class lets
+    # the test fixture pattern keep working.
+    movie_manager = _compose_movie_manager(
+        settings.Config.get_db_config(),
+        movie_manager_cls=MovieManager,
+    )
     app.movie_manager = movie_manager
     app.navigation_state_store = None
     app.shared_redis_pool = None
@@ -110,25 +96,21 @@ def _init_core(app):
     app.background_tasks = set()
     app.config["SESSION_REDIS"] = None
 
-    # Wire a background-task scheduler so MovieManager (and the projection
-    # enrichment coordinator) can schedule best-effort background work.
-    # Tasks are registered in app.background_tasks so shutdown can drain them.
-    def _schedule_background_task(coro):
-        task = asyncio.create_task(coro)
+    # Wire a background-task scheduler so MovieManager (and, transitively, the
+    # projection enrichment coordinator) can schedule best-effort background
+    # work. Tasks are registered in app.background_tasks so shutdown drains
+    # them. The coordinator may pass an already-scheduled asyncio.Task instead
+    # of a coroutine — we accept both.
+    def _schedule_background_task(awaitable):
+        if isinstance(awaitable, asyncio.Task):
+            task = awaitable
+        else:
+            task = asyncio.create_task(awaitable)
         app.background_tasks.add(task)
         task.add_done_callback(app.background_tasks.discard)
         return task
 
     movie_manager.attach_background_scheduler(_schedule_background_task)
-
-    # Wire the same scheduler into the projection enrichment coordinator so
-    # its in-flight prefetch tasks are also tracked in app.background_tasks.
-    def _register_existing_task(task):
-        app.background_tasks.add(task)
-        task.add_done_callback(app.background_tasks.discard)
-
-    if movie_manager.projection_coordinator is not None:
-        movie_manager.projection_coordinator.attach_background_scheduler(_register_existing_task)
     return movie_manager
 
 

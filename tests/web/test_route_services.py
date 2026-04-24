@@ -110,33 +110,3 @@ class TestWatchedListPresenter:
         }
 
 
-class TestWatchedMutationService:
-    @pytest.mark.asyncio
-    async def test_add_forwards_to_store(self):
-        from nextreel.web.route_services import WatchedMutationService
-
-        watched_store = MagicMock()
-        watched_store.add = AsyncMock()
-
-        await WatchedMutationService().add(
-            user_id="user-123",
-            tconst="tt1234567",
-            watched_store=watched_store,
-        )
-
-        watched_store.add.assert_awaited_once_with("user-123", "tt1234567")
-
-    @pytest.mark.asyncio
-    async def test_remove_forwards_to_store(self):
-        from nextreel.web.route_services import WatchedMutationService
-
-        watched_store = MagicMock()
-        watched_store.remove = AsyncMock()
-
-        await WatchedMutationService().remove(
-            user_id="user-123",
-            tconst="tt1234567",
-            watched_store=watched_store,
-        )
-
-        watched_store.remove.assert_awaited_once_with("user-123", "tt1234567")

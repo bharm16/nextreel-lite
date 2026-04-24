@@ -42,16 +42,49 @@ def _max_duration() -> timedelta:
     return timedelta(hours=env_int("MAX_SESSION_DURATION_HOURS", 8))
 
 
-class NavigationStateService:
-    def __init__(self, repository: NavigationStateRepository, migration):
-        self.repository = repository
-        self.migration = migration
+class NavigationStateStore:
+    """Owns navigation state persistence: repository + migration + service logic.
+
+    Construct with either ``NavigationStateStore(db_pool)`` (the production
+    path — wires up a default repository + migration) or
+    ``NavigationStateStore(repository=..., migration=...)`` (the test path,
+    which lets callers inject mocks directly).
+    """
+
+    def __init__(self, db_pool=None, *, repository=None, migration=None):
+        from infra.legacy_migration import LegacyMigrationHelper
+
+        if repository is not None or migration is not None:
+            if repository is None or migration is None:
+                raise TypeError(
+                    "When constructing with repository/migration, both must be provided"
+                )
+            self.db_pool = getattr(repository, "db_pool", None)
+            self.repository = repository
+            self.migration = migration
+        else:
+            if db_pool is None:
+                raise TypeError("NavigationStateStore requires db_pool or repository+migration")
+            self.db_pool = db_pool
+            self.migration = LegacyMigrationHelper(db_pool)
+            self.repository = NavigationStateRepository(db_pool)
+        self._cache = None
+
+    # ── Cache wiring ────────────────────────────────────────────────
+
+    def attach_cache(self, cache) -> None:
+        self._cache = cache
+        self.repository.attach_cache(cache)
+
+    # ── Migration helpers ───────────────────────────────────────────
 
     async def dual_write_enabled(self) -> bool:
         return await self.migration.dual_write_enabled()
 
     async def record_legacy_import(self) -> None:
         await self.migration.record_legacy_import()
+
+    # ── State construction ──────────────────────────────────────────
 
     def fresh_expiry(self, created_at: datetime, now: datetime | None = None) -> datetime:
         current = now or utcnow()
@@ -91,6 +124,8 @@ class NavigationStateService:
             prev_max=PREV_STACK_MAX,
             future_max=FUTURE_STACK_MAX,
         )
+
+    # ── Activity / load ─────────────────────────────────────────────
 
     async def touch_if_needed(self, state: NavigationState) -> NavigationState:
         now = utcnow()
@@ -231,11 +266,7 @@ class NavigationStateService:
             working.filters["exclude_watched"] = exclude_watched
             return working
 
-        result = await self.mutate(
-            state.session_id,
-            mutator,
-            current_state=state,
-        )
+        result = await self.mutate(state.session_id, mutator, current_state=state)
         if result.conflicted:
             return None
         return result.state
@@ -249,22 +280,19 @@ class NavigationStateService:
         if legacy_session is not None:
             legacy_session.clear()
 
+    # ── Test/back-compat private accessors ──────────────────────────
+    # These existed on the legacy facade and tests still patch/call them by name.
 
-class NavigationStateStore:
-    """Compatibility facade for existing callers of infra.navigation_state."""
+    def _fresh_expiry(self, created_at: datetime, now: datetime | None = None) -> datetime:
+        return self.fresh_expiry(created_at, now)
 
-    def __init__(self, db_pool):
-        self.db_pool = db_pool
-        from infra.legacy_migration import LegacyMigrationHelper
+    def _fresh_state(self, session_id: str | None = None) -> NavigationState:
+        return self.fresh_state(session_id)
 
-        self.migration = LegacyMigrationHelper(db_pool)
-        self.repository = NavigationStateRepository(db_pool)
-        self.service = NavigationStateService(self.repository, self.migration)
-        self._cache = None
-
-    def attach_cache(self, cache) -> None:
-        self._cache = cache
-        self.repository.attach_cache(cache)
+    def _state_from_legacy(
+        self, session_id: str, legacy_session: MutableMapping[str, Any]
+    ) -> NavigationState:
+        return self.state_from_legacy(session_id, legacy_session)
 
     def _redis_read_cache_enabled(self) -> bool:
         return self.repository.redis_read_cache_enabled()
@@ -272,36 +300,13 @@ class NavigationStateStore:
     async def _invalidate_cached_state(self, session_id: str) -> None:
         await self.repository.invalidate_cached_state(session_id)
 
-    async def dual_write_enabled(self) -> bool:
-        return await self.service.dual_write_enabled()
-
-    async def record_legacy_import(self) -> None:
-        await self.service.record_legacy_import()
-
-    def _fresh_expiry(self, created_at: datetime, now: datetime | None = None) -> datetime:
-        return self.service.fresh_expiry(created_at, now)
-
-    def _fresh_state(self, session_id: str | None = None) -> NavigationState:
-        return self.service.fresh_state(session_id)
-
-    def _state_from_legacy(
-        self,
-        session_id: str,
-        legacy_session: MutableMapping[str, Any],
-    ) -> NavigationState:
-        return self.service.state_from_legacy(session_id, legacy_session)
-
     async def _load_row(self, session_id: str) -> NavigationState | None:
         return await self.repository.load_state(session_id)
 
     async def _load_row_from_cache(self, session_id: str) -> NavigationState | None:
         return await self.repository.load_state_from_cache(session_id)
 
-    async def _store_row_in_cache(
-        self,
-        state: NavigationState,
-        row: dict[str, Any],
-    ) -> None:
+    async def _store_row_in_cache(self, state: NavigationState, row: dict[str, Any]) -> None:
         await self.repository.store_state_in_cache(state, row)
 
     def _json_load(self, value: Any, fallback: Any) -> Any:
@@ -321,64 +326,13 @@ class NavigationStateStore:
         await self.repository.insert_state(state)
 
     async def _touch_if_needed(self, state: NavigationState) -> NavigationState:
-        return await self.service.touch_if_needed(state)
-
-    async def load_for_request(
-        self,
-        cookie_session_id: str | None,
-        legacy_session: MutableMapping[str, Any] | None = None,
-    ) -> tuple[NavigationState, bool]:
-        return await self.service.load_for_request(cookie_session_id, legacy_session)
-
-    async def get_state(self, session_id: str) -> NavigationState | None:
-        return await self.service.get_state(session_id)
-
-    async def ready_check(self) -> bool:
-        return await self.service.ready_check()
-
-    async def save_state(
-        self,
-        state: NavigationState,
-        expected_version: int,
-        previous_state: NavigationState | None = None,
-    ) -> bool:
-        return await self.service.save_state(state, expected_version, previous_state)
+        return await self.touch_if_needed(state)
 
     def _write_legacy_session(
-        self,
-        state: NavigationState,
-        legacy_session: MutableMapping[str, Any],
+        self, state: NavigationState, legacy_session: MutableMapping[str, Any]
     ) -> None:
-        self.service.write_legacy_session(state, legacy_session)
+        self.write_legacy_session(state, legacy_session)
 
-    async def mutate(
-        self,
-        session_id: str,
-        mutator: Callable[[NavigationState], Any | Awaitable[Any]],
-        legacy_session: MutableMapping[str, Any] | None = None,
-        current_state: NavigationState | None = None,
-    ) -> MutationResult:
-        return await self.service.mutate(session_id, mutator, legacy_session, current_state)
 
-    async def set_user_id(self, session_id: str, user_id: str | None) -> None:
-        await self.service.set_user_id(session_id, user_id)
-
-    async def bind_user(
-        self,
-        state: NavigationState,
-        user_id: str,
-        *,
-        exclude_watched: bool,
-    ) -> NavigationState | None:
-        return await self.service.bind_user(
-            state,
-            user_id,
-            exclude_watched=exclude_watched,
-        )
-
-    async def delete_state(
-        self,
-        session_id: str,
-        legacy_session: MutableMapping[str, Any] | None = None,
-    ) -> None:
-        await self.service.delete_state(session_id, legacy_session)
+# Backward-compat alias for code/tests that still import the service-class name.
+NavigationStateService = NavigationStateStore

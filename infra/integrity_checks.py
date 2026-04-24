@@ -39,22 +39,4 @@ INTEGRITY_CHECKS = [
         WHERE tp.nconst IS NOT NULL AND nb.nconst IS NULL
         """,
     ),
-    (
-        "popular_movies_cache referencing non-existent title.basics",
-        """
-        SELECT COUNT(*) AS orphans
-        FROM popular_movies_cache pmc
-        LEFT JOIN `title.basics` tb ON pmc.tconst = tb.tconst
-        WHERE tb.tconst IS NULL
-        """,
-    ),
-    (
-        "recent_movies_cache referencing non-existent title.basics",
-        """
-        SELECT COUNT(*) AS orphans
-        FROM recent_movies_cache rmc
-        LEFT JOIN `title.basics` tb ON rmc.tconst = tb.tconst
-        WHERE tb.tconst IS NULL
-        """,
-    ),
 ]

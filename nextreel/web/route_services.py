@@ -158,9 +158,3 @@ class WatchedListPresenter:
         }
 
 
-class WatchedMutationService:
-    async def add(self, *, user_id: str, tconst: str, watched_store) -> None:
-        await watched_store.add(user_id, tconst)
-
-    async def remove(self, *, user_id: str, tconst: str, watched_store) -> None:
-        await watched_store.remove(user_id, tconst)
