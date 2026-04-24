@@ -1,0 +1,162 @@
+{% from "macros.html" import pick_movie_button with context %}
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth" {% if server_theme %}data-theme-server="{{ server_theme }}"{% endif %}>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Watched – Nextreel</title>
+  <meta name="description" content="Your watched films on Nextreel." />
+  <meta name="csrf-token" content="{{ csrf_token() }}" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,300;0,400;0,700;1,400&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/output.css') }}?v={{ config.get('CSS_VERSION', '1') }}">
+  <script src="{{ url_for('static', filename='js/theme-boot.js') }}?v={{ config.get('CSS_VERSION', '1') }}"></script>
+  <style>
+    body { font-family: var(--font-sans, 'DM Sans', system-ui, sans-serif); background: var(--color-bg); color: var(--color-text); }
+  </style>
+</head>
+<body class="antialiased">
+  <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:shadow">Skip to content</a>
+
+  {% include 'navbar_modern.html' %}
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  <div class="max-w-5xl mx-auto px-4 pt-4">
+    {% for category, message in messages %}
+    <div role="alert" class="mb-4 rounded-lg border px-4 py-3 text-sm font-medium
+      {% if category == 'error' %}border-red-400 bg-red-50 text-red-800 dark:border-red-600 dark:bg-red-900/30 dark:text-red-200
+      {% elif category == 'warning' %}border-yellow-400 bg-yellow-50 text-yellow-800 dark:border-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-200
+      {% elif category == 'success' %}border-green-400 bg-green-50 text-green-800 dark:border-green-600 dark:bg-green-900/30 dark:text-green-200
+      {% else %}border-blue-400 bg-blue-50 text-blue-800 dark:border-blue-600 dark:bg-blue-900/30 dark:text-blue-200{% endif %}">
+      {{ message }}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% endwith %}
+
+  {% if session.get('letterboxd_unmatched') %}
+  <div class="max-w-5xl mx-auto px-4">
+    <details class="mb-4 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800/50">
+      <summary class="cursor-pointer px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300">
+        Show unmatched films ({{ session['letterboxd_unmatched']|length }})
+      </summary>
+      <ul class="px-4 pb-3 text-xs text-gray-500 dark:text-gray-400 columns-2 gap-4">
+        {% for film in session['letterboxd_unmatched'] %}
+        <li>{{ film }}</li>
+        {% endfor %}
+      </ul>
+    </details>
+  </div>
+  {% set _ = session.pop('letterboxd_unmatched', None) %}
+  {% endif %}
+
+  <main id="main" aria-label="Watched films archive">
+    {% if movies|length == 0 and not (filter_chips is defined and filter_chips) %}
+      <div class="watched-empty">
+        <h1 class="watched-empty-title">Your film journey starts here</h1>
+        <hr class="watched-empty-rule" />
+        <form method="POST" action="{{ url_for('main.import_letterboxd') }}" enctype="multipart/form-data" class="watched-empty-import">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <label class="watched-empty-cta watched-empty-cta--primary">
+            <svg class="watched-letterboxd-icon" viewBox="0 0 500 500" aria-hidden="true"><circle cx="108" cy="250" r="108" fill="#00e054"/><circle cx="250" cy="250" r="108" fill="#40bcf4"/><circle cx="392" cy="250" r="108" fill="#ff8000"/><path d="M179 170.6a108 108 0 000 158.8 108 108 0 000-158.8z" fill="#84d548"/><path d="M179 329.4a108 108 0 000-158.8 108 108 0 000 158.8z" fill="#84d548"/><path d="M321 170.6a108 108 0 010 158.8 108 108 0 010-158.8z" fill="#a8e0f4"/><path d="M321 329.4a108 108 0 010-158.8 108 108 0 010 158.8z" fill="#a8e0f4"/></svg>
+            Import from Letterboxd
+            <input type="file" name="letterboxd_csv" accept=".csv" required class="sr-only" onchange="this.form.submit()" />
+          </label>
+        </form>
+        <a href="/" class="watched-empty-cta watched-empty-cta--secondary">Pick a Movie</a>
+      </div>
+    {% else %}
+      <header class="watched-header">
+        <h1 class="watched-title">Watched</h1>
+        <p class="watched-subtitle"><em>{{ total }} films and counting</em></p>
+      </header>
+
+      <div class="watched-toolbar" id="watched-toolbar">
+        <div class="watched-toolbar-row">
+          <div class="watched-search-wrap">
+            <svg class="watched-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input
+              type="search"
+              id="watched-search"
+              class="watched-search"
+              placeholder="Search films..."
+              aria-label="Search watched films"
+              autocomplete="off"
+            />
+          </div>
+          <div class="watched-toolbar-right">
+            <a href="javascript:void(0)" class="watched-letterboxd-link" title="Import from Letterboxd" id="watched-letterboxd-trigger">
+              <svg class="watched-letterboxd-icon" viewBox="0 0 500 500" aria-label="Import from Letterboxd"><circle cx="108" cy="250" r="108" fill="#00e054"/><circle cx="250" cy="250" r="108" fill="#40bcf4"/><circle cx="392" cy="250" r="108" fill="#ff8000"/><path d="M179 170.6a108 108 0 000 158.8 108 108 0 000-158.8z" fill="#84d548"/><path d="M179 329.4a108 108 0 000-158.8 108 108 0 000 158.8z" fill="#84d548"/><path d="M321 170.6a108 108 0 010 158.8 108 108 0 010-158.8z" fill="#a8e0f4"/><path d="M321 329.4a108 108 0 010-158.8 108 108 0 010 158.8z" fill="#a8e0f4"/></svg>
+            </a>
+            <select id="watched-sort" class="watched-sort" aria-label="Sort watched films">
+              <option value="recent" {% if current_sort == 'recent' %}selected{% endif %}>Recent</option>
+              <option value="title_asc" {% if current_sort == 'title_asc' %}selected{% endif %}>A – Z</option>
+              <option value="title_desc" {% if current_sort == 'title_desc' %}selected{% endif %}>Z – A</option>
+              <option value="year_desc" {% if current_sort == 'year_desc' %}selected{% endif %}>Year</option>
+              <option value="rating_desc" {% if current_sort == 'rating_desc' %}selected{% endif %}>Rating</option>
+            </select>
+          </div>
+        </div>
+
+        {% if filter_chips %}
+        <div class="watched-chips" role="group" aria-label="Filter by">
+          <button type="button" class="watched-chip watched-chip--active" data-filter="all" aria-pressed="true">All</button>
+          {% for decade in filter_chips.decades %}
+          <button type="button" class="watched-chip" data-filter="decade" data-value="{{ decade.rstrip('s') }}" aria-pressed="false">{{ decade }}</button>
+          {% endfor %}
+          {% for tier in filter_chips.ratings %}
+          <button type="button" class="watched-chip" data-filter="rating" data-value="{{ tier.label }}" data-min="{{ tier.min }}" data-max="{{ tier.max }}" aria-pressed="false">{{ tier.label }}</button>
+          {% endfor %}
+          {% for genre in filter_chips.genres %}
+          <button type="button" class="watched-chip" data-filter="genre" data-value="{{ genre }}" aria-pressed="false">{{ genre }}</button>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="watched-filter-count" id="watched-filter-count" aria-live="polite" hidden>
+          Showing <span id="watched-showing">0</span> of {{ total }} films
+        </div>
+      </div>
+
+      <section class="watched-grid" id="watched-grid" role="list">
+        {% for movie in movies %}
+          {% include '_watched_card.html' %}
+        {% endfor %}
+      </section>
+
+      <div class="watched-grid-footer" id="watched-grid-footer">
+        {% if has_more %}
+        <button type="button" class="watched-load-more" id="watched-load-more"
+                data-page="2" data-per-page="{{ pagination.per_page }}">
+          Load more
+        </button>
+        {% else %}
+        <div class="watched-end-mark">
+          <hr class="watched-end-rule" />
+          <p class="watched-end-text">That's all {{ total }}</p>
+        </div>
+        {% endif %}
+      </div>
+    {% endif %}
+  </main>
+
+  <div id="watched-toast" class="watched-toast" role="status" aria-live="polite" hidden></div>
+
+  <form id="watched-letterboxd-form" method="POST" action="{{ url_for('main.import_letterboxd') }}" enctype="multipart/form-data" hidden>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <input type="file" name="letterboxd_csv" id="watched-letterboxd-file" accept=".csv" />
+  </form>
+
+  <script src="{{ url_for('static', filename='js/watched.js') }}?v={{ config.get('CSS_VERSION', '1') }}" defer></script>
+
+  {% if enrichment_pending %}
+  <script src="{{ url_for('static', filename='js/watched-enrichment-progress.js') }}?v={{ config.get('CSS_VERSION', '1') }}" defer></script>
+  {% endif %}
+
+  {% include 'footer_modern.html' %}
+</body>
+</html>

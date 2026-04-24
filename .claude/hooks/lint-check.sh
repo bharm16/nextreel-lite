@@ -21,13 +21,29 @@ else
     exit 0  # No flake8 available, skip silently
 fi
 
+# Find black — prefer project venv
+if [ -x "./venv/bin/black" ]; then
+    BLACK="./venv/bin/black"
+elif command -v black &>/dev/null; then
+    BLACK="black"
+else
+    BLACK=""
+fi
+
 # Check only .py files for critical errors (syntax, undefined names)
+# and report black formatting drift (non-blocking).
 for filepath in ${CLAUDE_FILE_PATHS:-}; do
     if [[ "$filepath" == *.py ]] && [ -f "$filepath" ]; then
         output=$($FLAKE8 --select=E9,F63,F7,F82 --show-source "$filepath" 2>/dev/null || true)
         if [ -n "$output" ]; then
             echo "Lint issues in $filepath:"
             echo "$output"
+        fi
+
+        if [ -n "$BLACK" ]; then
+            if ! "$BLACK" --check --quiet --line-length 100 "$filepath" 2>/dev/null; then
+                echo "Format drift in $filepath (run: $BLACK --line-length 100 $filepath)"
+            fi
         fi
     fi
 done

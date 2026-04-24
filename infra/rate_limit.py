@@ -9,6 +9,7 @@ import time
 
 from quart import current_app
 
+from infra.cache import LruExpiringMap
 from infra.client_ip import get_client_ip
 from infra.metrics import set_rate_limit_backend
 from logging_config import get_logger
@@ -21,15 +22,49 @@ RATE_LIMIT_MAX = 30  # requests per window
 
 # In-memory fallback (single-instance only).
 # Cap at 1024 keys to prevent unbounded memory growth from unique IPs.
+# LruExpiringMap handles LRU eviction + TTL-based expiration in one data
+# structure (replaces a hand-rolled OrderedDict + manual stale scan).
 _RATE_LIMIT_MAX_KEYS = 1024
-_rate_limit_store: dict[str, list[float]] = {}
+_rate_limit_store: LruExpiringMap = LruExpiringMap(
+    max_keys=_RATE_LIMIT_MAX_KEYS,
+    ttl_seconds=RATE_LIMIT_WINDOW,
+    time_func=time.time,
+)
 _rate_limit_lock = asyncio.Lock()
 
 
 _active_backend = "memory"
+_memory_fallback_warned = False
+
+
+def _build_ratelimit_key(endpoint_key: str, ip: str) -> str:
+    """Unified rate-limit key format used by both Redis and memory backends."""
+    return f"ratelimit:{endpoint_key}:{ip}"
+
+
+def _warn_memory_fallback_once(reason: str) -> None:
+    """Emit a single loud warning the first time we fall back to in-memory.
+
+    The in-memory limiter is per-process: if the app is horizontally scaled
+    to N workers without Redis, the effective limit is N × configured limit.
+    Ops must know about this explicitly — a per-request debug log is not
+    enough.
+    """
+    global _memory_fallback_warned
+    if _memory_fallback_warned:
+        return
+    _memory_fallback_warned = True
+    logger.error(
+        "RATE LIMITER DEGRADED: falling back to in-memory store (reason: %s). "
+        "This limiter is PER-PROCESS — multi-worker deployments will have "
+        "effective limits of N × configured. Restore Redis to re-enable "
+        "shared limits.",
+        reason,
+    )
 
 
 # ── Public API ────────────────────────────────────────────────────
+
 
 async def check_rate_limit(endpoint_key: str) -> bool:
     """Rate limit using Redis pipeline (atomic INCR + EXPIRE).
@@ -43,9 +78,10 @@ async def check_rate_limit(endpoint_key: str) -> bool:
             if _active_backend != "memory":
                 set_rate_limit_backend("memory")
                 _active_backend = "memory"
+            _warn_memory_fallback_once("SESSION_REDIS not configured")
             return await check_rate_limit_memory(endpoint_key)
         ip = get_client_ip()
-        key = f"ratelimit:{endpoint_key}:{ip}"
+        key = _build_ratelimit_key(endpoint_key, ip)
 
         # Atomic pipeline: INCR + EXPIRE NX avoids the TOCTOU race where
         # a crash between INCR and EXPIRE could leave a key without a TTL.
@@ -65,6 +101,7 @@ async def check_rate_limit(endpoint_key: str) -> bool:
         if _active_backend != "memory":
             set_rate_limit_backend("memory")
             _active_backend = "memory"
+        _warn_memory_fallback_once(f"redis error: {exc}")
         return await check_rate_limit_memory(endpoint_key)
 
 
@@ -74,25 +111,21 @@ async def check_rate_limit_memory(endpoint_key: str) -> bool:
     Protected by an asyncio.Lock to prevent interleaved coroutine writes.
     """
     ip = get_client_ip()
-    key = f"{endpoint_key}:{ip}"
+    key = _build_ratelimit_key(endpoint_key, ip)
     now = time.time()
 
     async with _rate_limit_lock:
-        timestamps = _rate_limit_store.setdefault(key, [])
+        timestamps = _rate_limit_store.get(key)
+        if timestamps is None:
+            timestamps = []
         cutoff = now - RATE_LIMIT_WINDOW
-        timestamps[:] = [t for t in timestamps if t > cutoff]
+        timestamps = [t for t in timestamps if t > cutoff]
         if len(timestamps) >= RATE_LIMIT_MAX:
+            # Refresh LRU/TTL so repeated offenders don't age out mid-window.
+            _rate_limit_store.set(key, timestamps)
             return False
         timestamps.append(now)
-
-        # Evict stale keys to prevent unbounded memory growth
-        if len(_rate_limit_store) > _RATE_LIMIT_MAX_KEYS:
-            stale_keys = [
-                k for k, v in _rate_limit_store.items()
-                if not v or v[-1] < cutoff
-            ]
-            for k in stale_keys:
-                _rate_limit_store.pop(k, None)
+        _rate_limit_store.set(key, timestamps)
 
     return True
 

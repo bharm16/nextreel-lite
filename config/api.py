@@ -17,4 +17,4 @@ class ApiConfig:
     @property
     def SECRET_KEY(self):
         """Lazy evaluation — fetched on first access, not at import time."""
-        return secrets_manager.get_secret("FLASK_SECRET_KEY")
+        return ApiConfig.get_flask_secret_key()

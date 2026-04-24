@@ -1,16 +1,17 @@
 """Shared test fixtures for nextreel-lite test suite."""
 
 import asyncio
+import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from quart import Quart
 
 
-
 # ---------------------------------------------------------------------------
 # Quart test app
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def app():
@@ -24,6 +25,7 @@ def app():
 # ---------------------------------------------------------------------------
 # Mock Redis client
 # ---------------------------------------------------------------------------
+
 
 class FakeRedis:
     """In-memory fake that mirrors the subset of aioredis.Redis we use."""
@@ -73,6 +75,7 @@ def fake_redis():
 # Cache stub (for movie navigator tests)
 # ---------------------------------------------------------------------------
 
+
 class CacheStub:
     """Simple cache stub that returns a fixed payload on get()."""
 
@@ -101,18 +104,47 @@ def cache_stub():
 # Mock DB pool
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def mock_db_pool():
     pool = AsyncMock()
     pool.execute = AsyncMock(return_value=[])
-    pool.get_metrics = AsyncMock(return_value={
-        "pool_size": 10,
-        "free_connections": 5,
-        "circuit_breaker_state": "closed",
-        "queries_executed": 100,
-        "queries_failed": 0,
-        "avg_query_time_ms": 12.5,
-    })
+    pool.get_metrics = AsyncMock(
+        return_value={
+            "pool_size": 10,
+            "free_connections": 5,
+            "circuit_breaker_state": "closed",
+            "queries_executed": 100,
+            "queries_failed": 0,
+            "avg_query_time_ms": 12.5,
+        }
+    )
     pool.init_pool = AsyncMock()
     pool.close_pool = AsyncMock()
+
+    # Mock the raw aiomysql pool path used by _execute_ddl for DDL statements.
+    # _execute_ddl calls db_pool.pool.pool.acquire() / .release() directly.
+    # The mock cursor's execute is exposed as pool._ddl_cursor for test assertions.
+    ddl_cursor = AsyncMock()
+    ddl_cursor.__aenter__ = AsyncMock(return_value=ddl_cursor)
+    ddl_cursor.__aexit__ = AsyncMock(return_value=False)
+    mock_conn = MagicMock()
+    mock_conn.cursor = MagicMock(return_value=ddl_cursor)
+    raw_pool = MagicMock()
+    raw_pool.acquire = AsyncMock(return_value=mock_conn)
+    raw_pool.release = MagicMock()
+    pool.pool = MagicMock()
+    pool.pool.pool = raw_pool
+    pool._ddl_cursor = ddl_cursor
     return pool
+
+
+def pytest_collection_modifyitems(config, items):
+    """Keep spike-style resilience tests out of the default fast lane."""
+    if os.environ.get("RUN_SPIKE") == "1":
+        return
+
+    skip_spike = pytest.mark.skip(reason="spike tests are opt-in; set RUN_SPIKE=1 to run them")
+    for item in items:
+        if "spike" in item.keywords:
+            item.add_marker(skip_spike)

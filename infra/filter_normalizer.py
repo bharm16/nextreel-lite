@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from nextreel.domain.filter_contracts import FilterState, MovieCriteria
 from infra.time_utils import utcnow
 from movies.filter_parser import VALID_GENRES, extract_movie_filter_criteria
 
@@ -19,7 +20,7 @@ _RATING_MAX = 10.0
 _VOTES_MIN = 0
 
 
-def default_filter_state(current_year: int | None = None) -> dict[str, Any]:
+def default_filter_state(current_year: int | None = None) -> FilterState:
     year = current_year or utcnow().year
     return {
         "year_min": 1900,
@@ -30,10 +31,11 @@ def default_filter_state(current_year: int | None = None) -> dict[str, Any]:
         "num_votes_max": 200000,
         "language": "en",
         "genres_selected": [],
+        "exclude_watched": True,
     }
 
 
-def filters_from_criteria(criteria: dict[str, Any]) -> dict[str, Any]:
+def filters_from_criteria(criteria: MovieCriteria) -> FilterState:
     """Reconstruct a filter dict from a criteria dict."""
     filters = default_filter_state()
     if "min_year" in criteria:
@@ -58,7 +60,7 @@ def filters_from_criteria(criteria: dict[str, Any]) -> dict[str, Any]:
 class _StoredFilterForm:
     """Adapter that wraps a stored filter dict to look like form data."""
 
-    def __init__(self, filters: dict[str, Any]):
+    def __init__(self, filters: FilterState):
         self._filters = filters
 
     def get(self, key: str, default: Any = None) -> Any:
@@ -78,14 +80,14 @@ class _StoredFilterForm:
         return [value]
 
 
-def criteria_from_filters(filters: dict[str, Any]) -> dict[str, Any]:
+def criteria_from_filters(filters: FilterState | None) -> MovieCriteria:
     """Convert a filter dict into query criteria understood by the query builder."""
     merged = default_filter_state()
     merged.update(filters or {})
     return extract_movie_filter_criteria(_StoredFilterForm(merged))
 
 
-def normalize_filters(form_data) -> dict[str, Any]:
+def normalize_filters(form_data) -> FilterState:
     """Normalize raw form data into a canonical filter dict."""
     filters = default_filter_state()
     scalar_keys = (
@@ -110,10 +112,22 @@ def normalize_filters(form_data) -> dict[str, Any]:
         for genre in raw_genres
         if isinstance(genre, str) and genre in VALID_GENRES
     ]
+
+    # exclude_watched checkbox: hidden input sends "off", checkbox sends "on".
+    # When both are present (checkbox checked), "on" must win regardless of
+    # MultiDict ordering — so check the full list of submitted values.
+    exclude_watched_values = form_data.getlist("exclude_watched")
+    if "on" in exclude_watched_values:
+        filters["exclude_watched"] = True
+    elif "off" in exclude_watched_values:
+        filters["exclude_watched"] = False
+    else:
+        filters["exclude_watched"] = True
+
     return filters
 
 
-def validate_filters(filters: dict[str, Any]) -> dict[str, str]:
+def validate_filters(filters: FilterState) -> dict[str, str]:
     """Validate a canonical filter dict without mutating it."""
     errors: dict[str, str] = {}
 

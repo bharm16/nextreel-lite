@@ -21,6 +21,7 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
+        cache: 'pip'
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
@@ -49,7 +50,8 @@ jobs:
       run: |
         pip install bandit
         bandit -r . --exclude venv,tests,node_modules -ll -q
-    - name: Test with pytest
+    - name: Test with pytest and coverage (Python 3.11)
+      if: matrix.python-version == '3.11'
       env:
         TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
         NEXTREEL_ENV: testing
@@ -58,8 +60,40 @@ jobs:
         pytest tests/ --cov=. --cov-report=term-missing --cov-report=xml \
           --cov-fail-under=40 \
           --ignore=venv --ignore=node_modules
+    - name: Test with pytest fast lane (Python 3.12)
+      if: matrix.python-version == '3.12'
+      env:
+        TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+        NEXTREEL_ENV: testing
+        FLASK_ENV: testing
+      run: |
+        pytest tests/ --ignore=venv --ignore=node_modules
     - name: Upload coverage to Codecov
+      if: matrix.python-version == '3.11'
       uses: codecov/codecov-action@v4
       with:
         file: ./coverage.xml
         name: codecov-nextreel-lite
+
+  spike-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-dev.txt
+    - name: Run spike resilience tests
+      env:
+        TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+        NEXTREEL_ENV: testing
+        FLASK_ENV: testing
+        RUN_SPIKE: '1'
+      run: |
+        pytest tests/integration/test_spike_resilience.py --ignore=venv --ignore=node_modules

@@ -1,91 +1,205 @@
-{% from "macros.html" import pick_movie_button, pick_movie_button_block with context %}
-<!-- Modern Reusable Navbar Component -->
-<!-- Include this at the top of your page templates -->
-<header class="sticky top-0 z-50 bg-primary/95 backdrop-blur supports-[backdrop-filter]:bg-primary/80 text-white shadow">
-  <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-    <div class="flex h-16 items-center justify-between">
-      <!-- Brand -->
-      <a href="/" class="flex items-center gap-2 group" aria-label="Nextreel home">
-        <svg class="h-6 w-6 transition-transform group-hover:rotate-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-          <path d="M4 6a2 2 0 0 1 2-2h8l6 6v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6z" opacity=".3"/>
-          <path d="M14 4v4a2 2 0 0 0 2 2h4"/>
-        </svg>
-        <span class="font-brand-serif text-xl font-bold tracking-tight">Nextreel</span>
-      </a>
+{% from "macros.html" import user_avatar with context %}
 
-      <!-- Desktop actions -->
-      <nav class="hidden gap-2 md:flex items-center">
-        {{ pick_movie_button(class="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent/70 focus:ring-offset-primary/20") }}
-        <a href="{{ url_for('main.set_filters') }}" class="inline-flex items-center gap-2 rounded-xl border border-accent px-4 py-2 text-sm font-semibold text-accent hover:bg-accent/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent/70 focus:ring-offset-primary/20">
-          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5h18v2H3zm4 6h10v2H7zm3 6h4v2h-4z"/></svg>
-          Set Filters
-        </a>
-        <button id="themeToggle" class="ml-2 inline-flex items-center justify-center rounded-lg p-2 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white" aria-pressed="false" aria-label="Toggle dark mode">
-          <svg id="iconSun" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.76 4.84l-1.8-1.79-1.41 1.41 1.79 1.8 1.42-1.42zM1 13h3v-2H1v2zm10 10h2v-3h-2v3zM4.96 19.78l1.41 1.41 1.8-1.79-1.42-1.42-1.79 1.8zM20 11v2h3v-2h-3zm-2.34-7.95l-1.41 1.41 1.79 1.8 1.41-1.42-1.79-1.79zM12 7a5 5 0 100 10 5 5 0 000-10zm7.04 12.78l-1.79-1.8-1.41 1.42 1.79 1.79 1.41-1.41zM13 1h-2v3h2V1z"/></svg>
-          <svg id="iconMoon" class="h-5 w-5 hidden" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.74 2.15A9 9 0 1021 12.26 7 7 0 0112.74 2.15z"/></svg>
-        </button>
-      </nav>
+<!-- Navbar — scroll-aware editorial action bar -->
+<header class="navbar" data-navbar>
 
-      <!-- Mobile menu button -->
-      <button id="menuBtn" class="inline-flex items-center justify-center rounded-lg p-2 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white md:hidden" aria-controls="mobileMenu" aria-expanded="false" aria-label="Open menu">
-        <svg class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg>
+  <!-- Brand lockup -->
+  <a href="/" class="navbar-brand-wrap" aria-label="Nextreel home">
+    <span class="navbar-brand">Nextreel</span>
+    <span class="navbar-tagline">Cinema Discovery</span>
+  </a>
+
+  <!-- Desktop actions -->
+  <nav class="navbar-actions hidden md:flex" aria-label="Primary">
+
+    <!-- Search trigger -->
+    <button type="button" class="navbar-icon-btn" id="searchSpotlightTrigger"
+            aria-label="Open search" aria-haspopup="dialog" aria-controls="searchSpotlight">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="11" cy="11" r="7"/>
+        <path d="m21 21-4.3-4.3"/>
+      </svg>
+    </button>
+
+    {% if current_user_id %}
+    <!-- Watched top-level link -->
+    <a href="{{ url_for('main.watched_list_page') }}" class="navbar-link">Watched</a>
+
+    <!-- Pick a Movie primary action -->
+    <a href="/next_movie" class="navbar-pill"
+       onclick="event.preventDefault(); document.getElementById('pickMovieFormNav').submit();">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3l14 9-14 9V3z"/></svg>
+      <span>Pick a Movie</span>
+    </a>
+    <form id="pickMovieFormNav" method="POST" action="/next_movie" class="hidden">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    </form>
+
+    <!-- Avatar dropdown -->
+    <div class="account-avatar-dropdown">
+      <button type="button" class="account-avatar-dropdown-trigger" id="avatarBtn"
+              aria-haspopup="menu" aria-expanded="false" aria-controls="avatarMenu"
+              aria-label="Account menu">
+        {{ user_avatar(current_user, 'sm') }}
       </button>
+      <div id="avatarMenu" class="account-avatar-dropdown-menu" role="menu">
+        <a href="{{ url_for('main.account_view') }}?tab=profile" role="menuitem">Account</a>
+        <div class="avatar-menu-divider" role="separator"></div>
+        <button type="button" role="menuitem" id="themeToggleDesktop" data-theme-toggle>
+          <span>Theme</span>
+          <span class="avatar-menu-state" data-theme-state>Dark ●</span>
+        </button>
+        <div class="avatar-menu-divider" role="separator"></div>
+        <form method="POST" action="/logout" style="display:contents;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" role="menuitem" class="avatar-menu-logout">Log out</button>
+        </form>
+      </div>
     </div>
-  </div>
 
-  <!-- Mobile dropdown -->
-  <div id="mobileMenu" class="hidden md:hidden border-t border-white/10">
-    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-3 space-y-2">
-      {{ pick_movie_button_block(class="block w-full rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white text-center") }}
-      <a href="{{ url_for('main.set_filters') }}" class="block w-full rounded-lg border border-accent px-4 py-2 text-sm font-semibold text-accent text-center">Set Filters</a>
-      <button id="themeToggleMobile" class="block w-full rounded-lg px-4 py-2 text-sm font-semibold text-white text-center bg-white/10">Toggle Theme</button>
-    </div>
+    {% else %}
+    <!-- Logged-out: Pick stays primary; Log In as simple link -->
+    <a href="/next_movie" class="navbar-pill"
+       onclick="event.preventDefault(); document.getElementById('pickMovieFormNav').submit();">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3l14 9-14 9V3z"/></svg>
+      <span>Pick a Movie</span>
+    </a>
+    <form id="pickMovieFormNav" method="POST" action="/next_movie" class="hidden">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    </form>
+    <button type="button" class="navbar-icon-btn" data-theme-toggle aria-label="Toggle theme">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+      </svg>
+    </button>
+    <a href="/login" class="navbar-link">Log In</a>
+    {% endif %}
+  </nav>
+
+  <!-- Mobile compact actions -->
+  <div class="navbar-actions md:hidden" style="gap: 10px;">
+    <button type="button" class="navbar-icon-btn" id="searchSpotlightTriggerMobile"
+            aria-label="Open search" aria-haspopup="dialog" aria-controls="searchSpotlight"
+            style="width: 30px; height: 30px;">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="11" cy="11" r="7"/>
+        <path d="m21 21-4.3-4.3"/>
+      </svg>
+    </button>
+    <a href="/next_movie" class="navbar-pill"
+       style="padding: 7px 12px; font-size: 9.5px;"
+       onclick="event.preventDefault(); document.getElementById('pickMovieFormMobile').submit();">
+      <span>Pick</span>
+    </a>
+    <form id="pickMovieFormMobile" method="POST" action="/next_movie" class="hidden">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    </form>
+    <button id="menuBtn" class="navbar-icon-btn" aria-controls="mobileMenu"
+            aria-expanded="false" aria-label="Open menu"
+            style="width: 30px; height: 30px;">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4 7h16M4 12h16M4 17h16"/>
+      </svg>
+    </button>
   </div>
 </header>
 
-<!-- Mobile menu toggle script (include once per page) -->
+<!-- Mobile slide-down panel -->
+<div id="mobileMenu" class="navbar-mobile-panel" role="dialog" aria-label="Navigation menu">
+  <div class="navbar-mobile-close">
+    <button id="menuClose" aria-label="Close menu">&times;</button>
+  </div>
+  <nav class="navbar-mobile-links">
+    {% if current_user_id %}
+    <a href="{{ url_for('main.watched_list_page') }}">Watched</a>
+    <a href="{{ url_for('main.account_view') }}?tab=profile">Account</a>
+    <button type="button" id="themeToggleMobile" data-theme-toggle>
+      <span>Theme</span>
+      <span class="mobile-menu-state" data-theme-state>Dark ●</span>
+    </button>
+    <form method="POST" action="/logout" style="display:contents;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit">Log Out</button>
+    </form>
+    {% else %}
+    <a href="/login">Log In</a>
+    <button type="button" id="themeToggleMobile" data-theme-toggle>
+      <span>Theme</span>
+      <span class="mobile-menu-state" data-theme-state>Dark ●</span>
+    </button>
+    {% endif %}
+  </nav>
+</div>
+
+<!-- Spotlight search modal -->
+{% include '_search_spotlight.html' %}
+
+<!-- Theme, dropdown, mobile menu scripts -->
 <script>
   (function() {
     function setTheme(next) {
       try { localStorage.setItem('nr-theme', next); } catch (e) {}
       document.documentElement.setAttribute('data-theme', next);
-      const pressed = next === 'dark';
-      const tbtn = document.getElementById('themeToggle');
-      if (tbtn) tbtn.setAttribute('aria-pressed', String(pressed));
-      const sun = document.getElementById('iconSun');
-      const moon = document.getElementById('iconMoon');
-      if (sun && moon) {
-        sun.classList.toggle('hidden', pressed);
-        moon.classList.toggle('hidden', !pressed);
-      }
-    }
-
-    const menuBtn = document.getElementById('menuBtn');
-    const mobileMenu = document.getElementById('mobileMenu');
-    if (menuBtn && mobileMenu) {
-      menuBtn.addEventListener('click', () => {
-        const isOpen = mobileMenu.classList.toggle('hidden');
-        const expanded = !isOpen;
-        menuBtn.setAttribute('aria-expanded', String(expanded));
-        menuBtn.setAttribute('aria-label', expanded ? 'Close menu' : 'Open menu');
+      document.querySelectorAll('[data-theme-state]').forEach(function (el) {
+        el.textContent = next === 'dark' ? 'Dark ●' : 'Light ○';
       });
     }
 
-    const t = document.getElementById('themeToggle');
-    const tm = document.getElementById('themeToggleMobile');
-    if (t) t.addEventListener('click', () => {
-      const current = document.documentElement.getAttribute('data-theme');
-      setTheme(current === 'dark' ? 'light' : 'dark');
-    });
-    if (tm) tm.addEventListener('click', () => {
-      const current = document.documentElement.getAttribute('data-theme');
-      setTheme(current === 'dark' ? 'light' : 'dark');
+    // Mobile menu open/close
+    var menuBtn = document.getElementById('menuBtn');
+    var menuClose = document.getElementById('menuClose');
+    var mobileMenu = document.getElementById('mobileMenu');
+    if (menuBtn && mobileMenu) {
+      menuBtn.addEventListener('click', function () {
+        mobileMenu.classList.add('open');
+        menuBtn.setAttribute('aria-expanded', 'true');
+      });
+    }
+    if (menuClose && mobileMenu) {
+      menuClose.addEventListener('click', function () {
+        mobileMenu.classList.remove('open');
+        if (menuBtn) menuBtn.setAttribute('aria-expanded', 'false');
+      });
+    }
+
+    // Theme toggle (any element with data-theme-toggle)
+    document.querySelectorAll('[data-theme-toggle]').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        var current = document.documentElement.getAttribute('data-theme') || 'dark';
+        setTheme(current === 'dark' ? 'light' : 'dark');
+      });
     });
 
-    // Initialize toggle visuals from stored pref
+    // Avatar dropdown
+    var avatarBtn = document.getElementById('avatarBtn');
+    var avatarMenu = document.getElementById('avatarMenu');
+    if (avatarBtn && avatarMenu) {
+      avatarBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var isOpen = avatarMenu.classList.toggle('open');
+        avatarBtn.setAttribute('aria-expanded', String(isOpen));
+      });
+      document.addEventListener('click', function () {
+        avatarMenu.classList.remove('open');
+        avatarBtn.setAttribute('aria-expanded', 'false');
+      });
+      avatarMenu.addEventListener('click', function (e) { e.stopPropagation(); });
+    }
+
+    // Sync theme state on load
     try {
-      const pref = localStorage.getItem('nr-theme');
+      var pref = localStorage.getItem('nr-theme');
       if (pref === 'dark' || pref === 'light') setTheme(pref);
+      else {
+        var current = document.documentElement.getAttribute('data-theme') || 'dark';
+        document.querySelectorAll('[data-theme-state]').forEach(function (el) {
+          el.textContent = current === 'dark' ? 'Dark ●' : 'Light ○';
+        });
+      }
     } catch (e) {}
   })();
 </script>
+<script src="{{ url_for('static', filename='js/navbar-scroll.js') }}?v={{ config.get('CSS_VERSION', '1') }}" defer></script>
+<script src="{{ url_for('static', filename='js/search-spotlight.js') }}?v={{ config.get('CSS_VERSION', '1') }}" defer></script>

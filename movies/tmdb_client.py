@@ -8,16 +8,19 @@ from typing import Optional
 import httpx
 
 from movies.tmdb_parser import TMDbResponseParser
+from movies.tmdb_metrics import TMDbMetricsRecorder
 
 
 def get_tmdb_api_key() -> str:
     """Retrieve the TMDb API key from secure secrets manager.
 
+    Delegates to ``ApiConfig.get_tmdb_api_key`` for a single source of truth.
     Fetching the key on demand enables key rotation without changing code or
     redeploying the application.
     """
-    from infra.secrets import secrets_manager
-    api_key = secrets_manager.get_secret("TMDB_API_KEY")
+    from config.api import ApiConfig
+
+    api_key = ApiConfig.get_tmdb_api_key()
     if not api_key:
         raise RuntimeError("TMDB_API_KEY not configured. Please set the environment variable.")
     return api_key
@@ -52,21 +55,30 @@ class _CircuitBreaker:
         failure_threshold: int = 5,
         recovery_timeout: float = 30.0,
         half_open_max: int = 1,
+        latency_threshold_seconds: float | None = None,
+        latency_ewma_alpha: float = 0.2,
     ):
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout
         self.half_open_max = half_open_max
+        self.latency_threshold_seconds = latency_threshold_seconds
+        self.latency_ewma_alpha = latency_ewma_alpha
 
         self._state = self.CLOSED
         self._failure_count = 0
         self._last_failure_time: float = 0
         self._half_open_count = 0
+        self._latency_ewma: float | None = None
         self._lock = asyncio.Lock()
 
     @property
     def state(self) -> str:
         """Return current state (read-only, no side effects)."""
         return self._state
+
+    @property
+    def latency_ewma_seconds(self) -> float | None:
+        return self._latency_ewma
 
     async def attempt_recovery(self) -> None:
         """Transition OPEN → HALF_OPEN if the recovery timeout has elapsed."""
@@ -88,10 +100,29 @@ class _CircuitBreaker:
                 return False
             return False  # OPEN
 
-    async def record_success(self) -> None:
+    async def record_success(self, duration_seconds: float | None = None) -> None:
         async with self._lock:
             self._failure_count = 0
             self._state = self.CLOSED
+            if duration_seconds is not None:
+                if self._latency_ewma is None:
+                    self._latency_ewma = duration_seconds
+                else:
+                    alpha = self.latency_ewma_alpha
+                    self._latency_ewma = alpha * duration_seconds + (1 - alpha) * self._latency_ewma
+                if (
+                    self.latency_threshold_seconds is not None
+                    and self._latency_ewma > self.latency_threshold_seconds
+                ):
+                    self._state = self.OPEN
+                    self._last_failure_time = time.time()
+                    logger.warning(
+                        "TMDb circuit breaker OPEN (latency EWMA %.2fs > %.2fs threshold)",
+                        self._latency_ewma,
+                        self.latency_threshold_seconds,
+                    )
+                    # Reset EWMA after tripping so recovery can measure fresh.
+                    self._latency_ewma = None
 
     async def record_failure(self) -> None:
         async with self._lock:
@@ -105,11 +136,44 @@ class _CircuitBreaker:
                 )
 
 
+# Semaphore shared across all instances. TMDb's documented limit is
+# ~40-50 req/s *sustained*; concurrency can go much higher when latency
+# is low. Default 200 gives 10x headroom over the old 50 while still
+# bounding fan-out during burst enrichment. Override with
+# TMDB_RATE_SEMAPHORE env var.
+def _resolve_rate_semaphore_size() -> int:
+    raw = os.getenv("TMDB_RATE_SEMAPHORE", "200")
+    try:
+        value = int(raw)
+    except ValueError:
+        return 200
+    return max(1, value)
+
+
+_rate_semaphore = asyncio.Semaphore(_resolve_rate_semaphore_size())
+
+
+def _build_circuit_breaker() -> _CircuitBreaker:
+    raw = os.getenv("TMDB_LATENCY_BREAKER_SECONDS")
+    threshold: float | None = None
+    if raw:
+        try:
+            value = float(raw)
+            if value > 0:
+                threshold = value
+        except ValueError:
+            logger.warning("Invalid TMDB_LATENCY_BREAKER_SECONDS=%r, ignoring", raw)
+    return _CircuitBreaker(
+        failure_threshold=5,
+        recovery_timeout=30.0,
+        latency_threshold_seconds=threshold,
+    )
+
+
 class TMDbHelper:
-    # Semaphore shared across all instances to respect TMDb rate limits (~40 req/s)
-    _rate_semaphore = asyncio.Semaphore(30)
+    _rate_semaphore = _rate_semaphore
     # Circuit breaker shared across all instances
-    _circuit_breaker = _CircuitBreaker(failure_threshold=5, recovery_timeout=30.0)
+    _circuit_breaker = _build_circuit_breaker()
 
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or get_tmdb_api_key()
@@ -117,63 +181,94 @@ class TMDbHelper:
         self.image_base_url = TMDB_IMAGE_BASE_URL
         self._max_retries = 3
         self._response_parser: TMDbResponseParser | None = None
+        self._metrics_recorder = TMDbMetricsRecorder()
+        self._auth_headers = {"Authorization": f"Bearer {self.api_key}"}
         self._client = httpx.AsyncClient(
             timeout=httpx.Timeout(10.0, connect=3.0),
             limits=httpx.Limits(
-                max_keepalive_connections=20,
-                max_connections=50,
-                keepalive_expiry=30
-            )
+                max_keepalive_connections=20, max_connections=50, keepalive_expiry=30
+            ),
         )
 
     def _uses_bearer_auth(self) -> bool:
-        """Treat JWT-like tokens as TMDb v4 read access tokens.
-
-        TMDb v3 API keys are opaque strings typically passed as the ``api_key``
-        query parameter. TMDb v4 read access tokens are JWT-like bearer tokens.
-        Supporting both formats preserves compatibility with existing
-        ``TMDB_API_KEY`` values in local and deployed environments.
-        """
-        token = self.api_key.strip()
-        return token.count(".") == 2
+        """Use bearer auth for v4-style read tokens and query auth for v3 keys."""
+        return "." in self.api_key
 
     def _build_request_options(self, params=None):
+        """Build request headers and params for either TMDb auth mode."""
         request_params = dict(params or {})
-        headers = {}
-
         if self._uses_bearer_auth():
-            headers["Authorization"] = f"Bearer {self.api_key}"
+            headers = dict(self._auth_headers)
         else:
+            headers = {}
             request_params["api_key"] = self.api_key
-
         return headers, request_params
 
-    async def _get(self, endpoint, params=None):
+    def _record_tmdb_metrics(self, logical_endpoint, status_code, duration_seconds):
+        """Best-effort Prometheus emission. Failures never break the caller.
+
+        ``status_code`` is bucketed via ``bucket_http_status`` so non-429
+        HTTP codes collapse into ``2xx`` / ``3xx`` / ``4xx`` / ``5xx`` and
+        sentinel strings (``circuit_open``, ``transport_error``, ``error``)
+        pass through. This keeps the ``status_code`` label bounded to ~8
+        values regardless of what TMDb or httpx surface.
+        """
+        self._metrics_recorder.record_api_call(
+            logical_endpoint,
+            status_code,
+            duration_seconds,
+        )
+
+    def _record_tmdb_rate_limit(self, response):
+        self._metrics_recorder.record_rate_limit(response)
+
+    async def _get(self, endpoint, params=None, *, metric_endpoint=None):
+        """Fetch a TMDb endpoint.
+
+        ``metric_endpoint`` is the stable low-cardinality label used for
+        Prometheus metrics (e.g. ``movie_full``, ``movie_images``,
+        ``find_by_imdb``). It MUST NOT include dynamic IDs, URLs, or SQL.
+        When absent, a fallback label ``unknown`` is used.
+        """
+        logical_endpoint = metric_endpoint or "unknown"
         url = f"{self.base_url}/{endpoint}"
         headers, params = self._build_request_options(params)
 
         # Circuit breaker check — fail fast when TMDb is known to be down
         if not await self._circuit_breaker.allow_request():
             logger.warning("TMDb circuit breaker OPEN — rejecting request to %s", endpoint)
-            raise httpx.RequestError(
-                f"TMDb circuit breaker open — request to {endpoint} rejected"
-            )
+            self._record_tmdb_metrics(logical_endpoint, "circuit_open", 0.0)
+            raise httpx.RequestError(f"TMDb circuit breaker open — request to {endpoint} rejected")
 
         for attempt in range(self._max_retries + 1):
             start_time = time.time()
+            metric_recorded = False
             try:
                 async with self._rate_semaphore:
                     response = await self._client.get(url, params=params, headers=headers)
 
+                self._record_tmdb_rate_limit(response)
+
                 if response.status_code == 429:
                     retry_after = float(response.headers.get("Retry-After", 1))
-                    wait = min(retry_after, 10)
+                    # Jitter (0-1s) prevents synchronized thundering-herd retries
+                    # when many concurrent coroutines receive the same
+                    # Retry-After value from TMDb and would otherwise wake in
+                    # lockstep and re-trip the circuit breaker.
+                    wait = min(retry_after, 10) + random.uniform(0, 1.0)
                     logger.warning(
                         "TMDb rate limited (429). Retry-After: %.1fs (attempt %d/%d)",
-                        wait, attempt + 1, self._max_retries,
+                        wait,
+                        attempt + 1,
+                        self._max_retries,
                     )
                     await self._circuit_breaker.record_failure()
+                    self._record_tmdb_metrics(logical_endpoint, 429, time.time() - start_time)
+                    metric_recorded = True
                     if attempt < self._max_retries:
+                        # Sleep OUTSIDE the rate semaphore (we already exited
+                        # the `async with` above) so other callers aren't
+                        # starved while we wait out the 429.
                         await asyncio.sleep(wait)
                         continue
                     response.raise_for_status()
@@ -183,25 +278,39 @@ class TMDbHelper:
                 elapsed_time = time.time() - start_time
                 logger.debug(
                     "Received response from %s in %.2f seconds. Status code: %s",
-                    url, elapsed_time, response.status_code,
+                    url,
+                    elapsed_time,
+                    response.status_code,
                 )
-                await self._circuit_breaker.record_success()
+                await self._circuit_breaker.record_success(duration_seconds=elapsed_time)
+                self._record_tmdb_metrics(logical_endpoint, response.status_code, elapsed_time)
                 return response.json()
 
             except httpx.RequestError as e:
                 elapsed_time = time.time() - start_time
                 await self._circuit_breaker.record_failure()
+                if not metric_recorded:
+                    self._record_tmdb_metrics(logical_endpoint, "transport_error", elapsed_time)
+                    metric_recorded = True
                 if attempt < self._max_retries:
-                    backoff = 2 ** attempt
+                    # Exponential backoff with jitter — prevents synchronized
+                    # retry storms on shared transport failures (DNS blip,
+                    # connection pool exhaustion, etc.).
+                    backoff = (2**attempt) + random.uniform(0, 1.0)
                     logger.warning(
-                        "TMDb request error (attempt %d/%d): %s. Retrying in %ds",
-                        attempt + 1, self._max_retries, e, backoff,
+                        "TMDb request error (attempt %d/%d): %s. Retrying in %.2fs",
+                        attempt + 1,
+                        self._max_retries,
+                        e,
+                        backoff,
                     )
                     await asyncio.sleep(backoff)
                     continue
                 logger.error(
                     "TMDb request failed after %d attempts: %s; Time elapsed: %.2fs",
-                    self._max_retries + 1, e, elapsed_time,
+                    self._max_retries + 1,
+                    e,
+                    elapsed_time,
                 )
                 raise
             except httpx.HTTPStatusError as e:
@@ -209,15 +318,29 @@ class TMDbHelper:
                 # 4xx client errors (except 429) are not TMDb failures
                 if e.response.status_code >= 500:
                     await self._circuit_breaker.record_failure()
+                if not metric_recorded:
+                    self._record_tmdb_metrics(
+                        logical_endpoint, e.response.status_code, elapsed_time
+                    )
+                    metric_recorded = True
                 logger.error(
-                    "HTTP error from %s: %s; Time elapsed: %.2fs", url, e, elapsed_time,
+                    "HTTP error from %s: %s; Time elapsed: %.2fs",
+                    url,
+                    e,
+                    elapsed_time,
                 )
                 raise
             except Exception as e:
                 elapsed_time = time.time() - start_time
                 await self._circuit_breaker.record_failure()
+                if not metric_recorded:
+                    self._record_tmdb_metrics(logical_endpoint, "error", elapsed_time)
+                    metric_recorded = True
                 logger.error(
-                    "Unexpected error from %s: %s; Time elapsed: %.2fs", url, e, elapsed_time,
+                    "Unexpected error from %s: %s; Time elapsed: %.2fs",
+                    url,
+                    e,
+                    elapsed_time,
                 )
                 raise
 
@@ -236,6 +359,7 @@ class TMDbHelper:
                 ),
                 "include_image_language": "en,null",
             },
+            metric_endpoint="movie_full",
         )
         return data
 
@@ -291,13 +415,13 @@ class TMDbHelper:
         """Fetch limited number of images for a TMDB ID."""
         start_time = time.time()
         try:
-            data = await self._get(f"movie/{tmdb_id}/images")
+            data = await self._get(f"movie/{tmdb_id}/images", metric_endpoint="movie_images")
             images = self._parser().parse_images({"images": data}, limit=limit)
 
             logger.debug(
                 "Found %d poster(s) and %d backdrop(s) for TMDB ID: %s",
-                len(images['posters']),
-                len(images['backdrops']),
+                len(images["posters"]),
+                len(images["backdrops"]),
                 tmdb_id,
             )
             return images
@@ -310,11 +434,15 @@ class TMDbHelper:
             )
 
     async def get_tmdb_id_by_tconst(self, tconst):
-        data = await self._get("find/" + tconst, {"external_source": "imdb_id"})
+        data = await self._get(
+            "find/" + tconst,
+            {"external_source": "imdb_id"},
+            metric_endpoint="find_by_imdb",
+        )
         return data["movie_results"][0]["id"] if data["movie_results"] else None
 
     async def get_movie_info_by_tmdb_id(self, tmdb_id):
-        return await self._get(f"movie/{tmdb_id}")
+        return await self._get(f"movie/{tmdb_id}", metric_endpoint="movie_info")
 
     def get_full_image_url(self, profile_path, size="original"):
         return f"{self.image_base_url}{size}{profile_path}"
@@ -336,8 +464,8 @@ class TMDbHelper:
         if not all_backdrop_urls:
             return None
         return random.choice(all_backdrop_urls)
-    
+
     async def close(self):
         """Close the HTTP client"""
-        if hasattr(self, '_client'):
+        if hasattr(self, "_client"):
             await self._client.aclose()

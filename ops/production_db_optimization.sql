@@ -2,6 +2,18 @@
 -- NextReel Production Database Optimization
 -- Safe Execution Script for DigitalOcean MySQL
 -- =====================================================
+--
+-- HISTORICAL — PARTIALLY SUPERSEDED (2026-04):
+--   The `popular_movies_cache` / `recent_movies_cache` tables and the
+--   `refresh_movie_caches()` stored procedure defined below are no longer
+--   read by any live code path. The random-movie read path now goes through
+--   `movie_candidates` (see `movies/candidate_store.py` and the
+--   `movie_candidates` table managed by `infra/runtime_schema.py`).
+--
+--   These sections are kept only for manual rollback — running them is a
+--   no-op from the application's perspective. The PHASE 1 / PHASE 2 index
+--   work on `title.basics` / `title.ratings` remains relevant.
+-- =====================================================
 
 USE imdb;
 
@@ -52,7 +64,11 @@ ALTER TABLE `title.ratings` ADD INDEX idx_ratings_compound (
 );
 
 ALTER TABLE `title.ratings` ADD INDEX idx_averagerating (averageRating);
-ALTER TABLE `title.ratings` ADD INDEX idx_numVotes (numVotes);
+
+-- NOTE: idx_numVotes removed — it's a prefix of idx_ratings_compound.
+-- NOTE: idx_tconst, idx_tconst_ratings, idx_title_ratings_tconst removed —
+--       all duplicate PRIMARY(tconst).
+-- NOTE: title.basics idx_tconst / idx_tconst_basics removed — duplicate PRIMARY.
 
 -- =====================================================
 -- PHASE 3: FULLTEXT INDEXES FOR SEARCH
@@ -92,6 +108,9 @@ CREATE TABLE popular_movies_cache (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_cache_filter (startYear, numVotes, averageRating),
     INDEX idx_cache_rand (rand_order),
+    -- Added 2026-04: supports filter+rand queries in movies/query_builder.py
+    -- Runtime migration in infra/runtime_schema.py handles existing deploys.
+    INDEX idx_cache_filter_rand (startYear, averageRating, numVotes, rand_order),
     INDEX idx_cache_lang (language(20)),
     FULLTEXT idx_cache_genres (genres)
 ) ENGINE=InnoDB;
@@ -143,7 +162,7 @@ CREATE TABLE recent_movies_cache (
     averageRating DECIMAL(3,1),
     numVotes INT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_recent_year (startYear),
+    -- NOTE: idx_recent_year removed — it's a prefix of idx_recent_filter.
     INDEX idx_recent_filter (startYear, numVotes, averageRating),
     FULLTEXT idx_recent_genres (genres)
 ) ENGINE=InnoDB;
@@ -171,17 +190,14 @@ AND tb.startYear >= YEAR(CURDATE()) - 2;
 -- PHASE 6: ADDITIONAL INDEXES
 -- =====================================================
 
--- Optimize other tables
-ALTER TABLE `title.akas` DROP INDEX IF EXISTS idx_title_akas_titleId;
-ALTER TABLE `title.akas` ADD INDEX idx_title_akas_titleId (titleId);
+-- NOTE: title.akas dropped — table was empty and unused by application code.
+-- NOTE: title.akastest dropped — test clone, unused by application code.
+-- NOTE: title.principals idx_tconst_nconst removed — duplicates PRIMARY(tconst, nconst).
+-- NOTE: title.crew idx_title_crew_tconst removed — duplicates PRIMARY(tconst).
 
-ALTER TABLE `title.principals` DROP INDEX IF EXISTS idx_tconst_nconst;
+-- Keep nconst index on principals for integrity checks (not covered by PRIMARY).
 ALTER TABLE `title.principals` DROP INDEX IF EXISTS idx_nconst;
-ALTER TABLE `title.principals` ADD INDEX idx_tconst_nconst (tconst(10), nconst(10));
 ALTER TABLE `title.principals` ADD INDEX idx_nconst (nconst(10));
-
-ALTER TABLE `title.crew` DROP INDEX IF EXISTS idx_title_crew_tconst;
-ALTER TABLE `title.crew` ADD INDEX idx_title_crew_tconst (tconst);
 
 ALTER TABLE `title.episode` DROP INDEX IF EXISTS idx_title_episode_parentTconst;
 ALTER TABLE `title.episode` ADD INDEX idx_title_episode_parentTconst (parentTconst);
@@ -192,7 +208,6 @@ ALTER TABLE `title.episode` ADD INDEX idx_title_episode_parentTconst (parentTcon
 
 ANALYZE TABLE `title.basics`;
 ANALYZE TABLE `title.ratings`;
-ANALYZE TABLE `title.akas`;
 ANALYZE TABLE `title.principals`;
 ANALYZE TABLE `title.crew`;
 ANALYZE TABLE `title.episode`;

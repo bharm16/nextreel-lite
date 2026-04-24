@@ -1,223 +1,82 @@
-{% from "macros.html" import pick_movie_button, pick_movie_button_lg, pick_movie_button_block with context %}
+{% from "macros.html" import pick_movie_button with context %}
 <!DOCTYPE html>
-<html lang="en" class="scroll-smooth">
+<html lang="en" {% if server_theme %}data-theme-server="{{ server_theme }}"{% endif %}>
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Nextreel – Your Personalized Movie Journey</title>
-  <meta name="description" content="Pick a movie fast with smart filters, a data‑rich library, and your personal queue." />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nextreel – Cinema Discovery</title>
+  <meta name="description" content="One random film at a time, pulled from a catalog of tens of thousands.">
   <link rel="preconnect" href="https://image.tmdb.org" crossorigin>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700&family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
-  <link rel="preload" as="image" imagesrcset="https://image.tmdb.org/t/p/w780/dMrAwwB7PMC4SjgsTbgmEJblaYd.jpg 780w, https://image.tmdb.org/t/p/w1280/dMrAwwB7PMC4SjgsTbgmEJblaYd.jpg 1280w" imagesizes="100vw" href="https://image.tmdb.org/t/p/w1280/dMrAwwB7PMC4SjgsTbgmEJblaYd.jpg" fetchpriority="low">
-  <!-- Compiled Tailwind CSS -->
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/output.css') }}">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Merriweather:ital,wght@0,300;0,400;0,700;1,400&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/output.css') }}?v={{ config.get('CSS_VERSION', '1') }}">
+  {% if landing_film and landing_film.backdrop_url %}
+  <link rel="preload" as="image" href="{{ landing_film.backdrop_url }}" fetchpriority="high">
+  {% endif %}
   <script>
-    // Apply saved theme before paint to avoid flash
     (() => {
       try {
         const pref = localStorage.getItem('nr-theme');
         if (pref === 'light' || pref === 'dark') {
           document.documentElement.setAttribute('data-theme', pref);
+          return;
+        }
+        const server = document.documentElement.getAttribute('data-theme-server');
+        if (server === 'light' || server === 'dark') {
+          document.documentElement.setAttribute('data-theme', server);
         }
       } catch (e) {}
     })();
   </script>
   <style>
-    /* Basic fallback styles in case CSS doesn't load */
-    body { 
-      font-family: 'Poppins', system-ui, sans-serif;
-      margin: 0;
-      padding: 0;
-    }
-    .font-brand-serif { 
-      font-family: 'Merriweather', Georgia, serif; 
+    body { font-family: 'DM Sans', system-ui, sans-serif; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+
+    /* Film grain overlay — retained from previous design for analog texture */
+    .home-grain {
+      position: fixed; inset: 0; z-index: 2;
+      pointer-events: none; opacity: 0.04;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      background-size: 256px 256px;
     }
   </style>
 </head>
-<body class="bg-surface text-body antialiased">
-  <!-- Skip link for accessibility -->
-  <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:shadow soft">Skip to content</a>
+<body>
 
-  <!-- Site Header / Navbar -->
-  <header class="sticky top-0 z-50 bg-primary/95 backdrop-blur supports-[backdrop-filter]:bg-primary/80 text-white shadow">
-    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-      <div class="flex h-16 items-center justify-between">
-        <!-- Brand -->
-        <a href="/" class="flex items-center gap-2 group" aria-label="Nextreel home">
-          <svg class="h-6 w-6 transition-transform group-hover:rotate-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M4 6a2 2 0 0 1 2-2h8l6 6v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6z" opacity=".3"/>
-            <path d="M14 4v4a2 2 0 0 0 2 2h4"/>
-          </svg>
-          <span class="font-brand-serif text-xl font-bold tracking-tight">Nextreel</span>
-        </a>
+  <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm">Skip to content</a>
 
-        <!-- Desktop actions -->
-        <nav class="hidden gap-2 md:flex items-center">
-          {{ pick_movie_button(class="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent/70 focus:ring-offset-primary/20") }}
-          <a href="{{ url_for('main.set_filters') }}" class="inline-flex items-center gap-2 rounded-xl border border-accent px-4 py-2 text-sm font-semibold text-accent hover:bg-accent/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent/70 focus:ring-offset-primary/20">
-            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5h18v2H3zm4 6h10v2H7zm3 6h4v2h-4z"/></svg>
-            Set Filters
-          </a>
-          <button id="themeToggle" class="ml-2 inline-flex items-center justify-center rounded-lg p-2 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white" aria-pressed="false" aria-label="Toggle dark mode">
-            <svg id="iconSun" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.76 4.84l-1.8-1.79-1.41 1.41 1.79 1.8 1.42-1.42zM1 13h3v-2H1v2zm10 10h2v-3h-2v3zM4.96 19.78l1.41 1.41 1.8-1.79-1.42-1.42-1.79 1.8zM20 11v2h3v-2h-3zm-2.34-7.95l-1.41 1.41 1.79 1.8 1.41-1.42-1.79-1.79zM12 7a5 5 0 100 10 5 5 0 000-10zm7.04 12.78l-1.79-1.8-1.41 1.42 1.79 1.79 1.41-1.41zM13 1h-2v3h2V1z"/></svg>
-            <svg id="iconMoon" class="h-5 w-5 hidden" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.74 2.15A9 9 0 1021 12.26 7 7 0 0112.74 2.15z"/></svg>
-          </button>
-        </nav>
+  {% include 'navbar_modern.html' %}
 
-        <!-- Mobile menu button -->
-        <button id="menuBtn" class="inline-flex items-center justify-center rounded-lg p-2 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white md:hidden" aria-controls="mobileMenu" aria-expanded="false" aria-label="Open menu">
-          <svg class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg>
-        </button>
+  <main id="main" class="landing-page">
+    <div class="landing-bg" style="background-image: url('{{ landing_film.backdrop_url }}');"></div>
+    <div class="landing-gradient"></div>
+    <div class="home-grain"></div>
+
+    <div class="landing-side-label" aria-hidden="true">Random · No Sign-up</div>
+
+    <div class="landing-content">
+      <h1 class="landing-title">{{ landing_film.title }}</h1>
+
+      {% set meta_parts = [] %}
+      {% if landing_film.year %}{% set _ = meta_parts.append(landing_film.year) %}{% endif %}
+      {% if landing_film.director %}{% set _ = meta_parts.append(landing_film.director) %}{% endif %}
+      {% if landing_film.runtime %}{% set _ = meta_parts.append(landing_film.runtime) %}{% endif %}
+      {% if meta_parts %}
+      <div class="landing-meta">{{ meta_parts | join(' · ') }}</div>
+      {% endif %}
+
+      <div class="landing-actions">
+        <form method="POST" action="/next_movie" style="display:inline;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="landing-cta-primary">Pick Another →</button>
+        </form>
+        <a class="landing-cta-ghost" href="{{ url_for('main.movie_detail', tconst=landing_film.tconst) }}">See this film ↗</a>
       </div>
     </div>
 
-    <!-- Mobile dropdown -->
-    <div id="mobileMenu" class="hidden md:hidden border-t border-white/10">
-      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-3 space-y-2">
-        {{ pick_movie_button_block(class="block w-full rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white text-center") }}
-        <a href="{{ url_for('main.set_filters') }}" class="block w-full rounded-lg border border-accent px-4 py-2 text-sm font-semibold text-accent text-center">Set Filters</a>
-        <button id="themeToggleMobile" class="block w-full rounded-lg px-4 py-2 text-sm font-semibold text-white text-center bg-white/10">Toggle Theme</button>
-      </div>
-    </div>
-  </header>
-
-  <!-- Hero -->
-  <section class="relative isolate">
-    <div class="absolute inset-0 -z-10">
-      <!-- Fallback gradient background that always works -->
-      <div class="absolute inset-0 bg-gradient-to-br from-primary via-primary/90 to-primary/80"></div>
-      <!-- Optional background image that loads if available -->
-      <div class="absolute inset-0 bg-cover bg-center opacity-30" style="background-image: url('https://image.tmdb.org/t/p/w1280/dMrAwwB7PMC4SjgsTbgmEJblaYd.jpg');"></div>
-      <div class="absolute inset-0 bg-gradient-to-b from-primary/60 via-primary/40 to-primary/60"></div>
-    </div>
-
-    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-      <div class="flex min-h-[80vh] items-center justify-center py-16 text-center">
-        <div class="max-w-3xl text-white mx-auto">
-          <h1 class="font-brand-serif text-4xl font-extrabold tracking-tight sm:text-5xl">Discover Your Next Favorite Film</h1>
-          <p class="mt-4 text-base/7 sm:text-lg/8 opacity-95">Explore a world of cinema with personalized recommendations built from rich movie databases and your unique preferences.</p>
-          <div class="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:items-center sm:justify-center">
-            {{ pick_movie_button_lg(class="inline-flex items-center justify-center gap-2 rounded-2xl bg-accent px-6 py-3 text-base font-semibold text-white shadow-lg shadow-black/10 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-white") }}
-            <a href="{{ url_for('main.set_filters') }}" class="inline-flex items-center justify-center gap-2 rounded-2xl bg-white/10 px-6 py-3 text-base font-semibold text-white ring-1 ring-inset ring-white/40 backdrop-blur hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white">
-              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5h18v2H3zm4 6h10v2H7zm3 6h4v2h-4z"/></svg>
-              Set Filters
-            </a>
-          </div>
-
-          <!-- Small benefits row -->
-          <dl class="mt-8 grid grid-cols-1 gap-4 text-sm sm:grid-cols-3 place-items-center text-center">
-            <div class="flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 ring-1 ring-inset ring-white/30">
-              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 6h16v12H4z" opacity=".3"/><path d="M6 9h4v2H6zm0 4h7v2H6z"/></svg>
-              <span>Data‑rich library</span>
-            </div>
-            <div class="flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 ring-1 ring-inset ring-white/30">
-              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 7h16v2H4zm2 4h12v2H6zm3 4h6v2H9z"/></svg>
-              <span>Smart filters</span>
-            </div>
-            <div class="flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 ring-1 ring-inset ring-white/30">
-              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4h10v2H7zM5 8h14v12H5z" opacity=".3"/><path d="M8 10h8v2H8zm0 4h5v2H8z"/></svg>
-              <span>Queue & history</span>
-            </div>
-          </dl>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Features -->
-  <main id="main" class="relative">
-    <section class="py-16 sm:py-20 bg-surface-alt">
-      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div class="mx-auto max-w-2xl text-center">
-          <h2 class="font-brand-serif text-3xl font-bold tracking-tight sm:text-4xl text-primary">Built for how you actually pick movies</h2>
-          <p class="mt-3 text-sm/7 text-muted">Fast, filterable, and focused on finishing your scroll.</p>
-        </div>
-
-        <div class="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          <!-- Card 1 -->
-          <div class="rounded-2xl bg-surface p-6 elev-soft ring-1 ring-border">
-            <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <svg class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 6h16v12H4z" opacity=".3"/><path d="M6 9h4v2H6zm0 4h7v2H6z"/></svg>
-            </div>
-            <h3 class="mt-5 text-lg font-semibold">Data‑rich Library</h3>
-            <p class="mt-2 text-sm text-muted">Access thousands of titles via TMDB & IMDb to stay current with the latest releases and timeless classics.</p>
-          </div>
-
-          <!-- Card 2 -->
-          <div class="rounded-2xl bg-surface p-6 elev-soft ring-1 ring-border">
-            <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <svg class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5h18v2H3zm4 6h10v2H7zm3 6h4v2h-4z"/></svg>
-            </div>
-            <h3 class="mt-5 text-lg font-semibold">Custom Filters</h3>
-            <p class="mt-2 text-sm text-muted">Filter by year, rating, votes, genre, and language to match your mood.</p>
-          </div>
-
-          <!-- Card 3 -->
-          <div class="rounded-2xl bg-surface p-6 elev-soft ring-1 ring-border">
-            <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <svg class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5 4h14v2H5zM3 8h18v12H3z" opacity=".3"/><path d="M7 10h10v2H7zm0 4h7v2H7z"/></svg>
-            </div>
-            <h3 class="mt-5 text-lg font-semibold">Queue & History</h3>
-            <p class="mt-2 text-sm text-muted">Save picks to a queue and quickly revisit what you've watched.</p>
-          </div>
-        </div>
-
-        <!-- Secondary CTA -->
-        <div class="mt-12 flex flex-col items-stretch justify-center gap-3 sm:flex-row">
-          {{ pick_movie_button_lg(class="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-6 py-3 text-base font-semibold text-white shadow hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-primary/40", label="Start Picking") }}
-          <a href="{{ url_for('main.set_filters') }}" class="inline-flex items-center justify-center gap-2 rounded-2xl border border-primary/30 px-6 py-3 text-base font-semibold text-primary hover:bg-primary/5 focus:outline-none focus:ring-2 focus:ring-primary/40">
-            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5h18v2H3zm4 6h10v2H7zm3 6h4v2h-4z"/></svg>
-            Tweak Filters
-          </a>
-        </div>
-      </div>
-    </section>
+    {% if landing_film.title and landing_film.year %}
+    <div class="landing-credit">Film still: {{ landing_film.title }} ({{ landing_film.year }})</div>
+    {% endif %}
   </main>
-
-  {% include 'footer_modern.html' %}
-
-  <!-- Minimal JS for mobile menu toggling and theme -->
-  <script>
-    // Mobile menu toggle
-    const menuBtn = document.getElementById('menuBtn');
-    const mobileMenu = document.getElementById('mobileMenu');
-    if (menuBtn && mobileMenu) {
-      menuBtn.addEventListener('click', () => {
-        const isOpen = mobileMenu.classList.toggle('hidden');
-        const expanded = !isOpen;
-        menuBtn.setAttribute('aria-expanded', String(expanded));
-        menuBtn.setAttribute('aria-label', expanded ? 'Close menu' : 'Open menu');
-      });
-    }
-    // Theme toggle
-    function setTheme(next) {
-      try { localStorage.setItem('nr-theme', next); } catch (e) {}
-      document.documentElement.setAttribute('data-theme', next);
-      const pressed = next === 'dark';
-      const tbtn = document.getElementById('themeToggle');
-      if (tbtn) tbtn.setAttribute('aria-pressed', String(pressed));
-      const sun = document.getElementById('iconSun');
-      const moon = document.getElementById('iconMoon');
-      if (sun && moon) {
-        sun.classList.toggle('hidden', pressed);
-        moon.classList.toggle('hidden', !pressed);
-      }
-    }
-    const t = document.getElementById('themeToggle');
-    const tm = document.getElementById('themeToggleMobile');
-    if (t) t.addEventListener('click', () => {
-      const current = document.documentElement.getAttribute('data-theme');
-      setTheme(current === 'dark' ? 'light' : 'dark');
-    });
-    if (tm) tm.addEventListener('click', () => {
-      const current = document.documentElement.getAttribute('data-theme');
-      setTheme(current === 'dark' ? 'light' : 'dark');
-    });
-    try {
-      const pref = localStorage.getItem('nr-theme');
-      if (pref === 'dark' || pref === 'light') setTheme(pref);
-    } catch (e) {}
-  </script>
 </body>
 </html>

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="scroll-smooth">
+<html lang="en" class="scroll-smooth" {% if server_theme %}data-theme-server="{{ server_theme }}"{% endif %}>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,12 +11,12 @@
     <!-- Fonts -->
     <link rel="preconnect" href="https://image.tmdb.org" crossorigin>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700&family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,300;0,400;0,700;1,400&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     
     <!-- Compiled Tailwind CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/output.css') }}">
-    {% if movie and movie.poster_url %}
-    <link rel="preload" as="image" href="{{ movie.poster_url }}" fetchpriority="high" imagesizes="(min-width: 768px) 340px, 60vw">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/output.css') }}?v={{ config.get('CSS_VERSION', '1') }}">
+    {% if preload_image_url %}
+    <link rel="preload" as="image" href="{{ preload_image_url }}" fetchpriority="high"{% if preload_image_srcset %} imagesrcset="{{ preload_image_srcset }}"{% endif %}{% if hero_image_sizes %} imagesizes="{{ hero_image_sizes }}"{% endif %}>
     {% endif %}
     <script>
       (() => {
@@ -24,6 +24,11 @@
           const pref = localStorage.getItem('nr-theme');
           if (pref === 'light' || pref === 'dark') {
             document.documentElement.setAttribute('data-theme', pref);
+            return;
+          }
+          const server = document.documentElement.getAttribute('data-theme-server');
+          if (server === 'light' || server === 'dark') {
+            document.documentElement.setAttribute('data-theme', server);
           }
         } catch (e) {}
       })();
@@ -31,7 +36,7 @@
     
     <style>
         :root { color-scheme: light dark; }
-        body { font-family: 'Poppins', system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif; }
+        body { font-family: 'DM Sans', system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial, sans-serif; }
         .font-brand-serif { font-family: 'Merriweather', Georgia, Cambria, 'Times New Roman', Times, serif; }
         
         /* Prevent horizontal scrolling */
@@ -44,7 +49,7 @@
     </style>
 </head>
 
-<body class="bg-surface text-body">
+<body class="bg-surface text-body" data-projection-state="{{ movie.projection_state or '' }}" data-tconst="{{ movie.tconst or movie.imdb_id or '' }}">
 
 <!-- Include the modern navbar -->
 {% include 'navbar_modern.html' %}
@@ -52,7 +57,47 @@
 <!-- Main Content - movie_card.html uses Bootstrap's container-lg -->
 {% include 'movie_card.html' %}
 
-<!-- Bootstrap JS removed - using Tailwind instead -->
+<!-- ── Filter Drawer ──────────────────────── -->
+<button class="filter-drawer-tab" id="filterDrawerTab" aria-controls="filterDrawer" aria-expanded="false" aria-label="Open filters">FILTERS</button>
+
+<div class="filter-drawer-backdrop" id="filterDrawerBackdrop"></div>
+
+<aside id="filterDrawer" class="filter-drawer" role="dialog" aria-label="Movie filters" aria-modal="true">
+  <div class="filter-drawer-header">
+    <h2>Filters</h2>
+    <button class="filter-drawer-close" id="filterDrawerClose" aria-label="Close filters">&times;</button>
+  </div>
+
+  <div class="filter-drawer-body">
+    <form id="drawerFilterForm" action="/filtered_movie" method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div id="drawer-filter-errors" role="alert" aria-live="polite"></div>
+
+      {# Include the shared partial — the JS in filter-drawer.js wraps
+         sections with data-filter-group into collapsible groups #}
+      {% include '_filter_form.html' %}
+    </form>
+  </div>
+
+  <div class="filter-drawer-footer">
+    <button type="submit" form="drawerFilterForm" id="drawerApplyBtn" class="filter-apply-btn" aria-busy="false">
+      <svg class="h-4 w-4 hidden animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10" opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
+      <span>Apply Filters</span>
+    </button>
+    <button type="reset" form="drawerFilterForm" id="drawerResetBtn" class="filter-reset-btn">Reset</button>
+    {% if current_user_id %}
+    <button type="submit"
+            form="drawerFilterForm"
+            formaction="{{ url_for('main.account_filters_save') }}"
+            class="filter-reset-btn">
+      Save as default
+    </button>
+    {% endif %}
+  </div>
+</aside>
+
+<script src="{{ url_for('static', filename='js/filter-drawer.js') }}?v={{ config.get('CSS_VERSION', '1') }}" defer></script>
 
 </body>
 </html>

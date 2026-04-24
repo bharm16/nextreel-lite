@@ -2,25 +2,55 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
-# Remote write configuration to send metrics to Grafana Cloud
-# Copy this file to prometheus.yml and replace with your actual credentials
+# Remote write configuration to send metrics to Grafana Cloud.
+# Copy this file to prometheus.yml and replace with your actual credentials.
 remote_write:
   - url: https://prometheus-prod-XX-prod-us-east-X.grafana.net/api/prom/push
     basic_auth:
       username: YOUR_USER_ID
       password: YOUR_GRAFANA_API_TOKEN
 
-# Scrape your NextReel application
+# Scrape your NextReel application.
+#
+# IMPORTANT: monitored runs MUST use a fixed PORT (e.g. `PORT=5000 python3 app.py`).
+# The dev-mode "find next free port" fallback in app.py is fine for ad-hoc local
+# dev but UNSAFE for Prometheus scraping — set PORT explicitly and match it below.
+#
+# Authentication: `/metrics` is guarded by infra/ops_auth.py when OPS_AUTH_TOKEN
+# is set in the environment. In production you MUST set OPS_AUTH_TOKEN and
+# configure `authorization` (below) to match it.
 scrape_configs:
-  - job_name: 'nextreel-local'
+  - job_name: 'nextreel-app'
     static_configs:
-      - targets: ['localhost:5001']
+      - targets: ['localhost:5000']
     metrics_path: '/metrics'
     scrape_interval: 15s
     scrape_timeout: 10s
     honor_labels: true
-    
-  # Add system metrics for completeness  
+    authorization:
+      type: Bearer
+      credentials: YOUR_OPS_AUTH_TOKEN
+
+  # Hot-path worker metrics (arq worker.WorkerSettings)
+  - job_name: 'nextreel-worker'
+    static_configs:
+      - targets: ['localhost:8001']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    honor_labels: true
+
+  # Maintenance worker metrics (arq worker.MaintenanceWorkerSettings)
+  # Default port 8002 — override via WORKER_METRICS_PORT if needed.
+  - job_name: 'nextreel-worker-maintenance'
+    static_configs:
+      - targets: ['localhost:8002']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    honor_labels: true
+
+  # Prometheus self-monitoring
   - job_name: 'prometheus'
     static_configs:
       - targets: ['localhost:9090']

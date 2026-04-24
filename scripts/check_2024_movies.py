@@ -12,7 +12,8 @@ import asyncio
 
 
 async def check_recent_movies():
-    from settings import Config, DatabaseConnectionPool
+    from infra.pool import DatabaseConnectionPool
+    from settings import Config
 
     db_pool = DatabaseConnectionPool(Config.get_db_config())
     await db_pool.init_pool()
@@ -33,12 +34,15 @@ async def check_recent_movies():
             )
 
         # 2. Check recent years
-        recent = await db_pool.execute(
-            "SELECT startYear, COUNT(*) as count FROM `title.basics` "
-            "WHERE titleType = 'movie' AND startYear >= 2020 "
-            "GROUP BY startYear ORDER BY startYear DESC",
-            fetch="all",
-        ) or []
+        recent = (
+            await db_pool.execute(
+                "SELECT startYear, COUNT(*) as count FROM `title.basics` "
+                "WHERE titleType = 'movie' AND startYear >= 2020 "
+                "GROUP BY startYear ORDER BY startYear DESC",
+                fetch="all",
+            )
+            or []
+        )
         print("\nMovies by year (2020+):")
         for row in recent:
             print(f"  {row['startYear']}: {row['count']:,} movies")
@@ -53,12 +57,15 @@ async def check_recent_movies():
             print(f"\nMovies with year 2024: {result['count_2024']}")
 
         # 4. Sample latest movies
-        samples = await db_pool.execute(
-            "SELECT tconst, primaryTitle, startYear, titleType "
-            "FROM `title.basics` WHERE titleType = 'movie' "
-            "ORDER BY tconst DESC LIMIT 10",
-            fetch="all",
-        ) or []
+        samples = (
+            await db_pool.execute(
+                "SELECT tconst, primaryTitle, startYear, titleType "
+                "FROM `title.basics` WHERE titleType = 'movie' "
+                "ORDER BY tconst DESC LIMIT 10",
+                fetch="all",
+            )
+            or []
+        )
         print("\nSample of latest movies (by tconst):")
         for movie in samples:
             print(f"  {movie['tconst']}: {movie['primaryTitle']} ({movie['startYear']})")

@@ -114,9 +114,7 @@ async def test_non_ssl_connection(config: dict) -> dict:
         )
 
         results["non_ssl_allowed"] = True
-        results["errors"].append(
-            "WARNING: Non-SSL connection was allowed - consider enforcing SSL"
-        )
+        results["errors"].append("WARNING: Non-SSL connection was allowed - consider enforcing SSL")
         logger.warning("Non-SSL connection was allowed - SSL not enforced on server")
 
     except aiomysql.Error as e:
@@ -144,6 +142,7 @@ async def run_ssl_validation():
     from infra.ssl import SSLCertificateValidator
 
     from config.env import get_environment
+
     flask_env = get_environment()
     env_file = ".env" if flask_env == "production" else ".env.development"
     load_dotenv(env_file)

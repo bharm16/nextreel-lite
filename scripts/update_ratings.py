@@ -41,9 +41,7 @@ async def read_tsv_and_update_database(tsv_file_path, db_pool, batch_size=500):
                     total = 0
 
                     for row in reader:
-                        batch.append(
-                            (row["averageRating"], row["numVotes"], row["tconst"])
-                        )
+                        batch.append((row["averageRating"], row["numVotes"], row["tconst"]))
 
                         if len(batch) >= batch_size:
                             await cursor.executemany(update_sql, batch)
@@ -64,7 +62,8 @@ async def read_tsv_and_update_database(tsv_file_path, db_pool, batch_size=500):
 
 
 async def main():
-    from settings import Config, DatabaseConnectionPool
+    from infra.pool import DatabaseConnectionPool
+    from settings import Config
 
     db_pool = DatabaseConnectionPool(Config.get_db_config())
     await db_pool.init_pool()

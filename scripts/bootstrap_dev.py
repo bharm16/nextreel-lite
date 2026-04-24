@@ -132,7 +132,9 @@ def main() -> None:
     state = _load_state()
     python_hash = _hash_files([REQ_FILE])
     node_hash = _hash_files([PACKAGE_JSON, PACKAGE_LOCK]) if PACKAGE_JSON.is_file() else ""
-    css_hash = _hash_files([CSS_INPUT, CSS_TOKENS, TAILWIND_CONFIG]) if PACKAGE_JSON.is_file() else ""
+    css_hash = (
+        _hash_files([CSS_INPUT, CSS_TOKENS, TAILWIND_CONFIG]) if PACKAGE_JSON.is_file() else ""
+    )
 
     python_changed = args.force or venv_created or state.get("python_hash") != python_hash
     node_changed = args.force or state.get("node_hash") != node_hash

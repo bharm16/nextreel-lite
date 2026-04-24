@@ -6,6 +6,12 @@
       "runtimeExecutable": "/Users/bryceharmon/Desktop/nextreel-lite/venv/bin/python3",
       "runtimeArgs": ["-m", "http.server", "8090", "-d", "mockups"],
       "port": 8090
+    },
+    {
+      "name": "app",
+      "runtimeExecutable": "/usr/bin/env",
+      "runtimeArgs": ["PORT=5002", "/Users/bryceharmon/Desktop/nextreel-lite/venv/bin/python3", "app.py"],
+      "port": 5002
     }
   ]
 }

@@ -8,6 +8,7 @@ by prometheus_client), but they are now discoverable by domain.
 
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass
 
@@ -15,17 +16,37 @@ from prometheus_client import Counter, Gauge, Histogram, Info
 
 from config.env import get_environment
 
+logger = logging.getLogger(__name__)
+
+
+def safe_emit(fn, *args, **kwargs):
+    """Call a metric-emitting function, swallow and debug-log any exception.
+
+    Metric libraries occasionally raise on label cardinality limits, registry
+    collisions, or serialization edge cases. Emission must never take down a
+    request or background job, so this wrapper degrades to a no-op on any
+    exception and returns None.
+    """
+    try:
+        return fn(*args, **kwargs)
+    except Exception as exc:
+        logger.debug("metric emit failed: %s", exc)
+        return None
+
 
 # ── Application info ─────────────────────────────────────────────────
 
 app_info = Info("nextreel_app_info", "Application information")
-app_info.info({
-    "version": os.getenv("APP_VERSION", "1.0.0"),
-    "environment": get_environment(),
-})
+app_info.info(
+    {
+        "version": os.getenv("APP_VERSION", "1.0.0"),
+        "environment": get_environment(),
+    }
+)
 
 
 # ── HTTP ─────────────────────────────────────────────────────────────
+
 
 @dataclass(frozen=True)
 class HTTPMetrics:
@@ -55,6 +76,7 @@ http = HTTPMetrics(
 
 # ── Database ─────────────────────────────────────────────────────────
 
+
 @dataclass(frozen=True)
 class DatabaseMetrics:
     connections_active: Gauge
@@ -70,7 +92,9 @@ database = DatabaseMetrics(
     connections_active=Gauge("nextreel_db_connections_active", "Active database connections"),
     connections_idle=Gauge("nextreel_db_connections_idle", "Idle database connections"),
     connections_total=Gauge("nextreel_db_connections_total", "Total database connections in pool"),
-    queries_total=Counter("nextreel_db_queries_total", "Total database queries", ["query_type", "table", "status"]),
+    queries_total=Counter(
+        "nextreel_db_queries_total", "Total database queries", ["query_type", "table", "status"]
+    ),
     query_duration_seconds=Histogram(
         "nextreel_db_query_duration_seconds",
         "Database query duration in seconds",
@@ -81,11 +105,14 @@ database = DatabaseMetrics(
         "nextreel_db_circuit_breaker_state",
         "Database circuit breaker state (0=closed, 1=open, 2=half-open)",
     ),
-    connection_errors_total=Counter("nextreel_db_connection_errors_total", "Total database connection errors"),
+    connection_errors_total=Counter(
+        "nextreel_db_connection_errors_total", "Total database connection errors"
+    ),
 )
 
 
 # ── Movie & recommendations ──────────────────────────────────────────
+
 
 @dataclass(frozen=True)
 class MovieMetrics:
@@ -100,12 +127,17 @@ movie = MovieMetrics(
         "Total movie recommendations served",
         ["recommendation_type"],
     ),
-    fetches_total=Counter("nextreel_movie_fetches_total", "Total movie data fetches", ["source", "status"]),
-    filters_applied_total=Counter("nextreel_movie_filters_applied_total", "Total movie filters applied", ["filter_type"]),
+    fetches_total=Counter(
+        "nextreel_movie_fetches_total", "Total movie data fetches", ["source", "status"]
+    ),
+    filters_applied_total=Counter(
+        "nextreel_movie_filters_applied_total", "Total movie filters applied", ["filter_type"]
+    ),
 )
 
 
 # ── TMDb API ─────────────────────────────────────────────────────────
+
 
 @dataclass(frozen=True)
 class TMDbMetrics:
@@ -115,13 +147,20 @@ class TMDbMetrics:
 
 
 tmdb = TMDbMetrics(
-    api_calls_total=Counter("nextreel_tmdb_api_calls_total", "Total TMDB API calls", ["endpoint", "status_code"]),
-    api_duration_seconds=Histogram("nextreel_tmdb_api_duration_seconds", "TMDB API call duration in seconds", ["endpoint"]),
-    rate_limit_remaining=Gauge("nextreel_tmdb_rate_limit_remaining", "Remaining TMDB API rate limit"),
+    api_calls_total=Counter(
+        "nextreel_tmdb_api_calls_total", "Total TMDB API calls", ["endpoint", "status_code"]
+    ),
+    api_duration_seconds=Histogram(
+        "nextreel_tmdb_api_duration_seconds", "TMDB API call duration in seconds", ["endpoint"]
+    ),
+    rate_limit_remaining=Gauge(
+        "nextreel_tmdb_rate_limit_remaining", "Remaining TMDB API rate limit"
+    ),
 )
 
 
 # ── User & session ───────────────────────────────────────────────────
+
 
 @dataclass(frozen=True)
 class UserMetrics:
@@ -135,11 +174,14 @@ user = UserMetrics(
     active_users=Gauge("nextreel_active_users", "Currently active users"),
     sessions_total=Counter("nextreel_user_sessions_total", "Total user sessions created"),
     actions_total=Counter("nextreel_user_actions_total", "Total user actions", ["action_type"]),
-    session_duration_seconds=Histogram("nextreel_session_duration_seconds", "User session duration in seconds"),
+    session_duration_seconds=Histogram(
+        "nextreel_session_duration_seconds", "User session duration in seconds"
+    ),
 )
 
 
 # ── Cache ────────────────────────────────────────────────────────────
+
 
 @dataclass(frozen=True)
 class CacheMetrics:
@@ -166,6 +208,7 @@ cache = CacheMetrics(
 
 
 # ── Error / operational ──────────────────────────────────────────────
+
 
 @dataclass(frozen=True)
 class ErrorMetrics:
@@ -197,5 +240,93 @@ error = ErrorMetrics(
     home_prewarm_failed_total=Counter(
         "nextreel_home_prewarm_failed_total",
         "Total failed home page queue prewarm attempts",
+    ),
+)
+
+
+# ── Enrichment ───────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class EnrichmentMetrics:
+    enqueued_total: Counter
+    enqueue_fallback_total: Counter
+    backlog_drop_total: Counter
+    timeout_total: Counter
+
+
+enrichment = EnrichmentMetrics(
+    enqueued_total=Counter(
+        "nextreel_enrichment_enqueued_total",
+        "Total projection enrichment jobs successfully enqueued via arq",
+    ),
+    enqueue_fallback_total=Counter(
+        "nextreel_enrichment_enqueue_fallback_total",
+        "Total times enrichment enqueue fell back to in-process execution",
+        ["reason"],
+    ),
+    backlog_drop_total=Counter(
+        "nextreel_enrichment_backlog_drop_total",
+        "Total in-process enrichment schedules dropped due to backlog cap",
+    ),
+    timeout_total=Counter(
+        "nextreel_enrichment_timeout_total",
+        "Total projection enrichment attempts that hit the overall timeout",
+    ),
+)
+
+
+# ── Worker / background jobs ─────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class WorkerMetrics:
+    jobs_total: Counter
+    job_duration_seconds: Histogram
+    queue_depth: Gauge
+    queue_oldest_job_age_seconds: Gauge
+    local_enrichment_pending: Gauge
+
+
+worker = WorkerMetrics(
+    jobs_total=Counter(
+        "nextreel_worker_jobs_total",
+        "Total worker jobs started/completed by name and status",
+        ["job_name", "status"],
+    ),
+    job_duration_seconds=Histogram(
+        "nextreel_worker_job_duration_seconds",
+        "Worker job duration in seconds",
+        ["job_name"],
+        buckets=(0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0, 120.0, 300.0),
+    ),
+    queue_depth=Gauge(
+        "nextreel_worker_queue_depth",
+        "Number of jobs waiting in the ARQ queue",
+    ),
+    queue_oldest_job_age_seconds=Gauge(
+        "nextreel_worker_queue_oldest_job_age_seconds",
+        "Age in seconds of the oldest pending job in the ARQ queue",
+    ),
+    local_enrichment_pending=Gauge(
+        "nextreel_local_enrichment_pending",
+        "Number of local (in-process) enrichment tasks pending when worker is unavailable",
+    ),
+)
+
+
+# ── Logging pipeline ─────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class LoggingMetrics:
+    dropped_total: Counter
+
+
+logging_metrics = LoggingMetrics(
+    dropped_total=Counter(
+        "nextreel_logging_dropped_total",
+        "Total log entries dropped by the logging pipeline (e.g. Loki buffer full)",
+        ["reason"],
     ),
 )

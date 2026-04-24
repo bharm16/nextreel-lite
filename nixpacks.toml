@@ -1,0 +1,14 @@
+# Railway / Nixpacks build config.
+# Adds Node.js alongside the default Python provider so Tailwind can build
+# static/css/output.css during the build phase. The file is read at startup
+# in nextreel/web/app.py (CSS_VERSION mtime lookup), so it must exist in the
+# final image.
+
+[phases.setup]
+nixPkgs = ["...", "nodejs_20"]
+
+[phases.install]
+cmds = ["...", "npm ci"]
+
+[phases.build]
+cmds = ["npm run build-css"]
