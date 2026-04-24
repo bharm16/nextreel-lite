@@ -197,17 +197,31 @@ async def test_fetch_returns_none_when_no_row_has_tmdb_backdrop():
 
 @pytest.mark.asyncio
 async def test_fetch_uses_ready_state_filter_and_limit_offset_not_rand():
-    """The SQL must restrict to READY state and use LIMIT/OFFSET, not ORDER BY RAND()."""
+    """READY-state SELECT with LIMIT/OFFSET — no RAND() or JSON_UNQUOTE.
+
+    The fetch is split into two queries: an id-only SELECT with LIMIT/OFFSET
+    (keeps the filesort narrow), then a payload fetch using WHERE tconst IN
+    (...). Together they must cover all the invariants below.
+    """
     pool = _make_pool(count=100, rows=[])
     await fetch_random_landing_film(pool)
-    select_calls = [c for c in pool.execute.await_args_list if "payload_json" in c.args[0]]
-    assert select_calls, "expected a SELECT for payload_json"
-    sql = select_calls[0].args[0]
-    assert "movie_projection" in sql
-    assert "projection_state = 'ready'" in sql
-    assert "LIMIT %s OFFSET %s" in sql
-    assert "ORDER BY RAND()" not in sql
-    assert "JSON_UNQUOTE" not in sql
+    non_count_sqls = [
+        c.args[0] for c in pool.execute.await_args_list if "COUNT(*)" not in c.args[0]
+    ]
+    assert non_count_sqls, "expected at least one non-count SELECT"
+    # The id-only keyset SELECT carries the READY filter and LIMIT/OFFSET.
+    id_sql = next(
+        (s for s in non_count_sqls if "LIMIT %s OFFSET %s" in s),
+        None,
+    )
+    assert id_sql is not None, "expected a LIMIT/OFFSET SELECT"
+    assert "movie_projection" in id_sql
+    assert "projection_state = 'ready'" in id_sql
+    # No filesort on the wide payload_json column and no JSON extraction in
+    # the hot landing path — global invariants across every issued query.
+    for sql in non_count_sqls:
+        assert "ORDER BY RAND()" not in sql
+        assert "JSON_UNQUOTE" not in sql
 
 
 @pytest.mark.asyncio

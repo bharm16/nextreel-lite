@@ -45,6 +45,9 @@ def build_search_query(raw_query: str, limit: int = 10) -> tuple[str | None, lis
     article_a = f"A {escaped}%"
     article_an = f"An {escaped}%"
 
+    # Params order is kept compatible with the historical test contract —
+    # params[0]=exact, [1]=prefix, [2]=contains — so downstream assertions
+    # don't break when we add article-stripped buckets.
     sql = (
         "SELECT mc.tconst, mc.primaryTitle, mc.startYear, mc.averageRating, "
         "       JSON_UNQUOTE(JSON_EXTRACT(mp.payload_json, '$.poster_url')) AS poster_url "
@@ -54,6 +57,7 @@ def build_search_query(raw_query: str, limit: int = 10) -> tuple[str | None, lis
         "  AND mp.projection_state IN ('ready', 'stale') "
         "WHERE mc.primaryTitle IS NOT NULL "
         "  AND (mc.primaryTitle = %s "
+        "       OR mc.primaryTitle LIKE %s ESCAPE '|' "
         "       OR mc.primaryTitle LIKE %s ESCAPE '|' "
         "       OR mc.primaryTitle LIKE %s ESCAPE '|' "
         "       OR mc.primaryTitle LIKE %s ESCAPE '|' "
@@ -78,8 +82,10 @@ def build_search_query(raw_query: str, limit: int = 10) -> tuple[str | None, lis
     )
 
     params = [
-        escaped, prefix, article_the, article_a, article_an,  # WHERE
-        escaped, prefix, article_the, article_a, article_an,  # CASE
+        # WHERE: exact, prefix, contains, article_the, article_a, article_an
+        escaped, prefix, contains, article_the, article_a, article_an,
+        # CASE: exact, prefix, article_the, article_a, article_an
+        escaped, prefix, article_the, article_a, article_an,
         int(limit),
     ]
     return sql, params
