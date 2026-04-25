@@ -30,7 +30,6 @@
   </script>
   <style>
     body { font-family: 'DM Sans', system-ui, sans-serif; margin: 0; padding: 0; }
-    html, body { height: 100%; overflow: hidden; }
 
     /* Film grain overlay — retained from previous design for analog texture */
     .home-grain {
@@ -78,5 +77,7 @@
     <div class="landing-credit">Film still: {{ landing_film.title }} ({{ landing_film.year }})</div>
     {% endif %}
   </main>
+
+  {% include 'footer_modern.html' %}
 </body>
 </html>
