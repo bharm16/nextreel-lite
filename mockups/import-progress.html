@@ -58,7 +58,7 @@
         <span id="import-total">?</span> rows
       </p>
 
-      <div id="import-progress-bar" class="import-progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden>
+      <div id="import-progress-bar" class="import-progress-bar import-progress-bar--indeterminate" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
         <div id="import-progress-fill" class="import-progress-fill" style="width: 0%;"></div>
       </div>
 
@@ -67,6 +67,10 @@
         <li>Skipped: <span id="import-skipped">0</span></li>
         <li>Failed: <span id="import-failed">0</span></li>
       </ul>
+
+      <p id="import-poll-hint" class="import-poll-hint">
+        <span id="import-poll-hint-text">Checking for updates · last checked just now</span>
+      </p>
 
       <div id="import-success" class="import-alert import-alert--success" role="status" hidden>
         <strong>Import complete.</strong>
@@ -90,6 +94,11 @@
     </section>
   </main>
 
+  <footer style="background: var(--color-surface); padding: 3rem 1.25rem; border-top: 1px solid var(--color-border); color: var(--color-text-muted); font-size: 0.85rem;">
+    <p>© 2025 Nextreel. All rights reserved.</p>
+    <p style="margin-top: 1rem;">Mock footer to verify min-height fix.</p>
+  </footer>
+
   <div class="mockup-state-toggle">
     <button type="button" data-mock="pending">pending</button>
     <button type="button" data-mock="running">running</button>
@@ -100,11 +109,11 @@
 
   <script>
     var states = {
-      pending: { state: 'pending', processed: 0, total: '?', progress: 0, success: false, error: false, stale: false },
-      running: { state: 'running', processed: 47, total: 200, progress: 23, success: false, error: false, stale: false },
-      stale:   { state: 'pending', processed: 0, total: '?', progress: 0, success: false, error: false, stale: true },
-      completed: { state: 'completed', processed: 200, total: 200, progress: 100, success: true, error: false, stale: false },
-      failed:  { state: 'failed', processed: 12, total: 200, progress: 6, success: false, error: true, stale: false },
+      pending: { state: 'pending', processed: 0, total: '?', progress: 0, indeterminate: true,  barHidden: false, success: false, error: false, stale: false, poll: true },
+      running: { state: 'running', processed: 47, total: 200, progress: 23, indeterminate: false, barHidden: false, success: false, error: false, stale: false, poll: true },
+      stale:   { state: 'pending', processed: 0, total: '?', progress: 0, indeterminate: true,  barHidden: false, success: false, error: false, stale: true,  poll: true },
+      completed: { state: 'completed', processed: 200, total: 200, progress: 100, indeterminate: false, barHidden: true, success: true, error: false, stale: false, poll: false },
+      failed:  { state: 'failed', processed: 12, total: 200, progress: 6,  indeterminate: false, barHidden: true, success: false, error: true,  stale: false, poll: false },
     };
     function applyState(s) {
       document.getElementById('import-status').textContent = s.state;
@@ -112,11 +121,13 @@
       document.getElementById('import-processed').textContent = s.processed;
       document.getElementById('import-total').textContent = s.total;
       var bar = document.getElementById('import-progress-bar');
-      bar.hidden = !s.total || s.total === '?';
-      document.getElementById('import-progress-fill').style.width = s.progress + '%';
+      bar.hidden = s.barHidden;
+      bar.classList.toggle('import-progress-bar--indeterminate', s.indeterminate);
+      document.getElementById('import-progress-fill').style.width = s.indeterminate ? '' : s.progress + '%';
       document.getElementById('import-success').hidden = !s.success;
       document.getElementById('import-error').hidden = !s.error;
       document.getElementById('import-stale-warning').hidden = !s.stale;
+      document.getElementById('import-poll-hint').hidden = !s.poll;
     }
     document.querySelectorAll('[data-mock]').forEach(function (b) {
       b.addEventListener('click', function () { applyState(states[b.dataset.mock]); });

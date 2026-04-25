@@ -33,12 +33,12 @@
       </p>
 
       <div id="import-progress-bar"
-           class="import-progress-bar"
+           class="import-progress-bar {% if not import_row.total_rows %}import-progress-bar--indeterminate{% endif %}"
            role="progressbar"
            aria-valuemin="0"
            aria-valuemax="100"
            aria-valuenow="0"
-           {% if not import_row.total_rows %}hidden{% endif %}>
+           {% if import_row.status in ('completed', 'failed') %}hidden{% endif %}>
         <div id="import-progress-fill" class="import-progress-fill"
              style="width: {% if import_row.total_rows %}{{ ((import_row.processed or 0) / import_row.total_rows * 100) | round | int }}{% else %}0{% endif %}%;"></div>
       </div>
@@ -48,6 +48,12 @@
         <li>Skipped: <span id="import-skipped">{{ import_row.skipped }}</span></li>
         <li>Failed: <span id="import-failed">{{ import_row.failed }}</span></li>
       </ul>
+
+      <p id="import-poll-hint"
+         class="import-poll-hint"
+         {% if import_row.status in ('completed', 'failed') %}hidden{% endif %}>
+        <span id="import-poll-hint-text">Checking for updates…</span>
+      </p>
 
       <div id="import-success"
            class="import-alert import-alert--success"

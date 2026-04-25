@@ -1829,8 +1829,12 @@
     max-width: 640px;
     margin: 0 auto;
     /* Top padding clears the fixed .navbar (~71px = 36px padding + ~35px
-       two-line brand stack). 6rem leaves comfortable breathing room. */
+       two-line brand stack). 6rem leaves comfortable breathing room.
+       min-height keeps the footer below the fold even when the page
+       has little content (e.g. import progress in pending state). */
     padding: 6rem 2rem 4rem;
+    min-height: 100vh;
+    box-sizing: border-box;
   }
 
   .settings-page-title {
@@ -2269,6 +2273,7 @@
   }
 
   .import-progress-bar {
+    position: relative;
     height: 2px;
     background: var(--color-border);
     overflow: hidden;
@@ -2279,6 +2284,36 @@
     background: var(--color-accent);
     width: 0;
     transition: width 400ms var(--easing-default);
+  }
+  /* Indeterminate sweep — shown while total_rows is unknown so the user
+     sees motion even before the worker has parsed the CSV. */
+  .import-progress-bar--indeterminate .import-progress-fill {
+    width: 33%;
+    transition: none;
+    animation: importIndeterminate 1.6s ease-in-out infinite;
+  }
+  @keyframes importIndeterminate {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(300%); }
+  }
+
+  .import-poll-hint {
+    font-family: var(--font-sans);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-text-muted);
+    margin: 0 0 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+  }
+  .import-poll-hint::before {
+    content: "";
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--color-accent);
+    flex: none;
+    animation: importPulse 1.6s ease-in-out infinite;
   }
 
   .import-counts {
