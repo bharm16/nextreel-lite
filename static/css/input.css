@@ -113,6 +113,9 @@
     background: transparent;
     color: rgba(255, 255, 255, 0.8);
     cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: rgba(255, 255, 255, 0.1);
+    cursor: pointer;
     transition:
       color var(--duration-normal) var(--easing-default),
       border-color var(--duration-normal) var(--easing-default),
@@ -147,6 +150,16 @@
     stroke-width: 2;
     stroke-linecap: round;
     stroke-linejoin: round;
+    pointer-events: none;
+  }
+  /* Mobile-specific: 44px hit target meets iOS HIG minimum, prevents missed taps. */
+  .navbar-icon-btn--mobile {
+    width: 44px;
+    height: 44px;
+  }
+  .navbar-icon-btn--mobile svg {
+    width: 18px;
+    height: 18px;
   }
 
   .navbar-pill {
@@ -2478,6 +2491,10 @@
     0%   { transform: scale(1.05) translate(0, 0); }
     100% { transform: scale(1.15) translate(-2%, -1%); }
   }
+  @keyframes landing-kenburns-mobile {
+    0%   { transform: scale(1.0) translate(0, 0); }
+    100% { transform: scale(1.05) translate(-1%, 0); }
+  }
   .landing-gradient {
     position: absolute; inset: 0; z-index: 1;
     background:
@@ -2643,6 +2660,14 @@
 
   @media (max-width: 768px) {
     .landing-side-label { display: none; }
+    .landing-bg {
+      /* TMDb backdrops are 16:9; on portrait viewports `cover` zooms the image
+         dramatically and crops most of it out. Anchor to top-center and let
+         the gradient + dark surface fill the bottom half. */
+      background-size: cover;
+      background-position: center 25%;
+      animation: landing-kenburns-mobile 50s ease-in-out infinite alternate;
+    }
     .landing-content { padding: 60px 20px 80px; }
     .landing-title { font-size: clamp(48px, 16vw, 96px); }
     .landing-meta { font-size: 10px; letter-spacing: 0.2em; }

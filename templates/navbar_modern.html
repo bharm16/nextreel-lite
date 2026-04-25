@@ -48,18 +48,16 @@
   </nav>
 
   <!-- Mobile compact actions -->
-  <div class="navbar-actions md:hidden" style="gap: 10px;">
-    <button type="button" class="navbar-icon-btn" id="searchSpotlightTriggerMobile"
-            aria-label="Open search" aria-haspopup="dialog" aria-controls="searchSpotlight"
-            style="width: 30px; height: 30px;">
+  <div class="navbar-actions md:hidden">
+    <button type="button" class="navbar-icon-btn navbar-icon-btn--mobile" id="searchSpotlightTriggerMobile"
+            aria-label="Open search" aria-haspopup="dialog" aria-controls="searchSpotlight">
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <circle cx="11" cy="11" r="7"/>
         <path d="m21 21-4.3-4.3"/>
       </svg>
     </button>
-    <button id="menuBtn" class="navbar-icon-btn" aria-controls="mobileMenu"
-            aria-expanded="false" aria-label="Open menu"
-            style="width: 30px; height: 30px;">
+    <button type="button" id="menuBtn" class="navbar-icon-btn navbar-icon-btn--mobile" aria-controls="mobileMenu"
+            aria-expanded="false" aria-label="Open menu">
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path d="M4 7h16M4 12h16M4 17h16"/>
       </svg>
