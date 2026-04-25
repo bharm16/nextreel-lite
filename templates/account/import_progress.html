@@ -19,50 +19,72 @@
       <h1 class="settings-page-title">Importing from Letterboxd</h1>
     </div>
 
-    <section class="settings-section settings-fade" data-import-id="{{ import_row.import_id }}">
+    <section class="settings-section settings-fade"
+             data-import-id="{{ import_row.import_id }}"
+             data-error-message="{{ import_row.error_message or '' }}">
       <p class="settings-description">
-        Status: <strong id="import-status">{{ import_row.status }}</strong> —
+        Status:
+        <span id="import-status-badge" class="import-status-badge" data-state="{{ import_row.status }}">
+          <strong id="import-status">{{ import_row.status }}</strong>
+        </span>
+        —
         <span id="import-processed">{{ import_row.processed }}</span> of
         <span id="import-total">{{ import_row.total_rows or '?' }}</span> rows
       </p>
-      <ul style="font-size:0.9rem; color: var(--color-text-muted); list-style: none; padding: 0;">
+
+      <div id="import-progress-bar"
+           class="import-progress-bar"
+           role="progressbar"
+           aria-valuemin="0"
+           aria-valuemax="100"
+           aria-valuenow="0"
+           {% if not import_row.total_rows %}hidden{% endif %}>
+        <div id="import-progress-fill" class="import-progress-fill"
+             style="width: {% if import_row.total_rows %}{{ ((import_row.processed or 0) / import_row.total_rows * 100) | round | int }}{% else %}0{% endif %}%;"></div>
+      </div>
+
+      <ul class="import-counts">
         <li>Matched: <span id="import-matched">{{ import_row.matched }}</span></li>
         <li>Skipped: <span id="import-skipped">{{ import_row.skipped }}</span></li>
         <li>Failed: <span id="import-failed">{{ import_row.failed }}</span></li>
       </ul>
+
+      <div id="import-success"
+           class="import-alert import-alert--success"
+           role="status"
+           {% if import_row.status != 'completed' %}hidden{% endif %}>
+        <strong>Import complete.</strong>
+        Your matched films have been added to your watched list.
+      </div>
+
+      <div id="import-error"
+           class="import-alert import-alert--error"
+           role="alert"
+           {% if import_row.status != 'failed' %}hidden{% endif %}>
+        <strong>Import failed.</strong>
+        <span id="import-error-text">{{ import_row.error_message or 'The import failed for an unknown reason.' }}</span>
+      </div>
+
+      <div id="import-stale-warning"
+           class="import-alert import-alert--warning"
+           role="status"
+           hidden>
+        <strong>Still pending.</strong>
+        No progress for 30+ seconds. If you're running locally, make sure the
+        background worker is running (<code>arq worker.WorkerSettings</code>).
+      </div>
+
       <div class="settings-actions">
         <a href="{{ url_for('main.account_view') }}" class="settings-btn-secondary">← Back to Account</a>
+        {% if import_row.status == 'completed' %}
+        <a href="{{ url_for('main.watched_list_page') }}" class="settings-btn-primary">View Watched List</a>
+        {% endif %}
       </div>
     </section>
   </main>
 
   {% include 'footer_modern.html' %}
 
-  <script>
-    (function () {
-      var root = document.querySelector('[data-import-id]');
-      if (!root) return;
-      var id = root.dataset.importId;
-      var polling = true;
-      function tick() {
-        if (!polling) return;
-        fetch('/account/import/' + id + '/status')
-          .then(function (r) { if (!r.ok) { polling = false; return null; } return r.json(); })
-          .then(function (d) {
-            if (!d) return;
-            document.getElementById('import-status').textContent = d.status;
-            document.getElementById('import-processed').textContent = d.processed;
-            document.getElementById('import-total').textContent = d.total_rows || '?';
-            document.getElementById('import-matched').textContent = d.matched;
-            document.getElementById('import-skipped').textContent = d.skipped;
-            document.getElementById('import-failed').textContent = d.failed;
-            if (d.status === 'completed' || d.status === 'failed') { polling = false; return; }
-            setTimeout(tick, 2000);
-          })
-          .catch(function () { setTimeout(tick, 2000); });
-      }
-      tick();
-    })();
-  </script>
+  <script src="{{ url_for('static', filename='js/import-progress.js') }}?v={{ config.get('CSS_VERSION', '1') }}" defer></script>
 </body>
 </html>

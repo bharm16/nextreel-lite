@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth" data-theme-server="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mockup — Import Progress</title>
+  <link href="https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,300;0,400;0,700;1,400&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/output.css" />
+  <style>
+    body { font-family: var(--font-sans, 'DM Sans', system-ui, sans-serif); background: var(--color-bg); color: var(--color-text); }
+    .mockup-state-toggle {
+      position: fixed; bottom: 1rem; right: 1rem; z-index: 100;
+      background: var(--color-bg); border: 1px solid var(--color-border);
+      padding: 0.5rem; border-radius: 6px;
+      display: flex; flex-direction: column; gap: 0.25rem;
+      font-size: 0.75rem;
+    }
+    .mockup-state-toggle button { padding: 0.25rem 0.5rem; cursor: pointer; }
+  </style>
+</head>
+<body class="antialiased">
+  <header class="navbar" data-navbar>
+    <a href="/" class="navbar-brand-wrap">
+      <span class="navbar-brand">Nextreel</span>
+      <span class="navbar-tagline">Cinema Discovery</span>
+    </a>
+    <nav class="navbar-actions hidden md:flex">
+      <a href="#" class="navbar-link">Watched</a>
+    </nav>
+    <div class="navbar-actions md:hidden">
+      <button type="button" class="navbar-icon-btn navbar-icon-btn--mobile" aria-label="Open search">
+        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="7"/>
+          <path d="m21 21-4.3-4.3"/>
+        </svg>
+      </button>
+      <button type="button" class="navbar-icon-btn navbar-icon-btn--mobile" aria-label="Open menu">
+        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M4 7h16M4 12h16M4 17h16"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <main id="main" class="settings-page">
+    <div class="settings-fade">
+      <h1 class="settings-page-title">Importing from Letterboxd</h1>
+    </div>
+
+    <section class="settings-section settings-fade" data-import-id="mock123">
+      <p class="settings-description">
+        Status:
+        <span id="import-status-badge" class="import-status-badge" data-state="pending">
+          <strong id="import-status">pending</strong>
+        </span>
+        —
+        <span id="import-processed">0</span> of
+        <span id="import-total">?</span> rows
+      </p>
+
+      <div id="import-progress-bar" class="import-progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden>
+        <div id="import-progress-fill" class="import-progress-fill" style="width: 0%;"></div>
+      </div>
+
+      <ul class="import-counts">
+        <li>Matched: <span id="import-matched">0</span></li>
+        <li>Skipped: <span id="import-skipped">0</span></li>
+        <li>Failed: <span id="import-failed">0</span></li>
+      </ul>
+
+      <div id="import-success" class="import-alert import-alert--success" role="status" hidden>
+        <strong>Import complete.</strong>
+        Your matched films have been added to your watched list.
+      </div>
+
+      <div id="import-error" class="import-alert import-alert--error" role="alert" hidden>
+        <strong>Import failed.</strong>
+        <span id="import-error-text">CSV blob missing</span>
+      </div>
+
+      <div id="import-stale-warning" class="import-alert import-alert--warning" role="status" hidden>
+        <strong>Still pending.</strong>
+        No progress for 30+ seconds. If you're running locally, make sure the
+        background worker is running (<code>arq worker.WorkerSettings</code>).
+      </div>
+
+      <div class="settings-actions">
+        <a href="#" class="settings-btn-secondary">← Back to Account</a>
+      </div>
+    </section>
+  </main>
+
+  <div class="mockup-state-toggle">
+    <button type="button" data-mock="pending">pending</button>
+    <button type="button" data-mock="running">running</button>
+    <button type="button" data-mock="stale">pending+stale</button>
+    <button type="button" data-mock="completed">completed</button>
+    <button type="button" data-mock="failed">failed</button>
+  </div>
+
+  <script>
+    var states = {
+      pending: { state: 'pending', processed: 0, total: '?', progress: 0, success: false, error: false, stale: false },
+      running: { state: 'running', processed: 47, total: 200, progress: 23, success: false, error: false, stale: false },
+      stale:   { state: 'pending', processed: 0, total: '?', progress: 0, success: false, error: false, stale: true },
+      completed: { state: 'completed', processed: 200, total: 200, progress: 100, success: true, error: false, stale: false },
+      failed:  { state: 'failed', processed: 12, total: 200, progress: 6, success: false, error: true, stale: false },
+    };
+    function applyState(s) {
+      document.getElementById('import-status').textContent = s.state;
+      document.getElementById('import-status-badge').dataset.state = s.state;
+      document.getElementById('import-processed').textContent = s.processed;
+      document.getElementById('import-total').textContent = s.total;
+      var bar = document.getElementById('import-progress-bar');
+      bar.hidden = !s.total || s.total === '?';
+      document.getElementById('import-progress-fill').style.width = s.progress + '%';
+      document.getElementById('import-success').hidden = !s.success;
+      document.getElementById('import-error').hidden = !s.error;
+      document.getElementById('import-stale-warning').hidden = !s.stale;
+    }
+    document.querySelectorAll('[data-mock]').forEach(function (b) {
+      b.addEventListener('click', function () { applyState(states[b.dataset.mock]); });
+    });
+  </script>
+</body>
+</html>

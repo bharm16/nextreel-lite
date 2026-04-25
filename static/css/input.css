@@ -1828,7 +1828,9 @@
   .settings-page {
     max-width: 640px;
     margin: 0 auto;
-    padding: 3rem 2rem 4rem;
+    /* Top padding clears the fixed .navbar (~71px = 36px padding + ~35px
+       two-line brand stack). 6rem leaves comfortable breathing room. */
+    padding: 6rem 2rem 4rem;
   }
 
   .settings-page-title {
@@ -2215,7 +2217,10 @@
   .settings-fade:nth-child(7) { animation-delay: 480ms; }
 
   @media (max-width: 480px) {
-    .settings-page { padding: 2rem 1.25rem 3rem; }
+    /* Mobile navbar is ~67-72px (1rem padding + brand stack). 5.5rem
+       (88px) clears it with ~16px of headroom so the title isn't blurred
+       behind the backdrop-filter. */
+    .settings-page { padding: 5.5rem 1.25rem 3rem; }
     .settings-field-row {
       grid-template-columns: 1fr;
       gap: 1rem;
@@ -2223,6 +2228,114 @@
     .settings-toggle-row { flex-wrap: wrap; }
     .settings-toggle { margin-left: 0; margin-top: 0.5rem; }
   }
+
+  /* ── Letterboxd import progress page ───────────────────── */
+  /* Restrained editorial styling — matches .settings-session-badge
+     and .watched-toast patterns. No pills, no saturated fills. */
+  .import-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-family: var(--font-sans);
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-text-muted);
+    vertical-align: baseline;
+  }
+  .import-status-badge::before {
+    content: "";
+    width: 6px; height: 6px; border-radius: 50%;
+    background: currentColor;
+    flex: none;
+  }
+  .import-status-badge strong {
+    font-weight: 600;
+    color: inherit;
+    letter-spacing: inherit;
+  }
+  .import-status-badge[data-state="pending"],
+  .import-status-badge[data-state="running"] { color: var(--color-accent); }
+  .import-status-badge[data-state="completed"] { color: var(--color-watched); }
+  .import-status-badge[data-state="failed"] { color: #dc2626; }
+  .import-status-badge[data-state="running"]::before,
+  .import-status-badge[data-state="pending"]::before {
+    animation: importPulse 1.6s ease-in-out infinite;
+  }
+  @keyframes importPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+  }
+
+  .import-progress-bar {
+    height: 2px;
+    background: var(--color-border);
+    overflow: hidden;
+    margin: 1.5rem 0 1.75rem;
+  }
+  .import-progress-fill {
+    height: 100%;
+    background: var(--color-accent);
+    width: 0;
+    transition: width 400ms var(--easing-default);
+  }
+
+  .import-counts {
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-text-muted);
+    list-style: none;
+    padding: 0;
+    margin: 0 0 2rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+  }
+  .import-counts li { margin: 0; }
+  .import-counts span {
+    color: var(--color-text);
+    font-weight: 600;
+    margin-left: 0.25rem;
+  }
+
+  .import-alert {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-left: 2px solid var(--color-border);
+    padding: 0.9rem 1rem 0.95rem;
+    border-radius: var(--radius-sharp);
+    margin: 0 0 1.25rem;
+    font-family: var(--font-sans);
+    font-size: 0.85rem;
+    line-height: 1.55;
+    color: var(--color-text);
+  }
+  .import-alert strong {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-text-muted);
+    margin: 0 0 0.3rem;
+  }
+  .import-alert code {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.82em;
+    background: var(--color-surface-alt);
+    padding: 0.1rem 0.4rem;
+    border-radius: 2px;
+    color: var(--color-text);
+  }
+  .import-alert--success { border-left-color: var(--color-watched); }
+  .import-alert--success strong { color: var(--color-watched); }
+  .import-alert--error { border-left-color: #dc2626; }
+  .import-alert--error strong { color: #dc2626; }
+  .import-alert--warning { border-left-color: var(--color-accent); }
+  .import-alert--warning strong { color: var(--color-accent); }
 
   .account-avatar {
     display: inline-flex;
