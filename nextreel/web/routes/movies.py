@@ -91,6 +91,7 @@ async def movie_detail(tconst):
         )
 
     g.is_watched = view_model.is_watched
+    g.is_in_watchlist = view_model.is_in_watchlist
     image_context = _movie_image_context(view_model.movie)
     return await render_template(
         "movie.html",

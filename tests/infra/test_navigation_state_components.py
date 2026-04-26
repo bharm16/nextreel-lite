@@ -78,7 +78,7 @@ class TestNavigationStateService:
         assert session_id == "test-session"
         assert service.mutate.await_args.kwargs["current_state"] is state
         assert updated.user_id == "user-123"
-        assert updated.filters == {"genres": ["Drama"], "exclude_watched": False}
+        assert updated.filters == {"genres": ["Drama"], "exclude_watched": False, "exclude_watchlist": True}
         assert updated.filters is not original_filters
         assert original_filters == {"genres": ["Drama"], "exclude_watched": True}
 

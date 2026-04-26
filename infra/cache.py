@@ -137,6 +137,10 @@ class LruExpiringMap:
 # current version prefix.
 CACHE_KEY_VERSION = "v1"
 
+# Shared TTL for per-user "list of tconsts" caches (watched, watchlist).
+# Short window: stale-ok for the navigation hot path; invalidated on add/remove.
+USER_LIST_CACHE_TTL_SECONDS = 300
+
 
 class CacheNamespace(Enum):
     """Cache namespaces for different data types."""

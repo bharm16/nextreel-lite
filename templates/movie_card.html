@@ -220,6 +220,39 @@
     </form>
 
     {% set watch_tconst = movie.tconst or movie.imdb_id %}
+    {# ── Add to Watchlist form (NEW) ────────────────────────── #}
+    {% if current_user_id %}
+    <form method="POST"
+          action="{% if is_in_watchlist %}/watchlist/remove/{{ watch_tconst }}{% else %}/watchlist/add/{{ watch_tconst }}{% endif %}"
+          class="inline"
+          data-watchlist-toggle-form
+          data-watchlist-state="{% if is_in_watchlist %}saved{% else %}unsaved{% endif %}"
+          data-add-url="/watchlist/add/{{ watch_tconst }}"
+          data-remove-url="/watchlist/remove/{{ watch_tconst }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit"
+              class="nav-btn-watchlist"
+              data-watchlist-toggle-button
+              aria-pressed="{% if is_in_watchlist %}true{% else %}false{% endif %}">
+        {% if is_in_watchlist %}
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
+        Saved
+        {% else %}
+        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
+        <span><span class="nav-btn-watchlist__prefix">Add to </span>Watchlist</span>
+        {% endif %}
+      </button>
+    </form>
+    {% else %}
+    <a href="{{ url_for('main.login_page', next='/movie/' ~ watch_tconst) }}"
+       class="nav-btn-watchlist nav-btn-watchlist--login"
+       aria-label="Log in to add to watchlist">
+      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
+      <span><span class="nav-btn-watchlist__prefix">Add to </span>Watchlist</span>
+    </a>
+    {% endif %}
+
+    {# ── existing watched form continues here ───────────────── #}
     {% if current_user_id %}
     <form method="POST"
           action="{% if is_watched %}/watched/remove/{{ watch_tconst }}{% else %}/watched/add/{{ watch_tconst }}{% endif %}"
@@ -260,3 +293,4 @@
   </nav>
 
   <script src="{{ url_for('static', filename='js/movie-card.js') }}?v={{ config.get('CSS_VERSION', '1') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/watchlist-toggle.js') }}?v={{ config.get('CSS_VERSION', '1') }}" defer></script>

@@ -39,6 +39,11 @@ from nextreel.web.routes.watched import (
     remove_from_watched,
     watched_list_page,
 )
+from nextreel.web.routes.watchlist import (
+    add_to_watchlist,
+    remove_from_watchlist,
+    watchlist_page,
+)
 from nextreel.web.routes.shared import bp, init_routes
 
 __all__ = [
@@ -56,6 +61,7 @@ __all__ = [
     "account_sessions_revoke",
     "account_view",
     "account_watched_clear",
+    "add_to_watchlist",
     "add_to_watched",
     "auth_google",
     "auth_google_callback",
@@ -76,7 +82,9 @@ __all__ = [
     "readiness_check",
     "register_page",
     "register_submit",
+    "remove_from_watchlist",
     "remove_from_watched",
     "search_titles",
     "watched_list_page",
+    "watchlist_page",
 ]

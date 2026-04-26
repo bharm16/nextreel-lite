@@ -20,6 +20,7 @@ class FilterState(TypedDict, total=False):
     language: str
     genres_selected: list[str]
     exclude_watched: bool
+    exclude_watchlist: bool
 
 
 class MovieCriteria(TypedDict, total=False):

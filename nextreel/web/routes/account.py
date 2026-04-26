@@ -79,6 +79,9 @@ async def account_view():
     exclude_watched_default = await user_preferences.get_exclude_watched_default(
         db_pool, user_id
     )
+    exclude_watchlist_default = await user_preferences.get_exclude_watchlist_default(
+        db_pool, user_id
+    )
     theme_preference = await user_preferences.get_theme_preference(db_pool, user_id)
     default_filters = await user_preferences.get_default_filters(db_pool, user_id)
 
@@ -87,6 +90,7 @@ async def account_view():
         user=user,
         server_theme=theme_preference,
         exclude_watched_default=exclude_watched_default,
+        exclude_watchlist_default=exclude_watchlist_default,
         default_filters=default_filters,
         page_title="Account",
     )
@@ -155,6 +159,9 @@ async def account_password_change():
         exclude_watched = await user_preferences.get_exclude_watched_default(
             db_pool, user_id
         )
+        exclude_watchlist = await user_preferences.get_exclude_watchlist_default(
+            db_pool, user_id
+        )
         default_filters = await user_preferences.get_default_filters(db_pool, user_id)
         return (
             await render_template(
@@ -162,6 +169,7 @@ async def account_password_change():
                 user=user,
                 server_theme=theme,
                 exclude_watched_default=exclude_watched,
+                exclude_watchlist_default=exclude_watchlist,
                 default_filters=default_filters,
                 errors=errors,
                 page_title="Account",
@@ -213,9 +221,13 @@ async def account_preferences_save():
     user_id = _require_user()
     form = await request.form
     exclude = form.get("exclude_watched_default") == "on"
+    exclude_watchlist = form.get("exclude_watchlist_default") == "on"
 
     db_pool = _db_pool()
     await user_preferences.set_exclude_watched_default(db_pool, user_id, exclude)
+    await user_preferences.set_exclude_watchlist_default(
+        db_pool, user_id, exclude_watchlist
+    )
     if "theme_preference" in form:
         theme_raw = form.get("theme_preference", "system")
         theme = theme_raw if theme_raw in ("light", "dark") else None
@@ -485,6 +497,11 @@ async def account_delete():
     # Ordered cascade
     await db_pool.execute(
         "DELETE FROM user_watched_movies WHERE user_id = %s",
+        [user_id],
+        fetch="none",
+    )
+    await db_pool.execute(
+        "DELETE FROM user_watchlist WHERE user_id = %s",
         [user_id],
         fetch="none",
     )

@@ -1,0 +1,130 @@
+{% from "macros.html" import pick_movie_button with context %}
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth" {% if server_theme %}data-theme-server="{{ server_theme }}"{% endif %}>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Watchlist – Nextreel</title>
+  <meta name="description" content="Your watchlist on Nextreel." />
+  <meta name="csrf-token" content="{{ csrf_token() }}" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,300;0,400;0,700;1,400&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/output.css') }}?v={{ config.get('CSS_VERSION', '1') }}">
+  <script src="{{ url_for('static', filename='js/theme-boot.js') }}?v={{ config.get('CSS_VERSION', '1') }}"></script>
+  <style>
+    body { font-family: var(--font-sans, 'DM Sans', system-ui, sans-serif); background: var(--color-bg); color: var(--color-text); }
+  </style>
+</head>
+<body class="antialiased">
+  <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:shadow">Skip to content</a>
+
+  {% include 'navbar_modern.html' %}
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  <div class="max-w-5xl mx-auto px-4 pt-4">
+    {% for category, message in messages %}
+    <div role="alert" class="mb-4 rounded-lg border px-4 py-3 text-sm font-medium
+      {% if category == 'error' %}border-red-400 bg-red-50 text-red-800 dark:border-red-600 dark:bg-red-900/30 dark:text-red-200
+      {% elif category == 'warning' %}border-yellow-400 bg-yellow-50 text-yellow-800 dark:border-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-200
+      {% elif category == 'success' %}border-green-400 bg-green-50 text-green-800 dark:border-green-600 dark:bg-green-900/30 dark:text-green-200
+      {% else %}border-blue-400 bg-blue-50 text-blue-800 dark:border-blue-600 dark:bg-blue-900/30 dark:text-blue-200{% endif %}">
+      {{ message }}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% endwith %}
+
+  <main id="main" aria-label="Watchlist">
+    {% if movies|length == 0 and not (filter_chips is defined and filter_chips) %}
+      <div class="watched-empty">
+        <h1 class="watched-empty-title">Your watchlist is empty</h1>
+        <hr class="watched-empty-rule" />
+        <p class="watched-empty-desc">
+          Movies you save while browsing show up here. Start discovering, then
+          click <em>Add to watchlist</em> on any movie page.
+        </p>
+        <a href="/" class="watched-empty-cta watched-empty-cta--primary">Discover movies →</a>
+      </div>
+    {% else %}
+      <header class="watched-header">
+        <h1 class="watched-title">Watchlist</h1>
+        <p class="watched-subtitle"><em>{{ total }} films saved for later</em></p>
+      </header>
+
+      <div class="watched-toolbar" id="watched-toolbar">
+        <div class="watched-toolbar-row">
+          <div class="watched-search-wrap">
+            <svg class="watched-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input
+              type="search"
+              id="watched-search"
+              class="watched-search"
+              placeholder="Search films..."
+              aria-label="Search watchlist films"
+              autocomplete="off"
+            />
+          </div>
+          <div class="watched-toolbar-right">
+            <select id="watched-sort" class="watched-sort" aria-label="Sort watchlist films">
+              <option value="recent" {% if current_sort == 'recent' %}selected{% endif %}>Recent</option>
+              <option value="title_asc" {% if current_sort == 'title_asc' %}selected{% endif %}>A – Z</option>
+              <option value="title_desc" {% if current_sort == 'title_desc' %}selected{% endif %}>Z – A</option>
+              <option value="year_desc" {% if current_sort == 'year_desc' %}selected{% endif %}>Year</option>
+              <option value="rating_desc" {% if current_sort == 'rating_desc' %}selected{% endif %}>Rating</option>
+            </select>
+          </div>
+        </div>
+
+        {% if filter_chips %}
+        <div class="watched-chips" role="group" aria-label="Filter by">
+          <button type="button" class="watched-chip watched-chip--active" data-filter="all" aria-pressed="true">All</button>
+          {% for decade in filter_chips.decades %}
+          <button type="button" class="watched-chip" data-filter="decade" data-value="{{ decade.rstrip('s') }}" aria-pressed="false">{{ decade }}</button>
+          {% endfor %}
+          {% for tier in filter_chips.ratings %}
+          <button type="button" class="watched-chip" data-filter="rating" data-value="{{ tier.label }}" data-min="{{ tier.min }}" data-max="{{ tier.max }}" aria-pressed="false">{{ tier.label }}</button>
+          {% endfor %}
+          {% for genre in filter_chips.genres %}
+          <button type="button" class="watched-chip" data-filter="genre" data-value="{{ genre }}" aria-pressed="false">{{ genre }}</button>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="watched-filter-count" id="watched-filter-count" aria-live="polite" hidden>
+          Showing <span id="watched-showing">0</span> of {{ total }} films
+        </div>
+      </div>
+
+      <section class="watched-grid" id="watched-grid" role="list">
+        {% for movie in movies %}
+          {% include '_watchlist_card.html' %}
+        {% endfor %}
+      </section>
+
+      <div class="watched-grid-footer" id="watched-grid-footer">
+        {% if has_more %}
+        <button type="button" class="watched-load-more" id="watched-load-more"
+                data-page="2" data-per-page="{{ pagination.per_page }}">
+          Load more
+        </button>
+        {% else %}
+        <div class="watched-end-mark">
+          <hr class="watched-end-rule" />
+          <p class="watched-end-text">That's all {{ total }}</p>
+        </div>
+        {% endif %}
+      </div>
+    {% endif %}
+  </main>
+
+  <div id="watched-toast" class="watched-toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="{{ url_for('static', filename='js/watchlist.js') }}?v={{ config.get('CSS_VERSION', '1') }}" defer></script>
+
+  {% include 'footer_modern.html' %}
+</body>
+</html>

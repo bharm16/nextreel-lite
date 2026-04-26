@@ -27,6 +27,7 @@ _RUNTIME_SCHEMA_TABLES = [
     "users",
     "user_watched_movies",
     "letterboxd_imports",
+    "user_watchlist",
 ]
 
 _RUNTIME_SCHEMA_REPAIR_HELPERS = [
@@ -42,6 +43,7 @@ _RUNTIME_SCHEMA_REPAIR_HELPERS = [
     "ensure_users_exclude_watched_default_column",
     "ensure_users_theme_preference_column",
     "ensure_users_default_filters_json_column",
+    "ensure_users_exclude_watchlist_default_column",
 ]
 
 
@@ -327,6 +329,25 @@ async def test_ensure_movie_candidates_shuffle_key_index_adds_when_missing(mock_
     assert "(shuffle_key, numVotes, averageRating)" in create_query
 
 
+async def test_ensure_runtime_schema_creates_user_watchlist(mock_db_pool):
+    """user_watchlist must be among the tables created on boot."""
+    mock_db_pool.execute = AsyncMock(return_value=None)  # no rows -> all "missing"
+    with patched_runtime_schema_repairs():
+        await ensure_runtime_schema(mock_db_pool)
+    ddl_calls = [
+        call.args[0]
+        for call in mock_db_pool._ddl_cursor.execute.await_args_list
+    ]
+    assert any("CREATE TABLE user_watchlist" in sql for sql in ddl_calls)
+    assert any("PRIMARY KEY (user_id, tconst)" in sql for sql in ddl_calls
+               if "user_watchlist" in sql)
+    assert any(
+        "idx_watchlist_user_added" in sql
+        for sql in ddl_calls
+        if "user_watchlist" in sql
+    )
+
+
 async def test_ensure_movie_candidates_shuffle_key_index_skips_when_present(mock_db_pool):
     mock_db_pool._ddl_cursor.execute = AsyncMock(
         side_effect=pymysql.err.OperationalError(
@@ -404,6 +425,28 @@ async def test_ensure_users_default_filters_json_column_adds_when_missing(mock_d
     assert "ALTER TABLE users" in alter_sql
     assert "default_filters_json" in alter_sql
     assert "JSON" in alter_sql
+
+
+async def test_ensure_users_exclude_watchlist_default_column_runs_alter(mock_db_pool):
+    from infra.runtime_schema import ensure_users_exclude_watchlist_default_column
+
+    await ensure_users_exclude_watchlist_default_column(mock_db_pool)
+    mock_db_pool._ddl_cursor.execute.assert_awaited_once()
+    sql = mock_db_pool._ddl_cursor.execute.call_args[0][0]
+    assert "ALTER TABLE users" in sql
+    assert "ADD COLUMN exclude_watchlist_default BOOLEAN NOT NULL DEFAULT TRUE" in sql
+
+
+async def test_ensure_users_exclude_watchlist_default_column_skips_when_present(mock_db_pool):
+    from infra.runtime_schema import ensure_users_exclude_watchlist_default_column
+
+    mock_db_pool._ddl_cursor.execute = AsyncMock(
+        side_effect=pymysql.err.OperationalError(
+            1060, "Duplicate column name 'exclude_watchlist_default'"
+        )
+    )
+    # Must NOT raise — duplicate-column errno is the idempotent signal.
+    await ensure_users_exclude_watchlist_default_column(mock_db_pool)
 
 
 async def test_ensure_runtime_schema_creates_letterboxd_imports_table(mock_db_pool):

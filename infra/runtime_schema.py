@@ -252,6 +252,18 @@ _RUNTIME_SCHEMA_TABLE_DEFINITIONS = (
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
     ),
+    (
+        "user_watchlist",
+        """
+    CREATE TABLE user_watchlist (
+        user_id  CHAR(32) NOT NULL,
+        tconst   VARCHAR(16) NOT NULL,
+        added_at DATETIME(6) NOT NULL,
+        PRIMARY KEY (user_id, tconst),
+        KEY idx_watchlist_user_added (user_id, added_at DESC)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """,
+    ),
 )
 
 _RUNTIME_SCHEMA_STATEMENTS = tuple(
@@ -341,6 +353,20 @@ async def ensure_users_default_filters_json_column(db_pool) -> None:
         """
         ALTER TABLE users
         ADD COLUMN default_filters_json JSON NULL
+        """,
+    )
+
+
+async def ensure_users_exclude_watchlist_default_column(db_pool) -> None:
+    """Add the default watchlist-exclusion preference to existing users."""
+    await _ensure_column(
+        db_pool,
+        "users",
+        "exclude_watchlist_default",
+        """
+        ALTER TABLE users
+        ADD COLUMN exclude_watchlist_default BOOLEAN NOT NULL DEFAULT TRUE
+        AFTER exclude_watched_default
         """,
     )
 
@@ -555,4 +581,5 @@ _RUNTIME_REPAIR_HELPER_NAMES = (
     "ensure_users_exclude_watched_default_column",
     "ensure_users_theme_preference_column",
     "ensure_users_default_filters_json_column",
+    "ensure_users_exclude_watchlist_default_column",
 )

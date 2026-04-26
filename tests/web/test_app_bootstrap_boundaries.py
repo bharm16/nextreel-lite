@@ -20,6 +20,7 @@ def test_movie_manager_factory_composes_injected_dependencies():
     projection_store = MagicMock()
     projection_store.coordinator = MagicMock()
     watched_store = MagicMock()
+    watchlist_store = MagicMock()
     renderer = MagicMock()
     prewarm = MagicMock()
 
@@ -30,6 +31,7 @@ def test_movie_manager_factory_composes_injected_dependencies():
         candidate_store_cls=MagicMock(return_value=candidate_store),
         projection_store_cls=MagicMock(return_value=projection_store),
         watched_store_cls=MagicMock(return_value=watched_store),
+        watchlist_store_cls=MagicMock(return_value=watchlist_store),
         renderer_cls=MagicMock(return_value=renderer),
         home_prewarm_service_cls=MagicMock(return_value=prewarm),
         movie_manager_cls=Manager,
@@ -42,6 +44,7 @@ def test_movie_manager_factory_composes_injected_dependencies():
         "candidate_store": candidate_store,
         "projection_store": projection_store,
         "watched_store": watched_store,
+        "watchlist_store": watchlist_store,
         "renderer": renderer,
         "home_prewarm_service": prewarm,
     }

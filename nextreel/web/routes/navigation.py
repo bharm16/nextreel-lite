@@ -21,7 +21,10 @@ from nextreel.web.routes.shared import (
     bp,
     logger,
 )
-from session.user_preferences import set_exclude_watched_default
+from session.user_preferences import (
+    set_exclude_watched_default,
+    set_exclude_watchlist_default,
+)
 
 
 @bp.route("/next_movie", methods=["POST"])
@@ -116,6 +119,11 @@ async def filtered_movie_endpoint():
             movie_manager.db_pool,
             state.user_id,
             bool(filters["exclude_watched"]),
+        )
+        await set_exclude_watchlist_default(
+            movie_manager.db_pool,
+            state.user_id,
+            bool(filters["exclude_watchlist"]),
         )
 
     outcome = await movie_manager.apply_filters(

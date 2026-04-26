@@ -32,6 +32,7 @@ def default_filter_state(current_year: int | None = None) -> FilterState:
         "language": "en",
         "genres_selected": [],
         "exclude_watched": True,
+        "exclude_watchlist": True,
     }
 
 
@@ -123,6 +124,15 @@ def normalize_filters(form_data) -> FilterState:
         filters["exclude_watched"] = False
     else:
         filters["exclude_watched"] = True
+
+    # exclude_watchlist checkbox: same hidden-input + checkbox dance as watched.
+    exclude_watchlist_values = form_data.getlist("exclude_watchlist")
+    if "on" in exclude_watchlist_values:
+        filters["exclude_watchlist"] = True
+    elif "off" in exclude_watchlist_values:
+        filters["exclude_watchlist"] = False
+    else:
+        filters["exclude_watchlist"] = True
 
     return filters
 

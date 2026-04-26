@@ -24,6 +24,8 @@
     {% if current_user_id %}
     <!-- Watched top-level link -->
     <a href="{{ url_for('main.watched_list_page') }}" class="navbar-link">Watched</a>
+    <!-- Watchlist top-level link -->
+    <a href="{{ url_for('main.watchlist_page') }}" class="navbar-link">Watchlist</a>
 
     <!-- Avatar dropdown -->
     <div class="account-avatar-dropdown">
@@ -73,6 +75,7 @@
   <nav class="navbar-mobile-links">
     {% if current_user_id %}
     <a href="{{ url_for('main.watched_list_page') }}">Watched</a>
+    <a href="{{ url_for('main.watchlist_page') }}">Watchlist</a>
     <a href="{{ url_for('main.account_view') }}?tab=profile">Account</a>
     <form method="POST" action="/logout" style="display:contents;">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

@@ -138,6 +138,18 @@
         </label>
       </div>
     </section>
+    <!-- Exclude Watchlist -->
+    <section data-filter-group="watchlist" class="space-y-2">
+      <input type="hidden" name="exclude_watchlist" value="off">
+      <div class="filter-toggle-row">
+        <span class="filter-toggle-label">Hide movies in my watchlist</span>
+        <label class="filter-toggle-switch">
+          <input type="checkbox" id="excludeWatchlist" name="exclude_watchlist" value="on"
+                 {% if current_filters.get('exclude_watchlist', true) %}checked{% endif %}>
+          <span class="filter-toggle-track"></span>
+        </label>
+      </div>
+    </section>
     {% endif %}
 
     <!-- Genres -->

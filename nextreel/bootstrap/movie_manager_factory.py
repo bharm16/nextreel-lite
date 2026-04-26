@@ -5,6 +5,7 @@ from movies.candidate_store import CandidateStore
 from movies.projection_store import ProjectionStore
 from movies.tmdb_client import TMDbHelper
 from movies.watched_store import WatchedStore
+from movies.watchlist_store import WatchlistStore
 from nextreel.application.movie_service import HomePrewarmService, MovieManager
 from nextreel.web.movie_renderer import MovieRenderer
 
@@ -17,6 +18,7 @@ def build_movie_manager(
     candidate_store_cls=CandidateStore,
     projection_store_cls=ProjectionStore,
     watched_store_cls=WatchedStore,
+    watchlist_store_cls=WatchlistStore,
     renderer_cls=MovieRenderer,
     home_prewarm_service_cls=HomePrewarmService,
     movie_manager_cls=MovieManager,
@@ -27,6 +29,7 @@ def build_movie_manager(
     candidate_store = candidate_store_cls(db_pool)
     projection_store = projection_store_cls(db_pool, tmdb_helper=tmdb_helper)
     watched_store = watched_store_cls(db_pool)
+    watchlist_store = watchlist_store_cls(db_pool)
     renderer = renderer_cls(projection_store)
     home_prewarm_service = home_prewarm_service_cls()
     return movie_manager_cls(
@@ -36,6 +39,7 @@ def build_movie_manager(
         candidate_store=candidate_store,
         projection_store=projection_store,
         watched_store=watched_store,
+        watchlist_store=watchlist_store,
         renderer=renderer,
         home_prewarm_service=home_prewarm_service,
     )

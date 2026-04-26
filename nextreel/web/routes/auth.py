@@ -37,6 +37,7 @@ def inject_csrf_token():
         "current_filters": (getattr(state, "filters", None) or {}),
         "current_year": _current_year(),
         "is_watched": getattr(g, "is_watched", False),
+        "is_in_watchlist": getattr(g, "is_in_watchlist", False),
         "google_enabled": oauth_config.get("google_enabled", False),
         "user_avatar_info": user_avatar_info,
     }

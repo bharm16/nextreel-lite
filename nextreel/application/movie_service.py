@@ -15,6 +15,7 @@ from movies.candidate_store import CandidateStore
 from movies.projection_store import ProjectionStore
 from movies.tmdb_client import TMDbHelper
 from movies.watched_store import WatchedStore
+from movies.watchlist_store import WatchlistStore
 from nextreel.application.home_prewarm_service import HomePrewarmService
 from nextreel.application.movie_navigator import MovieNavigator, NavigationOutcome
 from settings import Config
@@ -37,6 +38,7 @@ class MovieManager:
         candidate_store: CandidateStore | None = None,
         projection_store: ProjectionStore | None = None,
         watched_store: WatchedStore | None = None,
+        watchlist_store: WatchlistStore | None = None,
         renderer: "MovieRenderer | None" = None,
         navigation_state_store: NavigationStateStore | None = None,
         navigator: MovieNavigator | None = None,
@@ -56,6 +58,7 @@ class MovieManager:
         )
         self.projection_coordinator = self.projection_store.coordinator
         self.watched_store = watched_store or WatchedStore(self.db_pool)
+        self.watchlist_store = watchlist_store or WatchlistStore(self.db_pool)
         # Eager wiring: navigation_state_store and navigator are constructed at
         # __init__ rather than at start(). SQL calls inside these collaborators
         # still require the pool to be initialized first, but holding the
@@ -68,6 +71,7 @@ class MovieManager:
             self.candidate_store,
             self.navigation_state_store,
             watched_store=self.watched_store,
+            watchlist_store=self.watchlist_store,
         )
         self._renderer = renderer
         self._home_prewarm_service = home_prewarm_service or HomePrewarmService()
@@ -123,6 +127,7 @@ class MovieManager:
         if cache is None:
             return
         self.watched_store.attach_cache(cache)
+        self.watchlist_store.attach_cache(cache)
         if self.projection_coordinator is not None:
             self.projection_coordinator.attach_cache(cache)
         if self.candidate_store is not None:

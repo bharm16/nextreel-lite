@@ -83,16 +83,37 @@ class CacheStub:
         self._store: dict[str, object] = {}
         self.payload = payload
 
+    def _make_key(self, namespace, key):
+        """Form a cache key, handling both string and enum namespaces."""
+        ns = namespace.value if hasattr(namespace, "value") else namespace
+        return f"{ns}:{key}"
+
     async def get(self, namespace, key):
         if self.payload is not None:
             return self.payload
-        return self._store.get(f"{namespace}:{key}")
+        return self._store.get(self._make_key(namespace, key))
 
     async def set(self, namespace, key, value, ttl=None):
-        self._store[f"{namespace}:{key}"] = value
+        self._store[self._make_key(namespace, key)] = value
 
     async def delete(self, namespace, key):
-        self._store.pop(f"{namespace}:{key}", None)
+        self._store.pop(self._make_key(namespace, key), None)
+
+    async def safe_get_or_set(self, namespace, key, loader, ttl=None):
+        """Get from cache, fall back to loader on miss, write back on hit."""
+        try:
+            cached = await self.get(namespace, key)
+            if cached is not None:
+                return cached
+        except Exception:
+            pass
+        value = await loader()
+        if value is not None:
+            try:
+                await self.set(namespace, key, value, ttl=ttl)
+            except Exception:
+                pass
+        return value
 
 
 @pytest.fixture

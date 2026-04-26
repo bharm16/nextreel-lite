@@ -93,6 +93,11 @@ def _patch_prefs():
             return_value=True,
         ),
         patch(
+            "nextreel.web.routes.account.user_preferences.get_exclude_watchlist_default",  # NEW
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+        patch(
             "nextreel.web.routes.account.user_preferences.get_theme_preference",
             new_callable=AsyncMock,
             return_value=None,
@@ -229,3 +234,35 @@ async def test_delete_accepts_typed_delete():
             )
             # Should redirect (302/303) after successful deletion
             assert resp.status_code in (302, 303)
+
+
+@pytest.mark.asyncio
+async def test_preferences_save_persists_exclude_watchlist_default():
+    """POST /account/preferences with exclude_watchlist_default=on persists True."""
+    with _make_account_app(authenticated=True) as (app, _):
+        with ExitStack() as stack:
+            for cm in _patch_prefs():
+                stack.enter_context(cm)
+            stack.enter_context(_patch_user())
+            set_watchlist = stack.enter_context(
+                patch(
+                    "nextreel.web.routes.account.user_preferences.set_exclude_watchlist_default",
+                    new_callable=AsyncMock,
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "nextreel.web.routes.account.user_preferences.set_exclude_watched_default",
+                    new_callable=AsyncMock,
+                )
+            )
+            client = app.test_client()
+            await client.post(
+                "/account/preferences",
+                form={
+                    "csrf_token": "test-csrf-token",
+                    "exclude_watched_default": "on",
+                    "exclude_watchlist_default": "on",
+                },
+            )
+            set_watchlist.assert_awaited_once_with(app.movie_manager.db_pool, "u1", True)

@@ -1,0 +1,34 @@
+{% set href = url_for('main.movie_detail', tconst=movie.tconst) %}
+<div
+  class="watched-card"
+  role="listitem"
+  data-tconst="{{ movie.tconst }}"
+  data-title="{{ movie.title }}"
+  data-year="{{ movie.year if movie.year else '' }}"
+  data-rating="{{ movie.tmdb_rating }}"
+  data-added="{{ movie.added_at }}"
+  data-search="{{ movie.title|lower }} {{ movie.year or '' }}"
+>
+  <a class="watched-poster-link" href="{{ href }}">
+    <img
+      class="watched-poster"
+      src="{{ movie.poster_url }}"
+      alt="{{ movie.title }}{% if movie.year %} ({{ movie.year }}){% endif %}"
+      loading="lazy"
+    />
+    <div class="watched-card-bar" aria-hidden="true">
+      <span class="watched-card-title">{{ movie.title }}</span>
+      <span class="watched-card-year">{{ movie.year if movie.year else '' }}</span>
+    </div>
+  </a>
+  <button
+    type="button"
+    class="watched-remove"
+    data-tconst="{{ movie.tconst }}"
+    aria-label="Remove {{ movie.title }} from watchlist"
+  >
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+      <path d="M18 6L6 18M6 6l12 12"/>
+    </svg>
+  </button>
+</div>

@@ -186,6 +186,10 @@ class TestRegisterRoute:
                     "session.user_preferences.get_exclude_watched_default",
                     AsyncMock(return_value=False),
                 ) as get_exclude_watched_default,
+                patch(
+                    "session.user_preferences.get_exclude_watchlist_default",
+                    AsyncMock(return_value=True),
+                ),
             ):
                 async with app.test_request_context(
                     "/register",
@@ -214,6 +218,7 @@ class TestRegisterRoute:
             initial_state,
             "user-123",
             exclude_watched=False,
+            exclude_watchlist=True,
         )
         app.navigation_state_store.set_user_id.assert_not_awaited()
         assert attached_state is bound_state
@@ -257,6 +262,10 @@ class TestLoginRoute:
                     "session.user_preferences.get_exclude_watched_default",
                     AsyncMock(return_value=True),
                 ) as get_exclude_watched_default,
+                patch(
+                    "session.user_preferences.get_exclude_watchlist_default",
+                    AsyncMock(return_value=True),
+                ),
             ):
                 async with app.test_request_context(
                     "/login",
@@ -283,6 +292,7 @@ class TestLoginRoute:
             initial_state,
             "user-123",
             exclude_watched=True,
+            exclude_watchlist=True,
         )
         app.navigation_state_store.set_user_id.assert_not_awaited()
         assert attached_state is bound_state
@@ -470,6 +480,10 @@ class TestGoogleOAuthCallback:
                     "session.user_preferences.get_exclude_watched_default",
                     AsyncMock(return_value=False),
                 ) as get_exclude_watched_default,
+                patch(
+                    "session.user_preferences.get_exclude_watchlist_default",
+                    AsyncMock(return_value=True),
+                ),
             ):
                 async with app.test_request_context(
                     "/auth/google/callback?state=expected&code=abc",
@@ -493,6 +507,59 @@ class TestGoogleOAuthCallback:
             initial_state,
             "oauth-user-123",
             exclude_watched=False,
+            exclude_watchlist=True,
         )
         app.navigation_state_store.set_user_id.assert_not_awaited()
         assert attached_state is bound_state
+
+
+class TestContextProcessor:
+    """Regression coverage for inject_csrf_token() — the bridge between
+    g.<flag> assignments in route handlers and bare-name lookups in
+    Jinja templates (e.g. ``{% if is_in_watchlist %}`` in movie_card.html).
+    """
+
+    @pytest.mark.asyncio
+    async def test_inject_csrf_token_exposes_is_in_watchlist_from_g(self):
+        from nextreel.web.routes.auth import inject_csrf_token
+
+        with _make_auth_app() as (app, _manager):
+            async with app.test_request_context("/"):
+                g.navigation_state = _nav_state(user_id="user-123")
+                g.is_in_watchlist = True
+
+                ctx = inject_csrf_token()
+
+        assert ctx["is_in_watchlist"] is True
+
+    @pytest.mark.asyncio
+    async def test_inject_csrf_token_defaults_is_in_watchlist_false(self):
+        from nextreel.web.routes.auth import inject_csrf_token
+
+        with _make_auth_app() as (app, _manager):
+            async with app.test_request_context("/"):
+                g.navigation_state = _nav_state()
+
+                ctx = inject_csrf_token()
+
+        assert ctx["is_in_watchlist"] is False
+        assert ctx["is_watched"] is False
+
+    @pytest.mark.asyncio
+    async def test_movie_card_template_renders_remove_action_when_in_watchlist(self):
+        """End-to-end: g.is_in_watchlist=True must reach Jinja so the form
+        submits to /watchlist/remove rather than /watchlist/add.
+        """
+        from quart import render_template_string
+
+        with _make_auth_app() as (app, _manager):
+            async with app.test_request_context("/"):
+                g.navigation_state = _nav_state(user_id="user-123")
+                g.is_in_watchlist = True
+
+                rendered = await render_template_string(
+                    "{% if is_in_watchlist %}/watchlist/remove"
+                    "{% else %}/watchlist/add{% endif %}"
+                )
+
+        assert rendered == "/watchlist/remove"

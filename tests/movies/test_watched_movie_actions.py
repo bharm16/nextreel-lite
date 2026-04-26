@@ -42,6 +42,8 @@ def _make_app():
         manager.watched_store.is_watched = AsyncMock(return_value=False)
         manager.watched_store.add = AsyncMock()
         manager.watched_store.remove = AsyncMock()
+        manager.watchlist_store = MagicMock()
+        manager.watchlist_store.is_in_watchlist = AsyncMock(return_value=False)
         navigator = MagicMock()
         navigator.prev_stack_length = MagicMock(return_value=0)
         manager._navigator = navigator

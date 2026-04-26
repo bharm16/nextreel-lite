@@ -54,6 +54,10 @@ async def test_login_binding_marks_existing_navigation_cookie_for_refresh(app):
             "session.user_preferences.get_exclude_watched_default",
             AsyncMock(return_value=True),
         )
+        monkeypatch.setattr(
+            "session.user_preferences.get_exclude_watchlist_default",
+            AsyncMock(return_value=True),
+        )
         async with app.test_request_context("/login", method="POST"):
             g.navigation_state = initial_state
             g.set_nr_sid_cookie = False

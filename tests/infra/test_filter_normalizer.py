@@ -217,3 +217,48 @@ async def test_default_filter_state_includes_exclude_watched():
     filters = default_filter_state()
     assert "exclude_watched" in filters
     assert filters["exclude_watched"] is True
+
+
+def test_default_filter_state_includes_exclude_watchlist():
+    state = default_filter_state()
+    assert state["exclude_watchlist"] is True
+
+
+def test_normalize_filters_exclude_watchlist_on_when_checkbox_checked():
+    class FakeForm:
+        def get(self, key, default=None):
+            return default
+
+        def getlist(self, key):
+            if key == "exclude_watchlist":
+                return ["off", "on"]
+            return []
+
+    result = normalize_filters(FakeForm())
+    assert result["exclude_watchlist"] is True
+
+
+def test_normalize_filters_exclude_watchlist_off_when_only_hidden():
+    class FakeForm:
+        def get(self, key, default=None):
+            return default
+
+        def getlist(self, key):
+            if key == "exclude_watchlist":
+                return ["off"]
+            return []
+
+    result = normalize_filters(FakeForm())
+    assert result["exclude_watchlist"] is False
+
+
+def test_normalize_filters_exclude_watchlist_defaults_true_when_absent():
+    class FakeForm:
+        def get(self, key, default=None):
+            return default
+
+        def getlist(self, key):
+            return []
+
+    result = normalize_filters(FakeForm())
+    assert result["exclude_watchlist"] is True

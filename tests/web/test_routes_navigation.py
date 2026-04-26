@@ -51,6 +51,8 @@ def _make_app():
         manager.watched_store.is_watched = AsyncMock(return_value=False)
         manager.watched_store.list_watched = AsyncMock(return_value=[])
         manager.watched_store.count = AsyncMock(return_value=0)
+        manager.watchlist_store = MagicMock()
+        manager.watchlist_store.is_in_watchlist = AsyncMock(return_value=False)
         navigator = MagicMock()
         navigator.prev_stack_length = MagicMock(return_value=0)
         manager._navigator = navigator
@@ -219,6 +221,10 @@ class TestFilteredMovieRoute:
                     new_callable=AsyncMock,
                     side_effect=persist_preference,
                 ) as set_exclude_watched_default,
+                patch(
+                    "nextreel.web.routes.navigation.set_exclude_watchlist_default",
+                    new_callable=AsyncMock,
+                ),
             ):
                 response = await client.post(
                     "/filtered_movie",
@@ -242,6 +248,60 @@ class TestFilteredMovieRoute:
         assert applied_filters["exclude_watched"] is False
         assert calls == ["persist", "apply"]
 
+    async def test_logged_in_valid_apply_persists_exclude_watchlist_false_before_applying_filters(
+        self,
+    ):
+        """When exclude_watchlist=off submitted, persist False to user prefs."""
+        # Mirrors test_logged_in_valid_apply_persists_exclude_watched_false_before_applying_filters.
+        app, manager = _make_app()
+        state = _nav_state(user_id="user-123")
+        calls = []
+
+        async def persist_preference(*args, **kwargs):
+            calls.append("persist")
+
+        async def apply_filters(*args, **kwargs):
+            calls.append("apply")
+            return NavigationOutcome(tconst="tt1234567")
+
+        manager.apply_filters = AsyncMock(side_effect=apply_filters)
+        async with app.app_context():
+            client = app.test_client()
+            with (
+                patch("nextreel.web.routes.navigation._current_state", return_value=state),
+                patch(
+                    "nextreel.web.routes.navigation.set_exclude_watched_default",
+                    new_callable=AsyncMock,
+                ),
+                patch(
+                    "nextreel.web.routes.navigation.set_exclude_watchlist_default",
+                    new_callable=AsyncMock,
+                    side_effect=persist_preference,
+                ) as set_exclude_watchlist_default,
+            ):
+                response = await client.post(
+                    "/filtered_movie",
+                    headers={"X-CSRFToken": "test-csrf-token"},
+                    form={
+                        "year_min": "2000",
+                        "exclude_watched": "on",
+                        "exclude_watchlist": "off",
+                    },
+                )
+
+        assert response.status_code == 303
+        assert response.headers["Location"].endswith("/movie/tt1234567")
+        set_exclude_watchlist_default.assert_awaited_once_with(
+            manager.db_pool,
+            "user-123",
+            False,
+        )
+        manager.apply_filters.assert_awaited_once()
+        applied_state, applied_filters = manager.apply_filters.await_args.args[:2]
+        assert applied_state is state
+        assert applied_filters["exclude_watchlist"] is False
+        assert calls == ["persist", "apply"]
+
     async def test_logged_in_valid_apply_persists_exclude_watched_true(self):
         app, manager = _make_app()
         state = _nav_state(user_id="user-123")
@@ -254,6 +314,10 @@ class TestFilteredMovieRoute:
                     "nextreel.web.routes.navigation.set_exclude_watched_default",
                     new_callable=AsyncMock,
                 ) as set_exclude_watched_default,
+                patch(
+                    "nextreel.web.routes.navigation.set_exclude_watchlist_default",
+                    new_callable=AsyncMock,
+                ),
             ):
                 response = await client.post(
                     "/filtered_movie",

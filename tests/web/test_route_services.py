@@ -17,6 +17,8 @@ class TestMovieDetailService:
         movie_manager = MagicMock()
         movie_manager.watched_store = MagicMock()
         movie_manager.watched_store.is_watched = AsyncMock(return_value=True)
+        movie_manager.watchlist_store = MagicMock()
+        movie_manager.watchlist_store.is_in_watchlist = AsyncMock(return_value=False)
         movie_manager.projection_store = MagicMock()
         movie_manager.projection_store.fetch_renderable_payload = AsyncMock(
             return_value={"title": "Sample"}
@@ -41,6 +43,8 @@ class TestMovieDetailService:
         movie_manager = MagicMock()
         movie_manager.watched_store = MagicMock()
         movie_manager.watched_store.is_watched = AsyncMock(return_value=False)
+        movie_manager.watchlist_store = MagicMock()
+        movie_manager.watchlist_store.is_in_watchlist = AsyncMock(return_value=False)
         movie_manager.projection_store = MagicMock()
         movie_manager.projection_store.fetch_renderable_payload = AsyncMock(return_value=None)
         movie_manager.prev_stack_length = MagicMock(return_value=3)
@@ -53,6 +57,23 @@ class TestMovieDetailService:
         )
 
         assert view_model is None
+
+    @pytest.mark.asyncio
+    async def test_movie_detail_service_returns_is_in_watchlist(self):
+        from nextreel.web.route_services import MovieDetailService
+
+        movie_manager = MagicMock()
+        movie_manager.watched_store.is_watched = AsyncMock(return_value=False)
+        movie_manager.watchlist_store.is_in_watchlist = AsyncMock(return_value=True)
+        movie_manager.projection_store.fetch_renderable_payload = AsyncMock(
+            return_value={"tconst": "tt1", "_full": True}
+        )
+        movie_manager.prev_stack_length = MagicMock(return_value=0)
+
+        svc = MovieDetailService()
+        vm = await svc.get(movie_manager=movie_manager, state=None, user_id="u1", tconst="tt1")
+
+        assert vm.is_in_watchlist is True
 
 
 class TestWatchedListPresenter:
@@ -109,4 +130,27 @@ class TestWatchedListPresenter:
             "has_next": False,
         }
 
+
+class TestWatchlistPresenter:
+    def test_watchlist_presenter_normalizes_added_at_field(self):
+        from nextreel.web.route_services import WatchlistPresenter
+
+        presenter = WatchlistPresenter()
+        rows = [
+            {
+                "tconst": "tt1",
+                "primaryTitle": "Film",
+                "startYear": 1995,
+                "added_at": datetime(2026, 4, 14),
+                "payload_json": '{"poster_url": "/x.jpg"}',
+            }
+        ]
+        vm = presenter.build(
+            raw_rows=rows, total_count=1, page=1, per_page=20,
+            now=datetime(2026, 4, 25),
+        )
+
+        assert len(vm.movies) == 1
+        assert vm.movies[0]["added_at"].startswith("2026-04-14")
+        assert vm.total == 1
 

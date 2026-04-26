@@ -24,7 +24,11 @@ from nextreel.application.auth_flows import GoogleOAuthService, RegistrationServ
 from nextreel.application.letterboxd_import_service import LetterboxdImportService
 from nextreel.application.movie_navigator import NavigationOutcome
 from nextreel.application.watched_progress_service import WatchedEnrichmentProgressService
-from nextreel.web.route_services import MovieDetailService, WatchedListPresenter
+from nextreel.web.route_services import (
+    MovieDetailService,
+    WatchedListPresenter,
+    WatchlistPresenter,
+)
 from session import user_preferences
 
 if TYPE_CHECKING:
@@ -100,8 +104,63 @@ _registration_service = RegistrationService()
 _google_oauth_service = GoogleOAuthService()
 _movie_detail_service = MovieDetailService()
 _watched_list_presenter = WatchedListPresenter()
+_watchlist_list_presenter = WatchlistPresenter()
 _letterboxd_import_service = LetterboxdImportService()
 _watched_progress_service = WatchedEnrichmentProgressService()
+
+
+# ── Shared list-page helpers ──────────────────────────────────────────
+# Used by both /watched and /watchlist (parallel-sibling features).
+
+LIST_VALID_SORTS = frozenset(
+    {"recent", "title_asc", "title_desc", "year_desc", "rating_desc"}
+)
+
+
+def parse_list_pagination(args) -> tuple[int, int, int]:
+    """Parse (page, per_page, offset) from a request's query args.
+
+    Defaults: page=1, per_page=60, capped at [1, 200].
+    """
+    try:
+        page = max(1, int(args.get("page", 1)))
+    except (TypeError, ValueError):
+        page = 1
+    try:
+        per_page = int(args.get("per_page", 60))
+    except (TypeError, ValueError):
+        per_page = 60
+    per_page = max(1, min(per_page, 200))
+    offset = (page - 1) * per_page
+    return page, per_page, offset
+
+
+def parse_list_filter_params(args) -> dict:
+    """Parse decade / rating / genre filter params from request query string."""
+    result: dict = {}
+
+    decades_raw = args.get("decades", "")
+    if decades_raw:
+        result["decades"] = [
+            d.strip().rstrip("s") for d in decades_raw.split(",") if d.strip()
+        ]
+
+    rating_tier = args.get("rating", "")
+    if rating_tier == "8+":
+        result["rating_min"] = 8.0
+        result["rating_max"] = 10.0
+    elif rating_tier == "6-8":
+        result["rating_min"] = 6.0
+        result["rating_max"] = 7.99
+    elif rating_tier == "<6":
+        result["rating_min"] = 0.0
+        result["rating_max"] = 5.99
+
+    genres_raw = args.get("genres", "")
+    if genres_raw:
+        result["genres"] = [g.strip() for g in genres_raw.split(",") if g.strip()]
+
+    return result
 
 
 def _tmdb_image_path(image_url: str | None) -> str | None:
@@ -260,8 +319,14 @@ async def _attach_user_to_current_session(user_id: str):
     exclude_watched = await user_preferences.get_exclude_watched_default(
         services.movie_manager.db_pool, user_id
     )
+    exclude_watchlist = await user_preferences.get_exclude_watchlist_default(
+        services.movie_manager.db_pool, user_id
+    )
     updated_state = await current_app.navigation_state_store.bind_user(
-        state, user_id, exclude_watched=exclude_watched
+        state,
+        user_id,
+        exclude_watched=exclude_watched,
+        exclude_watchlist=exclude_watchlist,
     )
     if updated_state is None:
         abort(409, description="Could not bind authenticated user to navigation state")
@@ -271,6 +336,7 @@ async def _attach_user_to_current_session(user_id: str):
 
 
 __all__ = [
+    "LIST_VALID_SORTS",
     "NextReelServices",
     "_REQUEST_TIMEOUT",
     "_TCONST_RE",
@@ -290,9 +356,12 @@ __all__ = [
     "_services",
     "_wants_json_response",
     "_watched_list_presenter",
+    "_watchlist_list_presenter",
     "_watched_progress_service",
     "_current_year",
     "bp",
     "init_routes",
     "logger",
+    "parse_list_filter_params",
+    "parse_list_pagination",
 ]

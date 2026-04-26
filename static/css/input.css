@@ -355,7 +355,8 @@
   }
   .movie-nav-bar .nav-btn-prev,
   .movie-nav-bar .nav-btn-next,
-  .movie-nav-bar .nav-btn-watched {
+  .movie-nav-bar .nav-btn-watched,
+  .movie-nav-bar .nav-btn-watchlist {
     font-size: 0.75rem;
   }
 
@@ -583,6 +584,46 @@
     cursor: not-allowed;
   }
   .nav-btn-watched:active {
+    transform: scale(0.97);
+  }
+
+  /* Add to Watchlist — sticky nav bar, peer to Watched */
+  .nav-btn-watchlist {
+    font-size: 0.8rem; font-weight: 600;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    background: none; border: none;
+    font-family: var(--font-sans);
+    display: inline-flex; align-items: center; gap: 0.35rem;
+    padding: 0.4rem 0;
+    transition: color var(--duration-normal) var(--easing-default), opacity var(--duration-normal) var(--easing-default);
+  }
+  .nav-btn-watchlist svg {
+    width: 16px; height: 16px;
+    stroke: currentColor; fill: none; stroke-width: 2;
+  }
+  form[data-watchlist-state="unsaved"] .nav-btn-watchlist {
+    color: var(--color-text-muted);
+  }
+  .nav-btn-watchlist--login {
+    color: var(--color-text-muted);
+    text-decoration: none;
+  }
+  form[data-watchlist-state="unsaved"] .nav-btn-watchlist:hover,
+  .nav-btn-watchlist--login:hover {
+    color: var(--color-text);
+  }
+  form[data-watchlist-state="saved"] .nav-btn-watchlist {
+    color: var(--color-accent);
+  }
+  form[data-watchlist-state="saved"] .nav-btn-watchlist:hover {
+    opacity: 0.85;
+  }
+  .nav-btn-watchlist:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .nav-btn-watchlist:active {
     transform: scale(0.97);
   }
 
@@ -1821,7 +1862,8 @@
   }
 
   @media (max-width: 360px) {
-    .movie-nav-bar .nav-btn-watched__prefix { display: none; }
+    .movie-nav-bar .nav-btn-watched__prefix,
+    .movie-nav-bar .nav-btn-watchlist__prefix { display: none; }
   }
 
   /* ── Account settings page (editorial redesign) ── */

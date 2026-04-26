@@ -9,6 +9,7 @@ from quart import abort, jsonify, redirect, render_template, request, url_for
 
 from infra.route_helpers import csrf_required, rate_limited, safe_referrer as _safe_referrer
 from nextreel.web.routes.shared import (
+    LIST_VALID_SORTS,
     _TCONST_RE,
     _current_user_id,
     _letterboxd_import_service,
@@ -19,50 +20,9 @@ from nextreel.web.routes.shared import (
     _wants_json_response,
     bp,
     logger,
+    parse_list_filter_params,
+    parse_list_pagination,
 )
-
-
-def _parse_watched_pagination(args) -> tuple[int, int, int]:
-    try:
-        page = max(1, int(args.get("page", 1)))
-    except (TypeError, ValueError):
-        page = 1
-    try:
-        per_page = int(args.get("per_page", 60))
-    except (TypeError, ValueError):
-        per_page = 60
-    per_page = max(1, min(per_page, 200))
-    offset = (page - 1) * per_page
-    return page, per_page, offset
-
-
-def _parse_filter_params(args) -> dict:
-    """Extract filter parameters from request query string."""
-    result = {}
-
-    decades_raw = args.get("decades", "")
-    if decades_raw:
-        result["decades"] = [d.strip().rstrip("s") for d in decades_raw.split(",") if d.strip()]
-
-    rating_tier = args.get("rating", "")
-    if rating_tier == "8+":
-        result["rating_min"] = 8.0
-        result["rating_max"] = 10.0
-    elif rating_tier == "6-8":
-        result["rating_min"] = 6.0
-        result["rating_max"] = 7.99
-    elif rating_tier == "<6":
-        result["rating_min"] = 0.0
-        result["rating_max"] = 5.99
-
-    genres_raw = args.get("genres", "")
-    if genres_raw:
-        result["genres"] = [g.strip() for g in genres_raw.split(",") if g.strip()]
-
-    return result
-
-
-_VALID_SORTS = {"recent", "title_asc", "title_desc", "year_desc", "rating_desc"}
 
 
 @bp.route("/watched")
@@ -75,11 +35,11 @@ async def watched_list_page():
     services = _services()
     watched_store = services.movie_manager.watched_store
 
-    page, per_page, offset = _parse_watched_pagination(request.args)
+    page, per_page, offset = parse_list_pagination(request.args)
     sort = request.args.get("sort", "recent")
-    if sort not in _VALID_SORTS:
+    if sort not in LIST_VALID_SORTS:
         sort = "recent"
-    filter_params = _parse_filter_params(request.args)
+    filter_params = parse_list_filter_params(request.args)
 
     from quart import session as quart_session
 
@@ -104,10 +64,9 @@ async def watched_list_page():
     has_more = (offset + per_page) < total_count
 
     if _wants_json_response():
-        from quart import render_template as rt
-
         html_parts = [
-            await rt("_watched_card.html", movie=movie) for movie in view_model.movies
+            await render_template("_watched_card.html", movie=movie)
+            for movie in view_model.movies
         ]
         return jsonify(
             {

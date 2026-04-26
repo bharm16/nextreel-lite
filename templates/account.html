@@ -61,6 +61,17 @@
                   aria-label="Exclude watched movies"></button>
         </div>
 
+        <div class="settings-toggle-row">
+          <div>
+            <div class="settings-toggle-label">Exclude watchlist movies</div>
+            <div class="settings-toggle-desc">Hide movies in your watchlist from recommendations</div>
+          </div>
+          <input type="hidden" name="exclude_watchlist_default" value="{{ 'on' if exclude_watchlist_default else '' }}">
+          <button type="button" class="settings-toggle" role="switch"
+                  aria-checked="{{ 'true' if exclude_watchlist_default else 'false' }}"
+                  aria-label="Exclude watchlist movies"></button>
+        </div>
+
         <div class="settings-actions">
           <button type="submit" class="settings-btn-primary">Save Preferences</button>
           <div class="settings-feedback" role="status" aria-live="polite"></div>

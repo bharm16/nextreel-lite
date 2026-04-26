@@ -259,11 +259,13 @@ class NavigationStateStore:
         user_id: str,
         *,
         exclude_watched: bool,
+        exclude_watchlist: bool = True,
     ) -> NavigationState | None:
         def mutator(working: NavigationState) -> NavigationState:
             working.user_id = user_id
             working.filters = dict(working.filters)
             working.filters["exclude_watched"] = exclude_watched
+            working.filters["exclude_watchlist"] = exclude_watchlist
             return working
 
         result = await self.mutate(state.session_id, mutator, current_state=state)
