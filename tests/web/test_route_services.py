@@ -154,3 +154,33 @@ class TestWatchlistPresenter:
         assert vm.movies[0]["added_at"].startswith("2026-04-14")
         assert vm.total == 1
 
+
+async def test_movie_detail_view_model_carries_public_id():
+    from nextreel.web.route_services import MovieDetailService
+
+    payload = {
+        "tconst": "tt0393109",
+        "title": "The Departed",
+        "public_id": "a8fk3j",
+        "_full": True,
+    }
+    movie_manager = SimpleNamespace(
+        projection_store=SimpleNamespace(
+            fetch_renderable_payload=AsyncMock(return_value=payload)
+        ),
+        watched_store=SimpleNamespace(is_watched=AsyncMock(return_value=False)),
+        watchlist_store=SimpleNamespace(is_in_watchlist=AsyncMock(return_value=False)),
+        prev_stack_length=lambda state: 0,
+    )
+
+    service = MovieDetailService()
+    view_model = await service.get(
+        movie_manager=movie_manager,
+        state=SimpleNamespace(),
+        user_id=None,
+        tconst="tt0393109",
+    )
+
+    assert view_model is not None
+    assert view_model.movie["public_id"] == "a8fk3j"
+

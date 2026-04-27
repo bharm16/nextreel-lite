@@ -8,10 +8,11 @@ in :mod:`movies.projection_enrichment`.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-from infra.time_utils import env_bool, utcnow
+from infra.time_utils import env_bool, env_float, utcnow
 from logging_config import get_logger
 from movies.projection_enrichment import ProjectionEnrichmentCoordinator
 from movies.projection_repository import (
@@ -23,9 +24,6 @@ from movies.projection_state import (
     EnrichmentResult,
     ProjectionState,
 )
-
-if TYPE_CHECKING:
-    import asyncio
 
 logger = get_logger(__name__)
 
@@ -50,6 +48,17 @@ __all__ = [
 
 def _enrichment_blocks_render() -> bool:
     return env_bool("PROJECTION_ENRICHMENT_BLOCKS_RENDER", default=False)
+
+
+def _render_inflight_wait_seconds() -> float:
+    """Bounded-wait timeout for an in-flight enrichment on the render path.
+
+    A small wait (default 1.0s) gives a TMDb fetch started by the redirect
+    prefetch a chance to finish before we render the core placeholder. Set
+    to 0 to disable. ``PROJECTION_ENRICHMENT_BLOCKS_RENDER=true`` already
+    blocks unconditionally, so this knob is irrelevant in that mode.
+    """
+    return env_float("PROJECTION_RENDER_WAIT_SECONDS", default=1.0)
 
 
 class ProjectionReadService:
@@ -105,6 +114,9 @@ class ProjectionReadService:
                             row,
                             tmdb_id=row.get("tmdb_id"),
                         )
+                        promoted = await self._await_inflight_for_render(tconst)
+                        if promoted is not None:
+                            return promoted
 
                 payload = self.repository.payload_from_row(row)
                 if not payload or payload.get("projection_state") == ProjectionState.FAILED.value:
@@ -123,7 +135,55 @@ class ProjectionReadService:
                 None,
                 tmdb_id=None,
             )
+            promoted = await self._await_inflight_for_render(tconst)
+            if promoted is not None:
+                return promoted
         return payload
+
+    async def _await_inflight_for_render(self, tconst: str) -> dict[str, Any] | None:
+        """Briefly wait for an in-flight enrichment, then re-read the row.
+
+        When a navigation redirect handler kicks off ``get_or_start_inflight``
+        and the user follows the redirect quickly, that task is still
+        running by the time this read fires. Awaiting it for a small window
+        lets us serve READY data instead of the core placeholder for the
+        common back-to-back-clicks case. We ``asyncio.shield`` the task so
+        a timeout here does NOT cancel the underlying enrichment — it
+        keeps running and benefits the next reader.
+
+        Shield safety relies on the task being retained somewhere besides
+        this awaiter so a TimeoutError here doesn't drop the only strong
+        reference. The coordinator provides two retention paths:
+        ``_inflight_enrichment[tconst]`` until the task's ``finally``
+        clears it, and either the app-level ``background_tasks`` set (when
+        a scheduler is wired) or ``_local_enrichment_tasks`` (fallback) —
+        registered inside ``get_or_start_inflight``. Removing both would
+        make this shield ineffective.
+        """
+        if self.coordinator is None:
+            return None
+        timeout = _render_inflight_wait_seconds()
+        if timeout <= 0:
+            return None
+        task = self.coordinator.get_inflight(tconst)
+        if task is None:
+            return None
+        try:
+            await asyncio.wait_for(asyncio.shield(task), timeout=timeout)
+        except asyncio.TimeoutError:
+            return None
+        except Exception:
+            logger.debug(
+                "Inflight enrichment for %s raised during render-wait; "
+                "falling back to placeholder",
+                tconst,
+                exc_info=True,
+            )
+            return None
+        row = await self.repository.select_row(tconst)
+        if row and row.get("projection_state") == ProjectionState.READY.value:
+            return self.repository.payload_from_row(row)
+        return None
 
 
 class ProjectionStore:

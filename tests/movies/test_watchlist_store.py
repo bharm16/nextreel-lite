@@ -182,6 +182,17 @@ async def test_list_watchlist_filtered_falls_back_to_recent_for_unknown_sort(moc
     assert "ORDER BY w.added_at DESC" in sql
 
 
+async def test_list_watchlist_filtered_selects_public_id(mock_db_pool):
+    """The list query must include p.public_id so templates can build URLs."""
+    mock_db_pool.execute.return_value = []
+    store = _make_store(mock_db_pool)
+
+    await store.list_watchlist_filtered("user-123", limit=10, offset=0)
+
+    sql = mock_db_pool.execute.call_args[0][0]
+    assert "p.public_id" in sql
+
+
 async def test_list_watchlist_filtered_applies_decade_filter(mock_db_pool):
     mock_db_pool.execute.return_value = []
     store = _make_store(mock_db_pool)

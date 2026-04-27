@@ -23,6 +23,7 @@ def _make_route_app():
         manager.projection_store.fetch_renderable_payload = AsyncMock(
             return_value={
                 "title": "Sample",
+                "primaryTitle": "Sample",
                 "year": "2024",
                 "genres": "Drama",
                 "directors": "Dir",
@@ -34,6 +35,7 @@ def _make_route_app():
                 "cast": [],
                 "tmdb_id": 1,
                 "imdb_id": "tt1234567",
+                "public_id": "abc123",
                 "_full": True,
                 "projection_state": "ready",
             }
@@ -96,12 +98,15 @@ class TestRouteViewContracts:
             with patch(
                 "nextreel.web.routes.movies.render_template",
                 AsyncMock(return_value="<html>movie</html>"),
-            ) as render:
-                async with app.test_request_context("/movie/tt1234567"):
+            ) as render, patch(
+                "nextreel.web.routes.shared.resolve_to_tconst",
+                new=AsyncMock(return_value="tt1234567"),
+            ):
+                async with app.test_request_context("/movie/sample-2024-abc123"):
                     g.navigation_state = _nav_state()
                     g.correlation_id = "corr-1"
 
-                    response = await routes.movie_detail("tt1234567")
+                    response = await routes.movie_detail("sample-2024-abc123")
 
         assert response == "<html>movie</html>"
         render.assert_awaited_once()

@@ -244,6 +244,16 @@ error = ErrorMetrics(
 )
 
 
+# Dead-URL counter for legacy IMDb-tconst-shaped paths returning 404.
+# Tracks how many bookmarks/external links still hit the pre-cutover
+# /movie/tt..., /watched/.../tt..., /watchlist/.../tt..., /api/projection-state/tt...
+# URL patterns post-migration to the public_id slug scheme.
+tt_url_404_total = Counter(
+    "nextreel_tt_url_404_total",
+    "404 responses for legacy /movie/tt... or /watched/.../tt... URLs.",
+)
+
+
 # ── Enrichment ───────────────────────────────────────────────────────
 
 

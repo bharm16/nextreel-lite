@@ -44,6 +44,8 @@ _RUNTIME_SCHEMA_REPAIR_HELPERS = [
     "ensure_users_theme_preference_column",
     "ensure_users_default_filters_json_column",
     "ensure_users_exclude_watchlist_default_column",
+    "ensure_movie_projection_public_id_column",
+    "ensure_movie_projection_public_id_backfill",
 ]
 
 
@@ -263,6 +265,9 @@ async def test_ensure_runtime_schema_runs_additive_repairs_including_fulltext(mo
         patch(
             "infra.runtime_schema.ensure_users_exclude_watched_default_column", AsyncMock()
         ) as ensure_users_exclude,
+        patch(
+            "infra.runtime_schema.ensure_movie_projection_public_id_backfill", AsyncMock()
+        ) as ensure_public_id_backfill,
     ):
         await ensure_runtime_schema(mock_db_pool)
 
@@ -276,6 +281,7 @@ async def test_ensure_runtime_schema_runs_additive_repairs_including_fulltext(mo
     ensure_state_last_attempt_idx.assert_awaited_once_with(mock_db_pool)
     ensure_users_exclude.assert_awaited_once_with(mock_db_pool)
     ensure_fulltext.assert_awaited_once_with(mock_db_pool)
+    ensure_public_id_backfill.assert_awaited_once_with(mock_db_pool)
 
 
 async def test_ensure_runtime_schema_skips_existing_table_ddl(mock_db_pool):
@@ -472,3 +478,32 @@ async def test_ensure_runtime_schema_creates_letterboxd_imports_table(mock_db_po
         assert col in sql, f"missing column {col} in letterboxd_imports DDL"
     assert "PRIMARY KEY (import_id)" in sql or "import_id     CHAR(32) PRIMARY KEY" in sql
     assert "idx_letterboxd_user_created" in sql
+
+
+from infra.runtime_schema import ensure_movie_projection_public_id_column
+
+
+async def test_ensure_movie_projection_public_id_column_creates_when_missing(mock_db_pool):
+    await ensure_movie_projection_public_id_column(mock_db_pool)
+
+    # Two DDLs: ADD COLUMN, then ADD UNIQUE INDEX.
+    assert mock_db_pool._ddl_cursor.execute.await_count == 2
+    sqls = [call.args[0] for call in mock_db_pool._ddl_cursor.execute.await_args_list]
+    assert any(
+        "ADD COLUMN public_id CHAR(6) NULL" in sql for sql in sqls
+    )
+    assert any(
+        "ADD UNIQUE INDEX uq_movie_projection_public_id" in sql for sql in sqls
+    )
+
+
+async def test_ensure_movie_projection_public_id_column_swallows_dup_column(mock_db_pool):
+    """Errno 1060 (duplicate column) is treated as 'already exists'."""
+    mock_db_pool._ddl_cursor.execute.side_effect = [
+        pymysql.err.OperationalError(1060, "Duplicate column name 'public_id'"),
+        None,  # the unique index call still runs
+    ]
+
+    await ensure_movie_projection_public_id_column(mock_db_pool)
+
+    assert mock_db_pool._ddl_cursor.execute.await_count == 2

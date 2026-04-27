@@ -84,7 +84,17 @@ def nav_app():
 
 def test_movie_ref_extracts_new_contract():
     ref = _movie_ref({"imdb_id": "tt123", "title": "Test", "slug": "test"})
-    assert ref == {"tconst": "tt123", "title": "Test", "slug": "test"}
+    # public_id and year were added so navigator stack entries can carry
+    # the URL identifier and year without an extra DB lookup. Both fall
+    # back to None when the source dict lacks them (pre-enrichment /
+    # legacy callers).
+    assert ref == {
+        "tconst": "tt123",
+        "title": "Test",
+        "slug": "test",
+        "public_id": None,
+        "year": None,
+    }
 
 
 @pytest.mark.asyncio
@@ -121,7 +131,8 @@ async def test_next_movie_consumes_queue_and_tracks_history(nav_app):
         async with nav_app.test_request_context("/"):
             outcome = await navigator.next_movie("state-1")
 
-    assert outcome == NavigationOutcome(tconst="tt1")
+    assert outcome is not None and outcome.tconst == "tt1"
+    assert outcome.title == "One"
     assert store.state.current_tconst == "tt1"
     assert store.state.prev == [{"tconst": "tt0", "title": "Zero", "slug": "zero"}]
     assert "tt1" in store.state.seen
@@ -142,7 +153,8 @@ async def test_previous_movie_moves_current_into_future(nav_app):
         async with nav_app.test_request_context("/"):
             outcome = await navigator.previous_movie("state-1")
 
-    assert outcome == NavigationOutcome(tconst="tt1")
+    assert outcome is not None and outcome.tconst == "tt1"
+    assert outcome.title == "One"
     assert store.state.current_tconst == "tt1"
     assert store.state.future == [{"tconst": "tt2", "title": "Two", "slug": "two"}]
 
@@ -161,8 +173,19 @@ async def test_next_movie_uses_current_ref_without_fetch_lookup(nav_app):
         async with nav_app.test_request_context("/"):
             outcome = await navigator.next_movie("state-1", current_state=state)
 
-    assert outcome == NavigationOutcome(tconst="tt1")
-    assert store.state.prev == [{"tconst": "tt0", "title": "Zero", "slug": "zero"}]
+    assert outcome is not None and outcome.tconst == "tt1"
+    assert outcome.title == "One"
+    # _movie_ref normalizes refs and includes public_id and year (None
+    # for legacy state that predates these fields on the ref).
+    assert store.state.prev == [
+        {
+            "tconst": "tt0",
+            "title": "Zero",
+            "slug": "zero",
+            "public_id": None,
+            "year": None,
+        }
+    ]
     assert candidates.fetch_ref_calls == []
 
 
@@ -177,7 +200,8 @@ async def test_next_movie_only_refills_once_when_queue_starts_empty(nav_app):
         async with nav_app.test_request_context("/"):
             outcome = await navigator.next_movie("state-1")
 
-    assert outcome == NavigationOutcome(tconst="tt1")
+    assert outcome is not None and outcome.tconst == "tt1"
+    assert outcome.title == "One"
     assert len(candidates.fetch_candidate_refs_calls) == 1
 
 
@@ -197,7 +221,8 @@ async def test_next_movie_skips_watched_refs_already_in_queue(nav_app):
         async with nav_app.test_request_context("/"):
             outcome = await navigator.next_movie("state-1")
 
-    assert outcome == NavigationOutcome(tconst="tt2")
+    assert outcome is not None and outcome.tconst == "tt2"
+    assert outcome.title == "Two"
     assert store.state.current_tconst == "tt2"
     assert store.state.queue == []
     assert watched_store.calls == ["user-1"]
@@ -218,7 +243,8 @@ async def test_next_movie_refills_when_all_prefetched_refs_are_now_watched(nav_a
         async with nav_app.test_request_context("/"):
             outcome = await navigator.next_movie("state-1")
 
-    assert outcome == NavigationOutcome(tconst="tt2")
+    assert outcome is not None and outcome.tconst == "tt2"
+    assert outcome.title == "Two"
     assert store.state.current_tconst == "tt2"
     assert watched_store.calls
     assert candidates.fetch_candidate_refs_calls
@@ -237,7 +263,8 @@ async def test_next_movie_does_not_skip_queued_watched_when_exclude_watched_off(
         async with nav_app.test_request_context("/"):
             outcome = await navigator.next_movie("state-1")
 
-    assert outcome == NavigationOutcome(tconst="tt1")
+    assert outcome is not None and outcome.tconst == "tt1"
+    assert outcome.title == "One"
     assert store.state.current_tconst == "tt1"
     assert watched_store.calls == []
 
@@ -259,7 +286,8 @@ async def test_apply_filters_resets_state_and_redirects(nav_app):
                 {"language": "fr", "genres_selected": ["Drama"]},
             )
 
-    assert outcome == NavigationOutcome(tconst="tt5")
+    assert outcome is not None and outcome.tconst == "tt5"
+    assert outcome.title == "Fresh"
     assert store.state.current_tconst == "tt5"
     assert store.state.prev == []
     assert store.state.future == []

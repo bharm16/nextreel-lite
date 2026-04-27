@@ -10,9 +10,9 @@ from quart import abort, jsonify, redirect, render_template, request
 from infra.route_helpers import csrf_required, rate_limited, safe_referrer as _safe_referrer
 from nextreel.web.routes.shared import (
     LIST_VALID_SORTS,
-    _TCONST_RE,
     _current_user_id,
     _require_login,
+    _resolve_public_id_or_404,
     _services,
     _watchlist_list_presenter,
     _wants_json_response,
@@ -82,12 +82,11 @@ async def watchlist_page():
     )
 
 
-@bp.route("/watchlist/add/<tconst>", methods=["POST"])
+@bp.route("/watchlist/add/<public_id>", methods=["POST"])
 @csrf_required
 @rate_limited("watchlist")
-async def add_to_watchlist(tconst):
-    if not _TCONST_RE.match(tconst):
-        abort(400, "Invalid movie identifier")
+async def add_to_watchlist(public_id):
+    tconst = await _resolve_public_id_or_404(public_id)
     user_id = _current_user_id()
     if not user_id:
         abort(401, "Login required")
@@ -96,23 +95,19 @@ async def add_to_watchlist(tconst):
     await services.movie_manager.watchlist_store.add(user_id, tconst)
     logger.info("User %s added %s to watchlist", user_id, tconst)
     if _wants_json_response():
-        return jsonify(
-            {
-                "ok": True,
-                "is_in_watchlist": True,
-                "tconst": tconst,
-            }
-        )
+        # public_id is the opaque client-facing key; tconst is intentionally
+        # omitted so the API doesn't perpetuate external dependence on the
+        # internal IMDb identifier.
+        return jsonify({"ok": True, "is_in_watchlist": True, "public_id": public_id})
 
-    return redirect(_safe_referrer(tconst), code=303)
+    return redirect(await _safe_referrer(tconst), code=303)
 
 
-@bp.route("/watchlist/remove/<tconst>", methods=["POST"])
+@bp.route("/watchlist/remove/<public_id>", methods=["POST"])
 @csrf_required
 @rate_limited("watchlist")
-async def remove_from_watchlist(tconst):
-    if not _TCONST_RE.match(tconst):
-        abort(400, "Invalid movie identifier")
+async def remove_from_watchlist(public_id):
+    tconst = await _resolve_public_id_or_404(public_id)
     user_id = _current_user_id()
     if not user_id:
         abort(401, "Login required")
@@ -125,11 +120,11 @@ async def remove_from_watchlist(tconst):
             {
                 "ok": True,
                 "is_in_watchlist": False,
-                "tconst": tconst,
+                "public_id": public_id,
             }
         )
 
-    return redirect(_safe_referrer(tconst), code=303)
+    return redirect(await _safe_referrer(tconst), code=303)
 
 
 __all__ = [

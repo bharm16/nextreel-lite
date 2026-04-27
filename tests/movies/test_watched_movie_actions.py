@@ -23,6 +23,7 @@ def _make_app():
         manager.projection_store.fetch_renderable_payload = AsyncMock(
             return_value={
                 "title": "Sample",
+                "primaryTitle": "Sample",
                 "year": "2024",
                 "genres": "Drama",
                 "directors": "Dir",
@@ -34,6 +35,7 @@ def _make_app():
                 "cast": [],
                 "tmdb_id": 1,
                 "imdb_id": "tt1234567",
+                "public_id": "abc123",
                 "_full": True,
                 "projection_state": "ready",
             }
@@ -66,24 +68,31 @@ def _nav_state(*, user_id: str | None = None) -> SimpleNamespace:
 
 class TestWatchedMovieActions:
     @pytest.mark.asyncio
-    async def test_movie_detail_renders_watched_action_with_tconst_when_payload_only_has_imdb_id(self):
-        with _make_app() as (app, _manager):
-            async with app.test_request_context("/movie/tt1234567"):
+    async def test_movie_detail_renders_watched_action_with_public_id(self):
+        """Watched action URLs use the movie's public_id (post-migration)."""
+        with _make_app() as (app, _manager), patch(
+            "nextreel.web.routes.shared.resolve_to_tconst",
+            new=AsyncMock(return_value="tt1234567"),
+        ):
+            async with app.test_request_context("/movie/sample-2024-abc123"):
                 g.navigation_state = _nav_state(user_id="user-123")
                 g.correlation_id = "corr-1"
 
-                response = await routes.movie_detail("tt1234567")
+                response = await routes.movie_detail("sample-2024-abc123")
 
-        assert '/watched/add/tt1234567' in response
+        assert '/watched/add/abc123' in response
 
     @pytest.mark.asyncio
     async def test_add_to_watched_returns_json_for_ajax_requests(self):
         with _make_app() as (app, manager), patch(
             "infra.route_helpers.check_rate_limit",
             AsyncMock(return_value=True),
+        ), patch(
+            "nextreel.web.routes.shared.resolve_to_tconst",
+            new=AsyncMock(return_value="tt1234567"),
         ):
             async with app.test_request_context(
-                "/watched/add/tt1234567",
+                "/watched/add/a8fk3j",
                 method="POST",
                 headers={
                     "Accept": "application/json",
@@ -92,13 +101,15 @@ class TestWatchedMovieActions:
             ):
                 g.navigation_state = _nav_state(user_id="user-123")
 
-                response = await routes.add_to_watched("tt1234567")
+                response = await routes.add_to_watched("a8fk3j")
                 data = await response.get_json()
 
         assert response.status_code == 200
+        # tconst intentionally omitted from the response — only the opaque
+        # public_id is exposed to clients.
         assert data == {
             "ok": True,
             "is_watched": True,
-            "tconst": "tt1234567",
+            "public_id": "a8fk3j",
         }
         manager.watched_store.add.assert_awaited_once_with("user-123", "tt1234567")

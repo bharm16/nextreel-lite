@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Nextreel – Cinema Discovery</title>
-  <meta name="description" content="One random film at a time, pulled from a catalog of tens of thousands.">
+  <meta name="description" content="A film you haven't seen, every time you ask. Mark what you've seen, filter the rest.">
   <link rel="preconnect" href="https://image.tmdb.org" crossorigin>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Merriweather:ital,wght@0,300;0,400;0,700;1,400&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -30,10 +30,8 @@
   </script>
   <style>
     body { font-family: 'DM Sans', system-ui, sans-serif; margin: 0; padding: 0; }
-
-    /* Film grain overlay — retained from previous design for analog texture */
     .home-grain {
-      position: fixed; inset: 0; z-index: 2;
+      position: absolute; inset: 0; z-index: 1;
       pointer-events: none; opacity: 0.04;
       background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
       background-size: 256px 256px;
@@ -47,36 +45,82 @@
   {% include 'navbar_modern.html' %}
 
   <main id="main" class="landing-page">
-    <div class="landing-bg" style="background-image: url('{{ landing_film.backdrop_url }}');"></div>
-    <div class="landing-gradient"></div>
-    <div class="home-grain"></div>
-
-    <div class="landing-side-label" aria-hidden="true">Random · No Sign-up</div>
-
-    <div class="landing-content">
-      <h1 class="landing-title">{{ landing_film.title }}</h1>
-
-      {% set meta_parts = [] %}
-      {% if landing_film.year %}{% set _ = meta_parts.append(landing_film.year) %}{% endif %}
-      {% if landing_film.director %}{% set _ = meta_parts.append(landing_film.director) %}{% endif %}
-      {% if landing_film.runtime %}{% set _ = meta_parts.append(landing_film.runtime) %}{% endif %}
-      {% if meta_parts %}
-      <div class="landing-meta">{{ meta_parts | join(' · ') }}</div>
+    <div class="landing-bg-half">
+      {% if landing_film %}
+        <div class="landing-bg" id="landing-bg" style="background-image: url('{{ landing_film.backdrop_url }}');"></div>
+      {% else %}
+        <div class="landing-bg" id="landing-bg" style="background-image: url('{{ url_for('static', filename='img/backdrop-placeholder.svg') }}');"></div>
       {% endif %}
-
-      <div class="landing-actions">
-        <form method="POST" action="/next_movie" style="display:inline;">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button type="submit" class="landing-cta-primary">Pick Another →</button>
-        </form>
-        <a class="landing-cta-ghost" href="{{ url_for('main.movie_detail', tconst=landing_film.tconst) }}">See this film ↗</a>
-      </div>
+      <div class="landing-gradient"></div>
+      <div class="home-grain"></div>
+      {% if landing_film and landing_film.title and landing_film.year %}
+      <div class="landing-credit" id="landing-credit">Film still: {{ landing_film.title }} ({{ landing_film.year }})</div>
+      {% elif landing_film and landing_film.title %}
+      <div class="landing-credit" id="landing-credit">Film still: {{ landing_film.title }}</div>
+      {% endif %}
     </div>
 
-    {% if landing_film.title and landing_film.year %}
-    <div class="landing-credit">Film still: {{ landing_film.title }} ({{ landing_film.year }})</div>
-    {% endif %}
+    <div class="landing-content-half">
+      {#
+        aria-live wraps headline + subtitle so screen readers announce
+        both directions of the empty-state transition (filmed → empty AND
+        empty → filmed). Putting aria-live on the <h1> directly is
+        underspecified across screen readers when the element itself
+        changes; a stable container is the spec-recommended pattern.
+      #}
+      <div class="landing-copy" aria-live="polite">
+      {% if landing_film %}
+        <h1 class="landing-headline" id="landing-headline">A film you haven't seen.<br>Every time you ask.</h1>
+        <p class="landing-sub" id="landing-sub">Mark what you've seen. Filter the rest. Every pick is fresh.</p>
+      {% else %}
+        <h1 class="landing-headline" id="landing-headline">No films match these filters.</h1>
+        <p class="landing-sub" id="landing-sub">Try removing one.</p>
+      {% endif %}
+      </div>
+      {% if landing_film %}
+        <div class="landing-actions">
+          {% if active_filters %}
+          <form method="POST" action="/filtered_movie" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            {% for k, v in active_filters.items() %}
+            <input type="hidden" name="{{ k }}" value="{{ v }}">
+            {% endfor %}
+            <button type="submit" class="landing-cta-primary">Pick another →</button>
+          </form>
+          {% else %}
+          <form method="POST" action="/next_movie" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="landing-cta-primary">Pick another →</button>
+          </form>
+          {% endif %}
+          <a class="landing-cta-ghost" id="landing-see-this" href="{{ movie_url(landing_film) }}">See this film ↗</a>
+        </div>
+      {% else %}
+        <div class="landing-actions">
+          <a class="landing-cta-primary" href="/">Clear filters</a>
+        </div>
+      {% endif %}
+      {#
+        Pill aria-pressed reads from `url_filters` (the raw URL query-args dict the
+        route passes to the template). active_filters is only used for the form
+        hidden-input loop above — its keys are translated to the form schema
+        ('genres[]', 'year_min', etc.) and not all URL params produce form entries
+        (runtime is dropped because /filtered_movie has no runtime form key).
+      #}
+      <div class="landing-pills" id="landing-pills" role="group" aria-label="Quick filters">
+        <button type="button" class="landing-pill" data-filter-key="genre" data-filter-value="Drama" aria-pressed="{{ 'true' if url_filters.get('genre') == 'Drama' else 'false' }}">Drama</button>
+        <button type="button" class="landing-pill" data-filter-key="genre" data-filter-value="Comedy" aria-pressed="{{ 'true' if url_filters.get('genre') == 'Comedy' else 'false' }}">Comedy</button>
+        <button type="button" class="landing-pill" data-filter-key="decade" data-filter-value="1990s" aria-pressed="{{ 'true' if url_filters.get('decade') == '1990s' else 'false' }}">1990s</button>
+        <button type="button" class="landing-pill" data-filter-key="runtime" data-filter-value="lt120" aria-pressed="{{ 'true' if url_filters.get('runtime') == 'lt120' else 'false' }}">&lt; 120 min</button>
+        <button type="button" class="landing-pill" data-filter-key="rating" data-filter-value="7plus" aria-pressed="{{ 'true' if url_filters.get('rating') == '7plus' else 'false' }}">7+ rating</button>
+        {% if landing_film %}
+        <a class="landing-pill-link" href="{{ movie_url(landing_film) }}">More filters →</a>
+        {% endif %}
+      </div>
+    </div>
   </main>
+
+  <script type="module" src="{{ url_for('static', filename='js/landing-pills.js') }}?v={{ config.get('CSS_VERSION', '1') }}" defer></script>
 
   {% include 'footer_modern.html' %}
 </body>

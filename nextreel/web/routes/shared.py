@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -20,6 +21,12 @@ from quart import (
 
 from infra.time_utils import current_year as _current_year, utcnow as _utcnow
 from logging_config import get_logger
+from movies.movie_url import build_movie_path
+from movies.public_id import (
+    ID_RE as _PUBLIC_ID_RE,
+    public_id_for_tconst,
+    resolve_to_tconst,
+)
 from nextreel.application.auth_flows import GoogleOAuthService, RegistrationService
 from nextreel.application.letterboxd_import_service import LetterboxdImportService
 from nextreel.application.movie_navigator import NavigationOutcome
@@ -40,7 +47,6 @@ logger = get_logger(__name__)
 bp = Blueprint("main", __name__)
 
 _REQUEST_TIMEOUT = 30
-_TCONST_RE = re.compile(r"^tt\d{1,10}$")
 _TMDB_IMAGE_PREFIX = "https://image.tmdb.org/t/p/"
 
 _AVATAR_PALETTE = (
@@ -233,12 +239,36 @@ class NextReelServices:
     metrics_collector: "MetricsCollector"
 
 
+def _movie_url_global(movie: dict) -> str:
+    """Jinja global: return the canonical /movie/... URL for a movie dict.
+
+    Returns ``/`` if the dict is missing a public_id. The startup assertion
+    in ``ensure_runtime_schema`` guarantees every projection row has a
+    public_id, so reaching this fallback indicates a movie-dict producer
+    that's silently dropping the field — log it so we can find the leak.
+    """
+    if not movie:
+        logger.warning("movie_url() called with empty/None movie dict")
+        return "/"
+    public_id = movie.get("public_id")
+    if not public_id:
+        logger.warning(
+            "movie_url() falling back to '/' — movie dict missing public_id; keys=%s",
+            sorted(movie.keys()),
+        )
+        return "/"
+    title = movie.get("primaryTitle") or movie.get("title")
+    year = movie.get("year") or movie.get("startYear")
+    return build_movie_path(title, year, public_id)
+
+
 def init_routes(app, movie_manager, metrics_collector):
     app.extensions["nextreel"] = NextReelServices(
         movie_manager=movie_manager,
         metrics_collector=metrics_collector,
     )
     app.jinja_env.filters["language_name"] = language_name
+    app.jinja_env.globals["movie_url"] = _movie_url_global
 
 
 def _services() -> NextReelServices:
@@ -246,6 +276,22 @@ def _services() -> NextReelServices:
     if services is None:
         abort(503, description="Application services unavailable")
     return services
+
+
+async def _resolve_public_id_or_404(public_id: str) -> str:
+    """Resolve a public_id from a route path to a tconst, or abort 404.
+
+    Combines format validation and DB resolution so route handlers can
+    write a single line to translate the URL identifier to the internal
+    primary key.
+    """
+    if not isinstance(public_id, str) or not _PUBLIC_ID_RE.match(public_id):
+        abort(404)
+    services = _services()
+    tconst = await resolve_to_tconst(services.movie_manager.db_pool, public_id)
+    if tconst is None:
+        abort(404)
+    return tconst
 
 
 async def _schedule_prefetch(tconst: str) -> None:
@@ -269,17 +315,105 @@ async def _schedule_prefetch(tconst: str) -> None:
         logger.debug("Prefetch scheduling skipped for %s: %s", tconst, exc)
 
 
+async def _build_movie_url_for_tconst(tconst: str, *, query: dict | None = None) -> str:
+    """Look up the projection row for ``tconst`` and build the canonical URL.
+
+    Falls back to ``/`` if the projection has no public_id yet (a transient
+    state during the rollout, after which assertion at startup guarantees
+    every row has one).
+    """
+    services = _services()
+    projection = await services.movie_manager.projection_store.select_row(tconst)
+    if not projection:
+        # Lazy-create the projection row (and its public_id) so the URL
+        # builder has something to point to. Same lazy pattern the GET
+        # route used to rely on via fetch_renderable_payload — we just
+        # trigger it earlier so the redirect target is canonical. Without
+        # this, navigation picks a candidate from movie_candidates that
+        # has never been viewed, finds no projection row, and silently
+        # redirects the user back to the landing page.
+        try:
+            await services.movie_manager.projection_store.ensure_core_projection(tconst)
+        except Exception:
+            logger.debug(
+                "ensure_core_projection failed for %s", tconst, exc_info=True
+            )
+            return url_for("main.home")
+        projection = await services.movie_manager.projection_store.select_row(tconst)
+        if not projection:
+            return url_for("main.home")
+    public_id = projection.get("public_id")
+    if not public_id:
+        # Last-resort fallback during the rollout window.
+        public_id = await public_id_for_tconst(services.movie_manager.db_pool, tconst)
+        if not public_id:
+            return url_for("main.home")
+
+    payload = projection.get("payload_json")
+    if isinstance(payload, str):
+        import json as _json
+        payload = _json.loads(payload) if payload else {}
+    if not isinstance(payload, dict):
+        payload = {}
+    title = payload.get("primaryTitle") or payload.get("title")
+    year = payload.get("year")
+    path = build_movie_path(title, year, public_id)
+    if query:
+        from urllib.parse import urlencode
+        path = f"{path}?{urlencode(query)}"
+    return path
+
+
+async def _build_movie_url_from_outcome(
+    outcome: NavigationOutcome | None, *, query: dict | None = None
+) -> str:
+    """Build the canonical /movie/... URL from a NavigationOutcome.
+
+    Hot path: outcome carries public_id + title + year (all populated by
+    the navigator from the candidate ref) → build URL with zero DB hits.
+    Cold path: any field missing (first-time candidate with no projection
+    row, or a state_conflict path that only knows the tconst) → fall back
+    to the DB-backed builder which lazy-creates the projection.
+    """
+    if outcome is None or outcome.tconst is None:
+        return url_for("main.home")
+    if outcome.public_id and outcome.title:
+        path = build_movie_path(outcome.title, outcome.year, outcome.public_id)
+        if query:
+            from urllib.parse import urlencode
+            path = f"{path}?{urlencode(query)}"
+        return path
+    return await _build_movie_url_for_tconst(outcome.tconst, query=query)
+
+
 async def _redirect_for_navigation_outcome(outcome: NavigationOutcome):
     if outcome.state_conflict:
         if outcome.tconst:
-            return redirect(
-                url_for("main.movie_detail", tconst=outcome.tconst, state_conflict=1),
-                code=303,
+            url = await _build_movie_url_from_outcome(
+                outcome, query={"state_conflict": "1"}
             )
+            return redirect(url, code=303)
         return redirect(url_for("main.home", state_conflict=1), code=303)
     if outcome.tconst:
-        await _schedule_prefetch(outcome.tconst)
-        return redirect(url_for("main.movie_detail", tconst=outcome.tconst), code=303)
+        # Warm the just-chosen movie AND the next 1-2 candidates from the
+        # navigator queue. The lookahead is what fixes back-to-back clicks
+        # rendering the core placeholder — by the time the user clicks
+        # again, those tconsts already have an in-flight (or completed)
+        # TMDb fetch. _schedule_prefetch is best-effort and self-throttling
+        # (early-exits on READY rows), so paying for 2 extra select_rows
+        # per click is cheap. Run them concurrently so we don't add the
+        # network latencies serially. ``return_exceptions=True`` is
+        # intentional: prefetch is best-effort, and the actual enrichment
+        # tasks are detached via the coordinator's background scheduler,
+        # so a CancelledError here (e.g. client disconnect) does not kill
+        # the work already kicked off.
+        prefetch_targets = (outcome.tconst, *outcome.upcoming_tconsts)
+        await asyncio.gather(
+            *(_schedule_prefetch(t) for t in prefetch_targets),
+            return_exceptions=True,
+        )
+        url = await _build_movie_url_from_outcome(outcome)
+        return redirect(url, code=303)
     abort(500, description="Navigation outcome missing target movie")
 
 
@@ -338,9 +472,11 @@ async def _attach_user_to_current_session(user_id: str):
 __all__ = [
     "LIST_VALID_SORTS",
     "NextReelServices",
+    "_PUBLIC_ID_RE",
     "_REQUEST_TIMEOUT",
-    "_TCONST_RE",
     "_attach_user_to_current_session",
+    "_build_movie_url_for_tconst",
+    "_build_movie_url_from_outcome",
     "_current_state",
     "_current_user_id",
     "_get_csrf_token",
@@ -349,10 +485,12 @@ __all__ = [
     "_letterboxd_import_service",
     "_movie_detail_service",
     "_movie_image_context",
+    "_movie_url_global",
     "_no_matches_response",
     "_redirect_for_navigation_outcome",
     "_registration_service",
     "_require_login",
+    "_resolve_public_id_or_404",
     "_services",
     "_wants_json_response",
     "_watched_list_presenter",

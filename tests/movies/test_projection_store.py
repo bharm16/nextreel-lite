@@ -119,7 +119,11 @@ class TestPayloadFromRow:
         store = _make_store(mock_db_pool)
         row = {"payload_json": None, "projection_state": PROJECTION_FAILED}
         result = store.payload_from_row(row)
-        assert result == {"projection_state": PROJECTION_FAILED, "tconst": None}
+        assert result == {
+            "projection_state": PROJECTION_FAILED,
+            "tconst": None,
+            "public_id": None,
+        }
 
     def test_invalid_json_returns_empty_dict(self, mock_db_pool):
         store = _make_store(mock_db_pool)
@@ -132,7 +136,11 @@ class TestPayloadFromRow:
         store = _make_store(mock_db_pool)
         row = {"payload_json": "[1, 2, 3]", "projection_state": PROJECTION_READY}
         result = store.payload_from_row(row)
-        assert result == {"projection_state": PROJECTION_READY, "tconst": None}
+        assert result == {
+            "projection_state": PROJECTION_READY,
+            "tconst": None,
+            "public_id": None,
+        }
 
     def test_existing_projection_state_not_overwritten(self, mock_db_pool):
         """setdefault should not overwrite a projection_state already in payload."""
@@ -163,6 +171,7 @@ class TestBuildCorePayload:
             "tconst",
             "imdb_id",
             "tmdb_id",
+            "public_id",
             "slug",
             "genres",
             "directors",
@@ -294,7 +303,11 @@ class TestEnsureCoreProjection:
             ]
         )
         store = _make_store(mock_db_pool)
-        await store.ensure_core_projection("tt1234567")
+        with patch(
+            "movies.projection_repository.assign_public_id",
+            new=AsyncMock(return_value="aaaaaa"),
+        ):
+            await store.ensure_core_projection("tt1234567")
 
         assert mock_db_pool.execute.call_count == 2
         insert_call = mock_db_pool.execute.call_args_list[1]
@@ -463,7 +476,10 @@ class TestEnrichProjectionFailure:
                 None,  # failure INSERT
             ]
         )
-        with patch("movies.projection_enrichment.Movie") as MockMovie:
+        with patch("movies.projection_enrichment.Movie") as MockMovie, patch(
+            "movies.projection_repository.assign_public_id",
+            new=AsyncMock(return_value="aaaaaa"),
+        ):
             MockMovie.return_value.get_movie_data = AsyncMock(side_effect=RuntimeError("TMDb down"))
             store = _make_store(mock_db_pool)
             result = await store.enrich_projection("tt1234567")
@@ -480,7 +496,10 @@ class TestEnrichProjectionFailure:
                 None,
             ]
         )
-        with patch("movies.projection_enrichment.Movie") as MockMovie:
+        with patch("movies.projection_enrichment.Movie") as MockMovie, patch(
+            "movies.projection_repository.assign_public_id",
+            new=AsyncMock(return_value="aaaaaa"),
+        ):
             MockMovie.return_value.get_movie_data = AsyncMock(side_effect=ValueError("bad data"))
             store = _make_store(mock_db_pool)
             await store.enrich_projection("tt1234567")
@@ -501,7 +520,10 @@ class TestEnrichProjectionFailure:
                 None,
             ]
         )
-        with patch("movies.projection_enrichment.Movie") as MockMovie:
+        with patch("movies.projection_enrichment.Movie") as MockMovie, patch(
+            "movies.projection_repository.assign_public_id",
+            new=AsyncMock(return_value="aaaaaa"),
+        ):
             MockMovie.return_value.get_movie_data = AsyncMock(return_value=None)
             store = _make_store(mock_db_pool)
             result = await store.enrich_projection("tt1234567")

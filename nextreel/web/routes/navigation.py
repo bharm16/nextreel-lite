@@ -12,6 +12,8 @@ from infra.route_helpers import csrf_required, rate_limited, with_timeout
 from nextreel.domain.filter_contracts import FilterState
 from nextreel.web.routes.shared import (
     _REQUEST_TIMEOUT,
+    _build_movie_url_for_tconst,
+    _build_movie_url_from_outcome,
     _current_state,
     _legacy_session,
     _no_matches_response,
@@ -72,7 +74,8 @@ async def previous_movie():
     if outcome is None:
         tconst = movie_manager.get_current_movie_tconst(state)
         if tconst:
-            return redirect(url_for("main.movie_detail", tconst=tconst))
+            url = await _build_movie_url_for_tconst(tconst)
+            return redirect(url)
         return redirect(url_for("main.home"))
 
     return await _redirect_for_navigation_outcome(outcome)
@@ -141,19 +144,16 @@ async def filtered_movie_endpoint():
     if outcome is not None:
         if wants_json:
             if outcome.tconst:
-                return jsonify(
-                    {
-                        "ok": True,
-                        "redirect": url_for("main.movie_detail", tconst=outcome.tconst),
-                    }
-                )
+                url = await _build_movie_url_from_outcome(outcome)
+                return jsonify({"ok": True, "redirect": url})
             return _no_matches_response()
         return await _redirect_for_navigation_outcome(outcome)
     if wants_json:
         return _no_matches_response()
     tconst = movie_manager.get_current_movie_tconst(state)
     if tconst:
-        return redirect(url_for("main.movie_detail", tconst=tconst), code=303)
+        url = await _build_movie_url_for_tconst(tconst)
+        return redirect(url, code=303)
     return redirect(url_for("main.home"), code=303)
 
 

@@ -219,16 +219,17 @@
       </button>
     </form>
 
-    {% set watch_tconst = movie.tconst or movie.imdb_id %}
+    {% set watch_id = movie.public_id %}
+    {% set movie_href = movie_url(movie) %}
     {# ── Add to Watchlist form (NEW) ────────────────────────── #}
     {% if current_user_id %}
     <form method="POST"
-          action="{% if is_in_watchlist %}/watchlist/remove/{{ watch_tconst }}{% else %}/watchlist/add/{{ watch_tconst }}{% endif %}"
+          action="{% if is_in_watchlist %}/watchlist/remove/{{ watch_id }}{% else %}/watchlist/add/{{ watch_id }}{% endif %}"
           class="inline"
           data-watchlist-toggle-form
           data-watchlist-state="{% if is_in_watchlist %}saved{% else %}unsaved{% endif %}"
-          data-add-url="/watchlist/add/{{ watch_tconst }}"
-          data-remove-url="/watchlist/remove/{{ watch_tconst }}">
+          data-add-url="/watchlist/add/{{ watch_id }}"
+          data-remove-url="/watchlist/remove/{{ watch_id }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button type="submit"
               class="nav-btn-watchlist"
@@ -244,7 +245,7 @@
       </button>
     </form>
     {% else %}
-    <a href="{{ url_for('main.login_page', next='/movie/' ~ watch_tconst) }}"
+    <a href="{{ url_for('main.login_page', next=movie_href) }}"
        class="nav-btn-watchlist nav-btn-watchlist--login"
        aria-label="Log in to add to watchlist">
       <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
@@ -255,12 +256,12 @@
     {# ── existing watched form continues here ───────────────── #}
     {% if current_user_id %}
     <form method="POST"
-          action="{% if is_watched %}/watched/remove/{{ watch_tconst }}{% else %}/watched/add/{{ watch_tconst }}{% endif %}"
+          action="{% if is_watched %}/watched/remove/{{ watch_id }}{% else %}/watched/add/{{ watch_id }}{% endif %}"
           class="inline"
           data-watched-toggle-form
           data-watched-state="{% if is_watched %}watched{% else %}unwatched{% endif %}"
-          data-add-url="/watched/add/{{ watch_tconst }}"
-          data-remove-url="/watched/remove/{{ watch_tconst }}">
+          data-add-url="/watched/add/{{ watch_id }}"
+          data-remove-url="/watched/remove/{{ watch_id }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button type="submit"
               class="nav-btn-watched"
@@ -276,7 +277,7 @@
       </button>
     </form>
     {% else %}
-    <a href="{{ url_for('main.login_page', next='/movie/' ~ watch_tconst) }}"
+    <a href="{{ url_for('main.login_page', next=movie_href) }}"
        class="nav-btn-watched nav-btn-watched--login"
        aria-label="Log in to mark as watched">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>

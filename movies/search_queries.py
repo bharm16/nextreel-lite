@@ -49,12 +49,17 @@ def build_search_query(raw_query: str, limit: int = 10) -> tuple[str | None, lis
     # params[0]=exact, [1]=prefix, [2]=contains — so downstream assertions
     # don't break when we add article-stripped buckets.
     sql = (
-        "SELECT mc.tconst, mc.primaryTitle, mc.startYear, mc.averageRating, "
-        "       JSON_UNQUOTE(JSON_EXTRACT(mp.payload_json, '$.poster_url')) AS poster_url "
+        "SELECT mc.tconst, mp.public_id, mc.primaryTitle, mc.startYear, "
+        "       mc.averageRating, "
+        "       CASE WHEN mp.projection_state IN ('ready', 'stale') "
+        "            THEN JSON_UNQUOTE(JSON_EXTRACT(mp.payload_json, '$.poster_url')) "
+        "            ELSE NULL END AS poster_url "
+        # Unconditional LEFT JOIN so public_id flows through for every state
+        # (core/ready/stale/failed all carry one). The CASE above keeps the
+        # poster restricted to enriched states — unenriched payloads have no
+        # poster_url key, but being explicit guards against future shape drift.
         "FROM movie_candidates mc "
-        "LEFT JOIN movie_projection mp "
-        "  ON mp.tconst = mc.tconst "
-        "  AND mp.projection_state IN ('ready', 'stale') "
+        "LEFT JOIN movie_projection mp ON mp.tconst = mc.tconst "
         "WHERE mc.primaryTitle IS NOT NULL "
         "  AND (mc.primaryTitle = %s "
         "       OR mc.primaryTitle LIKE %s ESCAPE '|' "

@@ -126,11 +126,13 @@ async def test_has_fresh_data_custom_max_age(mock_db_pool):
 
 
 async def test_fetch_ref_returns_normalized_dict(mock_db_pool):
-    """Returns a dict with tconst, title, slug keys."""
+    """Returns a dict with tconst, title, slug, public_id, year keys."""
     mock_db_pool.execute.return_value = {
         "tconst": "tt1234567",
         "primaryTitle": "Inception",
         "slug": "inception",
+        "public_id": "abc123",
+        "startYear": 2010,
     }
     store = _make_store(mock_db_pool)
 
@@ -140,7 +142,24 @@ async def test_fetch_ref_returns_normalized_dict(mock_db_pool):
         "tconst": "tt1234567",
         "title": "Inception",
         "slug": "inception",
+        "public_id": "abc123",
+        "year": "2010",
     }
+
+
+async def test_fetch_ref_returns_none_public_id_when_missing(mock_db_pool):
+    """Pre-enrichment rows have NULL public_id; the ref carries it as None."""
+    mock_db_pool.execute.return_value = {
+        "tconst": "tt1234567",
+        "primaryTitle": "Inception",
+        "slug": "inception",
+        "public_id": None,
+    }
+    store = _make_store(mock_db_pool)
+
+    result = await store.fetch_ref("tt1234567")
+
+    assert result["public_id"] is None
 
 
 async def test_fetch_ref_returns_none_when_not_found(mock_db_pool):
@@ -196,13 +215,33 @@ async def test_fetch_refs_empty_input_returns_empty_list(mock_db_pool):
 async def test_fetch_refs_returns_normalized_dicts(mock_db_pool):
     """Multi-tconst input → list of normalized refs."""
     mock_db_pool.execute.return_value = [
-        {"tconst": "tt1", "primaryTitle": "One", "slug": "one"},
-        {"tconst": "tt2", "primaryTitle": "Two", "slug": "two"},
+        {
+            "tconst": "tt1",
+            "primaryTitle": "One",
+            "slug": "one",
+            "public_id": "aaaaaa",
+            "startYear": 2001,
+        },
+        {
+            "tconst": "tt2",
+            "primaryTitle": "Two",
+            "slug": "two",
+            "public_id": None,
+            "startYear": None,
+        },
     ]
     store = _make_store(mock_db_pool)
     result = await store.fetch_refs(["tt1", "tt2"])
     assert {r["tconst"] for r in result} == {"tt1", "tt2"}
-    assert all(set(r.keys()) == {"tconst", "title", "slug"} for r in result)
+    assert all(
+        set(r.keys()) == {"tconst", "title", "slug", "public_id", "year"}
+        for r in result
+    )
+    by_tconst = {r["tconst"]: r for r in result}
+    assert by_tconst["tt1"]["public_id"] == "aaaaaa"
+    assert by_tconst["tt1"]["year"] == "2001"
+    assert by_tconst["tt2"]["public_id"] is None
+    assert by_tconst["tt2"]["year"] is None
 
 
 async def test_fetch_refs_skips_missing_and_dedupes(mock_db_pool):
@@ -541,7 +580,25 @@ def test_build_candidate_query_orders_by_shuffle_key_first(mock_db_pool):
         use_fulltext=True,
     )
 
-    assert "ORDER BY shuffle_key, tconst" in query
+    # Aliased columns (c.) — the query joins movie_candidates AS c so it
+    # can LEFT JOIN movie_projection p for public_id.
+    assert "ORDER BY c.shuffle_key, c.tconst" in query
+
+
+def test_build_candidate_query_joins_movie_projection_for_public_id(mock_db_pool):
+    """The candidate query LEFT JOINs movie_projection so refs carry public_id."""
+    store = _make_store(mock_db_pool)
+
+    query, _ = store._build_candidate_query(
+        criteria={"language": "en"},
+        excluded_tconsts=set(),
+        desired_limit=2,
+        buckets=[1, 2],
+        use_fulltext=True,
+    )
+
+    assert "LEFT JOIN movie_projection p ON p.tconst = c.tconst" in query
+    assert "p.public_id" in query
 
 
 async def test_fetch_candidate_refs_retries_like_clause_when_fulltext_missing(mock_db_pool):
@@ -565,7 +622,15 @@ async def test_fetch_candidate_refs_retries_like_clause_when_fulltext_missing(mo
             limit=1,
         )
 
-    assert refs == [{"tconst": "tt0001", "title": "Test Movie", "slug": "test-movie"}]
+    assert refs == [
+        {
+            "tconst": "tt0001",
+            "title": "Test Movie",
+            "slug": "test-movie",
+            "public_id": None,
+            "year": None,
+        }
+    ]
     assert mock_db_pool.execute.await_count == 2
     first_query = mock_db_pool.execute.await_args_list[0].args[0]
     second_query = mock_db_pool.execute.await_args_list[1].args[0]

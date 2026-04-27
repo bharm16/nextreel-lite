@@ -565,6 +565,188 @@ async def ensure_movie_projection_state_last_attempt_index(db_pool) -> None:
     )
 
 
+async def ensure_movie_projection_public_id_column(db_pool) -> None:
+    """Add the additive public_id column and its unique index.
+
+    The column starts NULLable to permit a startup-time backfill of existing
+    rows. A separate helper (``ensure_movie_projection_public_id_backfill``)
+    populates NULLs and then tightens the column to NOT NULL.
+    """
+    await _ensure_column(
+        db_pool,
+        "movie_projection",
+        "public_id",
+        """
+        ALTER TABLE movie_projection
+        ADD COLUMN public_id CHAR(6) NULL
+        """,
+    )
+    await _ensure_index(
+        db_pool,
+        "movie_projection",
+        "uq_movie_projection_public_id",
+        """
+        ALTER TABLE movie_projection
+        ADD UNIQUE INDEX uq_movie_projection_public_id (public_id)
+        """,
+    )
+
+
+_PUBLIC_ID_BACKFILL_CHUNK_SIZE = 1000
+_PUBLIC_ID_BACKFILL_LOCK_NAME = "nextreel_public_id_backfill"
+_PUBLIC_ID_BACKFILL_LOCK_TIMEOUT_SECONDS = 0
+
+
+async def ensure_movie_projection_public_id_backfill(db_pool) -> None:
+    """Populate any NULL public_id rows, then tighten the column to NOT NULL.
+
+    Idempotent and crash-safe: gated by ``public_id_backfill_done`` in
+    ``runtime_metadata``. Memory-bounded (cursor-paginated SELECT, never
+    loads the whole NULL set at once) and resilient to per-row failures —
+    a single ``assign_public_id`` exception is logged and skipped, then
+    the cursor advances so the run makes forward progress instead of
+    spinning on a stuck row.
+
+    The ALTER ... NOT NULL and the flag are only set when a final probe
+    confirms no NULLs remain. A partial run therefore leaves the flag
+    unset, and the next startup re-runs the whole backfill — which is
+    safe because the SELECT only sees rows still NULL.
+
+    Cross-replica safety: a MySQL ``GET_LOCK`` prevents two replicas from
+    racing the same backfill on a fresh DB. Non-acquiring replicas
+    short-circuit and let the winner finish.
+
+    Concurrent enrichment writes are tolerated: ``assign_public_id`` issues
+    ``UPDATE ... WHERE public_id IS NULL``, so the first writer wins and
+    later writers no-op.
+    """
+    if await _get_runtime_flag(db_pool, "public_id_backfill_done"):
+        logger.debug("public_id backfill already complete, skipping")
+        return
+
+    lock_row = await db_pool.execute(
+        "SELECT GET_LOCK(%s, %s) AS locked",
+        [_PUBLIC_ID_BACKFILL_LOCK_NAME, _PUBLIC_ID_BACKFILL_LOCK_TIMEOUT_SECONDS],
+        fetch="one",
+    )
+    acquired = (
+        bool(lock_row and lock_row.get("locked") == 1)
+        if isinstance(lock_row, dict)
+        else False
+    )
+    if not acquired:
+        logger.info(
+            "public_id backfill lock held by another replica; skipping on this node"
+        )
+        return
+
+    # Deferred import: keeps the (small) ``movies.public_id`` import out of
+    # the schema-module load path so most boots — which short-circuit on
+    # the flag check above — never pay it.
+    from movies.public_id import assign_public_id
+
+    try:
+        if await _get_runtime_flag(db_pool, "public_id_backfill_done"):
+            # Another replica finished while we were trying to acquire.
+            logger.debug("public_id backfill already complete, skipping")
+            return
+
+        total_updated = 0
+        total_skipped = 0
+        last_tconst: str | None = None
+        while True:
+            if last_tconst is None:
+                rows = await db_pool.execute(
+                    """
+                    SELECT tconst FROM movie_projection
+                    WHERE public_id IS NULL
+                    ORDER BY tconst
+                    LIMIT %s
+                    """,
+                    [_PUBLIC_ID_BACKFILL_CHUNK_SIZE],
+                    fetch="all",
+                )
+            else:
+                rows = await db_pool.execute(
+                    """
+                    SELECT tconst FROM movie_projection
+                    WHERE public_id IS NULL AND tconst > %s
+                    ORDER BY tconst
+                    LIMIT %s
+                    """,
+                    [last_tconst, _PUBLIC_ID_BACKFILL_CHUNK_SIZE],
+                    fetch="all",
+                )
+            rows = rows or []
+            if not rows:
+                break
+            for row in rows:
+                tconst = row["tconst"] if isinstance(row, dict) else row[0]
+                try:
+                    result = await assign_public_id(db_pool, tconst)
+                except Exception as exc:  # noqa: BLE001 - per-row resilience
+                    # Don't let one row's failure brick the entire backfill.
+                    # The final NULL-count probe gates the ALTER and flag, so
+                    # a partial run is safe to retry on next startup.
+                    logger.warning(
+                        "public_id backfill: assign_public_id failed for %s: %s",
+                        tconst,
+                        exc,
+                    )
+                    total_skipped += 1
+                else:
+                    if result:
+                        total_updated += 1
+                    else:
+                        total_skipped += 1
+                # Always advance the cursor — even on failure — so we don't
+                # spin on a stuck row.
+                last_tconst = tconst
+            if len(rows) < _PUBLIC_ID_BACKFILL_CHUNK_SIZE:
+                break
+
+        # Only tighten the column + set the flag when no NULLs remain.
+        # A partial run keeps the flag unset → next startup retries.
+        remaining = await db_pool.execute(
+            "SELECT 1 FROM movie_projection WHERE public_id IS NULL LIMIT 1",
+            fetch="one",
+        )
+        if remaining:
+            logger.warning(
+                "public_id backfill incomplete (%d updated, %d skipped); "
+                "ALTER and flag deferred — next startup will retry",
+                total_updated,
+                total_skipped,
+            )
+            return
+
+        await db_pool.execute(
+            """
+            ALTER TABLE movie_projection
+            MODIFY COLUMN public_id CHAR(6) NOT NULL
+            """,
+            fetch="none",
+        )
+        await _set_runtime_flag(db_pool, "public_id_backfill_done", "1")
+        logger.info(
+            "public_id backfill complete (%d rows updated, %d skipped)",
+            total_updated,
+            total_skipped,
+        )
+    finally:
+        try:
+            await db_pool.execute(
+                "SELECT RELEASE_LOCK(%s) AS released",
+                [_PUBLIC_ID_BACKFILL_LOCK_NAME],
+                fetch="one",
+            )
+        except Exception:  # pragma: no cover - defensive
+            logger.debug(
+                "public_id backfill RELEASE_LOCK failed (connection may have been reset)",
+                exc_info=True,
+            )
+
+
 # Order matches the historical orchestrator sequence — kept stable so add-column
 # / add-index ordering remains predictable. Append new helper names to the end.
 # Names (not function refs) so test patches against the module attribute apply.
@@ -582,4 +764,29 @@ _RUNTIME_REPAIR_HELPER_NAMES = (
     "ensure_users_theme_preference_column",
     "ensure_users_default_filters_json_column",
     "ensure_users_exclude_watchlist_default_column",
+    "ensure_movie_projection_public_id_column",
+    "ensure_movie_projection_public_id_backfill",
 )
+
+
+async def assert_no_null_public_ids(db_pool) -> None:
+    """Refuse to start when any movie_projection row has a NULL public_id.
+
+    The backfill helper should have populated every row before the code
+    cutover. If any NULLs remain at startup, the app would render broken
+    URLs (the ``movie_url`` Jinja global returns ``/`` when public_id is
+    missing), so we'd rather refuse to start than ship a degraded UI.
+
+    Uses ``SELECT 1 ... LIMIT 1`` so the probe stops at the first hit
+    rather than scanning the whole index for a count.
+    """
+    probe = await db_pool.execute(
+        "SELECT 1 FROM movie_projection WHERE public_id IS NULL LIMIT 1",
+        fetch="one",
+    )
+    if not probe:
+        return
+    raise RuntimeError(
+        "Refusing to start: at least one movie_projection row has "
+        "NULL public_id. Run ensure_movie_projection_public_id_backfill first."
+    )

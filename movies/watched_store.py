@@ -164,7 +164,7 @@ class WatchedStore:
             """
             SELECT sub.tconst, sub.watched_at,
                    sub.primaryTitle, sub.startYear, sub.genres, sub.slug,
-                   p.payload_json
+                   p.payload_json, p.public_id
             FROM (
                 SELECT w.tconst, w.watched_at,
                        c.primaryTitle, c.startYear, c.genres, c.slug
@@ -189,7 +189,7 @@ class WatchedStore:
             """
             SELECT sub.tconst, sub.watched_at,
                    sub.primaryTitle, sub.startYear, sub.genres, sub.slug,
-                   p.payload_json
+                   p.payload_json, p.public_id
             FROM (
                 SELECT w.tconst, w.watched_at,
                        c.primaryTitle, c.startYear, c.genres, c.slug
@@ -276,7 +276,7 @@ class WatchedStore:
             SELECT sub.tconst, sub.watched_at,
                    sub.primaryTitle, sub.startYear, sub.genres, sub.slug,
                    sub.averageRating,
-                   p.payload_json
+                   p.payload_json, p.public_id
             FROM (
                 SELECT w.tconst, w.watched_at,
                        c.primaryTitle, c.startYear, c.genres, c.slug,
@@ -436,7 +436,7 @@ class WatchedStore:
         rows = await self.db_pool.execute(
             "SELECT w.tconst, w.watched_at, "
             "c.primaryTitle, c.startYear, c.genres, c.slug, "
-            "p.payload_json "
+            "p.payload_json, p.public_id "
             "FROM user_watched_movies w "
             "INNER JOIN movie_projection p ON w.tconst = p.tconst "
             "LEFT JOIN movie_candidates c ON w.tconst = c.tconst "

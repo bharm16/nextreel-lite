@@ -93,7 +93,10 @@
     results.forEach(function (r, idx) {
       var li = document.createElement('li');
       var a = document.createElement('a');
-      a.href = '/movie/' + encodeURIComponent(r.tconst);
+      // Server builds the canonical /movie/<slug>-<public_id> URL — see
+      // search.py. We just consume it; never construct a movie URL on the
+      // client (the public_id is opaque, not derivable from tconst).
+      a.href = r.url || '/';
       a.className = 'search-spotlight-result';
       a.setAttribute('role', 'option');
       a.dataset.index = String(idx);
