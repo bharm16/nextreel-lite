@@ -31,11 +31,24 @@ _FILTER_RESULT_POOL_SIZE = 50
 
 
 def _ref_from_row(row: dict[str, Any]) -> dict[str, Any]:
-    """Build a lightweight movie ref dict from a DB row."""
+    """Build a lightweight movie ref dict from a DB row.
+
+    The ref carries ``public_id`` so URL builders can construct the
+    canonical movie path without an extra DB lookup. The value is
+    ``None`` when the row has no ``movie_projection`` entry yet
+    (pre-enrichment) or when the SELECT predates the projection join.
+
+    ``year`` is sourced from ``startYear`` (the column on
+    ``movie_candidates``) and coerced to a string when present so the
+    URL builder gets the same shape it expects from a payload year.
+    """
+    start_year = row.get("startYear")
     return {
         "tconst": row["tconst"],
         "title": row.get("primaryTitle") or "Unknown",
         "slug": row.get("slug"),
+        "public_id": row.get("public_id"),
+        "year": str(start_year) if start_year is not None else None,
     }
 
 
@@ -74,11 +87,21 @@ class CandidateStore:
         return age.total_seconds() <= max_age_hours * 3600
 
     async def fetch_ref(self, tconst: str) -> dict[str, Any] | None:
+        # LEFT JOIN movie_projection p so the ref carries p.public_id and
+        # navigator stack entries can build canonical URLs without a
+        # follow-up lookup. public_id is NULL until the projection row is
+        # created/enriched, which the consumer handles gracefully.
         row = await self.db_pool.execute(
             """
-            (SELECT tconst, primaryTitle, slug FROM movie_candidates WHERE tconst = %s)
+            (SELECT c.tconst, c.primaryTitle, c.slug, c.startYear, p.public_id
+                FROM movie_candidates c
+                LEFT JOIN movie_projection p ON p.tconst = c.tconst
+                WHERE c.tconst = %s)
             UNION ALL
-            (SELECT tconst, primaryTitle, slug FROM `title.basics` WHERE tconst = %s)
+            (SELECT b.tconst, b.primaryTitle, b.slug, b.startYear, p.public_id
+                FROM `title.basics` b
+                LEFT JOIN movie_projection p ON p.tconst = b.tconst
+                WHERE b.tconst = %s)
             LIMIT 1
             """,
             [tconst, tconst],
@@ -109,14 +132,19 @@ class CandidateStore:
         # tag each leg with a source_priority, sort by it, and let the
         # Python-side `seen` dedup below keep the first occurrence —
         # movie_candidates wins because its priority is 0.
+        # Each leg LEFT JOINs movie_projection p to surface p.public_id so
+        # navigator refs can build canonical URLs without a follow-up
+        # lookup. public_id is NULL until enrichment populates it.
         sql = f"""
-            SELECT tconst, primaryTitle, slug, 0 AS source_priority
-            FROM movie_candidates
-            WHERE tconst IN ({placeholders})
+            SELECT c.tconst, c.primaryTitle, c.slug, c.startYear, p.public_id, 0 AS source_priority
+            FROM movie_candidates c
+            LEFT JOIN movie_projection p ON p.tconst = c.tconst
+            WHERE c.tconst IN ({placeholders})
             UNION ALL
-            SELECT tconst, primaryTitle, slug, 1 AS source_priority
-            FROM `title.basics`
-            WHERE tconst IN ({placeholders})
+            SELECT b.tconst, b.primaryTitle, b.slug, b.startYear, p.public_id, 1 AS source_priority
+            FROM `title.basics` b
+            LEFT JOIN movie_projection p ON p.tconst = b.tconst
+            WHERE b.tconst IN ({placeholders})
             ORDER BY source_priority
         """
         params = unique + unique
@@ -168,6 +196,12 @@ class CandidateStore:
             min_votes,
             max_votes,
         ]
+        # WHERE-clause columns are unqualified — the alias ``c`` introduced
+        # in the FROM below for movie_candidates makes them legal because
+        # none of these columns also exist on movie_projection. (The
+        # genre_clause from _genre_clause(..., use_cache=True) likewise
+        # references unqualified ``genres``, which is unique to
+        # movie_candidates.)
         clauses = [
             "titleType = %s",
             "startYear BETWEEN %s AND %s",
@@ -181,7 +215,10 @@ class CandidateStore:
             params.extend([language, f"%{language}%"])
 
         if excluded_tconsts:
-            clauses.append(f"tconst NOT IN ({', '.join(['%s'] * len(excluded_tconsts))})")
+            # Qualify tconst here — both movie_candidates and
+            # movie_projection have a tconst column, so the unqualified
+            # form would be ambiguous once we LEFT JOIN p below.
+            clauses.append(f"c.tconst NOT IN ({', '.join(['%s'] * len(excluded_tconsts))})")
             params.extend(sorted(excluded_tconsts))
 
         genre_clause, genre_params = self._genre_clause(criteria, use_fulltext=use_fulltext)
@@ -195,11 +232,17 @@ class CandidateStore:
         # idx_movie_candidates_shuffle (shuffle_key, numVotes, averageRating)
         # serve the sort without a filesort. tconst as the secondary
         # sort is the table's PK, giving deterministic ordering on ties.
+        #
+        # LEFT JOIN movie_projection p surfaces p.public_id so the ref
+        # carries it without a follow-up lookup. The join is on the PK of
+        # both tables and movie_projection has a unique row per tconst, so
+        # it cannot fan out the result set.
         query = f"""
-            SELECT tconst, primaryTitle, slug
-            FROM movie_candidates
+            SELECT c.tconst, c.primaryTitle, c.slug, c.startYear, p.public_id
+            FROM movie_candidates c
+            LEFT JOIN movie_projection p ON p.tconst = c.tconst
             WHERE {' AND '.join(clauses)}{genre_clause}
-            ORDER BY shuffle_key, tconst
+            ORDER BY c.shuffle_key, c.tconst
             LIMIT %s
         """
         params.append(desired_limit * _OVERFETCH_FACTOR)

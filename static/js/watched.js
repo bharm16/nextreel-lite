@@ -236,8 +236,10 @@
     event.stopPropagation();
 
     var card = button.closest(".watched-card");
-    var tconst = button.dataset.tconst;
-    if (!card || !tconst) return;
+    // Routes are public_id-based; the card data attribute carries the
+    // opaque public_id, never the IMDb tconst. See _watched_card.html.
+    var publicId = button.dataset.publicId;
+    if (!card || !publicId) return;
 
     card.style.transition = "opacity 200ms ease, transform 200ms ease";
     card.style.opacity = "0";
@@ -246,7 +248,7 @@
     var nextSibling = card.nextElementSibling;
     var cardHtml = card.outerHTML;
 
-    fetch("/watched/remove/" + encodeURIComponent(tconst), {
+    fetch("/watched/remove/" + encodeURIComponent(publicId), {
       method: "POST",
       headers: { "X-CSRFToken": csrfToken, Accept: "application/json" },
       credentials: "same-origin",
@@ -258,7 +260,7 @@
 
         setTimeout(function () {
           card.remove();
-          lastRemoved = { tconst: tconst, html: cardHtml, nextSibling: nextSibling };
+          lastRemoved = { publicId: publicId, html: cardHtml, nextSibling: nextSibling };
 
           showToast("Removed from watched", function () {
             var tmp = document.createElement("div");
@@ -271,7 +273,7 @@
             } else {
               grid.appendChild(restored);
             }
-            fetch("/watched/add/" + encodeURIComponent(lastRemoved.tconst), {
+            fetch("/watched/add/" + encodeURIComponent(lastRemoved.publicId), {
               method: "POST",
               headers: { "X-CSRFToken": csrfToken, Accept: "application/json" },
               credentials: "same-origin",

@@ -664,6 +664,50 @@ async def test_list_watched_filtered_invalid_sort_falls_back(mock_db_pool):
     assert "ORDER BY w.watched_at DESC" in query
 
 
+async def test_list_watched_filtered_selects_public_id(mock_db_pool):
+    """list_watched_filtered() must include p.public_id so templates can build URLs."""
+    mock_db_pool.execute.return_value = []
+    store = _make_store(mock_db_pool)
+
+    await store.list_watched_filtered("user-123", sort="recent", limit=60, offset=0)
+
+    sql = mock_db_pool.execute.call_args[0][0]
+    assert "p.public_id" in sql
+
+
+async def test_list_watched_selects_public_id(mock_db_pool):
+    """list_watched() must include p.public_id so templates can build URLs."""
+    mock_db_pool.execute.return_value = []
+    store = _make_store(mock_db_pool)
+
+    await store.list_watched("user-123")
+
+    sql = mock_db_pool.execute.call_args[0][0]
+    assert "p.public_id" in sql
+
+
+async def test_list_watched_enriched_selects_public_id(mock_db_pool):
+    """list_watched_enriched() must include p.public_id so templates can build URLs."""
+    mock_db_pool.execute.return_value = []
+    store = _make_store(mock_db_pool)
+
+    await store.list_watched_enriched("user-123")
+
+    sql = mock_db_pool.execute.call_args[0][0]
+    assert "p.public_id" in sql
+
+
+async def test_ready_import_rows_selects_public_id(mock_db_pool):
+    """ready_import_rows() must include p.public_id so templates can build URLs."""
+    mock_db_pool.execute.return_value = []
+    store = _make_store(mock_db_pool)
+
+    await store.ready_import_rows("user-123", ["tt1"])
+
+    sql = mock_db_pool.execute.call_args[0][0]
+    assert "p.public_id" in sql
+
+
 # ---------------------------------------------------------------------------
 # count_filtered
 # ---------------------------------------------------------------------------

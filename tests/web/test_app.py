@@ -31,6 +31,8 @@ async def test_home():
     with patch.dict(os.environ, TEST_ENV), patch("app.MovieManager") as MockManager:
         manager = MockManager.return_value
         manager.home = AsyncMock(return_value={"default_backdrop_url": None})
+        manager.db_pool = MagicMock()
+        manager.db_pool.execute = AsyncMock(return_value=None)
 
         app = _make_test_app()
         async with app.app_context():
@@ -101,6 +103,7 @@ async def test_movie_detail_route():
         manager.projection_store.fetch_renderable_payload = AsyncMock(
             return_value={
                 "title": "X",
+                "primaryTitle": "X",
                 "year": "2024",
                 "genres": "Drama",
                 "directors": "D",
@@ -112,6 +115,7 @@ async def test_movie_detail_route():
                 "cast": [],
                 "tmdb_id": 1,
                 "imdb_id": "tt1234567",
+                "public_id": "abc123",
                 "_full": True,
                 "projection_state": "ready",
             }
@@ -128,8 +132,12 @@ async def test_movie_detail_route():
         app = _make_test_app()
         async with app.app_context():
             client = app.test_client()
-            response = await client.get("/movie/tt1234567")
-            assert response.status_code == 200
+            with patch(
+                "nextreel.web.routes.shared.resolve_to_tconst",
+                new=AsyncMock(return_value="tt1234567"),
+            ):
+                response = await client.get("/movie/x-2024-abc123")
+                assert response.status_code == 200
 
 
 async def test_movie_detail_normalizes_tmdb_backdrop_and_preloads_hero_image():
@@ -139,6 +147,7 @@ async def test_movie_detail_normalizes_tmdb_backdrop_and_preloads_hero_image():
         manager.projection_store.fetch_renderable_payload = AsyncMock(
             return_value={
                 "title": "Definitely, Maybe",
+                "primaryTitle": "Definitely, Maybe",
                 "year": "2008",
                 "genres": "Comedy, Drama",
                 "directors": "Adam Brooks",
@@ -150,6 +159,7 @@ async def test_movie_detail_normalizes_tmdb_backdrop_and_preloads_hero_image():
                 "cast": [],
                 "tmdb_id": 1,
                 "imdb_id": "tt1234567",
+                "public_id": "abc123",
                 "_full": True,
                 "projection_state": "ready",
                 "collection": {
@@ -190,9 +200,13 @@ async def test_movie_detail_normalizes_tmdb_backdrop_and_preloads_hero_image():
         app = _make_test_app()
         async with app.app_context():
             client = app.test_client()
-            response = await client.get("/movie/tt1234567")
-            assert response.status_code == 200
-            body = await response.get_data(as_text=True)
+            with patch(
+                "nextreel.web.routes.shared.resolve_to_tconst",
+                new=AsyncMock(return_value="tt1234567"),
+            ):
+                response = await client.get("/movie/definitely-maybe-2008-abc123")
+                assert response.status_code == 200
+                body = await response.get_data(as_text=True)
 
         assert (
             'rel="preload" as="image" href="https://image.tmdb.org/t/p/w780/'
@@ -240,6 +254,7 @@ async def test_movie_detail_renders_partial_payload_for_deep_link():
         manager.projection_store.fetch_renderable_payload = AsyncMock(
             return_value={
                 "title": "X",
+                "primaryTitle": "X",
                 "year": "2024",
                 "genres": "Drama",
                 "directors": "Unknown",
@@ -251,6 +266,7 @@ async def test_movie_detail_renders_partial_payload_for_deep_link():
                 "cast": [],
                 "tmdb_id": None,
                 "imdb_id": "tt1234567",
+                "public_id": "abc123",
                 "_full": False,
                 "projection_state": "core",
             }
@@ -267,8 +283,12 @@ async def test_movie_detail_renders_partial_payload_for_deep_link():
         app = _make_test_app()
         async with app.app_context():
             client = app.test_client()
-            response = await client.get("/movie/tt1234567")
-            assert response.status_code == 200
+            with patch(
+                "nextreel.web.routes.shared.resolve_to_tconst",
+                new=AsyncMock(return_value="tt1234567"),
+            ):
+                response = await client.get("/movie/x-2024-abc123")
+                assert response.status_code == 200
 
 
 async def test_movie_detail_allows_partial_payload_when_render_blocking_disabled():
@@ -287,6 +307,7 @@ async def test_movie_detail_allows_partial_payload_when_render_blocking_disabled
         manager.projection_store.fetch_renderable_payload = AsyncMock(
             return_value={
                 "title": "X",
+                "primaryTitle": "X",
                 "year": "2024",
                 "genres": "Drama",
                 "directors": "Unknown",
@@ -298,6 +319,7 @@ async def test_movie_detail_allows_partial_payload_when_render_blocking_disabled
                 "cast": [],
                 "tmdb_id": None,
                 "imdb_id": "tt1234567",
+                "public_id": "abc123",
                 "_full": False,
                 "projection_state": "core",
             }
@@ -314,8 +336,12 @@ async def test_movie_detail_allows_partial_payload_when_render_blocking_disabled
         app = _make_test_app()
         async with app.app_context():
             client = app.test_client()
-            response = await client.get("/movie/tt1234567")
-            assert response.status_code == 200
+            with patch(
+                "nextreel.web.routes.shared.resolve_to_tconst",
+                new=AsyncMock(return_value="tt1234567"),
+            ):
+                response = await client.get("/movie/x-2024-abc123")
+                assert response.status_code == 200
 
 
 async def test_movie_detail_rejects_bad_tconst():
@@ -379,6 +405,10 @@ async def test_startup_hook_initializes_movie_manager_without_db_warmup_queries(
         patch("app.MovieManager") as MockManager,
         patch(
             "nextreel.web.lifecycle.ensure_movie_candidates_fulltext_index",
+            AsyncMock(),
+        ),
+        patch(
+            "nextreel.web.lifecycle.assert_no_null_public_ids",
             AsyncMock(),
         ),
     ):

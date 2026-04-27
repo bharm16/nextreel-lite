@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import re
 import socket
 from pathlib import Path
 
@@ -24,6 +25,7 @@ from infra.metrics import (
     application_errors_total,
     bucket_error_type,
     setup_metrics_middleware,
+    tt_url_404_total,
 )
 from nextreel.domain.navigation_state import (
     SESSION_COOKIE_MAX_AGE,
@@ -53,6 +55,13 @@ class FixedQuart(Quart):
 logger = get_logger(__name__)
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
+
+# Legacy IMDb-tconst URL patterns that should now 404 post-migration to the
+# public_id slug scheme. We track 404s on these specific shapes so we can see
+# how many bookmarks / external links still point at the dead URLs.
+_LEGACY_TT_PATH_RE = re.compile(
+    r"/(?:movie|watched/(?:add|remove)|watchlist/(?:add|remove)|api/projection-state)/tt\d+"
+)
 
 
 def _navigation_cookie_max_age(config) -> int:
@@ -208,6 +217,19 @@ def create_app():
             pass
 
     got_request_exception.connect(_on_request_exception, app)
+
+    # Count 404s that hit legacy /movie/tt..., /watched/{add,remove}/tt...,
+    # /watchlist/{add,remove}/tt..., or /api/projection-state/tt... URLs so we
+    # can see how many bookmarks/external links still target the pre-migration
+    # IMDb-tconst URL scheme. Always returns the default 404 response.
+    @app.errorhandler(404)
+    async def _on_404(error):  # noqa: ARG001 - Quart passes the exception
+        try:
+            if _LEGACY_TT_PATH_RE.search(request.path or ""):
+                tt_url_404_total.inc()
+        except Exception:  # pragma: no cover - metrics must never break error path
+            pass
+        return "Not found", 404
 
     app.register_blueprint(routes_bp)
     return app

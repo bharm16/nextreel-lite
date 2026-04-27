@@ -163,8 +163,8 @@
   // and reload as soon as the row flips to a serveable state. The reload
   // path gives us a fully populated render including the hero image preload.
   var state = document.body.dataset.projectionState;
-  var tconst = document.body.dataset.tconst;
-  if (!tconst) return;
+  var publicId = document.body.dataset.publicId || "";
+  if (!publicId) return;
   if (state === "ready" || state === "stale") return;
 
   var attempts = 0;
@@ -173,7 +173,7 @@
 
   function poll() {
     attempts += 1;
-    fetch("/api/projection-state/" + encodeURIComponent(tconst), {
+    fetch("/api/projection-state/" + encodeURIComponent(publicId), {
       credentials: "same-origin",
       headers: { Accept: "application/json" },
     })

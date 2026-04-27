@@ -164,7 +164,7 @@ class WatchlistStore:
             SELECT sub.tconst, sub.added_at,
                    sub.primaryTitle, sub.startYear, sub.genres, sub.slug,
                    sub.averageRating,
-                   p.payload_json
+                   p.payload_json, p.public_id
             FROM (
                 SELECT w.tconst, w.added_at,
                        c.primaryTitle, c.startYear, c.genres, c.slug,

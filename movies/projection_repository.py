@@ -7,12 +7,20 @@ from datetime import datetime, date
 from decimal import Decimal
 from typing import Any
 
+from infra.errors import DatabaseError
 from infra.time_utils import utcnow
 from movies.projection_state import (
     FAILED_RETRY_COOLDOWN,
     EnrichmentResult,
     ProjectionState,
     STALE_AFTER,
+)
+from movies.public_id import (
+    MAX_GENERATION_ATTEMPTS,
+    PublicIdGenerationError,
+    assign_public_id,
+    generate as _generate_public_id,
+    is_public_id_collision,
 )
 
 PLACEHOLDER_POSTER = "/static/img/poster-placeholder.svg"
@@ -51,6 +59,9 @@ class ProjectionRepository:
             payload = {}
         payload.setdefault("projection_state", row.get("projection_state"))
         payload.setdefault("tconst", row.get("tconst"))
+        # Public ID is sourced from the row column, not payload_json — it's
+        # canonical metadata, not part of the rendered movie body.
+        payload.setdefault("public_id", row.get("public_id"))
         return payload
 
     @staticmethod
@@ -70,6 +81,7 @@ class ProjectionRepository:
             "tconst": row["tconst"],
             "imdb_id": row["tconst"],
             "tmdb_id": None,
+            "public_id": None,
             "slug": row.get("slug"),
             "genres": genres,
             "directors": "Unknown",
@@ -109,7 +121,8 @@ class ProjectionRepository:
         return await self.db_pool.execute(
             """
             SELECT tconst, tmdb_id, payload_json, projection_state,
-                   enriched_at, stale_after, last_attempt_at, attempt_count, last_error
+                   enriched_at, stale_after, last_attempt_at, attempt_count, last_error,
+                   public_id
             FROM movie_projection
             WHERE tconst = %s
             """,
@@ -127,7 +140,8 @@ class ProjectionRepository:
         placeholders = ",".join(["%s"] * len(unique))
         sql = f"""
             SELECT tconst, tmdb_id, payload_json, projection_state,
-                   enriched_at, stale_after, last_attempt_at, attempt_count, last_error
+                   enriched_at, stale_after, last_attempt_at, attempt_count, last_error,
+                   public_id
             FROM movie_projection
             WHERE tconst IN ({placeholders})
         """
@@ -179,13 +193,13 @@ class ProjectionRepository:
 
         payload = self.build_core_payload(row)
         now = utcnow()
-        await self.db_pool.execute(
-            """
+        sql = """
             INSERT INTO movie_projection (
                 tconst, tmdb_id, payload_json, projection_state,
-                enriched_at, stale_after, last_attempt_at, attempt_count, last_error
+                enriched_at, stale_after, last_attempt_at, attempt_count, last_error,
+                public_id
             )
-            VALUES (%s, %s, %s, %s, NULL, NULL, NULL, 0, NULL)
+            VALUES (%s, %s, %s, %s, NULL, NULL, NULL, 0, NULL, %s)
             AS new_row
             ON DUPLICATE KEY UPDATE
                 payload_json = CASE
@@ -196,21 +210,54 @@ class ProjectionRepository:
                     WHEN movie_projection.projection_state IN (%s, %s) THEN movie_projection.projection_state
                     ELSE new_row.projection_state
                 END,
-                last_attempt_at = COALESCE(movie_projection.last_attempt_at, %s)
-            """,
-            [
+                last_attempt_at = COALESCE(movie_projection.last_attempt_at, %s),
+                public_id = COALESCE(movie_projection.public_id, new_row.public_id)
+            """
+        last_error: Exception | None = None
+        for _ in range(MAX_GENERATION_ATTEMPTS):
+            candidate = _generate_public_id()
+            try:
+                await self.db_pool.execute(
+                    sql,
+                    [
+                        tconst,
+                        None,
+                        _dumps(self.persisted_payload(payload)),
+                        ProjectionState.CORE.value,
+                        candidate,
+                        ProjectionState.READY.value,
+                        ProjectionState.STALE.value,
+                        ProjectionState.READY.value,
+                        ProjectionState.STALE.value,
+                        now,
+                    ],
+                    fetch="none",
+                )
+                break
+            except DatabaseError as exc:
+                if is_public_id_collision(exc):
+                    last_error = exc
+                    continue
+                raise
+        else:
+            raise PublicIdGenerationError(
+                "Failed to write core projection for %s after %d public_id attempts (last error: %s)"
+                % (tconst, MAX_GENERATION_ATTEMPTS, last_error)
+            )
+        try:
+            await assign_public_id(self.db_pool, tconst)
+        except Exception:  # noqa: BLE001 — best-effort
+            # Backfill / next enrichment will pick this up. A failure here
+            # must not roll back the projection write. Now mostly redundant
+            # since the INSERT path sets public_id directly and the UPDATE
+            # path preserves any pre-existing value via COALESCE — kept as
+            # a safety net.
+            from logging_config import get_logger
+            get_logger(__name__).warning(
+                "public_id assignment failed for %s; will retry on next enrichment",
                 tconst,
-                None,
-                _dumps(self.persisted_payload(payload)),
-                ProjectionState.CORE.value,
-                ProjectionState.READY.value,
-                ProjectionState.STALE.value,
-                ProjectionState.READY.value,
-                ProjectionState.STALE.value,
-                now,
-            ],
-            fetch="none",
-        )
+                exc_info=True,
+            )
         return payload
 
     async def ready_check(self) -> bool:
@@ -231,13 +278,13 @@ class ProjectionRepository:
         now: datetime,
         attempts: int,
     ) -> None:
-        await self.db_pool.execute(
-            """
+        sql = """
             INSERT INTO movie_projection (
                 tconst, tmdb_id, payload_json, projection_state,
-                enriched_at, stale_after, last_attempt_at, attempt_count, last_error
+                enriched_at, stale_after, last_attempt_at, attempt_count, last_error,
+                public_id
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NULL)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NULL, %s)
             AS new_row
             ON DUPLICATE KEY UPDATE
                 tmdb_id = new_row.tmdb_id,
@@ -247,20 +294,53 @@ class ProjectionRepository:
                 stale_after = new_row.stale_after,
                 last_attempt_at = new_row.last_attempt_at,
                 attempt_count = new_row.attempt_count,
-                last_error = NULL
-            """,
-            [
+                last_error = NULL,
+                public_id = COALESCE(movie_projection.public_id, new_row.public_id)
+            """
+        last_error: Exception | None = None
+        for _ in range(MAX_GENERATION_ATTEMPTS):
+            candidate = _generate_public_id()
+            try:
+                await self.db_pool.execute(
+                    sql,
+                    [
+                        tconst,
+                        payload.get("tmdb_id"),
+                        _dumps(self.persisted_payload(payload)),
+                        ProjectionState.READY.value,
+                        now,
+                        now + STALE_AFTER,
+                        now,
+                        attempts,
+                        candidate,
+                    ],
+                    fetch="none",
+                )
+                break
+            except DatabaseError as exc:
+                if is_public_id_collision(exc):
+                    last_error = exc
+                    continue
+                raise
+        else:
+            raise PublicIdGenerationError(
+                "Failed to write ready projection for %s after %d public_id attempts (last error: %s)"
+                % (tconst, MAX_GENERATION_ATTEMPTS, last_error)
+            )
+        try:
+            await assign_public_id(self.db_pool, tconst)
+        except Exception:  # noqa: BLE001 — best-effort
+            # Backfill / next enrichment will pick this up. A failure here
+            # must not roll back the projection write. Now mostly redundant
+            # since the INSERT path sets public_id directly and the UPDATE
+            # path preserves any pre-existing value via COALESCE — kept as
+            # a safety net.
+            from logging_config import get_logger
+            get_logger(__name__).warning(
+                "public_id assignment failed for %s; will retry on next enrichment",
                 tconst,
-                payload.get("tmdb_id"),
-                _dumps(self.persisted_payload(payload)),
-                ProjectionState.READY.value,
-                now,
-                now + STALE_AFTER,
-                now,
-                attempts,
-            ],
-            fetch="none",
-        )
+                exc_info=True,
+            )
 
     async def refresh_ready_metadata(
         self,

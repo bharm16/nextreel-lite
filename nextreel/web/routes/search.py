@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
-from quart import abort, jsonify, request
+from quart import jsonify, request
 
 from infra.route_helpers import rate_limited, with_timeout
 from logging_config import get_logger
+from movies.movie_url import build_movie_path
 from movies.search_queries import build_search_query
-from nextreel.web.routes.shared import _REQUEST_TIMEOUT, _TCONST_RE, _services, bp
+from nextreel.web.routes.shared import (
+    _REQUEST_TIMEOUT,
+    _resolve_public_id_or_404,
+    _services,
+    bp,
+)
 
 logger = get_logger(__name__)
 
@@ -65,29 +71,35 @@ async def search_titles():
         logger.warning("Search query failed for q=%r: %s", raw_query, exc)
         return jsonify({"results": []})
 
+    # Build the canonical /movie/<slug>-<public_id> URL server-side and
+    # ship it in the response. Frontend used to construct /movie/<tconst>,
+    # which the new public_id router 404s on. Rows without a public_id
+    # (candidate has no projection row yet) are skipped — they're not
+    # navigable until enrichment runs.
     results = [
         {
-            "tconst": row.get("tconst"),
             "title": row.get("primaryTitle"),
             "year": row.get("startYear"),
             "rating": float(row["averageRating"]) if row.get("averageRating") is not None else None,
             "poster_url": _thumb_url(row.get("poster_url")),
+            "url": build_movie_path(
+                row.get("primaryTitle"), row.get("startYear"), row["public_id"]
+            ),
         }
         for row in rows
+        if row.get("public_id")
     ]
     return jsonify({"results": results})
 
 
-@bp.route("/api/projection-state/<tconst>", methods=["GET"])
+@bp.route("/api/projection-state/<public_id>", methods=["GET"])
 @with_timeout(_REQUEST_TIMEOUT)
-async def projection_state(tconst):
+async def projection_state(public_id):
     """Lightweight projection state probe — used by the movie page poller
     to detect when background enrichment has completed so it can refresh
     into the fully-populated view.
     """
-    if not _TCONST_RE.match(tconst):
-        abort(400, "Invalid movie identifier")
-
+    tconst = await _resolve_public_id_or_404(public_id)
     services = _services()
     row = await services.movie_manager.projection_store.select_row(tconst)
     state = row.get("projection_state") if row else None

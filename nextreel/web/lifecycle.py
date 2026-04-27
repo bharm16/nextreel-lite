@@ -5,7 +5,10 @@ from contextlib import asynccontextmanager
 
 from quart import Quart
 
-from infra.runtime_schema import ensure_movie_candidates_fulltext_index
+from infra.runtime_schema import (
+    assert_no_null_public_ids,
+    ensure_movie_candidates_fulltext_index,
+)
 from logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -82,6 +85,7 @@ def register_lifecycle_handlers(
     async def startup():
         logger.info("Starting application warm-up...")
         await ensure_movie_manager_started()
+        await assert_no_null_public_ids(movie_manager.db_pool)
 
         async def repair_fulltext_index():
             try:

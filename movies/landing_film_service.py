@@ -64,7 +64,8 @@ async def _ready_row_count(pool) -> int:
     if _READY_COUNT_CACHE["expires_at"] > now:
         return int(_READY_COUNT_CACHE["value"])
     row = await pool.execute(
-        "SELECT COUNT(*) AS n FROM movie_projection WHERE projection_state = 'ready'",
+        "SELECT COUNT(*) AS n FROM movie_projection "
+        "WHERE projection_state = 'ready'",
         fetch="one",
     )
     count = int(row["n"]) if row and row.get("n") is not None else 0
@@ -129,7 +130,7 @@ async def fetch_random_landing_film(pool) -> dict[str, Any] | None:
     try:
         rows = await pool.execute(
             f"""
-            SELECT tconst, payload_json
+            SELECT tconst, payload_json, public_id
             FROM movie_projection
             WHERE tconst IN ({placeholders})
             """,
@@ -162,6 +163,7 @@ async def fetch_random_landing_film(pool) -> dict[str, Any] | None:
             continue
         return {
             "tconst": row["tconst"],
+            "public_id": row.get("public_id"),
             "title": payload.get("title"),
             "year": _clean(payload.get("year")),
             "director": _clean(payload.get("directors")),

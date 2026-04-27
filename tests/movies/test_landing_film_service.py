@@ -84,6 +84,7 @@ async def test_fetch_returns_flat_dict_from_row_with_dict_payload():
     result = await fetch_random_landing_film(pool)
     assert result == {
         "tconst": "tt0109424",
+        "public_id": None,
         "title": "Chungking Express",
         "year": "1994",
         "director": "Wong Kar-wai",
@@ -234,3 +235,22 @@ async def test_fetch_skips_count_on_second_call_when_cached():
     count_calls_2 = sum(1 for c in pool.execute.await_args_list if "COUNT(*)" in c.args[0])
     assert count_calls_1 == 1
     assert count_calls_2 == 1  # still 1 — second call hit the cache
+
+
+async def test_landing_film_query_selects_public_id():
+    from unittest.mock import AsyncMock
+    from movies.landing_film_service import fetch_random_landing_film
+
+    pool = AsyncMock()
+    pool.execute = AsyncMock(
+        side_effect=[
+            {"n": 1},                     # COUNT query result
+            [{"tconst": "tt0000001"}],    # id-only SELECT result
+            None,                          # payload SELECT — return None, function exits gracefully
+        ]
+    )
+
+    await fetch_random_landing_film(pool)
+
+    all_sqls = [call.args[0] for call in pool.execute.await_args_list]
+    assert any("public_id" in sql for sql in all_sqls)

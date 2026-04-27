@@ -1,8 +1,9 @@
 """Tests for MetricsCollector — user tracking, eviction, collection lifecycle."""
 
 import asyncio
+import os
 import time
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -149,6 +150,51 @@ class TestCollectDbMetrics:
 # ---------------------------------------------------------------------------
 # Stale user eviction in background loop
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Dead-URL counter for legacy /movie/tt... 404s
+# ---------------------------------------------------------------------------
+
+
+def _read_counter_value(counter):
+    """Read a Prometheus Counter's current value across client versions."""
+    try:
+        return counter._value.get()
+    except AttributeError:
+        try:
+            return counter._value._value
+        except AttributeError:
+            return counter.collect()[0].samples[0].value
+
+
+@pytest.fixture
+def tt_url_test_client():
+    """Real Quart app test client used to drive a 404 through the handler."""
+    from tests.helpers import TEST_ENV
+
+    with patch.dict(os.environ, TEST_ENV), patch("app.MovieManager") as MockManager:
+        manager = MockManager.return_value
+        manager.home = AsyncMock(return_value={"default_backdrop_url": None})
+        manager.db_pool = MagicMock()
+        manager.db_pool.execute = AsyncMock(return_value=[])
+
+        from app import create_app
+
+        app = create_app()
+        app.config["TESTING"] = True
+        yield app.test_client()
+
+
+@pytest.mark.asyncio
+async def test_tt_url_404_counter_increments_on_imdb_path_404(tt_url_test_client):
+    from infra.metrics import tt_url_404_total
+
+    before = _read_counter_value(tt_url_404_total)
+    response = await tt_url_test_client.get("/movie/tt0393109")
+    assert response.status_code == 404
+    after = _read_counter_value(tt_url_404_total)
+    assert after >= before + 1
 
 
 class TestStaleUserEviction:

@@ -16,6 +16,11 @@ def test_client():
         manager = MockManager.return_value
         manager.home = AsyncMock(return_value={"default_backdrop_url": None})
         manager.db_pool = MagicMock()
+        # Home route no longer issues an extra public_id lookup — landing
+        # film comes pre-populated from fetch_random_landing_film, and the
+        # hardcoded fallback pool intentionally has no public_id (the
+        # template hides the "See this film" CTA in that case).
+        manager.db_pool.execute = AsyncMock(return_value=None)
 
         from app import create_app
 

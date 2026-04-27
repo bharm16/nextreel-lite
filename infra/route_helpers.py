@@ -11,18 +11,26 @@ import functools
 import hmac
 from typing import Callable
 
-from quart import abort, g, request, url_for
+from quart import abort, g, request
 
 from infra.rate_limit import check_rate_limit
 from logging_config import get_logger
 
 
-def safe_referrer(fallback_tconst: str) -> str:
-    """Return request.referrer only if it shares our origin; otherwise fall back."""
+async def safe_referrer(fallback_tconst: str) -> str:
+    """Return request.referrer only if it shares our origin; otherwise fall back.
+
+    The fallback URL is built via :func:`_build_movie_url_for_tconst` so the
+    canonical ``/movie/<slug>-<public_id>`` path is used. Imported lazily to
+    avoid circular imports between ``infra.route_helpers`` and the routes
+    package.
+    """
     referrer = request.referrer
     if referrer and referrer.startswith(request.host_url):
         return referrer
-    return url_for("main.movie_detail", tconst=fallback_tconst)
+    from nextreel.web.routes.shared import _build_movie_url_for_tconst
+
+    return await _build_movie_url_for_tconst(fallback_tconst)
 
 logger = get_logger(__name__)
 

@@ -1,8 +1,8 @@
-{% set href = url_for('main.movie_detail', tconst=movie.tconst) %}
+{% set href = movie_url(movie) %}
 <div
   class="watched-card"
   role="listitem"
-  data-tconst="{{ movie.tconst }}"
+  data-public-id="{{ movie.public_id }}"
   data-title="{{ movie.title }}"
   data-year="{{ movie.year if movie.year else '' }}"
   data-rating="{{ movie.tmdb_rating }}"
@@ -24,7 +24,7 @@
   <button
     type="button"
     class="watched-remove"
-    data-tconst="{{ movie.tconst }}"
+    data-public-id="{{ movie.public_id }}"
     aria-label="Remove {{ movie.title }} from watchlist"
   >
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">

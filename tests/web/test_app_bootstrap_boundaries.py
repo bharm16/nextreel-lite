@@ -186,6 +186,10 @@ async def test_lifecycle_startup_schedules_candidate_refresh(app, monkeypatch):
         "nextreel.web.lifecycle.ensure_movie_candidates_fulltext_index",
         AsyncMock(),
     )
+    monkeypatch.setattr(
+        "nextreel.web.lifecycle.assert_no_null_public_ids",
+        AsyncMock(),
+    )
 
     register_lifecycle_handlers(
         app,
@@ -198,3 +202,30 @@ async def test_lifecycle_startup_schedules_candidate_refresh(app, monkeypatch):
 
     ensure_started.assert_awaited_once()
     app.enqueue_runtime_job.assert_awaited_once_with("refresh_movie_candidates")
+
+
+async def test_startup_aborts_when_null_public_id_rows_exist():
+    """If backfill didn't run, the app refuses to start.
+
+    The probe is ``SELECT 1 ... WHERE public_id IS NULL LIMIT 1`` —
+    truthy result means at least one NULL row exists.
+    """
+    from unittest.mock import AsyncMock
+
+    from infra.runtime_schema import assert_no_null_public_ids
+    pool = AsyncMock()
+    pool.execute = AsyncMock(return_value={"1": 1})  # row exists
+
+    with pytest.raises(RuntimeError, match="public_id"):
+        await assert_no_null_public_ids(pool)
+
+
+async def test_startup_passes_when_no_null_public_ids():
+    from unittest.mock import AsyncMock
+
+    from infra.runtime_schema import assert_no_null_public_ids
+    pool = AsyncMock()
+    pool.execute = AsyncMock(return_value=None)  # no row → no NULLs
+
+    # Should not raise.
+    await assert_no_null_public_ids(pool)

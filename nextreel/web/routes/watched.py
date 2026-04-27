@@ -10,10 +10,10 @@ from quart import abort, jsonify, redirect, render_template, request, url_for
 from infra.route_helpers import csrf_required, rate_limited, safe_referrer as _safe_referrer
 from nextreel.web.routes.shared import (
     LIST_VALID_SORTS,
-    _TCONST_RE,
     _current_user_id,
     _letterboxd_import_service,
     _require_login,
+    _resolve_public_id_or_404,
     _services,
     _watched_list_presenter,
     _watched_progress_service,
@@ -89,12 +89,11 @@ async def watched_list_page():
     )
 
 
-@bp.route("/watched/add/<tconst>", methods=["POST"])
+@bp.route("/watched/add/<public_id>", methods=["POST"])
 @csrf_required
 @rate_limited("watched")
-async def add_to_watched(tconst):
-    if not _TCONST_RE.match(tconst):
-        abort(400, "Invalid movie identifier")
+async def add_to_watched(public_id):
+    tconst = await _resolve_public_id_or_404(public_id)
     user_id = _current_user_id()
     if not user_id:
         abort(401, "Login required")
@@ -103,23 +102,19 @@ async def add_to_watched(tconst):
     await services.movie_manager.watched_store.add(user_id, tconst)
     logger.info("User %s marked %s as watched", user_id, tconst)
     if _wants_json_response():
-        return jsonify(
-            {
-                "ok": True,
-                "is_watched": True,
-                "tconst": tconst,
-            }
-        )
+        # public_id is the opaque client-facing key; tconst is intentionally
+        # omitted so the API doesn't perpetuate external dependence on the
+        # internal IMDb identifier.
+        return jsonify({"ok": True, "is_watched": True, "public_id": public_id})
 
-    return redirect(_safe_referrer(tconst), code=303)
+    return redirect(await _safe_referrer(tconst), code=303)
 
 
-@bp.route("/watched/remove/<tconst>", methods=["POST"])
+@bp.route("/watched/remove/<public_id>", methods=["POST"])
 @csrf_required
 @rate_limited("watched")
-async def remove_from_watched(tconst):
-    if not _TCONST_RE.match(tconst):
-        abort(400, "Invalid movie identifier")
+async def remove_from_watched(public_id):
+    tconst = await _resolve_public_id_or_404(public_id)
     user_id = _current_user_id()
     if not user_id:
         abort(401, "Login required")
@@ -128,15 +123,9 @@ async def remove_from_watched(tconst):
     await services.movie_manager.watched_store.remove(user_id, tconst)
     logger.info("User %s removed %s from watched", user_id, tconst)
     if _wants_json_response():
-        return jsonify(
-            {
-                "ok": True,
-                "is_watched": False,
-                "tconst": tconst,
-            }
-        )
+        return jsonify({"ok": True, "is_watched": False, "public_id": public_id})
 
-    return redirect(_safe_referrer(tconst), code=303)
+    return redirect(await _safe_referrer(tconst), code=303)
 
 
 @bp.route("/watched/import-letterboxd", methods=["POST"])

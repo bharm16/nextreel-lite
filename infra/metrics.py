@@ -31,6 +31,7 @@ from infra.metrics_groups import (
     enrichment,
     worker as worker_metrics_group,
     logging_metrics as logging_metrics_group,
+    tt_url_404_total,
 )
 
 logger = get_logger(__name__)

@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from quart import g, session as quart_session
+from werkzeug.exceptions import HTTPException
 
 from nextreel.application.letterboxd_import_service import LetterboxdImportOutcome
 from nextreel.application.watched_progress_service import WatchedEnrichmentProgress
@@ -178,3 +179,93 @@ async def test_enrichment_progress_delegates_polling_to_application_service(app,
             "_watched_card.html",
             movie={"tconst": "tt1", "title": "Ready"},
         )
+
+
+@pytest.mark.asyncio
+async def test_add_to_watched_resolves_public_id(app):
+    """POST /watched/add/<public_id> resolves the ID and inserts the right tconst."""
+    _movie_manager, watched_store = _install_services(app)
+    watched_store.add = AsyncMock()
+
+    async with app.test_request_context(
+        "/watched/add/a8fk3j",
+        method="POST",
+        headers={"X-CSRFToken": "csrf-token", "Accept": "application/json"},
+    ):
+        g.navigation_state = _nav_state()
+        with patch(
+            "nextreel.web.routes.shared.resolve_to_tconst",
+            new=AsyncMock(return_value="tt0393109"),
+        ):
+            response = await watched_routes.add_to_watched("a8fk3j")
+            data = await response.get_json()
+
+    assert response.status_code == 200
+    assert data == {
+        "ok": True,
+        "is_watched": True,
+        "public_id": "a8fk3j",
+    }
+    watched_store.add.assert_awaited_once_with("user-123", "tt0393109")
+
+
+@pytest.mark.asyncio
+async def test_add_to_watched_404_for_imdb_path(app):
+    """Old /watched/add/tt0393109 path returns 404."""
+    _install_services(app)
+
+    async with app.test_request_context(
+        "/watched/add/tt0393109",
+        method="POST",
+        headers={"X-CSRFToken": "csrf-token"},
+    ):
+        g.navigation_state = _nav_state()
+        with pytest.raises(HTTPException) as exc_info:
+            await watched_routes.add_to_watched("tt0393109")
+
+    assert exc_info.value.code == 404
+
+
+@pytest.mark.asyncio
+async def test_remove_from_watched_resolves_public_id(app):
+    """POST /watched/remove/<public_id> resolves the ID and removes the right tconst."""
+    _movie_manager, watched_store = _install_services(app)
+    watched_store.remove = AsyncMock()
+
+    async with app.test_request_context(
+        "/watched/remove/a8fk3j",
+        method="POST",
+        headers={"X-CSRFToken": "csrf-token", "Accept": "application/json"},
+    ):
+        g.navigation_state = _nav_state()
+        with patch(
+            "nextreel.web.routes.shared.resolve_to_tconst",
+            new=AsyncMock(return_value="tt0393109"),
+        ):
+            response = await watched_routes.remove_from_watched("a8fk3j")
+            data = await response.get_json()
+
+    assert response.status_code == 200
+    assert data == {
+        "ok": True,
+        "is_watched": False,
+        "public_id": "a8fk3j",
+    }
+    watched_store.remove.assert_awaited_once_with("user-123", "tt0393109")
+
+
+@pytest.mark.asyncio
+async def test_remove_from_watched_404_for_imdb_path(app):
+    """Old /watched/remove/tt0393109 path returns 404."""
+    _install_services(app)
+
+    async with app.test_request_context(
+        "/watched/remove/tt0393109",
+        method="POST",
+        headers={"X-CSRFToken": "csrf-token"},
+    ):
+        g.navigation_state = _nav_state()
+        with pytest.raises(HTTPException) as exc_info:
+            await watched_routes.remove_from_watched("tt0393109")
+
+    assert exc_info.value.code == 404
