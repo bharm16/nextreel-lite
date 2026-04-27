@@ -162,7 +162,7 @@ class GoogleOAuthService:
             return OAuthOutcome(
                 kind="provider_conflict",
                 error_message=(
-                    "An account with this email already exists. Please log in with %s."
+                    "An account with this email already exists. Please sign in with %s."
                     % provider
                 ),
             )

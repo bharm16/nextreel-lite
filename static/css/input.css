@@ -1824,7 +1824,8 @@
     .watched-toolbar { padding: 1rem 1rem 0; }
     .watched-grid {
       padding: 1.5rem 1rem 0;
-      gap: 1rem;
+      gap: 0.5rem;
+      grid-template-columns: repeat(auto-fill, minmax(75px, 1fr));
     }
     .watched-search-wrap { width: 60%; }
     .watched-grid-footer { padding: 2rem 1rem; }
