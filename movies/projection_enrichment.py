@@ -249,9 +249,14 @@ class ProjectionEnrichmentCoordinator:
         self,
         tconst: str,
         tmdb_id: int | None = None,
-    ) -> asyncio.Task:
+    ) -> asyncio.Task | None:
         """Atomically return an existing in-flight enrichment task for
         ``tconst`` or start a new one.
+
+        Returns ``None`` when the in-flight backlog is at capacity so a
+        burst of distinct-tconst prefetches (e.g. spam-clicked navigation)
+        cannot grow the map without bound. Callers MUST treat ``None`` as
+        "not started" and skip awaiting.
 
         The single coordinator lock is held only across map lookup and task
         creation/insertion — never across the enrichment work itself. A task
@@ -262,6 +267,18 @@ class ProjectionEnrichmentCoordinator:
             existing = self._inflight_enrichment.get(tconst)
             if existing is not None and not existing.done():
                 return existing
+
+            pending = len(self._inflight_enrichment)
+            cap = self._local_enrichment_max_pending
+            if pending >= cap:
+                logger.warning(
+                    "Inflight enrichment backlog full (%d/%d), dropping schedule for %s",
+                    pending,
+                    cap,
+                    tconst,
+                )
+                safe_emit(enrichment_backlog_drop_total.inc)
+                return None
 
             task = asyncio.create_task(self._run_inflight_enrichment(tconst, tmdb_id))
             self._inflight_enrichment[tconst] = task

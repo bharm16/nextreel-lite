@@ -17,6 +17,9 @@ from logging_config import get_logger
 logger = get_logger(__name__)
 
 
+_LOOKAHEAD_PREFETCH_DEPTH = 2
+
+
 @dataclass(frozen=True, slots=True)
 class NavigationOutcome:
     tconst: str | None
@@ -24,17 +27,26 @@ class NavigationOutcome:
     public_id: str | None = None
     title: str | None = None
     year: str | None = None
+    upcoming_tconsts: tuple[str, ...] = ()
 
     @classmethod
     def from_ref(
-        cls, ref: dict | None, *, state_conflict: bool = False
+        cls,
+        ref: dict | None,
+        *,
+        state_conflict: bool = False,
+        upcoming_tconsts: tuple[str, ...] = (),
     ) -> "NavigationOutcome":
         """Build a NavigationOutcome from a navigator ref dict.
 
         Carries forward ``public_id``, ``title`` and ``year`` so the
         redirect helper can build the canonical URL without an extra DB
         lookup. ``year`` is coerced to a string for URL-builder
-        compatibility.
+        compatibility. ``upcoming_tconsts`` carries the next refs sitting
+        in ``state.queue`` so the redirect handler can warm TMDb
+        enrichment for them in parallel — this is what keeps back-to-back
+        clicks from rendering the "Additional details are still loading"
+        placeholder.
         """
         if not ref:
             return cls(tconst=None, state_conflict=state_conflict)
@@ -45,7 +57,20 @@ class NavigationOutcome:
             public_id=ref.get("public_id"),
             title=ref.get("title"),
             year=str(year) if year is not None else None,
+            upcoming_tconsts=upcoming_tconsts,
         )
+
+
+def _upcoming_from_state(state) -> tuple[str, ...]:
+    queue = getattr(state, "queue", None) if state else None
+    if not queue:
+        return ()
+    out: list[str] = []
+    for ref in queue[:_LOOKAHEAD_PREFETCH_DEPTH]:
+        tconst = ref.get("tconst") if isinstance(ref, dict) else None
+        if tconst:
+            out.append(tconst)
+    return tuple(out)
 
 
 def _movie_ref(movie_data: dict) -> dict:
@@ -280,7 +305,10 @@ class MovieNavigator:
             return self._conflict_outcome(result.state)
         if result.result:
             logger.info("Navigating to next movie %s", result.result.get("tconst"))
-            return NavigationOutcome.from_ref(result.result)
+            return NavigationOutcome.from_ref(
+                result.result,
+                upcoming_tconsts=_upcoming_from_state(result.state),
+            )
         return None
 
     async def previous_movie(
@@ -311,8 +339,10 @@ class MovieNavigator:
         if result.conflicted:
             return self._conflict_outcome(result.state)
         if result.result:
-            logger.info("Navigating to previous movie %s", result.result.get("tconst"))
-            return NavigationOutcome.from_ref(result.result)
+            return NavigationOutcome.from_ref(
+                result.result,
+                upcoming_tconsts=_upcoming_from_state(result.state),
+            )
         return None
 
     async def apply_filters(
@@ -350,5 +380,8 @@ class MovieNavigator:
         if result.conflicted:
             return self._conflict_outcome(result.state)
         if result.result:
-            return NavigationOutcome.from_ref(result.result)
+            return NavigationOutcome.from_ref(
+                result.result,
+                upcoming_tconsts=_upcoming_from_state(result.state),
+            )
         return None

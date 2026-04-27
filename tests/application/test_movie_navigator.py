@@ -9,7 +9,13 @@ filter resets) lives in tests/application/test_movie_navigator_extended.py.
 
 from __future__ import annotations
 
-from nextreel.application.movie_navigator import NavigationOutcome, _movie_ref
+from types import SimpleNamespace
+
+from nextreel.application.movie_navigator import (
+    NavigationOutcome,
+    _movie_ref,
+    _upcoming_from_state,
+)
 
 
 def test_movie_ref_includes_public_id_when_provided():
@@ -114,3 +120,60 @@ def test_navigation_outcome_from_ref_none_with_state_conflict():
     outcome = NavigationOutcome.from_ref(None, state_conflict=True)
     assert outcome.tconst is None
     assert outcome.state_conflict is True
+
+
+def test_navigation_outcome_from_ref_default_upcoming_is_empty():
+    outcome = NavigationOutcome.from_ref(
+        {"tconst": "tt0393109", "public_id": "a8fk3j", "title": "The Departed"}
+    )
+    assert outcome.upcoming_tconsts == ()
+
+
+def test_navigation_outcome_from_ref_carries_upcoming_tconsts():
+    outcome = NavigationOutcome.from_ref(
+        {"tconst": "tt0393109", "public_id": "a8fk3j", "title": "The Departed"},
+        upcoming_tconsts=("tt1", "tt2"),
+    )
+    assert outcome.upcoming_tconsts == ("tt1", "tt2")
+
+
+def test_upcoming_from_state_returns_first_two_tconsts():
+    state = SimpleNamespace(
+        queue=[
+            {"tconst": "tt1"},
+            {"tconst": "tt2"},
+            {"tconst": "tt3"},
+        ]
+    )
+    assert _upcoming_from_state(state) == ("tt1", "tt2")
+
+
+def test_upcoming_from_state_handles_short_queue():
+    state = SimpleNamespace(queue=[{"tconst": "tt1"}])
+    assert _upcoming_from_state(state) == ("tt1",)
+
+
+def test_upcoming_from_state_empty_queue_returns_empty_tuple():
+    state = SimpleNamespace(queue=[])
+    assert _upcoming_from_state(state) == ()
+
+
+def test_upcoming_from_state_none_state_returns_empty_tuple():
+    assert _upcoming_from_state(None) == ()
+
+
+def test_upcoming_from_state_skips_non_dict_refs():
+    state = SimpleNamespace(queue=["not-a-dict", {"tconst": "tt2"}])
+    assert _upcoming_from_state(state) == ("tt2",)
+
+
+def test_upcoming_from_state_skips_refs_missing_tconst():
+    state = SimpleNamespace(
+        queue=[{"title": "no tconst here"}, {"tconst": "tt2"}, {"tconst": None}]
+    )
+    assert _upcoming_from_state(state) == ("tt2",)
+
+
+def test_upcoming_from_state_state_without_queue_attr_returns_empty():
+    state = SimpleNamespace()  # no .queue attribute
+    assert _upcoming_from_state(state) == ()

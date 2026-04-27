@@ -375,6 +375,47 @@ async def test_inflight_task_removed_from_map_on_failure():
     assert coordinator.has_inflight("tt2") is False
 
 
+async def test_get_or_start_inflight_returns_none_when_backlog_full():
+    """The redirect-prefetch path uses get_or_start_inflight, which now
+    enforces the same LOCAL_ENRICHMENT_MAX_PENDING cap as the ARQ-fallback
+    path so spam-clicked navigation can't grow the inflight map without
+    bound. When the cap is hit, callers receive ``None`` and must skip.
+    """
+    from movies.projection_enrichment import ProjectionEnrichmentCoordinator
+
+    store = MagicMock()
+    coordinator = ProjectionEnrichmentCoordinator(
+        store, tmdb_helper=MagicMock(), max_pending=2
+    )
+
+    blocker = asyncio.Event()
+
+    async def slow_enrich(tconst, known_tmdb_id=None):
+        await blocker.wait()
+        return {"tconst": tconst, "_full": True}
+
+    coordinator.enrich_projection = slow_enrich
+
+    try:
+        first = await coordinator.get_or_start_inflight("tt-cap-1")
+        second = await coordinator.get_or_start_inflight("tt-cap-2")
+        assert first is not None
+        assert second is not None
+
+        # Cap = 2; third distinct tconst is dropped.
+        third = await coordinator.get_or_start_inflight("tt-cap-3")
+        assert third is None
+        assert "tt-cap-3" not in coordinator._inflight_enrichment
+
+        # Same-tconst dedup still works even at the cap — returns the
+        # existing task without trying to insert a new one.
+        same = await coordinator.get_or_start_inflight("tt-cap-1")
+        assert same is first
+    finally:
+        blocker.set()
+        await asyncio.gather(first, second, return_exceptions=True)
+
+
 async def test_inflight_new_task_starts_after_previous_failure():
     from movies.projection_enrichment import ProjectionEnrichmentCoordinator
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -394,7 +395,23 @@ async def _redirect_for_navigation_outcome(outcome: NavigationOutcome):
             return redirect(url, code=303)
         return redirect(url_for("main.home", state_conflict=1), code=303)
     if outcome.tconst:
-        await _schedule_prefetch(outcome.tconst)
+        # Warm the just-chosen movie AND the next 1-2 candidates from the
+        # navigator queue. The lookahead is what fixes back-to-back clicks
+        # rendering the core placeholder — by the time the user clicks
+        # again, those tconsts already have an in-flight (or completed)
+        # TMDb fetch. _schedule_prefetch is best-effort and self-throttling
+        # (early-exits on READY rows), so paying for 2 extra select_rows
+        # per click is cheap. Run them concurrently so we don't add the
+        # network latencies serially. ``return_exceptions=True`` is
+        # intentional: prefetch is best-effort, and the actual enrichment
+        # tasks are detached via the coordinator's background scheduler,
+        # so a CancelledError here (e.g. client disconnect) does not kill
+        # the work already kicked off.
+        prefetch_targets = (outcome.tconst, *outcome.upcoming_tconsts)
+        await asyncio.gather(
+            *(_schedule_prefetch(t) for t in prefetch_targets),
+            return_exceptions=True,
+        )
         url = await _build_movie_url_from_outcome(outcome)
         return redirect(url, code=303)
     abort(500, description="Navigation outcome missing target movie")
