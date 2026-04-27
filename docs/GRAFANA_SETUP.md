@@ -4,23 +4,23 @@ This document provides step-by-step instructions to complete your Grafana Cloud 
 
 ## 🎯 What You Get
 
-- **Logs** → Loki (searchable, structured logs with 14 days retention)  
+- **Logs** → Loki (searchable, structured logs with 14 days retention)
 - **Metrics** → Prometheus (real-time application and system metrics)
 - **Dashboards** → Grafana (visual monitoring with alerts)
 
 ## 📋 Prerequisites
 
-✅ Packages installed: `python-logging-loki`, `prometheus-client`  
-✅ Enhanced logging with Loki integration  
-✅ Comprehensive Prometheus metrics collection  
-✅ Metrics endpoint: `/metrics`  
-✅ Dashboard configuration ready  
+✅ Packages installed: `python-logging-loki`, `prometheus-client`\
+✅ Enhanced logging with Loki integration\
+✅ Comprehensive Prometheus metrics collection\
+✅ Metrics endpoint: `/metrics`\
+✅ Dashboard configuration ready
 
 ## 🚀 Setup Instructions
 
 ### Step 1: Create Grafana Cloud Account
 
-1. Go to https://grafana.com/auth/sign-up/create-user
+1. Go to <https://grafana.com/auth/sign-up/create-user>
 2. Sign up for a **free** Grafana Cloud account
 3. Complete email verification
 
@@ -31,6 +31,7 @@ This document provides step-by-step instructions to complete your Grafana Cloud 
 3. Find your stack information:
 
 #### For Loki (Logs):
+
 ```
 URL: https://logs-prod-xxx.grafana.net
 User: [your-user-id]
@@ -38,6 +39,7 @@ API Key: [your-loki-api-key]
 ```
 
 #### For Prometheus (Metrics - Optional):
+
 ```
 URL: https://prometheus-prod-xxx.grafana.net  
 User: [your-user-id]
@@ -72,35 +74,41 @@ APP_VERSION=1.0.0
 ### Step 5: Verify Integration
 
 1. Start your NextReel application:
+
    ```bash
    python3 app.py
    ```
 
 2. Check logs are flowing to Loki:
+
    - Go to Grafana → Explore
    - Select Loki data source
    - Query: `{application="nextreel"}`
 
 3. Check metrics endpoint:
+
    ```bash
    curl http://localhost:5000/metrics | grep nextreel
    ```
 
 4. Verify dashboard shows data:
+
    - Go to your imported NextReel dashboard
    - Should show HTTP requests, database connections, etc.
 
 ## 📊 Available Metrics
 
 ### HTTP & Application Metrics
+
 - `nextreel_http_requests_total` - Total HTTP requests by endpoint/status
-- `nextreel_http_request_duration_seconds` - Request duration histograms  
+- `nextreel_http_request_duration_seconds` - Request duration histograms
 - `nextreel_http_requests_in_progress` - Current requests being processed
 - `nextreel_active_users` - Currently active users
 - `nextreel_user_sessions_total` - Total user sessions created
 - `nextreel_user_actions_total` - User actions by type
 
-### Database Metrics  
+### Database Metrics
+
 - `nextreel_db_connections_active/idle/total` - Database pool status
 - `nextreel_db_queries_total` - Database queries by type/table
 - `nextreel_db_query_duration_seconds` - Query performance histograms
@@ -108,6 +116,7 @@ APP_VERSION=1.0.0
 - `nextreel_db_connection_errors_total` - Connection errors
 
 ### Movie Service Metrics
+
 - `nextreel_movie_recommendations_total` - Recommendations served
 - `nextreel_movie_queue_size` - User movie queue sizes
 - `nextreel_movie_fetches_total` - Movie data fetches from sources
@@ -115,6 +124,7 @@ APP_VERSION=1.0.0
 - `nextreel_tmdb_api_duration_seconds` - TMDB API performance
 
 ### Cache & Error Metrics
+
 - `nextreel_cache_hits_total` / `nextreel_cache_misses_total` - Cache performance
 - `nextreel_application_errors_total` - Application errors by type
 
@@ -130,16 +140,19 @@ Create alerts in Grafana for:
 ## 🔧 Troubleshooting
 
 ### Logs Not Appearing in Loki
+
 - Check your `GRAFANA_LOKI_*` environment variables
 - Verify credentials are correct
 - Check application logs for Loki connection errors
 
 ### Metrics Not Collecting
+
 - Ensure `/metrics` endpoint returns Prometheus format data
 - Check that metrics collection started: look for "Metrics collection started" in logs
 - Verify database pool metrics are being collected
 
 ### Dashboard Shows No Data
+
 - Confirm Prometheus data source is configured correctly
 - Check that your application is generating metrics (access some pages)
 - Verify metric names match between dashboard and actual metrics
@@ -149,9 +162,9 @@ Create alerts in Grafana for:
 Once complete, you'll have:
 
 - **Real-time visibility** into application performance
-- **Structured, searchable logs** with correlation IDs  
+- **Structured, searchable logs** with correlation IDs
 - **Comprehensive metrics** covering HTTP, database, and business logic
-- **Professional monitoring dashboard** 
+- **Professional monitoring dashboard**
 - **Foundation for alerting** on critical issues
 
 Your NextReel application now has enterprise-grade observability! 🚀

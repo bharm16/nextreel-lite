@@ -83,18 +83,17 @@
   }
   .navbar-link {
     font-family: var(--font-sans);
-    font-size: 11.5px;
+    font-size: 13px;
     font-weight: 600;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.7);
+    letter-spacing: 0.06em;
+    color: #ffffff;
     text-decoration: none;
     transition: color var(--duration-normal) var(--easing-default);
     white-space: nowrap;
   }
-  .navbar-link:hover { color: #fff; }
-  .navbar.navbar--solid .navbar-link { color: var(--color-text-muted); }
-  .navbar.navbar--solid .navbar-link:hover { color: var(--color-text); }
+  .navbar-link:hover { color: var(--color-accent); }
+  .navbar.navbar--solid .navbar-link { color: var(--color-text); }
+  .navbar.navbar--solid .navbar-link:hover { color: var(--color-accent); }
   .navbar-link:focus-visible {
     outline: 2px solid var(--color-accent);
     outline-offset: 2px;
@@ -108,22 +107,19 @@
     width: 34px;
     height: 34px;
     padding: 0;
-    border: 1px solid rgba(255, 255, 255, 0.16);
+    border: 0;
     border-radius: 3px;
     background: transparent;
     color: rgba(255, 255, 255, 0.8);
     cursor: pointer;
     touch-action: manipulation;
     -webkit-tap-highlight-color: rgba(255, 255, 255, 0.1);
-    cursor: pointer;
     transition:
       color var(--duration-normal) var(--easing-default),
-      border-color var(--duration-normal) var(--easing-default),
       background var(--duration-normal) var(--easing-default);
   }
   .navbar-icon-btn:hover {
     color: #fff;
-    border-color: rgba(255, 255, 255, 0.3);
     background: rgba(255, 255, 255, 0.04);
   }
   .navbar-icon-btn:focus-visible {
@@ -131,11 +127,10 @@
     outline-offset: 2px;
   }
   .navbar-icon-btn[aria-expanded="true"] {
-    border-color: rgba(198, 122, 92, 0.5);
+    background: rgba(198, 122, 92, 0.18);
     box-shadow: 0 0 0 2px rgba(198, 122, 92, 0.25);
   }
   .navbar.navbar--solid .navbar-icon-btn {
-    border-color: var(--color-border);
     color: var(--color-text-muted);
   }
   .navbar.navbar--solid .navbar-icon-btn:hover {
@@ -160,6 +155,56 @@
   .navbar-icon-btn--mobile svg {
     width: 18px;
     height: 18px;
+  }
+
+  /* ── Search trigger (styled button that opens spotlight modal) ── */
+  .navbar-search-trigger {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 380px;
+    height: 38px;
+    margin: 0 auto;
+    padding: 9px 12px;
+    border: 0;
+    border-radius: 4px;
+    background: #ffffff;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    text-align: left;
+    font-family: var(--font-sans);
+    transition: box-shadow var(--duration-normal) var(--easing-default);
+  }
+  .navbar-search-trigger:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+  .navbar-search-trigger-icon {
+    width: 14px;
+    height: 14px;
+    flex: 0 0 auto;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    pointer-events: none;
+  }
+  .navbar-search-trigger-label {
+    flex: 1 1 auto;
+    font-size: 13px;
+    color: var(--color-text-muted);
+    pointer-events: none;
+  }
+  .navbar.navbar--solid .navbar-search-trigger {
+    box-shadow: inset 0 0 0 1px #ebe8e1;
+  }
+  .navbar[data-authenticated="true"] .navbar-search-trigger {
+    width: 340px;
+  }
+  /* Mobile: hide the styled trigger; the icon-only mobile button remains. */
+  @media (max-width: 767.98px) {
+    .navbar-search-trigger { display: none; }
   }
 
   .navbar-pill {
@@ -244,16 +289,15 @@
     align-items: center;
     justify-content: space-between;
     width: 100%;
-    padding: 10px 12px;
+    padding: 12px 12px;
     background: none;
     border: 0;
     border-radius: 3px;
     font-family: var(--font-sans);
-    font-size: 10.5px;
+    font-size: 15px;
     font-weight: 600;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--color-text-muted);
+    letter-spacing: 0.02em;
+    color: var(--color-text);
     text-align: left;
     text-decoration: none;
     cursor: pointer;
@@ -264,6 +308,9 @@
   .navbar-mobile-links a:hover,
   .navbar-mobile-links button:hover {
     background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+    color: var(--color-accent);
+  }
+  .navbar-mobile-links .mobile-link-signout {
     color: var(--color-accent);
   }
   .navbar-mobile-links .mobile-menu-state {

@@ -1,7 +1,7 @@
 {% from "macros.html" import user_avatar with context %}
 
 <!-- Navbar — scroll-aware editorial action bar -->
-<header class="navbar" data-navbar>
+<header class="navbar" data-navbar data-authenticated="{{ 'true' if current_user_id else 'false' }}">
 
   <!-- Brand lockup -->
   <a href="/" class="navbar-brand-wrap" aria-label="Nextreel home">
@@ -12,13 +12,14 @@
   <!-- Desktop actions -->
   <nav class="navbar-actions hidden md:flex" aria-label="Primary">
 
-    <!-- Search trigger -->
-    <button type="button" class="navbar-icon-btn" id="searchSpotlightTrigger"
+    <!-- Search trigger — styled as an input field, opens spotlight modal on click -->
+    <button type="button" class="navbar-search-trigger" id="searchSpotlightTrigger"
             aria-label="Open search" aria-haspopup="dialog" aria-controls="searchSpotlight">
-      <svg viewBox="0 0 24 24" aria-hidden="true">
+      <svg class="navbar-search-trigger-icon" viewBox="0 0 24 24" aria-hidden="true">
         <circle cx="11" cy="11" r="7"/>
         <path d="m21 21-4.3-4.3"/>
       </svg>
+      <span class="navbar-search-trigger-label">Search films, actors&hellip;</span>
     </button>
 
     {% if current_user_id %}
@@ -39,13 +40,13 @@
         <div class="avatar-menu-divider" role="separator"></div>
         <form method="POST" action="/logout" style="display:contents;">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button type="submit" role="menuitem" class="avatar-menu-logout">Log out</button>
+          <button type="submit" role="menuitem" class="avatar-menu-signout">Sign out</button>
         </form>
       </div>
     </div>
 
     {% else %}
-    <a href="/login" class="navbar-link">Log In</a>
+    <a href="/login" class="navbar-link">Sign in</a>
     {% endif %}
   </nav>
 
@@ -79,10 +80,10 @@
     <a href="{{ url_for('main.account_view') }}?tab=profile">Account</a>
     <form method="POST" action="/logout" style="display:contents;">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button type="submit">Log Out</button>
+      <button type="submit" class="mobile-link-signout">Sign out</button>
     </form>
     {% else %}
-    <a href="/login">Log In</a>
+    <a href="/login">Sign in</a>
     {% endif %}
   </nav>
 </div>
