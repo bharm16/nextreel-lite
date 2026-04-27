@@ -7,7 +7,22 @@ import secrets as stdlib_secrets
 
 from quart import abort, current_app, flash, g, redirect, render_template, request, session, url_for
 
+from infra.event_schema import (
+    EVENT_LOGGED_OUT,
+    EVENT_LOGIN_FAILED,
+    EVENT_LOGIN_SUCCEEDED,
+    EVENT_OAUTH_FAILED,
+    EVENT_SIGNUP_COMPLETED,
+    EVENT_SIGNUP_FAILED,
+)
+from infra.events import (
+    anon_distinct_id,
+    bind_authenticated_identity,
+    track_event,
+)
+from infra.metrics import session_duration_seconds, user_actions_total, user_sessions_total
 from infra.route_helpers import csrf_required, rate_limited
+from infra.time_utils import utcnow
 from nextreel.web.routes.shared import (
     _attach_user_to_current_session,
     _current_state,
@@ -31,6 +46,7 @@ def inject_csrf_token():
     state = getattr(g, "navigation_state", None)
     user_id = getattr(state, "user_id", None) if state else None
     oauth_config = getattr(current_app, "oauth_config", {})
+    posthog_config = getattr(current_app, "posthog_config", None) or {}
     return {
         "csrf_token": _get_csrf_token,
         "current_user_id": user_id,
@@ -40,7 +56,23 @@ def inject_csrf_token():
         "is_in_watchlist": getattr(g, "is_in_watchlist", False),
         "google_enabled": oauth_config.get("google_enabled", False),
         "user_avatar_info": user_avatar_info,
+        "posthog_enabled": bool(posthog_config.get("enabled")),
+        "posthog_project_key": posthog_config.get("project_key", ""),
+        "posthog_api_host": posthog_config.get("api_host", "/ph"),
     }
+
+
+@bp.app_context_processor
+async def inject_current_user_auth_provider():
+    """Surface the auth_provider with its 'email' default in Python, not Jinja.
+
+    Templates were doing ``current_user.auth_provider or 'email'`` inline,
+    which silently swallows missing-attribute bugs (e.g. if the user row
+    schema changes). Resolving here keeps templates focused on rendering.
+    """
+    user, _theme = await _load_current_user_once()
+    auth_provider = user.get("auth_provider") if user else None
+    return {"current_user_auth_provider": auth_provider or "email"}
 
 
 async def _load_current_user_once():
@@ -117,11 +149,24 @@ async def login_submit():
     password = form_data.get("password", "")
     next_path = _safe_next_path(form_data.get("next"))
 
+    user_actions_total.labels(action_type="login_attempt").inc()
+
     services = _services()
     try:
         user_id = await authenticate_user(services.movie_manager.db_pool, email, password)
     except EmailPasswordAuthUnavailableError:
         logger.warning("Email/password login unavailable: bcrypt dependency missing")
+        user_actions_total.labels(action_type="login_failure_unavailable").inc()
+        # NOTE: EVENT_LOGIN_FAILED is for funnel analytics (signup → first
+        # login conversion), NOT brute-force / account-takeover monitoring.
+        # Use the ``user_actions_total{action_type="login_failure_*"}``
+        # Prometheus counter for that — it has full IP cardinality and
+        # isn't redacted into a hashed anon ID.
+        track_event(
+            anon_distinct_id(_current_state().session_id),
+            EVENT_LOGIN_FAILED,
+            {"reason": "unavailable"},
+        )
         return (
             await render_template(
                 "login.html",
@@ -132,6 +177,12 @@ async def login_submit():
         )
 
     if not user_id:
+        user_actions_total.labels(action_type="login_failure_invalid").inc()
+        track_event(
+            anon_distinct_id(_current_state().session_id),
+            EVENT_LOGIN_FAILED,
+            {"reason": "invalid_credentials"},
+        )
         return (
             await render_template(
                 "login.html",
@@ -142,6 +193,14 @@ async def login_submit():
         )
 
     state = await _attach_user_to_current_session(user_id)
+    user_actions_total.labels(action_type="login_success").inc()
+    user_sessions_total.inc()
+    bind_authenticated_identity(
+        anon_id=anon_distinct_id(state.session_id),
+        user_id=user_id,
+        event=EVENT_LOGIN_SUCCEEDED,
+        user_properties={"auth_provider": "email"},
+    )
     logger.info("User %s logged in, session %s", user_id, state.session_id)
     return redirect(next_path or url_for("main.home"), code=303)
 
@@ -165,6 +224,8 @@ async def register_submit():
     display_name = form_data.get("display_name", "").strip() or None
     next_path = _safe_next_path(form_data.get("next"))
 
+    user_actions_total.labels(action_type="register_attempt").inc()
+
     services = _services()
     outcome = await _registration_service.register_email_user(
         email=email,
@@ -174,8 +235,25 @@ async def register_submit():
         db_pool=services.movie_manager.db_pool,
     )
     if outcome.kind != "success":
+        # The Prometheus counter labels (register_failure_unavailable /
+        # _duplicate / _validation) and the EVENT_SIGNUP_FAILED ``reason``
+        # property are kept aligned — they always agree, even though they
+        # serve different consumers (Grafana vs PostHog funnel).
         if outcome.kind == "service_unavailable":
             logger.warning("Email/password registration unavailable: bcrypt dependency missing")
+            user_actions_total.labels(action_type="register_failure_unavailable").inc()
+            failure_reason = "unavailable"
+        elif outcome.kind == "duplicate_email":
+            user_actions_total.labels(action_type="register_failure_duplicate").inc()
+            failure_reason = "duplicate"
+        else:
+            user_actions_total.labels(action_type="register_failure_validation").inc()
+            failure_reason = "validation"
+        track_event(
+            anon_distinct_id(_current_state().session_id),
+            EVENT_SIGNUP_FAILED,
+            {"reason": failure_reason},
+        )
         status_code = 503 if outcome.kind == "service_unavailable" else 400
         return (
             await render_template(
@@ -186,6 +264,15 @@ async def register_submit():
 
     user_id = outcome.user_id
     state = await _attach_user_to_current_session(user_id)
+    user_actions_total.labels(action_type="register_success").inc()
+    user_sessions_total.inc()
+    bind_authenticated_identity(
+        anon_id=anon_distinct_id(state.session_id),
+        user_id=user_id,
+        event=EVENT_SIGNUP_COMPLETED,
+        user_properties={"auth_provider": "email", "signup_at": utcnow().isoformat()},
+        event_properties={"auth_provider": "email"},
+    )
     logger.info("User %s registered, session %s", user_id, state.session_id)
     return redirect(next_path or url_for("main.home"), code=303)
 
@@ -195,8 +282,20 @@ async def register_submit():
 async def logout():
     state = _current_state()
     if state.user_id:
+        logged_out_user_id = state.user_id
         await current_app.navigation_state_store.set_user_id(state.session_id, None)
         state.user_id = None
+        user_actions_total.labels(action_type="logout").inc()
+        # Bound floor at 0: if a clock skew or stale state.created_at ever
+        # produces a negative delta, drop it rather than poison the histogram.
+        duration = (utcnow() - state.created_at).total_seconds()
+        if duration >= 0:
+            session_duration_seconds.observe(duration)
+        track_event(
+            logged_out_user_id,
+            EVENT_LOGGED_OUT,
+            {"session_duration_seconds": max(duration, 0.0)},
+        )
         logger.info("User logged out, session %s", state.session_id)
     response = redirect(url_for("main.home"), code=303)
     return response
@@ -232,6 +331,7 @@ async def auth_google_callback():
 
     expected_state = session.pop(SESSION_OAUTH_STATE_KEY, None)
     next_path = _safe_next_path(session.pop(SESSION_OAUTH_NEXT_KEY, None))
+    user_actions_total.labels(action_type="oauth_callback_attempt").inc()
     services = _services()
     outcome = await _google_oauth_service.complete_login(
         oauth_config=oauth_config,
@@ -241,15 +341,40 @@ async def auth_google_callback():
         db_pool=services.movie_manager.db_pool,
     )
     if outcome.kind == "failure":
-        if expected_state and not _hmac.compare_digest(
-            expected_state, request.args.get("state", "")
-        ):
+        state_mismatch = bool(
+            expected_state
+            and not _hmac.compare_digest(expected_state, request.args.get("state", ""))
+        )
+        if state_mismatch:
             logger.warning("OAuth state mismatch — possible CSRF attempt")
+            user_actions_total.labels(
+                action_type="oauth_callback_failure_state_mismatch"
+            ).inc()
+            track_event(
+                anon_distinct_id(_current_state().session_id),
+                EVENT_OAUTH_FAILED,
+                {"provider": "google", "reason": "state_mismatch"},
+            )
+        else:
+            user_actions_total.labels(action_type="oauth_callback_failure").inc()
+            track_event(
+                anon_distinct_id(_current_state().session_id),
+                EVENT_OAUTH_FAILED,
+                {"provider": "google", "reason": "other"},
+            )
         await flash(outcome.error_message, "error")
         return redirect(
             url_for("main.login_page", next=next_path) if next_path else url_for("main.login_page")
         )
     if outcome.kind == "provider_conflict":
+        user_actions_total.labels(
+            action_type="oauth_callback_failure_provider_conflict"
+        ).inc()
+        track_event(
+            anon_distinct_id(_current_state().session_id),
+            EVENT_OAUTH_FAILED,
+            {"provider": "google", "reason": "provider_conflict"},
+        )
         await flash(outcome.error_message, "error")
         return redirect(
             url_for("main.login_page", next=next_path) if next_path else url_for("main.login_page")
@@ -257,6 +382,14 @@ async def auth_google_callback():
 
     user_id = outcome.user_id
     state = await _attach_user_to_current_session(user_id)
+    user_actions_total.labels(action_type="oauth_callback_success").inc()
+    user_sessions_total.inc()
+    bind_authenticated_identity(
+        anon_id=anon_distinct_id(state.session_id),
+        user_id=user_id,
+        event=EVENT_LOGIN_SUCCEEDED,
+        user_properties={"auth_provider": "google"},
+    )
     logger.info("User %s logged in via Google, session %s", user_id, state.session_id)
     return redirect(next_path or url_for("main.home"), code=303)
 

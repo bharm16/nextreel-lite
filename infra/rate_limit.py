@@ -20,6 +20,20 @@ logger = get_logger(__name__)
 RATE_LIMIT_WINDOW = 60  # seconds
 RATE_LIMIT_MAX = 30  # requests per window
 
+# Per-endpoint overrides for endpoints whose natural request shape differs
+# from the default. Browser-SDK proxy traffic batches pageview, autocapture,
+# and session-recording snapshots — a single normal session legitimately
+# exceeds 30/min when session replay is on. The override is high enough
+# for legitimate traffic but still bounded so a single IP can't be used
+# to relay arbitrary bandwidth through us.
+_ENDPOINT_LIMIT_OVERRIDES: dict[str, int] = {
+    "posthog_proxy": 300,
+}
+
+
+def _max_for(endpoint_key: str) -> int:
+    return _ENDPOINT_LIMIT_OVERRIDES.get(endpoint_key, RATE_LIMIT_MAX)
+
 # In-memory fallback (single-instance only).
 # Cap at 1024 keys to prevent unbounded memory growth from unique IPs.
 # LruExpiringMap handles LRU eviction + TTL-based expiration in one data
@@ -95,7 +109,7 @@ async def check_rate_limit(endpoint_key: str) -> bool:
             set_rate_limit_backend("redis")
             _active_backend = "redis"
 
-        return count <= RATE_LIMIT_MAX
+        return count <= _max_for(endpoint_key)
     except Exception as exc:
         logger.warning("Redis rate-limit unavailable, falling back to memory: %s", exc)
         if _active_backend != "memory":
@@ -120,7 +134,7 @@ async def check_rate_limit_memory(endpoint_key: str) -> bool:
             timestamps = []
         cutoff = now - RATE_LIMIT_WINDOW
         timestamps = [t for t in timestamps if t > cutoff]
-        if len(timestamps) >= RATE_LIMIT_MAX:
+        if len(timestamps) >= _max_for(endpoint_key):
             # Refresh LRU/TTL so repeated offenders don't age out mid-window.
             _rate_limit_store.set(key, timestamps)
             return False

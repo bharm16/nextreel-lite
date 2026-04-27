@@ -1,0 +1,358 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_MYSQL",
+      "label": "MySQL",
+      "description": "MySQL data source pointing at the NextReel application database",
+      "type": "datasource",
+      "pluginId": "mysql",
+      "pluginName": "MySQL"
+    }
+  ],
+  "__requires": [
+    {
+      "type": "datasource",
+      "id": "mysql",
+      "name": "MySQL",
+      "version": "1.0.0"
+    },
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "10.0.0"
+    }
+  ],
+  "dashboard": {
+    "id": null,
+    "uid": null,
+    "title": "NextReel Product Analytics",
+    "description": "Founder-style product KPIs sourced directly from the application MySQL database. Sibling dashboard to the operational Prometheus dashboard at ops/grafana-dashboard.json. SQL definitions are mirrored in ops/product_analytics_queries.sql.",
+    "tags": ["nextreel", "product", "analytics", "mysql"],
+    "timezone": "browser",
+    "refresh": "1h",
+    "schemaVersion": 39,
+    "version": 1,
+    "time": {
+      "from": "now-30d",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Total users",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0},
+        "datasource": {"type": "mysql", "uid": "${DS_MYSQL}"},
+        "targets": [
+          {
+            "datasource": {"type": "mysql", "uid": "${DS_MYSQL}"},
+            "format": "table",
+            "rawQuery": true,
+            "rawSql": "SELECT COUNT(*) AS total_users FROM users;",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {"mode": "absolute", "steps": [{"color": "blue", "value": null}]},
+            "unit": "short"
+          }
+        },
+        "options": {
+          "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+          "colorMode": "value",
+          "graphMode": "none",
+          "textMode": "value_and_name"
+        }
+      },
+      {
+        "id": 2,
+        "title": "New users (7d)",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 4, "x": 4, "y": 0},
+        "datasource": {"type": "mysql", "uid": "${DS_MYSQL}"},
+        "targets": [
+          {
+            "datasource": {"type": "mysql", "uid": "${DS_MYSQL}"},
+            "format": "table",
+            "rawQuery": true,
+            "rawSql": "SELECT SUM(created_at >= NOW() - INTERVAL 7 DAY) AS new_7d FROM users;",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+            "unit": "short"
+          }
+        },
+        "options": {
+          "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+          "colorMode": "value",
+          "graphMode": "none",
+          "textMode": "value_and_name"
+        }
+      },
+      {
+        "id": 3,
+        "title": "New users (30d)",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 4, "x": 8, "y": 0},
+        "datasource": {"type": "mysql", "uid": "${DS_MYSQL}"},
+        "targets": [
+          {
+            "datasource": {"type": "mysql", "uid": "${DS_MYSQL}"},
+            "format": "table",
+            "rawQuery": true,
+            "rawSql": "SELECT SUM(created_at >= NOW() - INTERVAL 30 DAY) AS new_30d FROM users;",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+            "unit": "short"
+          }
+        },
+        "options": {
+          "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+          "colorMode": "value",
+          "graphMode": "none",
+          "textMode": "value_and_name"
+        }
+      },
+      {
+        "id": 4,
+        "title": "DAU (last 24h)",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 4, "x": 12, "y": 0},
+        "description": "Distinct authenticated user_ids with at least one nav-state activity timestamp inside the last 24 hours. Anonymous sessions excluded.",
+        "datasource": {"type": "mysql", "uid": "${DS_MYSQL}"},
+        "targets": [
+          {
+            "datasource": {"type": "mysql", "uid": "${DS_MYSQL}"},
+            "format": "table",
+            "rawQuery": true,
+            "rawSql": "SELECT COUNT(DISTINCT user_id) AS dau FROM user_navigation_state WHERE user_id IS NOT NULL AND last_activity_at >= NOW() - INTERVAL 1 DAY;",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {"mode": "absolute", "steps": [{"color": "purple", "value": null}]},
+            "unit": "short"
+          }
+        },
+        "options": {
+          "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+          "colorMode": "value",
+          "graphMode": "none",
+          "textMode": "value_and_name"
+        }
+      },
+      {
+        "id": 5,
+        "title": "MAU (last 30d)",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 4, "x": 16, "y": 0},
+        "description": "Distinct authenticated user_ids active in the last 30 days. Anonymous sessions excluded.",
+        "datasource": {"type": "mysql", "uid": "${DS_MYSQL}"},
+        "targets": [
+          {
+            "datasource": {"type": "mysql", "uid": "${DS_MYSQL}"},
+            "format": "table",
+            "rawQuery": true,
+            "rawSql": "SELECT COUNT(DISTINCT user_id) AS mau FROM user_navigation_state WHERE user_id IS NOT NULL AND last_activity_at >= NOW() - INTERVAL 30 DAY;",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {"mode": "absolute", "steps": [{"color": "purple", "value": null}]},
+            "unit": "short"
+          }
+        },
+        "options": {
+          "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+          "colorMode": "value",
+          "graphMode": "none",
+          "textMode": "value_and_name"
+        }
+      },
+      {
+        "id": 6,
+        "title": "Auth provider mix",
+        "type": "piechart",
+        "gridPos": {"h": 8, "w": 8, "x": 0, "y": 4},
+        "datasource": {"type": "mysql", "uid": "${DS_MYSQL}"},
+        "targets": [
+          {
+            "datasource": {"type": "mysql", "uid": "${DS_MYSQL}"},
+            "format": "table",
+            "rawQuery": true,
+            "rawSql": "SELECT auth_provider, COUNT(*) AS users FROM users GROUP BY auth_provider ORDER BY users DESC;",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "reduceOptions": {"calcs": ["lastNotNull"], "fields": "/.*/", "values": true},
+          "pieType": "donut",
+          "displayLabels": ["name", "percent"],
+          "legend": {"displayMode": "list", "placement": "bottom", "values": []}
+        }
+      },
+      {
+        "id": 7,
+        "title": "Signups by day (last 30 days)",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 16, "x": 8, "y": 4},
+        "datasource": {"type": "mysql", "uid": "${DS_MYSQL}"},
+        "targets": [
+          {
+            "datasource": {"type": "mysql", "uid": "${DS_MYSQL}"},
+            "format": "time_series",
+            "rawQuery": true,
+            "rawSql": "SELECT DATE(created_at) AS time, COUNT(*) AS signups FROM users WHERE created_at >= NOW() - INTERVAL 30 DAY GROUP BY time ORDER BY time;",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {"drawStyle": "bars", "fillOpacity": 80, "lineWidth": 1},
+            "unit": "short"
+          }
+        },
+        "options": {"legend": {"showLegend": false}}
+      },
+      {
+        "id": 8,
+        "title": "Signups by week (last 12 weeks)",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+        "datasource": {"type": "mysql", "uid": "${DS_MYSQL}"},
+        "targets": [
+          {
+            "datasource": {"type": "mysql", "uid": "${DS_MYSQL}"},
+            "format": "time_series",
+            "rawQuery": true,
+            "rawSql": "SELECT DATE(DATE_SUB(created_at, INTERVAL WEEKDAY(created_at) DAY)) AS time, COUNT(*) AS signups FROM users WHERE created_at >= NOW() - INTERVAL 12 WEEK GROUP BY time ORDER BY time;",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {"drawStyle": "bars", "fillOpacity": 80, "lineWidth": 1},
+            "unit": "short"
+          }
+        },
+        "options": {"legend": {"showLegend": false}}
+      },
+      {
+        "id": 9,
+        "title": "DAU by day (last 30 days)",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+        "description": "Distinct user_ids active per day. Anonymous sessions excluded. last_activity_at is per-session, so a single user with multiple concurrent sessions still counts once per day.",
+        "datasource": {"type": "mysql", "uid": "${DS_MYSQL}"},
+        "targets": [
+          {
+            "datasource": {"type": "mysql", "uid": "${DS_MYSQL}"},
+            "format": "time_series",
+            "rawQuery": true,
+            "rawSql": "SELECT DATE(last_activity_at) AS time, COUNT(DISTINCT user_id) AS dau FROM user_navigation_state WHERE user_id IS NOT NULL AND last_activity_at >= NOW() - INTERVAL 30 DAY GROUP BY time ORDER BY time;",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {"drawStyle": "line", "fillOpacity": 20, "lineWidth": 2, "pointSize": 5, "showPoints": "always"},
+            "unit": "short"
+          }
+        },
+        "options": {"legend": {"showLegend": false}}
+      },
+      {
+        "id": 10,
+        "title": "Weekly cohort retention",
+        "type": "table",
+        "gridPos": {"h": 10, "w": 24, "x": 0, "y": 20},
+        "description": "Each row is a signup-week cohort. retained_dN counts users from that cohort whose most-recent nav-state activity is at least N days after signup. d*_pct is the retention percentage. Approximate — uses MAX(last_activity_at) as the 'still around' signal in lieu of an event log.",
+        "datasource": {"type": "mysql", "uid": "${DS_MYSQL}"},
+        "targets": [
+          {
+            "datasource": {"type": "mysql", "uid": "${DS_MYSQL}"},
+            "format": "table",
+            "rawQuery": true,
+            "rawSql": "WITH cohorts AS (SELECT user_id, DATE(DATE_SUB(created_at, INTERVAL WEEKDAY(created_at) DAY)) AS cohort_week, created_at AS signup_at FROM users WHERE created_at >= NOW() - INTERVAL 12 WEEK), last_seen AS (SELECT user_id, MAX(last_activity_at) AS most_recent FROM user_navigation_state WHERE user_id IS NOT NULL GROUP BY user_id) SELECT c.cohort_week, COUNT(*) AS cohort_size, SUM(ls.most_recent >= c.signup_at + INTERVAL 1 DAY) AS retained_d1, SUM(ls.most_recent >= c.signup_at + INTERVAL 7 DAY) AS retained_d7, SUM(ls.most_recent >= c.signup_at + INTERVAL 30 DAY) AS retained_d30, ROUND(100 * SUM(ls.most_recent >= c.signup_at + INTERVAL 1 DAY) / COUNT(*), 1) AS d1_pct, ROUND(100 * SUM(ls.most_recent >= c.signup_at + INTERVAL 7 DAY) / COUNT(*), 1) AS d7_pct, ROUND(100 * SUM(ls.most_recent >= c.signup_at + INTERVAL 30 DAY) / COUNT(*), 1) AS d30_pct FROM cohorts c LEFT JOIN last_seen ls ON ls.user_id = c.user_id GROUP BY c.cohort_week ORDER BY c.cohort_week DESC;",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {"custom": {"align": "auto"}},
+          "overrides": [
+            {"matcher": {"id": "byName", "options": "d1_pct"},  "properties": [{"id": "unit", "value": "percent"}]},
+            {"matcher": {"id": "byName", "options": "d7_pct"},  "properties": [{"id": "unit", "value": "percent"}]},
+            {"matcher": {"id": "byName", "options": "d30_pct"}, "properties": [{"id": "unit", "value": "percent"}]}
+          ]
+        },
+        "options": {"showHeader": true}
+      },
+      {
+        "id": 11,
+        "title": "Watched-list size distribution",
+        "type": "barchart",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 30},
+        "description": "How many movies the average user has marked as watched. The '0' bucket captures signups that never engaged.",
+        "datasource": {"type": "mysql", "uid": "${DS_MYSQL}"},
+        "targets": [
+          {
+            "datasource": {"type": "mysql", "uid": "${DS_MYSQL}"},
+            "format": "table",
+            "rawQuery": true,
+            "rawSql": "SELECT bucket, COUNT(*) AS users FROM (SELECT u.user_id, CASE WHEN COUNT(w.tconst) = 0 THEN '0' WHEN COUNT(w.tconst) < 5 THEN '1-4' WHEN COUNT(w.tconst) < 10 THEN '5-9' WHEN COUNT(w.tconst) < 25 THEN '10-24' WHEN COUNT(w.tconst) < 100 THEN '25-99' ELSE '100+' END AS bucket FROM users u LEFT JOIN user_watched_movies w USING (user_id) GROUP BY u.user_id) per_user GROUP BY bucket ORDER BY FIELD(bucket, '0', '1-4', '5-9', '10-24', '25-99', '100+');",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {"unit": "short"}
+        },
+        "options": {
+          "orientation": "horizontal",
+          "xField": "bucket",
+          "legend": {"showLegend": false}
+        }
+      },
+      {
+        "id": 12,
+        "title": "Watchlist size distribution",
+        "type": "barchart",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 30},
+        "description": "How many movies the average user has saved for later.",
+        "datasource": {"type": "mysql", "uid": "${DS_MYSQL}"},
+        "targets": [
+          {
+            "datasource": {"type": "mysql", "uid": "${DS_MYSQL}"},
+            "format": "table",
+            "rawQuery": true,
+            "rawSql": "SELECT bucket, COUNT(*) AS users FROM (SELECT u.user_id, CASE WHEN COUNT(wl.tconst) = 0 THEN '0' WHEN COUNT(wl.tconst) < 5 THEN '1-4' WHEN COUNT(wl.tconst) < 10 THEN '5-9' WHEN COUNT(wl.tconst) < 25 THEN '10-24' ELSE '25+' END AS bucket FROM users u LEFT JOIN user_watchlist wl USING (user_id) GROUP BY u.user_id) per_user GROUP BY bucket ORDER BY FIELD(bucket, '0', '1-4', '5-9', '10-24', '25+');",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {"unit": "short"}
+        },
+        "options": {
+          "orientation": "horizontal",
+          "xField": "bucket",
+          "legend": {"showLegend": false}
+        }
+      }
+    ]
+  }
+}

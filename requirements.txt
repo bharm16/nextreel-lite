@@ -16,7 +16,8 @@ redis>=4.2.0,<6                  # redis-py; <6 required by arq 0.26.x (server c
 
 # API Clients & HTTP
 # -----------------
-httpx==0.28.1                    # Modern async HTTP client
+httpx==0.28.1                    # Modern async HTTP client (used for TMDb, PostHog reverse proxy)
+requests>=2.32,<3                # Sync HTTP — directly imported by logging_config.LokiHandler; also a transitive dep of posthog. Pinned explicitly so a fresh prod install never lacks it.
 
 # Security & Authentication
 # ------------------------
@@ -32,6 +33,7 @@ python-dotenv==1.0.1             # Load environment variables from .env file
 # Monitoring & Observability
 # -------------------------
 prometheus-client==0.21.1        # Prometheus metrics collection
+posthog>=3.7.0,<4                # Product analytics — server-side event capture, identify, feature flags. Non-blocking by design.
 
 # Logging & Debugging (Optional but Recommended)
 # ----------------------------------------------

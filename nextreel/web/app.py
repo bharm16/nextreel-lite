@@ -20,6 +20,13 @@ from quart import Quart, got_request_exception, request
 from werkzeug.exceptions import HTTPException
 
 import settings
+from infra.events import (
+    DEFAULT_POSTHOG_HOST,
+    CompositeEventBackend,
+    LoggingEventBackend,
+    build_posthog_backend,
+    configure_event_backend,
+)
 from infra.metrics import (
     MetricsCollector,
     application_errors_total,
@@ -42,7 +49,7 @@ from infra.job_queue import install_runtime_job_queue
 from infra.redis_runtime import setup_redis_runtime as _setup_redis
 from nextreel.web.lifecycle import register_lifecycle_handlers
 from nextreel.web.request_context import register_request_context_handlers
-from nextreel.web.routes import bp as routes_bp, init_routes
+from nextreel.web.routes import bp as routes_bp, init_routes, posthog_proxy_bp
 
 
 class FixedQuart(Quart):
@@ -146,6 +153,43 @@ def _init_metrics(app, movie_manager):
     return metrics_collector
 
 
+def _init_analytics(app):
+    """Phase 2b: Product-analytics event backend (PostHog + logging fallback).
+
+    Reads ``POSTHOG_PROJECT_KEY``/``POSTHOG_HOST`` from the environment.
+    If the key is unset, only the logging backend is wired so events still
+    flow into Loki for ad-hoc analysis. The reverse-proxy route at ``/ph/*``
+    and the JS SDK loader are independent of this — they look at
+    ``app.posthog_config["enabled"]`` to decide whether to render.
+    """
+    project_key = os.getenv("POSTHOG_PROJECT_KEY")
+    host = os.getenv("POSTHOG_HOST", DEFAULT_POSTHOG_HOST)
+
+    backends: list = [LoggingEventBackend()]
+    posthog_backend = None
+    if project_key:
+        posthog_backend = build_posthog_backend(
+            project_api_key=project_key,
+            host=host,
+        )
+        if posthog_backend is not None:
+            backends.append(posthog_backend)
+
+    configure_event_backend(CompositeEventBackend(backends))
+    app.posthog_config = {
+        "enabled": posthog_backend is not None,
+        "project_key": project_key or "",
+        # Browser snippet hits this app's reverse-proxy path, not PostHog
+        # directly — dodges ad blockers and keeps cookies first-party.
+        "api_host": "/ph",
+        "upstream_host": host,
+    }
+    if posthog_backend is None:
+        logger.info("PostHog disabled (POSTHOG_PROJECT_KEY unset); logging backend only")
+    else:
+        logger.info("PostHog enabled via %s, browser snippet proxied through /ph", host)
+
+
 def _make_manager_starter(app, movie_manager):
     """Phase 3: Lazy MovieManager startup guard."""
     started = False
@@ -182,6 +226,7 @@ def create_app():
     movie_manager = _init_core(app)
     _init_oauth(app)
     metrics_collector = _init_metrics(app, movie_manager)
+    _init_analytics(app)
     ensure_movie_manager_started = _make_manager_starter(app, movie_manager)
 
     @app.before_serving
@@ -232,6 +277,10 @@ def create_app():
         return "Not found", 404
 
     app.register_blueprint(routes_bp)
+    # PostHog reverse proxy lives on its own blueprint with /ph prefix so
+    # event-capture calls don't trigger the main blueprint's per-request
+    # context processors (current user, CSRF token) on every browser ping.
+    app.register_blueprint(posthog_proxy_bp, url_prefix="/ph")
     return app
 
 
