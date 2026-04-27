@@ -64,8 +64,7 @@ async def _ready_row_count(pool) -> int:
     if _READY_COUNT_CACHE["expires_at"] > now:
         return int(_READY_COUNT_CACHE["value"])
     row = await pool.execute(
-        "SELECT COUNT(*) AS n FROM movie_projection "
-        "WHERE projection_state = 'ready'",
+        "SELECT COUNT(*) AS n FROM movie_projection " "WHERE projection_state = 'ready'",
         fetch="one",
     )
     count = int(row["n"]) if row and row.get("n") is not None else 0
@@ -80,12 +79,27 @@ def _reset_ready_count_cache() -> None:
     _READY_COUNT_CACHE["expires_at"] = 0.0
 
 
-async def fetch_random_landing_film(pool) -> dict[str, Any] | None:
+async def fetch_random_landing_film(
+    pool, criteria: dict[str, Any] | None = None
+) -> dict[str, Any] | None:
     """Pick one enriched film with a TMDb-sourced backdrop, at random.
 
+    When ``criteria`` is None or empty, uses the fast unfiltered offset path
+    against all READY rows. When ``criteria`` is provided, routes through a
+    filter-aware path that constrains rows by genre / year range / runtime /
+    rating before the random pick.
+
     Returns a flat dict ready for template use, or None if no qualifying
-    rows exist. Callers should apply a hardcoded fallback pool when None.
+    rows exist. Callers should apply a hardcoded fallback only on the
+    unfiltered path; on the filtered path, None signals empty-state UX.
     """
+    if not criteria:
+        return await _fetch_random_unfiltered(pool)
+    return await _fetch_random_filtered(pool, criteria)
+
+
+async def _fetch_random_unfiltered(pool) -> dict[str, Any] | None:
+    """Existing fast offset-based random pick across all READY rows."""
     try:
         total = await _ready_row_count(pool)
     except Exception as exc:  # noqa: BLE001 — defend the landing page
@@ -119,6 +133,99 @@ async def fetch_random_landing_film(pool) -> dict[str, Any] | None:
         logger.warning("Landing-film tconst query failed: %s", exc)
         return None
 
+    return await _hydrate_first_with_real_backdrop(pool, id_rows)
+
+
+async def _fetch_random_filtered(pool, criteria: dict[str, Any]) -> dict[str, Any] | None:
+    """Filter-aware random pick.
+
+    Constrains ``movie_projection`` rows by joining ``movie_candidates`` for
+    genre/runtime/rating predicates and applying year-range against the
+    payload's stringified year. Then takes a random offset within the
+    matching set, hydrates payloads, and returns the first one with a real
+    backdrop.
+    """
+    where_clauses = ["mp.projection_state = 'ready'"]
+    params: list[Any] = []
+
+    # The landing strip is single-select per dimension, so genres is at most a
+    # one-element list. If a caller ever passes a multi-genre criteria from
+    # somewhere else (e.g. the full filter UI), only the first is applied.
+    genres = criteria.get("genres")
+    if isinstance(genres, list) and genres:
+        where_clauses.append("FIND_IN_SET(%s, mc.genres) > 0")
+        params.append(genres[0])
+
+    if "min_year" in criteria:
+        where_clauses.append(
+            "CAST(JSON_UNQUOTE(JSON_EXTRACT(mp.payload_json, '$.year')) AS UNSIGNED) >= %s"
+        )
+        params.append(int(criteria["min_year"]))
+    if "max_year" in criteria:
+        where_clauses.append(
+            "CAST(JSON_UNQUOTE(JSON_EXTRACT(mp.payload_json, '$.year')) AS UNSIGNED) <= %s"
+        )
+        params.append(int(criteria["max_year"]))
+
+    if "max_runtime" in criteria:
+        where_clauses.append("mc.runtimeMinutes <= %s")
+        params.append(int(criteria["max_runtime"]))
+    if "min_runtime" in criteria:
+        where_clauses.append("mc.runtimeMinutes >= %s")
+        params.append(int(criteria["min_runtime"]))
+
+    if "min_rating" in criteria:
+        where_clauses.append("mc.averageRating >= %s")
+        params.append(float(criteria["min_rating"]))
+
+    # where_clauses contains only static SQL structure (column names, operators).
+    # Never interpolate criteria values into where_clauses — all user-supplied
+    # values must go through the params list and bind via %s placeholders below.
+    where_sql = " AND ".join(where_clauses)
+
+    # Cold count — the filtered total varies per filter combination, so the
+    # _ready_row_count cache (which is unfiltered-only) must not be reused
+    # here. A fresh COUNT runs per call. User-paced clicks make this
+    # acceptable; bursty hot-path callers would need their own caching.
+    count_sql = (
+        "SELECT COUNT(*) AS n "
+        "FROM movie_projection mp "
+        "JOIN movie_candidates mc ON mc.tconst = mp.tconst "
+        f"WHERE {where_sql}"
+    )
+
+    try:
+        count_row = await pool.execute(count_sql, params, fetch="one")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Landing-film filtered count failed: %s", exc)
+        return None
+
+    total = int(count_row["n"]) if count_row and count_row.get("n") is not None else 0
+    if total <= 0:
+        return None
+
+    offset = random.randint(0, max(0, total - _LANDING_CANDIDATE_POOL_SIZE))
+    id_sql = (
+        "SELECT mp.tconst "
+        "FROM movie_projection mp "
+        "JOIN movie_candidates mc ON mc.tconst = mp.tconst "
+        f"WHERE {where_sql} "
+        "ORDER BY mp.tconst "
+        "LIMIT %s OFFSET %s"
+    )
+    id_params = (*params, _LANDING_CANDIDATE_POOL_SIZE, offset)
+
+    try:
+        id_rows = await pool.execute(id_sql, id_params, fetch="all")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Landing-film filtered tconst query failed: %s", exc)
+        return None
+
+    return await _hydrate_first_with_real_backdrop(pool, id_rows)
+
+
+async def _hydrate_first_with_real_backdrop(pool, id_rows) -> dict[str, Any] | None:
+    """Common payload hydration step shared by filtered and unfiltered paths."""
     if not id_rows:
         return None
 
@@ -137,7 +244,7 @@ async def fetch_random_landing_film(pool) -> dict[str, Any] | None:
             tconsts,
             fetch="all",
         )
-    except Exception as exc:  # noqa: BLE001 — defense-in-depth, degrade silently
+    except Exception as exc:  # noqa: BLE001
         logger.warning("Landing-film payload query failed: %s", exc)
         return None
 
@@ -157,9 +264,7 @@ async def fetch_random_landing_film(pool) -> dict[str, Any] | None:
         if not isinstance(payload, dict):
             continue
         backdrop_url = payload.get("backdrop_url")
-        if not isinstance(backdrop_url, str) or not backdrop_url.startswith(
-            _LANDING_TMDB_PREFIX
-        ):
+        if not isinstance(backdrop_url, str) or not backdrop_url.startswith(_LANDING_TMDB_PREFIX):
             continue
         return {
             "tconst": row["tconst"],

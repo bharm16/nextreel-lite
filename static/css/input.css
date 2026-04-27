@@ -2720,22 +2720,6 @@
     border-bottom-color: transparent !important;
   }
 
-  .landing-side-label {
-    position: absolute;
-    left: 20px; top: 50%;
-    transform: translateY(-50%) rotate(-90deg);
-    transform-origin: left center;
-    z-index: 3;
-    font-family: var(--font-sans);
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 0.35em;
-    text-transform: uppercase;
-    color: rgba(255,255,255,0.55);
-    white-space: nowrap;
-    pointer-events: none;
-  }
-
   .landing-content {
     position: absolute; inset: 0; z-index: 4;
     display: flex;
@@ -2748,32 +2732,12 @@
   .landing-content > * {
     animation: landing-fadeup 600ms ease-out both;
   }
-  .landing-content .landing-kicker { animation-delay: 150ms; }
   .landing-content .landing-title { animation-delay: 280ms; }
   .landing-content .landing-meta { animation-delay: 400ms; }
   .landing-content .landing-actions { animation-delay: 520ms; }
   @keyframes landing-fadeup {
     from { opacity: 0; transform: translateY(10px); }
     to   { opacity: 1; transform: translateY(0); }
-  }
-
-  .landing-kicker {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    font-family: var(--font-sans);
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.28em;
-    text-transform: uppercase;
-    color: rgba(255,255,255,0.85);
-    text-shadow: 0 1px 10px rgba(0,0,0,0.7);
-    margin-bottom: 24px;
-  }
-  .landing-kicker-dot {
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: #fff;
   }
 
   .landing-title {
@@ -2861,8 +2825,210 @@
     pointer-events: none;
   }
 
+  /* === Side-by-side hero (2026-04-26 redesign) === */
+  .landing-bg-half {
+    flex: 1;
+    min-width: 0;
+    position: relative;
+    overflow: hidden;
+  }
+  .landing-bg-half .landing-bg {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+  }
+  .landing-bg-half .landing-gradient,
+  .landing-bg-half .home-grain {
+    z-index: 1;
+  }
+  .landing-content-half {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 60px 56px 50px;
+    background: var(--color-bg-deep, #0a0807);
+    color: #fff;
+    position: relative;
+    z-index: 4;
+  }
+
+  /* Side-by-side layout: CTAs and pills left-align with the headline.
+     Overrides the centered rules from the 2026-04-17 layout that still apply
+     to the old `.landing-content` block. */
+  .landing-content-half .landing-actions {
+    justify-content: flex-start;
+  }
+
+  /* Side-by-side: when the .landing-page contains both halves, lay them out as flex */
+  .landing-page:has(.landing-bg-half) {
+    display: flex;
+  }
+
+  /* New headline (replaces the film-title-as-H1 rule).
+     Single clamp scales smoothly across all viewports — no mobile override needed.
+     At 320px phones it hits the 32px floor (readable but compact); at 768px it's
+     ~46px (substantial against the square backdrop above); at 1200px+ it's
+     capped at 72px so it doesn't overpower the backdrop in side-by-side. */
+  .landing-headline {
+    font-family: var(--font-display, 'Bebas Neue', 'Arial Narrow', sans-serif);
+    font-size: clamp(32px, 6vw, 72px);
+    font-weight: 400;
+    line-height: 0.92;
+    letter-spacing: 0.01em;
+    text-transform: uppercase;
+    color: #fff;
+    text-shadow: 0 2px 30px rgba(0, 0, 0, 0.5);
+    margin: 0 0 18px;
+  }
+
+  .landing-sub {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.55;
+    color: rgba(255, 255, 255, 0.82);
+    max-width: 360px;
+    margin: 0 0 26px;
+  }
+
+  /* Filter pills */
+  .landing-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    align-items: center;
+  }
+  .landing-pill {
+    border: 1px solid rgba(255, 255, 255, 0.32);
+    border-radius: 999px;
+    padding: 6px 13px;
+    font-family: 'DM Sans', system-ui, sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.92);
+    background: transparent;
+    cursor: pointer;
+    transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+  }
+  .landing-pill:hover {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.6);
+  }
+  .landing-pill[aria-pressed="true"] {
+    background: #fff;
+    color: #0a0807;
+    border-color: #fff;
+  }
+  .landing-pill[aria-pressed="true"]::after {
+    content: " ×";
+    margin-left: 4px;
+    font-weight: 700;
+  }
+  .landing-pill:focus-visible {
+    outline: 2px solid var(--color-accent, #d4a14b);
+    outline-offset: 2px;
+  }
+  .landing-pill-link {
+    border: none;
+    background: none;
+    color: rgba(255, 255, 255, 0.55);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    padding: 6px 4px;
+    font-family: inherit;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+
+  /* Backdrop fade transition (for in-place reroll) */
+  .landing-bg.is-loading {
+    opacity: 0.35;
+  }
+  .landing-bg {
+    transition: opacity 220ms ease;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .landing-bg.is-loading,
+    .landing-bg {
+      transition: none;
+    }
+  }
+
+  /* Repositioned credit corner — bottom-left of the backdrop half (was bottom-right of full-width) */
+  .landing-page:has(.landing-bg-half) .landing-credit {
+    bottom: 20px;
+    left: 28px;
+    right: auto;
+  }
+
+  /* === Mobile (< 768px) === */
+  @media (max-width: 767.98px) {
+    body:has(.landing-bg-half) {
+      overflow-y: auto !important;
+    }
+    .landing-page:has(.landing-bg-half) {
+      flex-direction: column;
+      height: auto;
+      min-height: 100vh;
+    }
+    .landing-bg-half {
+      flex: none;
+      /* 5:6 is slightly less portrait than 4:5 — same dominant feel but
+         the 16:9 backdrop crops less aggressively on the sides. */
+      aspect-ratio: 5 / 6;
+      width: 100%;
+    }
+    .landing-content-half {
+      flex: none;
+      padding: 24px 20px 32px;
+    }
+    /* On mobile we let the base rules drive vertical rhythm — no tighter
+       overrides for headline/subtitle margins or action gap. The earlier
+       tightenings made sense in a 320px phone mockup but feel cramped at
+       real-world mobile/tablet viewports where there's room to breathe. */
+    .landing-content-half .landing-actions {
+      flex-direction: column;
+      align-items: center;
+    }
+    /* Form wrapper around the primary CTA must expand so the button inside
+       can fill the column. Without this rule the form sizes to its button's
+       content (~190px) and the ghost link stretches to 320px — visibly
+       mismatched. */
+    .landing-content-half .landing-actions form {
+      width: 100%;
+      max-width: 320px;
+    }
+    .landing-content-half .landing-cta-primary,
+    .landing-content-half .landing-cta-ghost {
+      width: 100%;
+      max-width: 320px;
+      text-align: center;
+    }
+    .landing-pills {
+      gap: 8px;
+      padding-top: 32px;
+    }
+    .landing-pill,
+    .landing-pill-link {
+      padding: 4px 10px;
+      font-size: 8.5px;
+    }
+    .landing-page:has(.landing-bg-half) .landing-credit {
+      bottom: 8px;
+      left: 12px;
+      font-size: 9px;
+    }
+  }
+
   @media (max-width: 768px) {
-    .landing-side-label { display: none; }
     .landing-bg {
       /* TMDb backdrops are 16:9; on portrait viewports `cover` zooms the image
          dramatically and crops most of it out. Anchor to top-center and let

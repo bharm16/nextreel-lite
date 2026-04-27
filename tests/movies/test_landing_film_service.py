@@ -254,3 +254,266 @@ async def test_landing_film_query_selects_public_id():
 
     all_sqls = [call.args[0] for call in pool.execute.await_args_list]
     assert any("public_id" in sql for sql in all_sqls)
+
+
+@pytest.mark.asyncio
+async def test_fetch_with_empty_criteria_uses_unfiltered_path():
+    """Empty criteria dict should behave identically to None — unfiltered path."""
+    pool = _make_pool(count=0, rows=None)
+    result = await fetch_random_landing_film(pool, criteria={})
+    # Same return as the no-arg path: None when count is zero.
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_fetch_filtered_genre_returns_film():
+    """With genre criteria, the filtered SQL path runs and returns a film."""
+    pool = AsyncMock()
+
+    call_log: list[str] = []
+
+    async def _execute(sql, *args, **kwargs):
+        call_log.append(sql)
+        if "COUNT(*)" in sql:
+            return {"n": 5}
+        if "ORDER BY tconst" in sql or "ORDER BY mp.tconst" in sql:
+            # Filtered tconst lookup
+            return [{"tconst": "tt0109424"}]
+        # Payload lookup
+        return [
+            {
+                "tconst": "tt0109424",
+                "public_id": "abc-123",
+                "payload_json": json.dumps(
+                    {
+                        "title": "Chungking Express",
+                        "year": "1994",
+                        "directors": "Wong Kar-wai",
+                        "runtime": "102 min",
+                        "backdrop_url": "https://image.tmdb.org/t/p/original/foo.jpg",
+                    }
+                ),
+            }
+        ]
+
+    pool.execute = AsyncMock(side_effect=_execute)
+    result = await fetch_random_landing_film(pool, criteria={"genres": ["Drama"]})
+
+    assert result is not None
+    assert result["tconst"] == "tt0109424"
+    assert result["title"] == "Chungking Express"
+    # Filtered path must include movie_candidates join for genre.
+    assert any("movie_candidates" in sql.lower() for sql in call_log)
+
+
+@pytest.mark.asyncio
+async def test_fetch_filtered_year_range_returns_film():
+    """With min_year/max_year criteria, the year predicate appears in SQL."""
+    pool = AsyncMock()
+    call_log: list[str] = []
+
+    async def _execute(sql, *args, **kwargs):
+        call_log.append(sql)
+        if "COUNT(*)" in sql:
+            return {"n": 3}
+        if "ORDER BY tconst" in sql or "ORDER BY mp.tconst" in sql:
+            return [{"tconst": "tt0118694"}]
+        return [
+            {
+                "tconst": "tt0118694",
+                "public_id": "def-456",
+                "payload_json": {
+                    "title": "In the Mood for Love",
+                    "year": "2000",
+                    "directors": "Wong Kar-wai",
+                    "runtime": "98 min",
+                    "backdrop_url": "https://image.tmdb.org/t/p/original/bar.jpg",
+                },
+            }
+        ]
+
+    pool.execute = AsyncMock(side_effect=_execute)
+    result = await fetch_random_landing_film(
+        pool, criteria={"min_year": 1990, "max_year": 1999}
+    )
+
+    assert result is not None
+    assert result["title"] == "In the Mood for Love"
+    # Year predicate should be present in the filtered tconst lookup.
+    filtered_sqls = [sql for sql in call_log if "ORDER BY" in sql.upper()]
+    assert filtered_sqls
+    assert any("year" in sql.lower() for sql in filtered_sqls)
+
+
+@pytest.mark.asyncio
+async def test_fetch_filtered_no_matching_rows_returns_none():
+    """When the filter yields zero rows, return None — caller handles empty state."""
+    pool = AsyncMock()
+
+    async def _execute(sql, *args, **kwargs):
+        if "COUNT(*)" in sql:
+            return {"n": 0}
+        return []
+
+    pool.execute = AsyncMock(side_effect=_execute)
+    result = await fetch_random_landing_film(
+        pool, criteria={"genres": ["Drama"], "min_year": 1990, "max_year": 1999}
+    )
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_fetch_filtered_skips_films_without_real_backdrop():
+    """A film with the placeholder backdrop URL is skipped in the filtered path."""
+    pool = AsyncMock()
+
+    async def _execute(sql, *args, **kwargs):
+        if "COUNT(*)" in sql:
+            return {"n": 5}
+        if "ORDER BY tconst" in sql or "ORDER BY mp.tconst" in sql:
+            return [{"tconst": "tt0001"}, {"tconst": "tt0002"}]
+        return [
+            {
+                "tconst": "tt0001",
+                "public_id": None,
+                "payload_json": {
+                    "title": "Bad",
+                    "year": "1999",
+                    "directors": "X",
+                    "runtime": "90 min",
+                    "backdrop_url": "/static/img/backdrop-placeholder.svg",
+                },
+            },
+            {
+                "tconst": "tt0002",
+                "public_id": "ok-id",
+                "payload_json": {
+                    "title": "Good",
+                    "year": "1999",
+                    "directors": "Y",
+                    "runtime": "100 min",
+                    "backdrop_url": "https://image.tmdb.org/t/p/original/x.jpg",
+                },
+            },
+        ]
+
+    pool.execute = AsyncMock(side_effect=_execute)
+    result = await fetch_random_landing_film(pool, criteria={"min_year": 1990, "max_year": 1999})
+    assert result is not None
+    assert result["tconst"] == "tt0002"
+
+
+@pytest.mark.asyncio
+async def test_fetch_filtered_swallows_db_errors_and_returns_none():
+    """Filtered path must degrade silently, like the unfiltered path."""
+    pool = AsyncMock()
+
+    async def _execute(sql, *args, **kwargs):
+        raise RuntimeError("DB on fire")
+
+    pool.execute = AsyncMock(side_effect=_execute)
+    result = await fetch_random_landing_film(pool, criteria={"genres": ["Drama"]})
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_fetch_filtered_min_runtime_appears_in_sql():
+    """min_runtime criteria emits a runtimeMinutes >= predicate in the issued SQL."""
+    pool = AsyncMock()
+    call_log: list[str] = []
+
+    async def _execute(sql, *args, **kwargs):
+        call_log.append(sql)
+        if "COUNT(*)" in sql:
+            return {"n": 1}
+        if "ORDER BY mp.tconst" in sql:
+            return [{"tconst": "tt0001"}]
+        return [
+            {
+                "tconst": "tt0001",
+                "public_id": "pid",
+                "payload_json": {
+                    "title": "X",
+                    "year": "2010",
+                    "directors": "Y",
+                    "runtime": "180 min",
+                    "backdrop_url": "https://image.tmdb.org/t/p/original/x.jpg",
+                },
+            }
+        ]
+
+    pool.execute = AsyncMock(side_effect=_execute)
+    result = await fetch_random_landing_film(pool, criteria={"min_runtime": 150})
+    assert result is not None
+    # The runtimeMinutes >= predicate should appear in at least one issued SQL.
+    assert any(
+        "runtimeMinutes" in sql and ">=" in sql for sql in call_log
+    ), f"min_runtime predicate missing from SQL: {call_log}"
+
+
+@pytest.mark.asyncio
+async def test_fetch_filtered_max_runtime_appears_in_sql():
+    """max_runtime criteria emits a runtimeMinutes <= predicate in the issued SQL."""
+    pool = AsyncMock()
+    call_log: list[str] = []
+
+    async def _execute(sql, *args, **kwargs):
+        call_log.append(sql)
+        if "COUNT(*)" in sql:
+            return {"n": 1}
+        if "ORDER BY mp.tconst" in sql:
+            return [{"tconst": "tt0001"}]
+        return [
+            {
+                "tconst": "tt0001",
+                "public_id": "pid",
+                "payload_json": {
+                    "title": "X",
+                    "year": "2010",
+                    "directors": "Y",
+                    "runtime": "100 min",
+                    "backdrop_url": "https://image.tmdb.org/t/p/original/x.jpg",
+                },
+            }
+        ]
+
+    pool.execute = AsyncMock(side_effect=_execute)
+    result = await fetch_random_landing_film(pool, criteria={"max_runtime": 120})
+    assert result is not None
+    assert any(
+        "runtimeMinutes" in sql and "<=" in sql for sql in call_log
+    ), f"max_runtime predicate missing from SQL: {call_log}"
+
+
+@pytest.mark.asyncio
+async def test_fetch_filtered_min_rating_appears_in_sql():
+    """min_rating criteria emits an averageRating >= predicate in the issued SQL."""
+    pool = AsyncMock()
+    call_log: list[str] = []
+
+    async def _execute(sql, *args, **kwargs):
+        call_log.append(sql)
+        if "COUNT(*)" in sql:
+            return {"n": 1}
+        if "ORDER BY mp.tconst" in sql:
+            return [{"tconst": "tt0001"}]
+        return [
+            {
+                "tconst": "tt0001",
+                "public_id": "pid",
+                "payload_json": {
+                    "title": "X",
+                    "year": "2010",
+                    "directors": "Y",
+                    "runtime": "100 min",
+                    "backdrop_url": "https://image.tmdb.org/t/p/original/x.jpg",
+                },
+            }
+        ]
+
+    pool.execute = AsyncMock(side_effect=_execute)
+    result = await fetch_random_landing_film(pool, criteria={"min_rating": 7.5})
+    assert result is not None
+    assert any(
+        "averageRating" in sql and ">=" in sql for sql in call_log
+    ), f"min_rating predicate missing from SQL: {call_log}"

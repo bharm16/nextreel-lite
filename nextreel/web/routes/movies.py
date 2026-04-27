@@ -4,11 +4,16 @@ from __future__ import annotations
 
 import random
 
-from quart import abort, g, redirect, render_template
+from quart import abort, g, jsonify, redirect, render_template, request
 
-from infra.route_helpers import with_timeout
+from infra.route_helpers import rate_limited, with_timeout
 from movies.landing_film_service import fetch_random_landing_film
+from movies.landing_filter_url import (
+    active_filters_for_template,
+    criteria_from_query_args,
+)
 from movies.movie_url import build_movie_path, parse_movie_path, title_slug
+from movies.public_id import public_id_for_tconst
 from nextreel.web.routes.shared import (
     _REQUEST_TIMEOUT,
     _current_state,
@@ -128,28 +133,98 @@ async def movie_detail(slug_with_id):
     )
 
 
+@bp.route("/api/landing-film")
+@rate_limited("landing_film_api")
+@with_timeout(_REQUEST_TIMEOUT)
+async def landing_film_json():
+    """JSON endpoint for the landing-page filter pills.
+
+    Reads URL filter params (genre, decade, runtime, rating), translates them
+    to internal criteria via criteria_from_query_args, and returns one matching
+    film payload as JSON. Returns 204 with empty body when no film matches the
+    filter combination — the client-side JS handles the empty state.
+
+    The response is a deliberate projection: it never exposes ``tconst`` (the
+    IMDb id is internal post the public_id migration) and it always carries a
+    server-built ``movie_path`` so the client doesn't have to reproduce the
+    canonical-URL slugifier from movies/movie_url.py.
+
+    Used by static/js/landing-pills.js for in-place hero reroll.
+    """
+    services = _services()
+    criteria = criteria_from_query_args(request.args)
+    film = await fetch_random_landing_film(services.movie_manager.db_pool, criteria)
+    if film is None:
+        return ("", 204)
+
+    public_id = film.get("public_id")
+    if not public_id:
+        public_id = await public_id_for_tconst(
+            services.movie_manager.db_pool, film.get("tconst")
+        )
+    if not public_id:
+        # Projection should always carry a public_id post-backfill; if it
+        # doesn't we can't build a canonical URL for the secondary CTA, so
+        # treat as no-result rather than ship a broken link.
+        logger.warning(
+            "landing_film_json: dropping film with no public_id (tconst=%s)",
+            film.get("tconst"),
+        )
+        return ("", 204)
+
+    return jsonify(
+        {
+            "public_id": public_id,
+            "title": film.get("title"),
+            "year": film.get("year"),
+            "director": film.get("director"),
+            "runtime": film.get("runtime"),
+            "backdrop_url": film.get("backdrop_url"),
+            "movie_path": build_movie_path(
+                film.get("title"), film.get("year"), public_id
+            ),
+        }
+    )
+
+
 @bp.route("/")
+@with_timeout(_REQUEST_TIMEOUT)
 async def home():
     state = _current_state()
     services = _services()
     data = await services.movie_manager.home(state, legacy_session=_legacy_session())
 
-    landing_film = await fetch_random_landing_film(services.movie_manager.db_pool)
+    criteria = criteria_from_query_args(request.args)
+    landing_film = await fetch_random_landing_film(services.movie_manager.db_pool, criteria)
+
     if landing_film is None:
-        # DB-backed pick failed (transient error or empty READY set). Serve a
-        # hardcoded fallback so the hero panel still renders. The fallback
-        # entries intentionally lack public_id — querying the DB for one
-        # would just compound the failure that got us here, and the home
-        # template hides the "See this film ↗" CTA when public_id is missing.
-        logger.warning(
-            "Landing-film DB fetch returned None; serving hardcoded fallback"
+        # Only fall back when the user did NOT filter — explicit filters with
+        # no matches mean we render the empty state, not a hardcoded film.
+        if not criteria:
+            landing_film = random.choice(_LANDING_FALLBACK_POOL)
+
+    if isinstance(landing_film, dict) and not landing_film.get("public_id"):
+        landing_film = dict(landing_film)
+        landing_film["public_id"] = await public_id_for_tconst(
+            services.movie_manager.db_pool, landing_film.get("tconst")
         )
-        landing_film = random.choice(_LANDING_FALLBACK_POOL)
+
+    active_filters = active_filters_for_template(criteria)
+    # Raw URL-arg dict (only the four keys the landing strip understands) for
+    # template pill aria-pressed state. Distinct from active_filters, which is
+    # form-schema-keyed for the /filtered_movie POST.
+    url_filters = {
+        k: request.args.get(k)
+        for k in ("genre", "decade", "runtime", "rating")
+        if request.args.get(k)
+    }
 
     return await render_template(
         "home.html",
         default_backdrop_url=data["default_backdrop_url"],
         landing_film=landing_film,
+        active_filters=active_filters,
+        url_filters=url_filters,
     )
 
 
