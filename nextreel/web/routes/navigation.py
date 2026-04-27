@@ -6,15 +6,22 @@ import time
 
 from quart import g, jsonify, redirect, request, url_for
 
-from infra.metrics import user_actions_total
-from infra.filter_normalizer import normalize_filters, validate_filters
+from infra.event_schema import (
+    EVENT_FILTER_APPLIED,
+    EVENT_MOVIE_SWIPED,
+)
+from infra.events import track_event
+from infra.metrics import movie_filters_applied_total, user_actions_total
+from infra.filter_normalizer import default_filter_state, normalize_filters, validate_filters
 from infra.route_helpers import csrf_required, rate_limited, with_timeout
+from infra.time_utils import current_year
 from nextreel.domain.filter_contracts import FilterState
 from nextreel.web.routes.shared import (
     _REQUEST_TIMEOUT,
     _build_movie_url_for_tconst,
     _build_movie_url_from_outcome,
     _current_state,
+    _distinct_id_for,
     _legacy_session,
     _no_matches_response,
     _redirect_for_navigation_outcome,
@@ -27,6 +34,43 @@ from session.user_preferences import (
     set_exclude_watched_default,
     set_exclude_watchlist_default,
 )
+
+
+def _active_filter_dimensions(filters: FilterState) -> list[str]:
+    """Return the closed-set list of filter dimensions active in this request.
+
+    A dimension is "active" when narrowed from defaults or set to True for
+    the boolean exclude flags. Used both for the Prometheus
+    ``movie_filters_applied_total`` counter and the PostHog
+    ``filter_applied`` event payload.
+    """
+    defaults = default_filter_state(current_year())
+    dimensions: list[str] = []
+    if filters.get("genres_selected"):
+        dimensions.append("genres")
+    if (
+        filters.get("year_min") != defaults["year_min"]
+        or filters.get("year_max") != defaults["year_max"]
+    ):
+        dimensions.append("year")
+    if (
+        filters.get("imdb_score_min") != defaults["imdb_score_min"]
+        or filters.get("imdb_score_max") != defaults["imdb_score_max"]
+    ):
+        dimensions.append("rating")
+    if (
+        filters.get("num_votes_min") != defaults["num_votes_min"]
+        or filters.get("num_votes_max") != defaults["num_votes_max"]
+    ):
+        dimensions.append("votes")
+    language = filters.get("language")
+    if language and language != defaults["language"]:
+        dimensions.append("language")
+    if filters.get("exclude_watched"):
+        dimensions.append("exclude_watched")
+    if filters.get("exclude_watchlist"):
+        dimensions.append("exclude_watchlist")
+    return dimensions
 
 
 @bp.route("/next_movie", methods=["POST"])
@@ -44,6 +88,7 @@ async def next_movie():
 
     services.metrics_collector.track_movie_recommendation("next_movie")
     user_actions_total.labels(action_type="next_movie").inc()
+    track_event(_distinct_id_for(state), EVENT_MOVIE_SWIPED, {"direction": "next"})
 
     outcome = await services.movie_manager.next_movie(
         state,
@@ -69,6 +114,8 @@ async def previous_movie():
         state.session_id,
         g.correlation_id,
     )
+    user_actions_total.labels(action_type="previous_movie").inc()
+    track_event(_distinct_id_for(state), EVENT_MOVIE_SWIPED, {"direction": "previous"})
     outcome = await movie_manager.previous_movie(state, legacy_session=_legacy_session())
 
     if outcome is None:
@@ -91,6 +138,17 @@ async def filtered_movie_endpoint():
     form_data = await request.form
     filters: FilterState = normalize_filters(form_data)
     validation_errors = validate_filters(filters)
+
+    user_actions_total.labels(action_type="filtered_movie").inc()
+    if not validation_errors:
+        active_dimensions = _active_filter_dimensions(filters)
+        for dimension in active_dimensions:
+            movie_filters_applied_total.labels(filter_type=dimension).inc()
+        track_event(
+            _distinct_id_for(state),
+            EVENT_FILTER_APPLIED,
+            {"dimensions": active_dimensions},
+        )
 
     start_time = time.time()
     logger.info(

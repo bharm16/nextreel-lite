@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 
 from quart import Quart
 
+from infra.events import shutdown_event_backend
 from infra.runtime_schema import (
     assert_no_null_public_ids,
     ensure_movie_candidates_fulltext_index,
@@ -23,6 +24,24 @@ async def shutdown_resources(app) -> None:
         logger.warning("Metrics collection stop timed out")
     except Exception as exc:
         logger.warning("Error stopping metrics collection: %s", exc)
+
+    # Bounded so a hung PostHog flush (network down, slow DNS) can't
+    # block the whole shutdown — we'd rather drop the last in-memory
+    # batch than refuse to exit.
+    try:
+        await asyncio.wait_for(asyncio.to_thread(shutdown_event_backend), timeout=5.0)
+        logger.info("Event backend shut down")
+    except asyncio.TimeoutError:
+        logger.warning("Event backend shutdown timed out")
+    except Exception as exc:
+        logger.warning("Error shutting down event backend: %s", exc)
+
+    if getattr(app, "posthog_proxy_client", None):
+        try:
+            await asyncio.wait_for(app.posthog_proxy_client.aclose(), timeout=3.0)
+            logger.info("PostHog proxy client closed")
+        except Exception as exc:
+            logger.warning("Error closing PostHog proxy client: %s", exc)
 
     if hasattr(app.movie_manager, "close"):
         try:

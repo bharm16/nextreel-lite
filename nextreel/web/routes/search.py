@@ -4,12 +4,17 @@ from __future__ import annotations
 
 from quart import jsonify, request
 
+from infra.event_schema import EVENT_SEARCH_PERFORMED, bucket_search_result_count
+from infra.events import track_event
+from infra.metrics import user_actions_total
 from infra.route_helpers import rate_limited, with_timeout
 from logging_config import get_logger
 from movies.movie_url import build_movie_path
 from movies.search_queries import build_search_query
 from nextreel.web.routes.shared import (
     _REQUEST_TIMEOUT,
+    _current_state,
+    _distinct_id_for,
     _resolve_public_id_or_404,
     _services,
     bp,
@@ -65,6 +70,11 @@ async def search_titles():
     if sql is None:
         return jsonify({"results": []})
 
+    # Only count requests that actually run a query — sql is None for empty
+    # or unusable input, and counting those would inflate the metric with
+    # navbar-mount noise and per-keystroke debouncer churn.
+    user_actions_total.labels(action_type="search").inc()
+
     try:
         rows = await _execute_search(sql, params)
     except Exception as exc:  # noqa: BLE001 — defense-in-depth
@@ -89,6 +99,11 @@ async def search_titles():
         for row in rows
         if row.get("public_id")
     ]
+    track_event(
+        _distinct_id_for(_current_state()),
+        EVENT_SEARCH_PERFORMED,
+        {"result_count_bucket": bucket_search_result_count(len(results))},
+    )
     return jsonify({"results": results})
 
 

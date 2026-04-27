@@ -1,0 +1,34 @@
+{# PostHog browser SDK loader.
+
+  Rendered into <head> on every top-level page. Inert when posthog_enabled
+  is false — no script tag, no network requests, no cookies. Inerness is
+  the explicit safety property: forgetting POSTHOG_PROJECT_KEY in an
+  environment must not silently leak events.
+
+  Why server-side conditional rendering instead of a JS-side flag check:
+  the SDK loader script is an external script; we don't want to fetch it
+  at all when analytics is off, since the act of fetching reveals the user
+  to PostHog's CDN regardless of whether we then call posthog.init().
+
+  Why the loader is an external file (static/js/posthog-init.js) instead
+  of inline: the production Content-Security-Policy uses
+  ``script-src 'self' …`` with no ``'unsafe-inline'`` and no per-request
+  nonce. An inline <script> would be silently blocked by the browser in
+  prod, leaving server-side events flowing into Loki but client-side
+  events missing — the worst kind of silent regression. Loading from
+  ``url_for('static', …)`` is same-origin and ``'self'``-allowed.
+
+  Configuration is passed via data-attributes; the loader script reads
+  them from ``document.querySelector('script[data-posthog-init]').dataset``.
+#}
+{% if posthog_enabled and posthog_project_key %}
+<script
+  data-posthog-init
+  data-project-key="{{ posthog_project_key }}"
+  data-api-host="{{ posthog_api_host }}"
+  {% if current_user_id %}data-user-id="{{ current_user_id }}"{% endif %}
+  {% if current_user_id %}data-auth-provider="{{ current_user_auth_provider }}"{% endif %}
+  src="{{ url_for('static', filename='js/posthog-init.js') }}?v={{ config.get('CSS_VERSION', '1') }}"
+  defer
+></script>
+{% endif %}

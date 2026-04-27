@@ -33,6 +33,7 @@ from nextreel.web.routes.navigation import (
     previous_movie,
 )
 from nextreel.web.routes.ops import health_check, metrics, readiness_check
+from nextreel.web.routes.posthog_proxy import posthog_proxy, posthog_proxy_bp
 from nextreel.web.routes.search import projection_state, search_titles
 from nextreel.web.routes.watched import (
     add_to_watched,
@@ -77,6 +78,8 @@ __all__ = [
     "metrics",
     "movie_detail",
     "next_movie",
+    "posthog_proxy",
+    "posthog_proxy_bp",
     "previous_movie",
     "projection_state",
     "readiness_check",

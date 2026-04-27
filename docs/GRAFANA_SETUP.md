@@ -10,8 +10,8 @@ This document provides step-by-step instructions to complete your Grafana Cloud 
 
 ## 📋 Prerequisites
 
-✅ Packages installed: `python-logging-loki`, `prometheus-client`\
-✅ Enhanced logging with Loki integration\
+✅ `prometheus-client` installed (see `requirements.txt`)\
+✅ Built-in Loki shipping via `logging_config.LokiHandler` (no extra package needed; uses `requests`)\
 ✅ Comprehensive Prometheus metrics collection\
 ✅ Metrics endpoint: `/metrics`\
 ✅ Dashboard configuration ready

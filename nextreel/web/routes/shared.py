@@ -440,6 +440,19 @@ def _current_user_id() -> str | None:
     return getattr(state, "user_id", None) if state else None
 
 
+def _distinct_id_for(state) -> str:
+    """Resolve a PostHog distinct_id from a NavigationState.
+
+    Authenticated users get their stable ``user_id``; anonymous sessions
+    get an HMAC-derived opaque ID from the session_id (so the raw session
+    credential never leaves the app). Centralised here so the rule lives
+    in exactly one place across all event call sites.
+    """
+    from infra.events import anon_distinct_id
+
+    return state.user_id or anon_distinct_id(state.session_id)
+
+
 def _require_login():
     """Return a redirect to login if the user is not authenticated, else None."""
     if not _current_user_id():
@@ -479,6 +492,7 @@ __all__ = [
     "_build_movie_url_from_outcome",
     "_current_state",
     "_current_user_id",
+    "_distinct_id_for",
     "_get_csrf_token",
     "_google_oauth_service",
     "_legacy_session",

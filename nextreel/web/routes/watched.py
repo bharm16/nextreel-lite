@@ -7,6 +7,9 @@ from datetime import datetime, timezone
 
 from quart import abort, jsonify, redirect, render_template, request, url_for
 
+from infra.event_schema import EVENT_WATCHED_ADDED, EVENT_WATCHED_REMOVED
+from infra.events import track_event
+from infra.metrics import user_actions_total
 from infra.route_helpers import csrf_required, rate_limited, safe_referrer as _safe_referrer
 from nextreel.web.routes.shared import (
     LIST_VALID_SORTS,
@@ -100,6 +103,8 @@ async def add_to_watched(public_id):
 
     services = _services()
     await services.movie_manager.watched_store.add(user_id, tconst)
+    user_actions_total.labels(action_type="watched_add").inc()
+    track_event(user_id, EVENT_WATCHED_ADDED, {"tconst": tconst})
     logger.info("User %s marked %s as watched", user_id, tconst)
     if _wants_json_response():
         # public_id is the opaque client-facing key; tconst is intentionally
@@ -121,6 +126,8 @@ async def remove_from_watched(public_id):
 
     services = _services()
     await services.movie_manager.watched_store.remove(user_id, tconst)
+    user_actions_total.labels(action_type="watched_remove").inc()
+    track_event(user_id, EVENT_WATCHED_REMOVED, {"tconst": tconst})
     logger.info("User %s removed %s from watched", user_id, tconst)
     if _wants_json_response():
         return jsonify({"ok": True, "is_watched": False, "public_id": public_id})
