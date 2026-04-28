@@ -601,6 +601,53 @@ def test_build_candidate_query_joins_movie_projection_for_public_id(mock_db_pool
     assert "p.public_id" in query
 
 
+def test_build_candidate_query_language_clause_excludes_null_and_substring(mock_db_pool):
+    """Language filter must be strict — no NULL bypass, no substring LIKE.
+
+    Regression: ``title.basics.language`` contained legacy full-word strings
+    (``"English"``, ``"MalayalamEnglish"``) plus 321k NULL rows. The old
+    ``(language = %s OR language LIKE %s OR language IS NULL)`` clause let
+    Indian films tagged as ``"MalayalamEnglish"`` and unfiltered NULL rows
+    leak past an English filter. The new clause matches the ISO code plus
+    a single legacy English-name spelling and nothing else.
+    """
+    store = _make_store(mock_db_pool)
+
+    query, params = store._build_candidate_query(
+        criteria={"language": "en"},
+        excluded_tconsts=set(),
+        desired_limit=2,
+        buckets=[1, 2],
+        use_fulltext=True,
+    )
+
+    assert "language IS NULL" not in query
+    assert "language LIKE" not in query
+    assert "language IN (%s, %s)" in query
+    assert "en" in params
+    assert "English" in params
+
+
+def test_build_candidate_query_language_clause_falls_back_to_exact_for_unknown_iso(
+    mock_db_pool,
+):
+    """Unknown ISO codes (no legacy-name mapping) use plain equality."""
+    store = _make_store(mock_db_pool)
+
+    query, params = store._build_candidate_query(
+        criteria={"language": "zz"},
+        excluded_tconsts=set(),
+        desired_limit=2,
+        buckets=[1, 2],
+        use_fulltext=True,
+    )
+
+    assert "language = %s" in query
+    assert "language IN" not in query
+    assert "language IS NULL" not in query
+    assert "zz" in params
+
+
 async def test_fetch_candidate_refs_retries_like_clause_when_fulltext_missing(mock_db_pool):
     """Retries with LIKE clauses when the movie_candidates FULLTEXT index is missing."""
     mock_db_pool.execute.side_effect = [
