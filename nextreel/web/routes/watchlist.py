@@ -92,7 +92,7 @@ async def add_to_watchlist(public_id):
     tconst = await _resolve_public_id_or_404(public_id)
     user_id = _current_user_id()
     if not user_id:
-        abort(401, "Login required")
+        abort(401, "Sign in required")
 
     services = _services()
     await services.movie_manager.watchlist_store.add(user_id, tconst)
@@ -115,7 +115,7 @@ async def remove_from_watchlist(public_id):
     tconst = await _resolve_public_id_or_404(public_id)
     user_id = _current_user_id()
     if not user_id:
-        abort(401, "Login required")
+        abort(401, "Sign in required")
 
     services = _services()
     await services.movie_manager.watchlist_store.remove(user_id, tconst)

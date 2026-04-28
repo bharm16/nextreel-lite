@@ -247,7 +247,7 @@
     {% else %}
     <a href="{{ url_for('main.login_page', next=movie_href) }}"
        class="nav-btn-watchlist nav-btn-watchlist--login"
-       aria-label="Log in to add to watchlist">
+       aria-label="Sign in to add to watchlist">
       <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
       <span><span class="nav-btn-watchlist__prefix">Add to </span>Watchlist</span>
     </a>
@@ -279,7 +279,7 @@
     {% else %}
     <a href="{{ url_for('main.login_page', next=movie_href) }}"
        class="nav-btn-watched nav-btn-watched--login"
-       aria-label="Log in to mark as watched">
+       aria-label="Sign in to mark as watched">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
       <span><span class="nav-btn-watched__prefix">Mark as </span>Watched</span>
     </a>

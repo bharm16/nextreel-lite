@@ -21,18 +21,38 @@ def get_environment() -> str:
 
 
 def ensure_env_loaded() -> None:
-    """Load the appropriate dotenv files exactly once."""
-    global _ENV_LOADED
+    """Load the appropriate dotenv files exactly once.
+
+    ``.env`` is loaded *first* as the primary local layer so a developer
+    who declares ``FLASK_ENV=development`` (or ``NEXTREEL_ENV=...``)
+    inside ``.env`` actually has that value drive environment selection.
+    Previously the loader called ``get_environment()`` before any
+    ``.env`` file was open, which left both vars unset and silently
+    fell back to ``"production"`` — pulling in the dead
+    ``.env.production`` overlay regardless of what ``.env`` said.
+
+    Precedence (highest first):
+      1. shell exports — ``load_dotenv`` does not override existing
+         process env vars, so ``NEXTREEL_ENV=production python ...``
+         still wins.
+      2. ``.env`` — your local source of truth.
+      3. ``.env.<mode>`` — shared per-mode defaults (only fills gaps).
+    """
+    global _ENV_LOADED, _ENV
     if _ENV_LOADED:
         return
 
+    load_dotenv(_REPO_ROOT / ".env")
+
+    # Bust the get_environment() cache: any earlier call (e.g. during
+    # module import) saw a pre-.env world and would otherwise stick.
+    _ENV = None
     env_name = get_environment()
+
     if env_name == "development":
         load_dotenv(_REPO_ROOT / ".env.development")
-        load_dotenv(_REPO_ROOT / ".env")
     else:
         load_dotenv(_REPO_ROOT / ".env.production")
-        load_dotenv(_REPO_ROOT / ".env")
 
     _ENV_LOADED = True
 

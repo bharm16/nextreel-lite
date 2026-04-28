@@ -29,6 +29,31 @@ _ALLOWED_CANDIDATE_TABLES = frozenset({"movie_candidates_next", "movie_candidate
 # so concurrent callers still see varied results.
 _FILTER_RESULT_POOL_SIZE = 50
 
+# Legacy ``title.basics.language`` rows store the full English name
+# (e.g. "English", "Hindi") rather than an ISO 639-1 code. The repair
+# script ``scripts/update_languages_from_tmdb.py`` normalizes these to
+# ISO codes; this map matches both spellings during the migration window
+# so a user's English filter still finds rows tagged ``"English"``.
+# Entries here are intentionally limited to the *primary* English name
+# of each language — multi-language concatenated strings like
+# "MalayalamEnglish" are deliberately *not* matched.
+_LEGACY_LANGUAGE_NAME = {
+    "en": "English", "fr": "French", "es": "Spanish", "de": "German",
+    "it": "Italian", "pt": "Portuguese", "ru": "Russian", "ja": "Japanese",
+    "ko": "Korean", "zh": "Chinese", "hi": "Hindi", "ar": "Arabic",
+    "nl": "Dutch", "sv": "Swedish", "no": "Norwegian", "da": "Danish",
+    "fi": "Finnish", "pl": "Polish", "tr": "Turkish", "hu": "Hungarian",
+    "cs": "Czech", "el": "Greek", "he": "Hebrew", "ro": "Romanian",
+    "th": "Thai", "vi": "Vietnamese", "id": "Indonesian", "ms": "Malay",
+    "tl": "Tagalog", "uk": "Ukrainian", "bg": "Bulgarian", "ca": "Catalan",
+    "hr": "Croatian", "sr": "Serbian", "sk": "Slovak", "sl": "Slovenian",
+    "et": "Estonian", "lv": "Latvian", "lt": "Lithuanian", "is": "Icelandic",
+    "ga": "Irish", "cy": "Welsh", "fa": "Persian", "ur": "Urdu",
+    "bn": "Bengali", "ta": "Tamil", "te": "Telugu", "ml": "Malayalam",
+    "kn": "Kannada", "mr": "Marathi", "pa": "Punjabi", "gu": "Gujarati",
+    "sw": "Swahili",
+}
+
 
 def _ref_from_row(row: dict[str, Any]) -> dict[str, Any]:
     """Build a lightweight movie ref dict from a DB row.
@@ -211,8 +236,19 @@ class CandidateStore:
         ]
         params.extend(buckets)
         if language != "any":
-            clauses.append("(language = %s OR language LIKE %s OR language IS NULL)")
-            params.extend([language, f"%{language}%"])
+            # Match the ISO 639-1 code plus its legacy English-name spelling
+            # (e.g. ``en`` and ``English``). NULL ``language`` rows and
+            # multi-language concatenated strings (``MalayalamEnglish``) are
+            # excluded — without trustworthy metadata we cannot honor the
+            # filter. See ``_LEGACY_LANGUAGE_NAME`` and
+            # ``scripts/update_languages_from_tmdb.py``.
+            legacy_name = _LEGACY_LANGUAGE_NAME.get(language)
+            if legacy_name:
+                clauses.append("language IN (%s, %s)")
+                params.extend([language, legacy_name])
+            else:
+                clauses.append("language = %s")
+                params.append(language)
 
         if excluded_tconsts:
             # Qualify tconst here — both movie_candidates and

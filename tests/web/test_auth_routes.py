@@ -434,7 +434,7 @@ class TestGoogleOAuthCallback:
         assert response.status_code == 302
         assert response.location.endswith("/login")
         flash_mock.assert_awaited_once_with(
-            "An account with this email already exists. Please log in with email.",
+            "An account with this email already exists. Please sign in with email.",
             "error",
         )
         create_oauth_user.assert_not_awaited()
