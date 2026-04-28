@@ -26,6 +26,7 @@ import argparse
 import asyncio
 
 from logging_config import get_logger
+from movies.candidate_store import CandidateStore
 from movies.tmdb_client import TMDbHelper
 
 logger = get_logger(__name__)
@@ -151,6 +152,14 @@ async def update_languages(
         print(f"  Repaired:  {updated}")
         print(f"  Unchanged: {unchanged}")
         print(f"  Failed:    {failed}")
+
+        if updated > 0:
+            logger.info(
+                "Rebuilding movie_candidates after repairing %d language rows",
+                updated,
+            )
+            candidate_store = CandidateStore(db_pool)
+            await candidate_store.refresh_movie_candidates()
 
         dist_query = (
             "SELECT COALESCE(language, 'NULL') AS lang, COUNT(*) AS count "
