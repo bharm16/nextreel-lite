@@ -232,7 +232,7 @@ class TestGoogleOAuthService:
 
         assert outcome.kind == "provider_conflict"
         assert outcome.error_message == (
-            "An account with this email already exists. Please log in with email."
+            "An account with this email already exists. Please sign in with email."
         )
         create_oauth_user.assert_not_awaited()
 
