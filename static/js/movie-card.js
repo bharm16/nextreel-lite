@@ -8,20 +8,12 @@
   }).filter(Boolean) : [];
 
   el.innerHTML = "";
-  el.className = "meta";
-  el.style.marginBottom = "0";
 
-  parts.forEach(function (genre, index) {
+  parts.forEach(function (genre) {
     var span = document.createElement("span");
+    span.className = "genre-chip";
     span.textContent = genre;
     el.appendChild(span);
-
-    if (index < parts.length - 1) {
-      var dot = document.createElement("span");
-      dot.className = "dot";
-      dot.innerHTML = "&middot;";
-      el.appendChild(dot);
-    }
   });
 })();
 
