@@ -386,96 +386,127 @@
   }
   .movie-info { min-width: 0; }
 
-  /* ── Sticky bottom nav bar ─────────────── */
+  /* ── Sticky bottom nav bar — 4-column grid ────── */
   .movie-nav-bar {
     position: fixed;
     bottom: 0; left: 0; right: 0;
     z-index: 50;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.6rem 2rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    align-items: stretch;
+    height: 60px;
+    padding: 0;
     background: var(--color-surface);
     border-top: 1px solid var(--color-border);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
   }
+  /* Form wrappers stretch to fill their grid cell so the button inside
+     can take 100% height and center its contents vertically. */
+  .movie-nav-bar > form {
+    display: flex;
+    width: 100%;
+    height: 100%;
+  }
   .movie-nav-bar .nav-btn-prev,
   .movie-nav-bar .nav-btn-next,
   .movie-nav-bar .nav-btn-watched,
   .movie-nav-bar .nav-btn-watchlist {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    padding: 0 0.5rem;
     font-size: 0.75rem;
+    letter-spacing: 0.02em;
   }
 
   /* Title — editorial, large, light weight */
   .title {
     font-family: var(--font-serif);
-    font-weight: 300;
-    font-size: 2.25rem;
-    line-height: 1.15;
-    letter-spacing: -0.025em;
-    margin-bottom: 0.75rem;
+    font-weight: 400;
+    font-size: 2.625rem;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.875rem;
   }
   .title-year {
     font-weight: 300;
+    font-style: italic;
     color: var(--color-text-muted);
   }
 
   /* Meta row — director credit in primary color */
   .meta {
-    display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
-    font-size: 0.85rem;
+    display: flex; align-items: center; gap: 0.25rem 0.625rem; flex-wrap: wrap;
+    font-size: 0.8125rem;
     color: var(--color-text);
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.625rem;
   }
-  .dot { opacity: 0.4; }
+  /* Full opacity reads cleaner on dark backdrop than the previous 0.4 alpha */
+  .dot { color: var(--color-text-muted); opacity: 1; }
 
-  /* Genre text — plain with dot separators, muted */
+  /* Genre chips — bordered, muted, tracked-out */
+  #genre-info {
+    display: flex; flex-wrap: wrap; gap: 0.375rem;
+    margin-top: 0.625rem;
+    margin-bottom: 0;
+  }
   .genre-chip {
-    font-size: 0.8rem; font-weight: 400;
-    letter-spacing: 0;
+    font-size: 0.6875rem;
+    font-weight: 400;
+    letter-spacing: 0.04em;
     text-transform: none;
     color: var(--color-text-muted);
-    border: none;
+    border: 1px solid var(--color-border);
     border-radius: 0;
-    padding: 0;
-  }
-  /* Genre container inherits meta class styling from JS — override to muted */
-  #genre-info.meta {
-    color: var(--color-text-muted);
+    padding: 0.1875rem 0.625rem;
+    background: transparent;
+    line-height: 1.4;
   }
 
-  /* Tagline — hidden in editorial layout */
+  /* Tagline — italic muted serif, sits below plot */
   .tagline {
-    display: none;
+    display: block;
+    margin-top: 0.875rem;
+    margin-bottom: 0;
+    color: var(--color-text-muted);
+    font-style: italic;
+    font-size: 0.8125rem;
+    font-family: var(--font-serif);
   }
 
   /* Rating — large serif number, editorial callout */
   .rating-wrap {
-    display: block;
-    margin: 2rem 0;
-    padding: 1.25rem 0;
+    display: flex;
+    align-items: baseline;
+    gap: 0.875rem;
+    margin: 2.25rem 0 0;
+    padding: 1.25rem 0 0;
     border-top: 1px solid var(--color-border);
-    border-bottom: 1px solid var(--color-border);
   }
   .rating-score {
     font-family: var(--font-serif);
-    font-weight: 300;
-    font-size: 2.5rem;
+    font-weight: 400;
+    font-size: 3.375rem;
     letter-spacing: -0.02em;
     line-height: 1;
   }
   .rating-outof {
     font-family: var(--font-serif);
-    font-size: 1rem;
-    font-weight: 300;
+    font-size: 0.875rem;
+    font-weight: 400;
     color: var(--color-text-muted);
   }
   .rating-votes-mini {
-    display: block;
-    font-size: 0.75rem;
+    display: inline-block;
+    margin-left: auto;
+    font-size: 0.6875rem;
     color: var(--color-text-muted);
-    margin-top: 0.25rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-top: 0;
   }
   /* Hide star icon */
   .rating-wrap svg { display: none; }
@@ -484,21 +515,25 @@
   .plot {
     font-family: var(--font-serif);
     font-size: 1rem;
-    line-height: 1.85;
-    color: var(--color-text-muted);
+    line-height: 1.65;
+    color: var(--color-text);
+    text-wrap: pretty;
+    max-width: 56ch;
+    margin-top: 2.25rem;
+    margin-bottom: 0;
   }
 
   /* Action row — uppercase micro links */
   .action-row {
-    display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap;
-    margin-top: 2rem;
+    display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;
+    margin-top: 2.25rem;
   }
   .trailer-btn {
-    display: inline-flex; align-items: center; gap: 0.35rem;
-    font-size: 0.7rem; font-weight: 600;
-    color: var(--color-text-muted);
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    font-size: 0.6875rem; font-weight: 600;
+    color: var(--color-accent);
     text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.12em;
     border: none;
     border-radius: 0;
     padding: 0;
@@ -507,21 +542,32 @@
     transition: color var(--duration-normal) var(--easing-default);
     font-family: var(--font-sans);
   }
-  .trailer-btn:hover { color: var(--color-text); }
-  .trailer-btn svg { display: none; }
+  .trailer-btn:hover { color: var(--color-accent-hover); }
+  .trailer-btn svg {
+    display: inline-block;
+    width: 11px; height: 11px;
+    stroke: none;
+    fill: currentColor;
+  }
 
   /* External links — uppercase micro */
-  .external-links { display: flex; gap: 1.25rem; flex-wrap: wrap; align-items: center; }
+  .external-links { display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: center; }
   .ext-link {
-    font-size: 0.7rem; font-weight: 600;
+    display: inline-flex; align-items: center; gap: 0.375rem;
+    font-size: 0.6875rem; font-weight: 600;
     color: var(--color-text-muted);
     text-decoration: none;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.12em;
     transition: color var(--duration-normal) var(--easing-default);
   }
   .ext-link:hover { color: var(--color-text); }
-  .ext-link svg { display: none; }
+  .ext-link svg {
+    display: inline-block;
+    width: 10px; height: 10px;
+    stroke: currentColor; fill: none; stroke-width: 2;
+    stroke-linecap: round; stroke-linejoin: round;
+  }
 
   /* Watch Providers — text-only editorial */
   .watch-section { margin-bottom: 0; }
@@ -692,18 +738,25 @@
   }
 
   /* ── Cast List (text-only) ─────────────── */
-  .cast-list { list-style: none; margin: 0; padding: 0; }
+  .cast-list { list-style: none; margin: 0.75rem 0 0; padding: 0; }
   .cast-item {
     display: flex;
     justify-content: space-between;
     align-items: baseline;
-    padding: 0.4rem 0;
-    font-size: 0.85rem;
+    gap: 1rem;
+    padding: 0.75rem 0;
+    font-size: 0.875rem;
     border-bottom: 1px solid var(--color-border);
   }
   .cast-item:last-child { border-bottom: none; }
   .cast-actor { font-weight: 600; color: var(--color-text); }
-  .cast-character { color: var(--color-text-muted); font-style: italic; }
+  .cast-character {
+    color: var(--color-text-muted);
+    font-style: italic;
+    font-size: 0.8125rem;
+    font-family: var(--font-serif);
+    text-align: right;
+  }
 
   /* Legacy cast strip (hidden in editorial) */
   .cast-strip { display: none; }
@@ -721,6 +774,61 @@
   .crew-item .crew-role {
     color: var(--color-text);
     font-weight: 600;
+  }
+
+  /* ── Awards (bordered chips with trophy icon) ── */
+  .awards-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+    margin-top: 0.75rem;
+  }
+  .award-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.375rem 0.75rem;
+    border: 1px solid var(--color-border);
+    font-size: 0.6875rem;
+    font-family: var(--font-sans);
+    color: var(--color-text);
+    background: transparent;
+  }
+  .award-chip svg {
+    width: 11px; height: 11px;
+    stroke: currentColor; fill: none;
+    stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
+    flex-shrink: 0;
+  }
+  .award-chip .award-label { font-weight: 600; }
+  .award-chip .award-detail { color: var(--color-text-muted); }
+
+  /* ── More from director (grid of films) ─ */
+  .director-films-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.625rem;
+    margin-top: 0.75rem;
+  }
+  .director-film {
+    border: 1px solid var(--color-border);
+    padding: 0.625rem 0.75rem;
+    text-decoration: none;
+    color: inherit;
+    transition: border-color var(--duration-normal) var(--easing-default);
+  }
+  a.director-film:hover { border-color: var(--color-text-muted); }
+  .director-film .film-title {
+    font-family: var(--font-serif);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    line-height: 1.25;
+  }
+  .director-film .film-year {
+    font-size: 0.6875rem;
+    color: var(--color-text-muted);
+    letter-spacing: 0.04em;
+    margin-top: 0.25rem;
   }
 
   /* ── Recommendations ───────────────────── */
@@ -1875,14 +1983,21 @@
     .movie-content-col > * { min-width: 0; max-width: 100%; }
     .rec-scroll-container { width: 100%; max-width: 100%; min-width: 0; }
     .rec-strip { min-width: 0; }
-    .title { font-size: 1.4rem; overflow-wrap: break-word; }
+    .title { font-size: 2rem; overflow-wrap: break-word; }
+    .rating-score { font-size: 2.75rem; }
+    .director-films-grid { grid-template-columns: repeat(2, 1fr); }
     .navbar { padding: 1rem 1rem; }
-    .movie-nav-bar { padding: 0.5rem 0.75rem; gap: 0.5rem; }
+    .movie-nav-bar {
+      height: 56px;
+      padding: 0;
+    }
     .movie-nav-bar .nav-btn-prev,
     .movie-nav-bar .nav-btn-next,
-    .movie-nav-bar .nav-btn-watched {
+    .movie-nav-bar .nav-btn-watched,
+    .movie-nav-bar .nav-btn-watchlist {
       font-size: 0.7rem;
       white-space: nowrap;
+      padding: 0 0.25rem;
     }
     .filter-drawer { width: 100vw; }
     .filter-drawer-tab {

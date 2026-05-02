@@ -20,7 +20,7 @@
         <div class="movie-info">
           <h1 class="title">{{ movie.title }} <span class="title-year">({{ movie.year }})</span></h1>
           <div class="meta">
-            <span>Directed by {{ movie.directors }}</span>
+            <span>Directed by <span class="director-name">{{ movie.directors }}</span></span>
             {% if movie.age_rating and movie.age_rating != "Not Rated" %}
             <span class="dot">&middot;</span>
             <span>{{ movie.age_rating }}</span>
@@ -31,14 +31,9 @@
             {% endif %}
           </div>
           <!-- Genres -->
-          <div class="flex flex-wrap gap-1.5" id="genre-info">{{ movie.genres }}</div>
+          <div id="genre-info">{{ movie.genres }}</div>
         </div>
       </div>
-
-    <!-- Tagline -->
-    {% if movie.tagline %}
-    <p class="tagline mb-4">"{{ movie.tagline }}"</p>
-    {% endif %}
 
     <!-- Rating -->
     <div class="rating-wrap">
@@ -47,18 +42,26 @@
     </div>
 
     <!-- Plot -->
-    <p class="plot mb-6">{{ movie.plot }}</p>
+    <p class="plot">{{ movie.plot }}</p>
+
+    <!-- Tagline (sits below plot in editorial layout) -->
+    {% if movie.tagline %}
+    <p class="tagline">&ldquo;{{ movie.tagline }}&rdquo;</p>
+    {% endif %}
 
     <!-- Actions: Trailer + IMDb only -->
     <div class="action-row mb-6">
       {% if movie.trailer %}
       <button class="trailer-btn" id="play-button" data-video-url="{{ movie.trailer }}">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l14 8-14 8V4z"/></svg>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4l14 8-14 8V4z"/></svg>
         Play Trailer
       </button>
       {% endif %}
       {% if movie.external_ids and movie.external_ids.imdb_url %}
-      <a href="{{ movie.external_ids.imdb_url }}" target="_blank" rel="noopener" class="ext-link">IMDb</a>
+      <a href="{{ movie.external_ids.imdb_url }}" target="_blank" rel="noopener" class="ext-link">
+        IMDb
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/></svg>
+      </a>
       {% endif %}
     </div>
 
@@ -135,6 +138,55 @@
         <li class="crew-item"><span class="crew-role">Cinematography</span> {{ movie.key_crew.cinematographer }}</li>
         {% endif %}
       </ul>
+    </div>
+    {% endif %}
+
+    <!-- Awards -->
+    {# TODO: wire up movie.awards in the payload (movies/movie_payload.py).
+       Expected shape: list[{label: str, detail: str | None}].
+       Markup + CSS already in place; block is invisible until data lands. #}
+    {% if movie.awards %}
+    <div class="mb-8">
+      <div class="section-heading">Awards</div>
+      <div class="awards-grid">
+        {% for award in movie.awards %}
+        <div class="award-chip">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 01-10 0V4z"/>
+            <path d="M17 4h3v3a3 3 0 01-3 3M7 4H4v3a3 3 0 003 3"/>
+          </svg>
+          <span class="award-label">{{ award.label }}</span>
+          {% if award.detail %}
+          <span class="award-detail">{{ award.detail }}</span>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- More from director -->
+    {# TODO: wire up movie.director_films in the payload (movies/movie_payload.py).
+       Expected shape: list[{title: str, year: int | None, url: str | None}].
+       Markup + CSS already in place; block is invisible until data lands. #}
+    {% if movie.director_films %}
+    <div class="mb-8">
+      <div class="section-heading">More from {{ movie.directors }}</div>
+      <div class="director-films-grid">
+        {% for film in movie.director_films %}
+        {% if film.url %}
+        <a class="director-film" href="{{ film.url }}">
+          <div class="film-title">{{ film.title }}</div>
+          {% if film.year %}<div class="film-year">{{ film.year }}</div>{% endif %}
+        </a>
+        {% else %}
+        <div class="director-film">
+          <div class="film-title">{{ film.title }}</div>
+          {% if film.year %}<div class="film-year">{{ film.year }}</div>{% endif %}
+        </div>
+        {% endif %}
+        {% endfor %}
+      </div>
     </div>
     {% endif %}
 
