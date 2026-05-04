@@ -786,7 +786,7 @@ class TestDrawerSaveAsDefaultButton:
 
         assert response.status_code == 200
         assert 'formaction="/account/preferences/filters/save"' in body
-        assert "Save as default" in body
+        assert "Save these as my defaults" in body
 
     async def test_button_absent_for_anonymous_user(self):
         # Default _make_app leaves navigation_state_store as None,
@@ -802,5 +802,5 @@ class TestDrawerSaveAsDefaultButton:
                 body = await response.get_data(as_text=True)
 
         assert response.status_code == 200
-        assert "Save as default" not in body
+        assert "Save these as my defaults" not in body
         assert "/account/preferences/filters/save" not in body

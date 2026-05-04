@@ -262,3 +262,27 @@ def test_normalize_filters_exclude_watchlist_defaults_true_when_absent():
 
     result = normalize_filters(FakeForm())
     assert result["exclude_watchlist"] is True
+
+
+def test_default_filter_state_uses_any_baselines():
+    """OOTB defaults are permissive ("Any") for new users.
+
+    The drawer's Reset/Modified UX is built around these baselines: a fresh
+    session opens with the full catalog visible and the "Modified" indicator
+    only appears once the user narrows. Logged-in users with saved defaults
+    bypass this — see ``inject_default_filters`` in the auth blueprint.
+    """
+    state = default_filter_state()
+    # IMDb score: full 1.0–10.0 range.
+    assert state["imdb_score_min"] == 1.0
+    assert state["imdb_score_max"] == 10.0
+    # Vote count: 0–2M (full sweep).
+    assert state["num_votes_min"] == 0
+    assert state["num_votes_max"] == 2000000
+    # Language: "any" (was "en" — see plan 2026-05-03 Task 1).
+    assert state["language"] == "any"
+    # Year: 1900–current (unchanged).
+    assert state["year_min"] == 1900
+    # Scope toggles unchanged.
+    assert state["exclude_watched"] is True
+    assert state["exclude_watchlist"] is True

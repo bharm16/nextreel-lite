@@ -802,3 +802,116 @@ async def test_validate_bucket_distribution_missing_buckets_treated_as_zero(mock
 
     with pytest.raises(RuntimeError, match="skew detected"):
         await store.validate_bucket_distribution("movie_candidates_next")
+
+
+# ---------------------------------------------------------------------------
+# count_matching — SQL-level coverage
+# ---------------------------------------------------------------------------
+
+
+def _last_count_call(mock_db_pool) -> tuple[str, list]:
+    """Return (sql, params) from the most recent execute() call."""
+    args, kwargs = mock_db_pool.execute.call_args
+    sql = args[0]
+    params = args[1] if len(args) > 1 else kwargs.get("params") or []
+    return sql, list(params)
+
+
+async def test_count_matching_returns_total(mock_db_pool):
+    mock_db_pool.execute.return_value = {"total": 1234}
+    store = _make_store(mock_db_pool)
+    result = await store.count_matching({})
+    assert result == 1234
+
+
+async def test_count_matching_returns_zero_when_no_row(mock_db_pool):
+    mock_db_pool.execute.return_value = None
+    store = _make_store(mock_db_pool)
+    assert await store.count_matching({}) == 0
+
+
+async def test_count_matching_emits_expected_clauses(mock_db_pool):
+    """Generated SQL covers titleType, year/rating/votes ranges, and uses placeholders."""
+    mock_db_pool.execute.return_value = {"total": 0}
+    store = _make_store(mock_db_pool)
+    await store.count_matching(
+        {
+            "min_year": 1990,
+            "max_year": 2010,
+            "min_rating": 7.0,
+            "max_rating": 10,
+            "min_votes": 1000,
+            "max_votes": 500_000,
+        }
+    )
+    sql, params = _last_count_call(mock_db_pool)
+    assert "SELECT COUNT(*) AS total" in sql
+    assert "FROM movie_candidates" in sql
+    assert "titleType = %s" in sql
+    assert "startYear BETWEEN %s AND %s" in sql
+    assert "averageRating BETWEEN %s AND %s" in sql
+    assert "numVotes BETWEEN %s AND %s" in sql
+    # No language clause when language defaults to "any".
+    assert "language" not in sql
+    assert params[:7] == ["movie", 1990, 2010, 7.0, 10, 1000, 500_000]
+
+
+async def test_count_matching_language_clause_includes_legacy_name(mock_db_pool):
+    """Non-'any' language adds an `IN (iso, legacy_name)` clause for legacy rows."""
+    mock_db_pool.execute.return_value = {"total": 0}
+    store = _make_store(mock_db_pool)
+    await store.count_matching({"language": "en"})
+    sql, params = _last_count_call(mock_db_pool)
+    assert "language IN (%s, %s)" in sql
+    assert "en" in params and "English" in params
+
+
+async def test_count_matching_language_any_omits_clause(mock_db_pool):
+    mock_db_pool.execute.return_value = {"total": 0}
+    store = _make_store(mock_db_pool)
+    await store.count_matching({"language": "any"})
+    sql, _params = _last_count_call(mock_db_pool)
+    assert "language" not in sql
+
+
+async def test_count_matching_excludes_provided_tconsts(mock_db_pool):
+    """excluded_tconsts adds a `tconst NOT IN (...)` clause with parameterized values."""
+    mock_db_pool.execute.return_value = {"total": 0}
+    store = _make_store(mock_db_pool)
+    await store.count_matching({}, excluded_tconsts={"tt1", "tt2", "tt3"})
+    sql, params = _last_count_call(mock_db_pool)
+    assert "tconst NOT IN (%s, %s, %s)" in sql
+    # Sorted for deterministic placement.
+    assert ["tt1", "tt2", "tt3"] == [p for p in params if p in {"tt1", "tt2", "tt3"}]
+
+
+async def test_count_matching_no_exclusion_when_set_empty(mock_db_pool):
+    mock_db_pool.execute.return_value = {"total": 0}
+    store = _make_store(mock_db_pool)
+    await store.count_matching({}, excluded_tconsts=set())
+    sql, _params = _last_count_call(mock_db_pool)
+    assert "tconst NOT IN" not in sql
+
+
+async def test_count_matching_genre_clause_appended_when_genres_set(mock_db_pool):
+    """When criteria carries genres, the FULLTEXT genre clause is appended."""
+    mock_db_pool.execute.return_value = {"total": 0}
+    store = _make_store(mock_db_pool)
+    await store.count_matching({"genres": ["Action", "Drama"]})
+    sql, params = _last_count_call(mock_db_pool)
+    # Genre clause uses MATCH(genres) AGAINST (...) when use_fulltext=True.
+    assert "MATCH" in sql or "genres" in sql
+    # Last params should include the genre tokens (FULLTEXT or LIKE form).
+    assert any("Action" in str(p) for p in params)
+
+
+async def test_count_matching_falls_back_to_like_on_fulltext_error(mock_db_pool):
+    """A FULLTEXT index error retries with the LIKE fallback."""
+    from infra.errors import DatabaseError
+
+    fulltext_err = DatabaseError("Can't find FULLTEXT index matching the column list")
+    mock_db_pool.execute.side_effect = [fulltext_err, {"total": 7}]
+    store = _make_store(mock_db_pool)
+    result = await store.count_matching({"genres": ["Action"]})
+    assert result == 7
+    assert mock_db_pool.execute.await_count == 2

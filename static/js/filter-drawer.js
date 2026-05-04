@@ -1,373 +1,460 @@
 /**
- * Filter Drawer — open/close, accordion sections, AJAX submit, persistence.
- * Loaded on movie detail pages only (deferred).
+ * Filter drawer interactions.
  *
- * The shared _filter_form.html partial outputs sections with data-filter-group
- * attributes. This script wraps those groups into accordion panels
- * inside the drawer (one section open at a time).
+ * Wires:
+ *  - Drawer open/close (tab, backdrop, ESC).
+ *  - Chip ↔ slider sync for range filters (Year, IMDb, Vote Count).
+ *  - Genre chip cloud with explicit "All".
+ *  - Single-select language chips with "More languages" disclosure.
+ *  - Live count badge fetch (debounced) — see attachLiveCount().
+ *  - Modified-state diff against rendered default_filters — see attachModifiedDiff().
+ *  - Save-default toast — see attachSaveToast().
  */
 (function () {
   "use strict";
 
-  // ── DOM refs ───────────────────────────────
-  var drawer = document.getElementById("filterDrawer");
-  var backdrop = document.getElementById("filterDrawerBackdrop");
-  var tab = document.getElementById("filterDrawerTab");
-  var closeBtn = document.getElementById("filterDrawerClose");
-  var form = document.getElementById("drawerFilterForm");
-  var applyBtn = document.getElementById("drawerApplyBtn");
-  var resetBtn = document.getElementById("drawerResetBtn");
-  var errorsDiv = document.getElementById("drawer-filter-errors");
+  // The <script> tag uses `defer`, which already guarantees the DOM is
+  // fully parsed by the time this IIFE runs — no need to wait for
+  // DOMContentLoaded.
+  init();
 
-  if (!drawer || !tab || !form || !closeBtn || !backdrop) return;
+  function init() {
+    var drawer = document.getElementById("filterDrawer");
+    var tab = document.getElementById("filterDrawerTab");
+    var closeBtn = document.getElementById("filterDrawerClose");
+    var backdrop = document.getElementById("filterDrawerBackdrop");
+    var form = document.getElementById("drawerFilterForm");
+    if (!drawer || !tab || !form || !closeBtn || !backdrop) return;
 
-  // ── Build accordion sections from data-filter-group ──
-  var SECTION_LABELS = {
-    ratings: "Ratings & Votes",
-    year: "Year & Language",
-    genres: "Genres",
-    watched: "Watched",
-  };
-  var SECTION_ORDER = ["ratings", "year", "genres", "watched"];
-
-  function buildCollapsibleSections() {
-    var body = drawer.querySelector(".filter-drawer-body");
-    if (!body) return;
-
-    // Collect sections by group
-    var groups = {};
-    var sections = form.querySelectorAll("[data-filter-group]");
-    sections.forEach(function (el) {
-      var group = el.getAttribute("data-filter-group");
-      if (!groups[group]) groups[group] = [];
-      groups[group].push(el);
-    });
-
-    // Remove the original 2-column grid wrapper — we're going single-column
-    var grid = form.querySelector(".grid");
-    if (grid) {
-      while (grid.firstChild) {
-        form.insertBefore(grid.firstChild, grid);
-      }
-      grid.remove();
-    }
-
-    // Remove all space-y-8 column wrappers left from the partial
-    form.querySelectorAll(":scope > .space-y-8").forEach(function (col) {
-      while (col.firstChild) {
-        form.insertBefore(col.firstChild, col);
-      }
-      col.remove();
-    });
-
-    // Now wrap each group in an accordion section
-    SECTION_ORDER.forEach(function (groupName, idx) {
-      var elements = groups[groupName];
-      if (!elements || elements.length === 0) return;
-
-      var sectionId = "filterSection_" + groupName;
-      var isFirst = idx === 0;
-
-      // Create wrapper
-      var wrapper = document.createElement("div");
-      wrapper.className = "mb-2";
-
-      // Toggle button with +/- icon
-      var toggle = document.createElement("button");
-      toggle.type = "button";
-      toggle.className = "filter-section-toggle";
-      toggle.setAttribute("aria-expanded", String(isFirst));
-      toggle.setAttribute("aria-controls", sectionId);
-      toggle.innerHTML =
-        "<span>" + (SECTION_LABELS[groupName] || groupName) + "</span>" +
-        '<span class="toggle-icon">' + (isFirst ? "−" : "+") + '</span>';
-
-      // Content container
-      var content = document.createElement("div");
-      content.id = sectionId;
-      content.className = "filter-section-content" + (isFirst ? " open" : "");
-
-      var inner = document.createElement("div");
-      inner.className = "space-y-4 py-3";
-
-      // Move the actual filter sections into the accordion content
-      elements.forEach(function (el) {
-        inner.appendChild(el);
-      });
-
-      content.appendChild(inner);
-      wrapper.appendChild(toggle);
-      wrapper.appendChild(content);
-
-      form.appendChild(wrapper);
-    });
-
-    // Move the errors div to the top of the form
-    if (errorsDiv && form.firstChild !== errorsDiv) {
-      var csrf = form.querySelector('input[name="csrf_token"]');
-      if (csrf && csrf.nextSibling) {
-        form.insertBefore(errorsDiv, csrf.nextSibling);
-      }
-    }
+    attachOpenClose(drawer, tab, closeBtn, backdrop);
+    attachGenreChips(form);
+    attachRangeChipsAndSliders(form);
+    attachLanguageChips(form);
+    attachLanguageMore(form);
+    attachLiveCount(form);
+    attachModifiedDiff(form);
+    attachSaveToast(form);
   }
 
-  buildCollapsibleSections();
-
-  // ── Open / Close ───────────────────────────
-  function openDrawer() {
-    drawer.classList.add("open");
-    backdrop.classList.add("open");
-    tab.classList.add("hidden");
-    tab.setAttribute("aria-expanded", "true");
-    document.body.style.overflow = "hidden";
-    setTimeout(function () {
-      var first = drawer.querySelector('input:not([type="hidden"]), select, button');
-      if (first) first.focus();
-    }, 220);
-  }
-
-  function closeDrawer() {
-    drawer.classList.remove("open");
-    backdrop.classList.remove("open");
-    tab.classList.remove("hidden");
-    tab.setAttribute("aria-expanded", "false");
-    document.body.style.overflow = "";
-    sessionStorage.removeItem("filterDrawerOpen");
-    tab.focus();
-  }
-
-  tab.addEventListener("click", openDrawer);
-  closeBtn.addEventListener("click", closeDrawer);
-  backdrop.addEventListener("click", closeDrawer);
-
-  document.addEventListener("keydown", function (e) {
-    if (e.key === "Escape" && drawer.classList.contains("open")) {
-      closeDrawer();
+  // ── Open / close ────────────────────────────────────────
+  function attachOpenClose(drawer, tab, closeBtn, backdrop) {
+    function open() {
+      drawer.classList.add("is-open");
+      backdrop.classList.add("is-visible");
+      tab.setAttribute("aria-expanded", "true");
+      document.body.classList.add("filter-drawer-open");
     }
-  });
-
-  // ── Focus trap ─────────────────────────────
-  drawer.addEventListener("keydown", function (e) {
-    if (e.key !== "Tab") return;
-    var focusable = drawer.querySelectorAll(
-      'button, [href], input:not([type="hidden"]), select, textarea, [tabindex]:not([tabindex="-1"])'
-    );
-    if (focusable.length === 0) return;
-    var first = focusable[0];
-    var last = focusable[focusable.length - 1];
-    if (e.shiftKey) {
-      if (document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      }
-    } else {
-      if (document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
+    function close() {
+      drawer.classList.remove("is-open");
+      backdrop.classList.remove("is-visible");
+      tab.setAttribute("aria-expanded", "false");
+      document.body.classList.remove("filter-drawer-open");
     }
-  });
-
-  // ── Accordion toggle (one-at-a-time) + persistence ──
-  var SECTION_STORAGE_KEY = "filterDrawerSections";
-
-  function loadSectionStates() {
-    try {
-      var raw = sessionStorage.getItem(SECTION_STORAGE_KEY);
-      return raw ? JSON.parse(raw) : null;
-    } catch (_) {
-      return null;
-    }
-  }
-
-  function saveSectionStates() {
-    var states = {};
-    drawer.querySelectorAll(".filter-section-toggle").forEach(function (btn) {
-      var id = btn.getAttribute("aria-controls");
-      states[id] = btn.getAttribute("aria-expanded") === "true";
-    });
-    try {
-      sessionStorage.setItem(SECTION_STORAGE_KEY, JSON.stringify(states));
-    } catch (_) {}
-  }
-
-  function closeAllSections() {
-    drawer.querySelectorAll(".filter-section-toggle").forEach(function (btn) {
-      var targetId = btn.getAttribute("aria-controls");
-      var target = document.getElementById(targetId);
-      if (!target) return;
-      btn.setAttribute("aria-expanded", "false");
-      btn.querySelector(".toggle-icon").textContent = "+";
-      target.classList.remove("open");
+    tab.addEventListener("click", open);
+    closeBtn.addEventListener("click", close);
+    backdrop.addEventListener("click", close);
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && drawer.classList.contains("is-open")) close();
     });
   }
 
-  function openSection(btn) {
-    var targetId = btn.getAttribute("aria-controls");
-    var target = document.getElementById(targetId);
-    if (!target) return;
-    btn.setAttribute("aria-expanded", "true");
-    btn.querySelector(".toggle-icon").textContent = "−";
-    target.classList.add("open");
-  }
+  // ── Genre chips ─────────────────────────────────────────
+  function attachGenreChips(form) {
+    var allGenres = [
+      "Action","Adventure","Animation","Biography","Comedy","Crime","Documentary",
+      "Drama","Fantasy","Horror","Musical","Sci-Fi","Sport","Thriller","War","Western"
+    ];
+    var hiddenContainer = form.querySelector("[data-genre-hidden-inputs]");
+    var chipRow = form.querySelector('[data-filter-chips="genres"]');
+    if (!hiddenContainer || !chipRow) return;
 
-  function initSections() {
-    var saved = loadSectionStates();
-    drawer.querySelectorAll(".filter-section-toggle").forEach(function (btn) {
-      var targetId = btn.getAttribute("aria-controls");
-      var target = document.getElementById(targetId);
-      if (!target) return;
-
-      // Restore saved state if available
-      if (saved && saved.hasOwnProperty(targetId)) {
-        var isOpen = saved[targetId];
-        btn.setAttribute("aria-expanded", String(isOpen));
-        btn.querySelector(".toggle-icon").textContent = isOpen ? "−" : "+";
-        target.classList.toggle("open", isOpen);
+    function syncHidden() {
+      // Use replaceChildren() to clear safely (no innerHTML, no XSS surface)
+      hiddenContainer.replaceChildren();
+      var allActive = chipRow.querySelector('[data-genre-chip="__all__"]').classList.contains("is-active");
+      if (allActive) {
+        form.dispatchEvent(new CustomEvent("filter:changed"));
+        return;
       }
-
-      btn.addEventListener("click", function () {
-        var wasExpanded = btn.getAttribute("aria-expanded") === "true";
-        // Close all sections first (accordion behavior)
-        closeAllSections();
-        // If it was closed, open it; if it was open, leave all closed
-        if (!wasExpanded) {
-          openSection(btn);
+      chipRow.querySelectorAll('[data-genre-chip]').forEach(function (c) {
+        var v = c.getAttribute("data-genre-chip");
+        if (v === "__all__") return;
+        if (c.classList.contains("is-active")) {
+          var input = document.createElement("input");
+          input.type = "hidden";
+          input.name = "genres[]";
+          input.value = v;
+          hiddenContainer.appendChild(input);
         }
-        saveSectionStates();
       });
-    });
-  }
-
-  initSections();
-
-  // ── Genre "Select All" / "Clear All" links ──
-  var selectAllBtn = form.querySelector("#selectAllBtn");
-  var clearAllBtn = form.querySelector("#clearAllBtn");
-  var genreToggles = form.querySelector(".genre-toggles");
-
-  function getGenreBoxes() {
-    return genreToggles
-      ? Array.from(genreToggles.querySelectorAll('input[type="checkbox"]'))
-      : [];
-  }
-
-  if (selectAllBtn && genreToggles) {
-    selectAllBtn.addEventListener("click", function () {
-      getGenreBoxes().forEach(function (cb) { cb.checked = true; });
-    });
-  }
-
-  if (clearAllBtn && genreToggles) {
-    clearAllBtn.addEventListener("click", function () {
-      getGenreBoxes().forEach(function (cb) { cb.checked = false; });
-    });
-  }
-
-  // ── Error display ──────────────────────────
-  function clearErrors() {
-    if (errorsDiv) errorsDiv.innerHTML = "";
-    form.querySelectorAll("[aria-invalid]").forEach(function (el) {
-      el.removeAttribute("aria-invalid");
-    });
-  }
-
-  function displayErrors(errors) {
-    if (!errorsDiv) return;
-    var html = "";
-    for (var key in errors) {
-      if (!errors.hasOwnProperty(key)) continue;
-      html += '<div class="drawer-error">' + escapeHtml(errors[key]) + "</div>";
-    }
-    errorsDiv.innerHTML = html;
-    errorsDiv.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }
-
-  function escapeHtml(str) {
-    var div = document.createElement("div");
-    div.textContent = str;
-    return div.innerHTML;
-  }
-
-  // ── AJAX form submission ───────────────────
-  form.addEventListener("submit", function (e) {
-    // If a submitter button overrides formaction (e.g. "Save as default"),
-    // let the browser handle the submission natively instead of hijacking it.
-    if (e.submitter && e.submitter.hasAttribute("formaction")) {
-      try {
-        var targetPath = new URL(e.submitter.formAction).pathname;
-        if (targetPath !== "/filtered_movie") {
-          return;
-        }
-      } catch (err) {
-        if (!(err instanceof TypeError)) throw err;
-        // Malformed URL — fall through to AJAX
-      }
-    }
-    e.preventDefault();
-    clearErrors();
-
-    var formData = new FormData(form);
-    var csrfToken = formData.get("csrf_token");
-
-    if (applyBtn) {
-      applyBtn.setAttribute("aria-busy", "true");
-      applyBtn.disabled = true;
-      var spinner = applyBtn.querySelector("svg");
-      if (spinner) spinner.classList.remove("hidden");
+      form.dispatchEvent(new CustomEvent("filter:changed"));
     }
 
-    fetch("/filtered_movie", {
-      method: "POST",
-      headers: {
-        "X-CSRFToken": csrfToken,
-        Accept: "application/json",
-      },
-      body: formData,
-    })
-      .then(function (resp) {
-        return resp.json().then(function (data) {
-          return { status: resp.status, data: data };
+    chipRow.addEventListener("click", function (e) {
+      var btn = e.target.closest("[data-genre-chip]");
+      if (!btn) return;
+      var value = btn.getAttribute("data-genre-chip");
+      if (value === "__all__") {
+        chipRow.querySelectorAll('[data-genre-chip]').forEach(function (c) {
+          c.classList.remove("is-active");
+          c.setAttribute("aria-pressed", "false");
         });
-      })
-      .then(function (result) {
-        var data = result.data;
-        if (data.ok && data.redirect) {
-          sessionStorage.setItem("filterDrawerOpen", "true");
-          window.location.href = data.redirect;
-          return;
-        }
-        if (data.errors) {
-          displayErrors(data.errors);
-        }
-        resetApplyBtn();
-      })
-      .catch(function () {
-        displayErrors({ form: "Something went wrong. Please try again." });
-        resetApplyBtn();
-      });
-  });
+        btn.classList.add("is-active");
+        btn.setAttribute("aria-pressed", "true");
+      } else {
+        var allChip = chipRow.querySelector('[data-genre-chip="__all__"]');
+        allChip.classList.remove("is-active");
+        allChip.setAttribute("aria-pressed", "false");
+        btn.classList.toggle("is-active");
+        btn.setAttribute("aria-pressed", btn.classList.contains("is-active") ? "true" : "false");
 
-  function resetApplyBtn() {
-    if (!applyBtn) return;
-    applyBtn.setAttribute("aria-busy", "false");
-    applyBtn.disabled = false;
-    var spinner = applyBtn.querySelector("svg");
-    if (spinner) spinner.classList.add("hidden");
-  }
-
-  // ── Reset handler ──────────────────────────
-  if (resetBtn) {
-    resetBtn.addEventListener("click", function () {
-      // After form reset, re-check all genre toggles
-      setTimeout(function () {
-        getGenreBoxes().forEach(function (cb) { cb.checked = true; });
-      }, 0);
+        var activeSpecifics = chipRow.querySelectorAll('[data-genre-chip].is-active:not([data-genre-chip="__all__"])');
+        if (activeSpecifics.length === 0 || activeSpecifics.length === allGenres.length) {
+          chipRow.querySelectorAll('[data-genre-chip]').forEach(function (c) {
+            c.classList.remove("is-active");
+            c.setAttribute("aria-pressed", "false");
+          });
+          allChip.classList.add("is-active");
+          allChip.setAttribute("aria-pressed", "true");
+        }
+      }
+      syncHidden();
     });
   }
 
-  // ── Drawer persistence across navigation ───
-  if (sessionStorage.getItem("filterDrawerOpen") === "true") {
-    openDrawer();
+  // ── Range chips + sliders ───────────────────────────────
+  function attachRangeChipsAndSliders(form) {
+    form.querySelectorAll("[data-dual-slider]").forEach(function (sliderRoot) {
+      var minHandle = sliderRoot.querySelector('[data-slider-handle="min"]');
+      var maxHandle = sliderRoot.querySelector('[data-slider-handle="max"]');
+      var label = sliderRoot.querySelector("[data-slider-label]");
+      var hiddenMin = sliderRoot.parentElement.querySelector("[data-hidden-min]");
+      var hiddenMax = sliderRoot.parentElement.querySelector("[data-hidden-max]");
+      var section = sliderRoot.closest("section");
+      var chipRow = section ? section.querySelector("[data-filter-chips]") : null;
+      var step = parseFloat(sliderRoot.getAttribute("data-step")) || 1;
+      var isFloat = step < 1;
+
+      function fmt(v) {
+        return isFloat ? Number(v).toFixed(1) : Math.round(Number(v)).toString();
+      }
+      function updateLabel() {
+        if (label) label.textContent = fmt(minHandle.value) + " – " + fmt(maxHandle.value);
+      }
+      function clamp() {
+        var mn = parseFloat(minHandle.value);
+        var mx = parseFloat(maxHandle.value);
+        if (mn > mx) {
+          minHandle.value = String(Math.min(mn, mx));
+          maxHandle.value = String(Math.max(mn, mx));
+        }
+      }
+      function syncHidden() {
+        hiddenMin.value = minHandle.value;
+        hiddenMax.value = maxHandle.value;
+      }
+      function deactivateChips() {
+        if (!chipRow) return;
+        chipRow.querySelectorAll(".filter-chip").forEach(function (c) {
+          c.classList.remove("is-active");
+          c.setAttribute("aria-pressed", "false");
+        });
+      }
+      function syncChipsToValues() {
+        if (!chipRow) return;
+        var mn = minHandle.value, mx = maxHandle.value;
+        chipRow.querySelectorAll("[data-range-chip]").forEach(function (c) {
+          var cm = c.getAttribute("data-min");
+          var cmax = c.getAttribute("data-max");
+          if (cm === mn && cmax === mx) {
+            c.classList.add("is-active");
+            c.setAttribute("aria-pressed", "true");
+          } else {
+            c.classList.remove("is-active");
+            c.setAttribute("aria-pressed", "false");
+          }
+        });
+      }
+
+      [minHandle, maxHandle].forEach(function (h) {
+        h.addEventListener("input", function () {
+          clamp();
+          updateLabel();
+          syncHidden();
+          deactivateChips();
+        });
+        h.addEventListener("change", function () {
+          form.dispatchEvent(new CustomEvent("filter:changed"));
+        });
+      });
+
+      if (chipRow) {
+        chipRow.addEventListener("click", function (e) {
+          var btn = e.target.closest("[data-range-chip]");
+          if (!btn) return;
+          minHandle.value = btn.getAttribute("data-min");
+          maxHandle.value = btn.getAttribute("data-max");
+          updateLabel();
+          syncHidden();
+          chipRow.querySelectorAll("[data-range-chip]").forEach(function (c) {
+            c.classList.remove("is-active");
+            c.setAttribute("aria-pressed", "false");
+          });
+          btn.classList.add("is-active");
+          btn.setAttribute("aria-pressed", "true");
+          form.dispatchEvent(new CustomEvent("filter:changed"));
+        });
+      }
+
+      updateLabel();
+      syncHidden();
+      syncChipsToValues();
+    });
+  }
+
+  // ── Language chips ─────────────────────────────────────
+  function attachLanguageChips(form) {
+    var hidden = form.querySelector("[data-hidden-language]");
+    if (!hidden) return;
+    form.querySelectorAll("[data-lang-chip]").forEach(function (chip) {
+      chip.addEventListener("click", function () {
+        var v = chip.getAttribute("data-lang-chip");
+        hidden.value = v;
+        form.querySelectorAll("[data-lang-chip]").forEach(function (c) {
+          c.classList.remove("is-active");
+          c.setAttribute("aria-pressed", "false");
+        });
+        chip.classList.add("is-active");
+        chip.setAttribute("aria-pressed", "true");
+        form.dispatchEvent(new CustomEvent("filter:changed"));
+      });
+    });
+  }
+
+  function attachLanguageMore(form) {
+    var btn = form.querySelector("[data-lang-more]");
+    var row = form.querySelector("[data-lang-more-row]");
+    if (!btn || !row) return;
+    btn.addEventListener("click", function () {
+      var hidden = row.classList.toggle("hidden");
+      btn.setAttribute("aria-expanded", hidden ? "false" : "true");
+    });
+  }
+
+  // ── Stubs filled in by Task 7/8 ─────────────────────────
+  function attachLiveCount(form) {
+    var badge = document.querySelector("[data-filter-count-badge]");
+    var text = document.querySelector("[data-filter-count-text]");
+    if (!badge || !text) return;
+
+    var debounceMs = 150;
+    var timer = null;
+    var inflight = null;
+
+    function fmt(n) {
+      if (n >= 1000) return "~" + (Math.round(n / 10) * 10).toLocaleString() + " matches";
+      return n.toLocaleString() + " matches";
+    }
+
+    function schedule() {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(fetchCount, debounceMs);
+    }
+
+    function fetchCount() {
+      if (inflight) inflight.abort();
+      inflight = new AbortController();
+      badge.classList.add("is-loading");
+      text.textContent = "Counting…";
+
+      var data = new FormData(form);
+      fetch("/api/filter_count", {
+        method: "POST",
+        body: data,
+        signal: inflight.signal,
+        credentials: "same-origin",
+      })
+        .then(function (r) {
+          if (!r.ok) throw new Error("count_failed");
+          return r.json();
+        })
+        .then(function (j) {
+          text.textContent = fmt(j.count);
+          badge.classList.remove("is-loading");
+        })
+        .catch(function (err) {
+          if (err && err.name === "AbortError") return;
+          badge.classList.remove("is-loading");
+          text.textContent = "Count unavailable";
+        });
+    }
+
+    form.addEventListener("filter:changed", schedule);
+    // Also fire on every drawer open so the badge refreshes when reopened on a
+    // new movie or after upstream state changes (no { once: true } — we want
+    // every reopen to recount).
+    document.getElementById("filterDrawerTab").addEventListener("click", schedule);
+  }
+  function attachModifiedDiff(form) {
+    var statusRow = form.querySelector("[data-filter-status-row]");
+    var resetLink = form.querySelector("[data-filter-reset-link]");
+    var defaultsScript = document.getElementById("default-filters-data");
+    if (!statusRow || !resetLink || !defaultsScript) return;
+
+    var defaults = {};
+    try { defaults = JSON.parse(defaultsScript.textContent || "{}"); } catch (e) { return; }
+
+    function readCurrent() {
+      var fd = new FormData(form);
+      return {
+        year_min: parseInt(fd.get("year_min") || "0", 10),
+        year_max: parseInt(fd.get("year_max") || "0", 10),
+        imdb_score_min: parseFloat(fd.get("imdb_score_min") || "0"),
+        imdb_score_max: parseFloat(fd.get("imdb_score_max") || "0"),
+        num_votes_min: parseInt(fd.get("num_votes_min") || "0", 10),
+        num_votes_max: parseInt(fd.get("num_votes_max") || "0", 10),
+        language: fd.get("language") || "any",
+        genres_selected: fd.getAll("genres[]").slice().sort(),
+        exclude_watched: fd.getAll("exclude_watched").indexOf("on") >= 0,
+        exclude_watchlist: fd.getAll("exclude_watchlist").indexOf("on") >= 0,
+      };
+    }
+
+    function eq(cur, def) {
+      var defGenres = (def.genres_selected || []).slice().sort();
+      return (
+        cur.year_min === def.year_min &&
+        cur.year_max === def.year_max &&
+        cur.imdb_score_min === def.imdb_score_min &&
+        cur.imdb_score_max === def.imdb_score_max &&
+        cur.num_votes_min === def.num_votes_min &&
+        cur.num_votes_max === def.num_votes_max &&
+        cur.language === def.language &&
+        JSON.stringify(cur.genres_selected) === JSON.stringify(defGenres) &&
+        cur.exclude_watched === def.exclude_watched &&
+        cur.exclude_watchlist === def.exclude_watchlist
+      );
+    }
+
+    function refresh() {
+      var modified = !eq(readCurrent(), defaults);
+      statusRow.classList.toggle("hidden", !modified);
+    }
+
+    function applyDefaultsToForm() {
+      setRange("year_min", "year_max", defaults.year_min, defaults.year_max);
+      setRange("imdb_score_min", "imdb_score_max", defaults.imdb_score_min, defaults.imdb_score_max);
+      setRange("num_votes_min", "num_votes_max", defaults.num_votes_min, defaults.num_votes_max);
+
+      var langHidden = form.querySelector("[data-hidden-language]");
+      if (langHidden) {
+        langHidden.value = defaults.language || "any";
+        form.querySelectorAll("[data-lang-chip]").forEach(function (c) {
+          var active = c.getAttribute("data-lang-chip") === langHidden.value;
+          c.classList.toggle("is-active", active);
+          c.setAttribute("aria-pressed", active ? "true" : "false");
+        });
+      }
+
+      var hiddenContainer = form.querySelector("[data-genre-hidden-inputs]");
+      var chipRow = form.querySelector('[data-filter-chips="genres"]');
+      if (hiddenContainer && chipRow) {
+        hiddenContainer.replaceChildren();
+        var defGenres = defaults.genres_selected || [];
+        var allActive = defGenres.length === 0;
+        chipRow.querySelectorAll("[data-genre-chip]").forEach(function (c) {
+          var v = c.getAttribute("data-genre-chip");
+          var active = (v === "__all__" && allActive) || (v !== "__all__" && defGenres.indexOf(v) >= 0);
+          c.classList.toggle("is-active", active);
+          c.setAttribute("aria-pressed", active ? "true" : "false");
+        });
+        defGenres.forEach(function (g) {
+          var input = document.createElement("input");
+          input.type = "hidden";
+          input.name = "genres[]";
+          input.value = g;
+          hiddenContainer.appendChild(input);
+        });
+      }
+
+      var ew = form.querySelector("#excludeWatched");
+      if (ew) ew.checked = !!defaults.exclude_watched;
+      var ewl = form.querySelector("#excludeWatchlist");
+      if (ewl) ewl.checked = !!defaults.exclude_watchlist;
+
+      form.dispatchEvent(new CustomEvent("filter:changed"));
+      refresh();
+    }
+
+    function setRange(minName, maxName, mnVal, mxVal) {
+      var minHidden = form.querySelector('[name="' + minName + '"][data-hidden-min]');
+      var maxHidden = form.querySelector('[name="' + maxName + '"][data-hidden-max]');
+      if (minHidden) minHidden.value = mnVal;
+      if (maxHidden) maxHidden.value = mxVal;
+      var section = minHidden ? minHidden.closest("section") : null;
+      if (!section) return;
+      var minHandle = section.querySelector('[data-slider-handle="min"]');
+      var maxHandle = section.querySelector('[data-slider-handle="max"]');
+      if (minHandle) minHandle.value = mnVal;
+      if (maxHandle) maxHandle.value = mxVal;
+      var label = section.querySelector("[data-slider-label]");
+      if (label && minHandle && maxHandle) {
+        var step = parseFloat(section.querySelector("[data-dual-slider]").getAttribute("data-step")) || 1;
+        var isFloat = step < 1;
+        var fmt = function (v) {
+          return isFloat ? Number(v).toFixed(1) : Math.round(Number(v)).toString();
+        };
+        label.textContent = fmt(minHandle.value) + " – " + fmt(maxHandle.value);
+      }
+      section.querySelectorAll("[data-range-chip]").forEach(function (c) {
+        var match = c.getAttribute("data-min") === String(mnVal) && c.getAttribute("data-max") === String(mxVal);
+        c.classList.toggle("is-active", match);
+        c.setAttribute("aria-pressed", match ? "true" : "false");
+      });
+    }
+
+    resetLink.addEventListener("click", applyDefaultsToForm);
+    form.addEventListener("filter:changed", refresh);
+    form.addEventListener("change", refresh);
+    refresh();
+  }
+  function attachSaveToast(form) {
+    // The save button lives in .filter-drawer-footer (sibling of the form,
+    // associated via the HTML5 form="drawerFilterForm" attribute), so it is
+    // NOT a DOM descendant of `form` — scope this lookup to the document.
+    var saveBtn = document.querySelector("[data-save-default-btn]");
+    var toast = document.querySelector("[data-filter-toast]");
+    if (!saveBtn || !toast) return;
+
+    // Submit save-defaults via fetch so we can show a toast without losing the
+    // user's current filter selection (which a full POST navigation would clear).
+    saveBtn.addEventListener("click", function (e) {
+      e.preventDefault();
+      var data = new FormData(form);
+      fetch(saveBtn.getAttribute("formaction"), {
+        method: "POST",
+        body: data,
+        credentials: "same-origin",
+      })
+        .then(function (r) {
+          if (!r.ok) throw new Error("save_failed");
+          showToast("Saved as your defaults");
+        })
+        .catch(function () {
+          showToast("Couldn't save — try again");
+        });
+    });
+
+    function showToast(msg) {
+      toast.textContent = msg;
+      toast.classList.remove("hidden");
+      toast.classList.remove("is-visible");
+      void toast.offsetWidth; // restart CSS animation
+      toast.classList.add("is-visible");
+      setTimeout(function () {
+        toast.classList.add("hidden");
+        toast.classList.remove("is-visible");
+      }, 2400);
+    }
   }
 })();

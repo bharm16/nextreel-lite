@@ -20,6 +20,8 @@ from infra.events import (
     bind_authenticated_identity,
     track_event,
 )
+from infra.cache import CacheNamespace
+from infra.filter_normalizer import default_filter_state
 from infra.metrics import session_duration_seconds, user_actions_total, user_sessions_total
 from infra.route_helpers import csrf_required, rate_limited
 from infra.time_utils import utcnow
@@ -60,6 +62,106 @@ def inject_csrf_token():
         "posthog_project_key": posthog_config.get("project_key", ""),
         "posthog_api_host": posthog_config.get("api_host", "/ph"),
     }
+
+
+@bp.app_context_processor
+async def inject_default_filters():
+    """Inject default filters into template context for anonymous and logged-in users.
+
+    Returns a (default_filters, default_filters_are_user_saved) pair so templates
+    can distinguish a user's saved overrides from the system "Any" baseline (e.g.
+    the reset-link copy switches between "Reset to my defaults" and "Reset to
+    defaults"). Memoizes both values on ``g`` so repeated template renders during
+    a single request don't re-hit Redis or the DB. The Redis layer caches the
+    saved row for 5 minutes, invalidated by the account-filters save/clear
+    handlers (see :func:`invalidate_default_filters_cache`).
+    """
+    if hasattr(g, "_default_filters_cache"):
+        return {
+            "default_filters": g._default_filters_cache,
+            "default_filters_are_user_saved": g._default_filters_user_saved,
+        }
+
+    state = getattr(g, "navigation_state", None)
+    user_id = getattr(state, "user_id", None) if state else None
+
+    # Fetch saved defaults for logged-in users; fall back to system defaults.
+    saved_filters: dict | None = None
+    if user_id:
+        try:
+            db_pool = _services().movie_manager.db_pool
+        except (LookupError, AttributeError) as exc:
+            # ``_services()`` raising LookupError or the chained attribute
+            # access raising AttributeError both indicate the app isn't
+            # fully wired (services bound on app, db_pool on manager).
+            # That's a programming/configuration error, not a transient
+            # DB issue — log loudly so it surfaces in error tracking.
+            logger.error(
+                "inject_default_filters: services/db_pool not wired for user=%s: %s",
+                user_id,
+                exc,
+            )
+            db_pool = None
+        except Exception:
+            # Anything else is unexpected. Log with stack trace so we can
+            # diagnose, but still serve system defaults so the page renders.
+            logger.exception(
+                "inject_default_filters: unexpected error resolving db_pool for user=%s",
+                user_id,
+            )
+            db_pool = None
+        if db_pool is not None:
+            cache = getattr(current_app, "redis_cache", None)
+
+            async def _loader():
+                return await user_preferences.get_default_filters(db_pool, user_id)
+
+            try:
+                if cache is not None:
+                    saved_filters = await cache.safe_get_or_set(
+                        CacheNamespace.USER,
+                        f"default_filters:{user_id}",
+                        _loader,
+                        ttl=300,
+                    )
+                else:
+                    saved_filters = await _loader()
+            except Exception as exc:
+                logger.warning(
+                    "inject_default_filters: get_default_filters failed user=%s: %s",
+                    user_id,
+                    exc,
+                )
+                saved_filters = None
+
+    user_saved = saved_filters is not None
+    default_filters = saved_filters if user_saved else default_filter_state()
+
+    g._default_filters_cache = default_filters
+    g._default_filters_user_saved = user_saved
+    return {
+        "default_filters": default_filters,
+        "default_filters_are_user_saved": user_saved,
+    }
+
+
+async def invalidate_default_filters_cache(user_id: str) -> None:
+    """Drop the cached default-filters row so the next render reflects a save/clear.
+
+    Called by the account-filters save/clear handlers. Best-effort: if Redis
+    is unavailable the cache will simply expire after its 5-minute TTL.
+    """
+    cache = getattr(current_app, "redis_cache", None)
+    if cache is None:
+        return
+    try:
+        await cache.delete(CacheNamespace.USER, f"default_filters:{user_id}")
+    except Exception as exc:
+        logger.debug(
+            "invalidate_default_filters_cache: delete failed user=%s: %s",
+            user_id,
+            exc,
+        )
 
 
 @bp.app_context_processor
@@ -119,7 +221,7 @@ def _safe_next_path(value: str | None) -> str | None:
     """
     if not value:
         return None
-    if any(ord(ch) < 0x20 or ord(ch) == 0x7f for ch in value):
+    if any(ord(ch) < 0x20 or ord(ch) == 0x7F for ch in value):
         return None
     if not value.startswith("/") or value.startswith("//") or value.startswith("/\\"):
         return None
@@ -256,9 +358,7 @@ async def register_submit():
         )
         status_code = 503 if outcome.kind == "service_unavailable" else 400
         return (
-            await render_template(
-                "register.html", errors=outcome.errors, next_path=next_path
-            ),
+            await render_template("register.html", errors=outcome.errors, next_path=next_path),
             status_code,
         )
 
@@ -347,9 +447,7 @@ async def auth_google_callback():
         )
         if state_mismatch:
             logger.warning("OAuth state mismatch — possible CSRF attempt")
-            user_actions_total.labels(
-                action_type="oauth_callback_failure_state_mismatch"
-            ).inc()
+            user_actions_total.labels(action_type="oauth_callback_failure_state_mismatch").inc()
             track_event(
                 anon_distinct_id(_current_state().session_id),
                 EVENT_OAUTH_FAILED,
@@ -367,9 +465,7 @@ async def auth_google_callback():
             url_for("main.login_page", next=next_path) if next_path else url_for("main.login_page")
         )
     if outcome.kind == "provider_conflict":
-        user_actions_total.labels(
-            action_type="oauth_callback_failure_provider_conflict"
-        ).inc()
+        user_actions_total.labels(action_type="oauth_callback_failure_provider_conflict").inc()
         track_event(
             anon_distinct_id(_current_state().session_id),
             EVENT_OAUTH_FAILED,
@@ -398,6 +494,8 @@ __all__ = [
     "auth_google",
     "auth_google_callback",
     "inject_csrf_token",
+    "inject_default_filters",
+    "invalidate_default_filters_cache",
     "login_page",
     "login_submit",
     "logout",

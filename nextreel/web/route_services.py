@@ -139,6 +139,7 @@ class WatchedListPresenter:
         return (
             {
                 "tconst": tconst,
+                "public_id": row.get("public_id"),
                 "slug": slug,
                 "title": title,
                 "year": year_int,
@@ -247,6 +248,7 @@ class WatchlistPresenter:
         return (
             {
                 "tconst": tconst,
+                "public_id": row.get("public_id"),
                 "slug": slug,
                 "title": title,
                 "year": year_int,

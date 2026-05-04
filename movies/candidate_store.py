@@ -38,19 +38,58 @@ _FILTER_RESULT_POOL_SIZE = 50
 # of each language — multi-language concatenated strings like
 # "MalayalamEnglish" are deliberately *not* matched.
 _LEGACY_LANGUAGE_NAME = {
-    "en": "English", "fr": "French", "es": "Spanish", "de": "German",
-    "it": "Italian", "pt": "Portuguese", "ru": "Russian", "ja": "Japanese",
-    "ko": "Korean", "zh": "Chinese", "hi": "Hindi", "ar": "Arabic",
-    "nl": "Dutch", "sv": "Swedish", "no": "Norwegian", "da": "Danish",
-    "fi": "Finnish", "pl": "Polish", "tr": "Turkish", "hu": "Hungarian",
-    "cs": "Czech", "el": "Greek", "he": "Hebrew", "ro": "Romanian",
-    "th": "Thai", "vi": "Vietnamese", "id": "Indonesian", "ms": "Malay",
-    "tl": "Tagalog", "uk": "Ukrainian", "bg": "Bulgarian", "ca": "Catalan",
-    "hr": "Croatian", "sr": "Serbian", "sk": "Slovak", "sl": "Slovenian",
-    "et": "Estonian", "lv": "Latvian", "lt": "Lithuanian", "is": "Icelandic",
-    "ga": "Irish", "cy": "Welsh", "fa": "Persian", "ur": "Urdu",
-    "bn": "Bengali", "ta": "Tamil", "te": "Telugu", "ml": "Malayalam",
-    "kn": "Kannada", "mr": "Marathi", "pa": "Punjabi", "gu": "Gujarati",
+    "en": "English",
+    "fr": "French",
+    "es": "Spanish",
+    "de": "German",
+    "it": "Italian",
+    "pt": "Portuguese",
+    "ru": "Russian",
+    "ja": "Japanese",
+    "ko": "Korean",
+    "zh": "Chinese",
+    "hi": "Hindi",
+    "ar": "Arabic",
+    "nl": "Dutch",
+    "sv": "Swedish",
+    "no": "Norwegian",
+    "da": "Danish",
+    "fi": "Finnish",
+    "pl": "Polish",
+    "tr": "Turkish",
+    "hu": "Hungarian",
+    "cs": "Czech",
+    "el": "Greek",
+    "he": "Hebrew",
+    "ro": "Romanian",
+    "th": "Thai",
+    "vi": "Vietnamese",
+    "id": "Indonesian",
+    "ms": "Malay",
+    "tl": "Tagalog",
+    "uk": "Ukrainian",
+    "bg": "Bulgarian",
+    "ca": "Catalan",
+    "hr": "Croatian",
+    "sr": "Serbian",
+    "sk": "Slovak",
+    "sl": "Slovenian",
+    "et": "Estonian",
+    "lv": "Latvian",
+    "lt": "Lithuanian",
+    "is": "Icelandic",
+    "ga": "Irish",
+    "cy": "Welsh",
+    "fa": "Persian",
+    "ur": "Urdu",
+    "bn": "Bengali",
+    "ta": "Tamil",
+    "te": "Telugu",
+    "ml": "Malayalam",
+    "kn": "Kannada",
+    "mr": "Marathi",
+    "pa": "Punjabi",
+    "gu": "Gujarati",
     "sw": "Swahili",
 }
 
@@ -195,22 +234,43 @@ class CandidateStore:
         """Genre clause built against the candidate-table column set."""
         return MovieQueryBuilder.genre_clause(criteria, use_fulltext=use_fulltext, use_cache=True)
 
-    def _build_candidate_query(
+    def _build_movie_filter_clauses(
         self,
-        *,
         criteria: dict[str, Any],
-        excluded_tconsts: set[str],
-        desired_limit: int,
-        buckets: list[int],
+        *,
         use_fulltext: bool,
-    ) -> tuple[str, list[Any]]:
+        excluded_tconsts: set[str] | None = None,
+        tconst_column: str = "tconst",
+        default_min_votes: int = 0,
+        default_max_votes: int = _MYSQL_INT_MAX,
+        default_language: str = "any",
+    ) -> tuple[list[str], list[Any], str, list[Any]]:
+        """Build WHERE-clause fragments + params shared by the read and count paths.
+
+        Returns ``(clauses, params, genre_clause, genre_params)`` where:
+        - ``clauses`` is a list of SQL fragments using ``%s`` placeholders.
+        - ``params`` aligns with the placeholders in ``clauses``.
+        - ``genre_clause`` is a leading-`` AND ...`` fragment (or empty string).
+        - ``genre_params`` aligns with the placeholders in ``genre_clause``.
+
+        ``tconst_column`` controls the column reference for the exclusion
+        clause — pass ``"c.tconst"`` when the FROM aliases
+        ``movie_candidates`` as ``c`` (the read path's LEFT JOIN to
+        ``movie_projection`` makes the alias mandatory; the count path
+        uses it for consistency, so a future JOIN won't silently break).
+
+        Defaults for ``min_votes``/``max_votes``/``language`` differ between
+        paths (read path historically defaulted to a curated baseline, count
+        path to "Any") so they're parameterized rather than hard-coded.
+        """
+        excluded = excluded_tconsts or set()
         min_year = criteria.get("min_year", 1900)
         max_year = criteria.get("max_year", utcnow().year)
         min_rating = criteria.get("min_rating", 0)
         max_rating = criteria.get("max_rating", 10)
-        min_votes = criteria.get("min_votes", 100000)
-        max_votes = criteria.get("max_votes", 1000000)
-        language = criteria.get("language", "en")
+        min_votes = criteria.get("min_votes", default_min_votes)
+        max_votes = criteria.get("max_votes", default_max_votes)
+        language = criteria.get("language", default_language)
 
         params: list[Any] = [
             "movie",
@@ -221,20 +281,12 @@ class CandidateStore:
             min_votes,
             max_votes,
         ]
-        # WHERE-clause columns are unqualified — the alias ``c`` introduced
-        # in the FROM below for movie_candidates makes them legal because
-        # none of these columns also exist on movie_projection. (The
-        # genre_clause from _genre_clause(..., use_cache=True) likewise
-        # references unqualified ``genres``, which is unique to
-        # movie_candidates.)
         clauses = [
             "titleType = %s",
             "startYear BETWEEN %s AND %s",
             "averageRating BETWEEN %s AND %s",
             "numVotes BETWEEN %s AND %s",
-            f"sample_bucket IN ({', '.join(['%s'] * len(buckets))})",
         ]
-        params.extend(buckets)
         if language != "any":
             # Match the ISO 639-1 code plus its legacy English-name spelling
             # (e.g. ``en`` and ``English``). NULL ``language`` rows and
@@ -250,14 +302,38 @@ class CandidateStore:
                 clauses.append("language = %s")
                 params.append(language)
 
-        if excluded_tconsts:
-            # Qualify tconst here — both movie_candidates and
-            # movie_projection have a tconst column, so the unqualified
-            # form would be ambiguous once we LEFT JOIN p below.
-            clauses.append(f"c.tconst NOT IN ({', '.join(['%s'] * len(excluded_tconsts))})")
-            params.extend(sorted(excluded_tconsts))
+        if excluded:
+            clauses.append(f"{tconst_column} NOT IN ({', '.join(['%s'] * len(excluded))})")
+            params.extend(sorted(excluded))
 
         genre_clause, genre_params = self._genre_clause(criteria, use_fulltext=use_fulltext)
+        return clauses, params, genre_clause, genre_params
+
+    def _build_candidate_query(
+        self,
+        *,
+        criteria: dict[str, Any],
+        excluded_tconsts: set[str],
+        desired_limit: int,
+        buckets: list[int],
+        use_fulltext: bool,
+    ) -> tuple[str, list[Any]]:
+        # WHERE-clause columns reference the ``c`` alias introduced in the
+        # FROM clause below; the LEFT JOIN to ``movie_projection`` requires
+        # qualification on any column that exists on both tables (tconst).
+        clauses, params, genre_clause, genre_params = self._build_movie_filter_clauses(
+            criteria,
+            use_fulltext=use_fulltext,
+            excluded_tconsts=excluded_tconsts,
+            tconst_column="c.tconst",
+            default_min_votes=100000,
+            default_max_votes=1000000,
+            default_language="en",
+        )
+        # sample_bucket clause is unique to the read path — count_matching
+        # reads the entire population, not a sampled subset.
+        clauses.append(f"sample_bucket IN ({', '.join(['%s'] * len(buckets))})")
+        params.extend(buckets)
         params.extend(genre_params)
 
         # ORDER BY uses only (shuffle_key, tconst). The old tail of
@@ -389,6 +465,62 @@ class CandidateStore:
                 return pool[:desired_limit]
 
         return []
+
+    async def count_matching(
+        self,
+        criteria: MovieCriteria,
+        excluded_tconsts: set[str] | None = None,
+    ) -> int:
+        """Return the total number of candidate movies matching *criteria*.
+
+        Runs ``SELECT COUNT(*)`` directly against ``movie_candidates``
+        without bucket sampling, so the result reflects the true population
+        size rather than a sampled subset. ``excluded_tconsts`` mirrors the
+        read path's exclusion set (watched + watchlist when the user has
+        those toggles on); subtracting it here keeps the live-count badge
+        consistent with what navigation will actually surface. WHERE-clause
+        construction is shared with the read path via
+        ``_build_movie_filter_clauses`` so future filter additions (or
+        column renames) update both paths together. Uses parameterized
+        placeholders throughout — no string interpolation of filter values.
+        """
+
+        def _build(use_fulltext: bool) -> tuple[str, list[Any]]:
+            # Use the ``c`` alias even though the count path doesn't JOIN
+            # today — this keeps the SQL shape consistent with the read
+            # path so a future JOIN (e.g. for SQL-level watched exclusion)
+            # won't silently break with "ambiguous column" errors.
+            clauses, params, genre_clause, genre_params = self._build_movie_filter_clauses(
+                criteria,
+                use_fulltext=use_fulltext,
+                excluded_tconsts=excluded_tconsts,
+                tconst_column="c.tconst",
+                default_min_votes=0,
+                default_max_votes=_MYSQL_INT_MAX,
+                default_language="any",
+            )
+            params.extend(genre_params)
+            sql = f"""
+                SELECT COUNT(*) AS total
+                FROM movie_candidates c
+                WHERE {' AND '.join(clauses)}{genre_clause}
+            """
+            return sql, params
+
+        query, params = _build(use_fulltext=True)
+        try:
+            row = await self.db_pool.execute(query, params, fetch="one")
+        except DatabaseError as exc:
+            if not criteria.get("genres") or not is_fulltext_index_error(exc):
+                raise
+            logger.warning(
+                "movie_candidates FULLTEXT genre count failed; retrying with LIKE fallback: %s",
+                exc,
+            )
+            query_fb, params_fb = _build(use_fulltext=False)
+            row = await self.db_pool.execute(query_fb, params_fb, fetch="one")
+
+        return int(row["total"]) if row else 0
 
     async def validate_bucket_distribution(self, table_name: str = "movie_candidates_next") -> None:
         return await self._maintainer.validate_bucket_distribution(table_name)

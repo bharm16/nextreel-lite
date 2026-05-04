@@ -9,6 +9,7 @@ from logging_config import get_logger
 
 from nextreel.application.navigation_state_service import NavigationStateStore
 from nextreel.domain.navigation_state import NavigationState
+from infra.filter_normalizer import criteria_from_filters
 from infra.pool import DatabaseConnectionPool
 from infra.runtime_schema import ensure_runtime_schema
 from movies.candidate_store import CandidateStore
@@ -64,9 +65,7 @@ class MovieManager:
         # still require the pool to be initialized first, but holding the
         # reference is cheap and removes a temporal-coupling footgun where
         # callers invoke nav methods before start().
-        self.navigation_state_store = navigation_state_store or NavigationStateStore(
-            self.db_pool
-        )
+        self.navigation_state_store = navigation_state_store or NavigationStateStore(self.db_pool)
         self._navigator = navigator or MovieNavigator(
             self.candidate_store,
             self.navigation_state_store,
@@ -243,6 +242,77 @@ class MovieManager:
             legacy_session=legacy_session,
             current_state=state,
         )
+
+    async def count_matching_movies(
+        self,
+        state: NavigationState | None,
+        filters: FilterState,
+        *,
+        legacy_session: MutableMapping[str, Any] | None = None,
+    ) -> int:
+        """Return the number of movies matching the given filter payload.
+
+        Subtracts the user's watched and watchlist sets (when the matching
+        ``exclude_watched`` / ``exclude_watchlist`` toggles are on) so the
+        live-count badge agrees with what ``apply_filters`` would actually
+        surface. For anonymous users or users with both toggles off the
+        count is the gross candidate-pool size. ``legacy_session`` is
+        accepted for signature parity with ``apply_filters``; it is unused.
+        """
+        criteria = criteria_from_filters(filters)
+        excluded = await self._count_exclusion_set(state, filters)
+        return await self.candidate_store.count_matching(
+            criteria,
+            excluded_tconsts=excluded,
+        )
+
+    async def _count_exclusion_set(
+        self,
+        state: NavigationState | None,
+        filters: FilterState,
+    ) -> set[str]:
+        """Watched + watchlist tconsts honoring the user's current toggles.
+
+        Mirrors :class:`MovieNavigator`'s exclusion logic so the count and
+        the navigation read path stay in sync.
+
+        Performance: ``watched_tconsts`` and ``watchlist_tconsts`` are
+        Redis-cached with a 5-minute TTL (see ``movies/watched_store.py``
+        and ``movies/watchlist_store.py``), so the hot path (drawer chip
+        taps within a session) hits Redis, not MySQL. Per-request
+        memoization on ``g`` would save zero work because
+        ``count_matching_movies`` is called exactly once per HTTP request
+        and each request gets a fresh ``g``.
+
+        Consistency: there is a brief race window where the user's
+        watched/watchlist set changes between a count fetch and the next
+        ``apply_filters`` call. The badge is best-effort and slight
+        staleness here is acceptable — ``apply_filters`` always
+        recomputes the exclusion set fresh from the same Redis cache.
+        """
+        user_id = getattr(state, "user_id", None) if state else None
+        if not user_id:
+            return set()
+        excluded: set[str] = set()
+        if filters.get("exclude_watched", True) and self.watched_store is not None:
+            try:
+                excluded |= set(await self.watched_store.watched_tconsts(user_id))
+            except Exception as exc:
+                logger.warning(
+                    "count_matching_movies: watched_tconsts failed user=%s: %s",
+                    user_id,
+                    exc,
+                )
+        if filters.get("exclude_watchlist", True) and self.watchlist_store is not None:
+            try:
+                excluded |= set(await self.watchlist_store.watchlist_tconsts(user_id))
+            except Exception as exc:
+                logger.warning(
+                    "count_matching_movies: watchlist_tconsts failed user=%s: %s",
+                    user_id,
+                    exc,
+                )
+        return excluded
 
     async def apply_filters(
         self,

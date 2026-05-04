@@ -84,6 +84,9 @@
   </div>
 
   <div class="filter-drawer-footer">
+    <div class="filter-count-badge" data-filter-count-badge>
+      <span data-filter-count-text>~ matches</span>
+    </div>
     <button type="submit" form="drawerFilterForm" id="drawerApplyBtn" class="filter-apply-btn" aria-busy="false">
       <svg class="h-4 w-4 hidden animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10" opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
       <span>Apply Filters</span>
@@ -93,12 +96,16 @@
     <button type="submit"
             form="drawerFilterForm"
             formaction="{{ url_for('main.account_filters_save') }}"
-            class="filter-reset-btn">
-      Save as default
+            class="filter-save-default-btn"
+            data-save-default-btn>
+      Save these as my defaults
     </button>
     {% endif %}
   </div>
+  <div class="filter-toast hidden" data-filter-toast role="status" aria-live="polite"></div>
 </aside>
+
+<script type="application/json" id="default-filters-data">{{ default_filters | tojson }}</script>
 
 <script src="{{ url_for('static', filename='js/filter-drawer.js') }}?v={{ config.get('CSS_VERSION', '1') }}" defer></script>
 

@@ -6,6 +6,7 @@ import time
 
 from quart import g, jsonify, redirect, request, url_for
 
+from infra.errors import DatabaseError
 from infra.event_schema import (
     EVENT_FILTER_APPLIED,
     EVENT_MOVIE_SWIPED,
@@ -215,7 +216,57 @@ async def filtered_movie_endpoint():
     return redirect(url_for("main.home"), code=303)
 
 
+@bp.route("/api/filter_count", methods=["POST"])
+@csrf_required
+@rate_limited("filter_count")
+@with_timeout(_REQUEST_TIMEOUT)
+async def filter_count_endpoint():
+    """Return the count of movies matching the submitted filter payload.
+
+    Read-only counterpart to /filtered_movie — same form schema, just
+    returns {count: int} instead of loading a movie.
+    """
+    movie_manager = _services().movie_manager
+    state = _current_state()
+    form_data = await request.form
+    filters: FilterState = normalize_filters(form_data)
+    validation_errors = validate_filters(filters)
+
+    if validation_errors:
+        return jsonify({"ok": False, "errors": validation_errors}), 400
+
+    try:
+        count = await movie_manager.count_matching_movies(
+            state,
+            filters,
+            legacy_session=_legacy_session(),
+        )
+    except DatabaseError as exc:
+        # Transient backend failure (pool exhausted, connection reset,
+        # FULLTEXT index missing). The badge can recover on the user's
+        # next interaction — surface as 503 so the JS can distinguish
+        # "try again in a moment" from a true server bug.
+        logger.warning(
+            "filter_count: database error for session_id=%s correlation_id=%s: %s",
+            state.session_id,
+            g.correlation_id,
+            exc,
+        )
+        return jsonify({"ok": False, "errors": {"_": "count_unavailable"}}), 503
+    except Exception:
+        logger.exception(
+            "filter_count failed for session_id=%s correlation_id=%s",
+            state.session_id,
+            g.correlation_id,
+        )
+        # "_" denotes a non-field-specific error, distinct from per-field validation errors
+        return jsonify({"ok": False, "errors": {"_": "count_unavailable"}}), 500
+
+    return jsonify({"count": int(count)})
+
+
 __all__ = [
+    "filter_count_endpoint",
     "filtered_movie_endpoint",
     "next_movie",
     "previous_movie",

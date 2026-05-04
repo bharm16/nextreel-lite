@@ -186,3 +186,66 @@ async def test_watchlist_store_list_filtered_carries_public_id():
     _assert_movie_dict(result[0], where="WatchlistStore.list_watchlist_filtered")
     assert result[0]["public_id"] == "a8fk3j"
     assert result[0]["primaryTitle"] == "The Departed"
+
+
+def test_watched_list_presenter_carries_public_id():
+    """WatchedListPresenter output must carry public_id.
+
+    Without it, the watched-list cards' ``movie_url(movie)`` Jinja call
+    silently falls back to ``/`` and clicking a poster takes the user
+    to the home page instead of the movie detail.
+    """
+    from datetime import datetime
+
+    from nextreel.web.route_services import WatchedListPresenter
+
+    rows = [
+        {
+            "tconst": "tt0393109",
+            "public_id": "a8fk3j",
+            "watched_at": datetime(2026, 1, 15),
+            "primaryTitle": "The Departed",
+            "startYear": 2006,
+            "slug": "the-departed",
+            "payload_json": '{"title": "The Departed", "year": "2006"}',
+        }
+    ]
+
+    vm = WatchedListPresenter().build(
+        raw_rows=rows, total_count=1, page=1, per_page=20, now=datetime(2026, 1, 20)
+    )
+
+    assert vm.movies, "presenter should return movies"
+    assert vm.movies[0].get("public_id") == "a8fk3j", (
+        "WatchedListPresenter must surface public_id; without it movie_url() "
+        "redirects card clicks to '/'"
+    )
+
+
+def test_watchlist_presenter_carries_public_id():
+    """WatchlistPresenter output must carry public_id (same contract as Watched)."""
+    from datetime import datetime
+
+    from nextreel.web.route_services import WatchlistPresenter
+
+    rows = [
+        {
+            "tconst": "tt0393109",
+            "public_id": "a8fk3j",
+            "added_at": datetime(2026, 4, 14),
+            "primaryTitle": "The Departed",
+            "startYear": 2006,
+            "slug": "the-departed",
+            "payload_json": '{"title": "The Departed", "year": "2006"}',
+        }
+    ]
+
+    vm = WatchlistPresenter().build(
+        raw_rows=rows, total_count=1, page=1, per_page=20, now=datetime(2026, 4, 25)
+    )
+
+    assert vm.movies, "presenter should return movies"
+    assert vm.movies[0].get("public_id") == "a8fk3j", (
+        "WatchlistPresenter must surface public_id; without it movie_url() "
+        "redirects card clicks to '/'"
+    )

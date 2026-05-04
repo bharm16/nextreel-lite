@@ -128,11 +128,11 @@ def test_default_filter_state_uses_current_year_when_none():
     filters = default_filter_state()
     assert filters["year_min"] == 1900
     assert filters["year_max"] == utcnow().year
-    assert filters["imdb_score_min"] == 7.0
+    assert filters["imdb_score_min"] == 1.0
     assert filters["imdb_score_max"] == 10.0
-    assert filters["num_votes_min"] == 100000
-    assert filters["num_votes_max"] == 200000
-    assert filters["language"] == "en"
+    assert filters["num_votes_min"] == 0
+    assert filters["num_votes_max"] == 2000000
+    assert filters["language"] == "any"
     assert filters["genres_selected"] == []
 
 

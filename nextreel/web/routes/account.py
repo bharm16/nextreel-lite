@@ -23,6 +23,7 @@ from infra.route_helpers import csrf_required, rate_limited
 from infra.time_utils import utcnow
 from logging_config import get_logger
 from movies.filter_parser import extract_movie_filter_criteria
+from nextreel.web.routes.auth import invalidate_default_filters_cache
 from nextreel.web.routes.shared import (
     _current_user_id,
     _services,
@@ -244,6 +245,7 @@ async def account_filters_save():
     form = await request.form
     filters = extract_movie_filter_criteria(form)
     await user_preferences.set_default_filters(_db_pool(), user_id, filters)
+    await invalidate_default_filters_cache(user_id)
     logger.info("Account action: %s user=%s", "filters_save_default", user_id)
     return redirect(url_for("main.account_view"))
 
@@ -254,6 +256,7 @@ async def account_filters_save():
 async def account_filters_clear():
     user_id = _require_user()
     await user_preferences.clear_default_filters(_db_pool(), user_id)
+    await invalidate_default_filters_cache(user_id)
     logger.info("Account action: %s user=%s", "filters_clear_default", user_id)
     return redirect(url_for("main.account_view"))
 

@@ -28,6 +28,12 @@ RATE_LIMIT_MAX = 30  # requests per window
 # to relay arbitrary bandwidth through us.
 _ENDPOINT_LIMIT_OVERRIDES: dict[str, int] = {
     "posthog_proxy": 300,
+    # /api/filter_count fires on every chip tap / slider drag inside the
+    # filter drawer. The default 30/min trips during normal exploration and
+    # flips the count badge to "Count unavailable" while the app is healthy.
+    # Counts are cheaper than full filter applications, so a higher cap is
+    # safe — see specs/2026-05-03-movie-filters-friction-redesign-design.md.
+    "filter_count": 120,
 }
 
 

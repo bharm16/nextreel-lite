@@ -83,6 +83,7 @@ class TestWatchedListPresenter:
         raw_rows = [
             {
                 "tconst": "tt1234567",
+                "public_id": "a8fk3j",
                 "watched_at": datetime(2026, 1, 15, 12, 0, 0),
                 "primaryTitle": "Sample",
                 "startYear": 2024,
@@ -107,6 +108,7 @@ class TestWatchedListPresenter:
         assert view_model.movies == [
             {
                 "tconst": "tt1234567",
+                "public_id": "a8fk3j",
                 "slug": "sample",
                 "title": "Sample",
                 "year": 2024,
