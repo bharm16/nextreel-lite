@@ -200,27 +200,51 @@ class PostHogEventBackend:
         event: str,
         properties: Mapping[str, Any] | None = None,
     ) -> None:
+        # Use keyword arguments exclusively. ``posthog-python`` 3.x has a
+        # long-standing footgun: the module-level ``posthog.capture`` is
+        # ``(event, distinct_id=, ...)`` but the ``Posthog`` *instance*
+        # method is ``(distinct_id, event, ...)`` — the positional order
+        # is flipped between them. Mixing positional ``event`` with a
+        # ``distinct_id=`` kwarg lands ``distinct_id`` in two argument
+        # slots and raises ``TypeError``. Pure kwargs match both 3.x and
+        # 4.x signatures and are immune to that flip.
         try:
             self._client.capture(
-                event,
                 distinct_id=distinct_id,
+                event=event,
                 properties=properties or {},
             )
         except Exception as exc:
-            logger.debug("posthog capture failed: %s", exc)
+            # Surfaced at WARNING (not DEBUG) because a silent failure
+            # here means *no* product analytics reach PostHog. The
+            # original 3.x signature bug above shipped to production
+            # and went undetected for ~2 weeks because DEBUG was
+            # filtered out by the default log config — never again.
+            logger.warning("posthog capture failed: %s", exc)
 
     def identify(
         self,
         distinct_id: str,
         properties: Mapping[str, Any] | None = None,
     ) -> None:
+        # Calls ``client.set`` (NOT ``client.identify``) on purpose.
+        # ``Posthog.identify`` was removed in posthog-python v7; ``set``
+        # is the documented replacement and exists on both v3.7+ and v7+
+        # with the same ``(distinct_id=, properties=)`` signature, so
+        # this call works across the entire pin range. The protocol
+        # method here is still named ``identify`` because that's the
+        # semantic at this layer (bind these properties to a person
+        # identity); the vendor-specific implementation detail of how
+        # that property-set is dispatched lives below this boundary.
         try:
-            self._client.identify(
+            self._client.set(
                 distinct_id=distinct_id,
                 properties=properties or {},
             )
         except Exception as exc:
-            logger.debug("posthog identify failed: %s", exc)
+            # WARNING for parity with capture(): a silent identify
+            # failure breaks cohort grouping and funnel attribution.
+            logger.warning("posthog identify failed: %s", exc)
 
     def alias(self, previous_id: str, distinct_id: str) -> None:
         try:
@@ -229,13 +253,16 @@ class PostHogEventBackend:
                 distinct_id=distinct_id,
             )
         except Exception as exc:
-            logger.debug("posthog alias failed: %s", exc)
+            logger.warning("posthog alias failed: %s", exc)
 
     def shutdown(self) -> None:
         try:
             self._client.shutdown()
         except Exception as exc:
-            logger.debug("posthog shutdown failed: %s", exc)
+            # Shutdown failures are less consequential (process is
+            # exiting anyway) but still worth surfacing — a hung
+            # shutdown can mean dropped tail events.
+            logger.warning("posthog shutdown failed: %s", exc)
 
 
 def build_posthog_backend(
@@ -384,7 +411,11 @@ def track_event(
     try:
         _backend.capture(distinct_id, event, properties)
     except Exception as exc:  # pragma: no cover - last-resort safety net
-        logger.debug("track_event failed: %s", exc)
+        # Backend implementations already log their own failures; this
+        # warning catches a misbehaving custom backend that raises
+        # *past* its internal try/except. WARNING (not DEBUG) so the
+        # next silent-event-loss bug doesn't go undetected for weeks.
+        logger.warning("track_event failed: %s", exc)
 
 
 def identify_user(
@@ -402,7 +433,7 @@ def identify_user(
     try:
         _backend.identify(distinct_id, properties)
     except Exception as exc:  # pragma: no cover - last-resort safety net
-        logger.debug("identify_user failed: %s", exc)
+        logger.warning("identify_user failed: %s", exc)
 
 
 def alias_user(previous_id: str, distinct_id: str) -> None:
@@ -423,7 +454,7 @@ def alias_user(previous_id: str, distinct_id: str) -> None:
     try:
         _backend.alias(previous_id, distinct_id)
     except Exception as exc:  # pragma: no cover - last-resort safety net
-        logger.debug("alias_user failed: %s", exc)
+        logger.warning("alias_user failed: %s", exc)
 
 
 def bind_authenticated_identity(

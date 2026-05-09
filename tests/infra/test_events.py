@@ -141,9 +141,95 @@ def test_posthog_backend_passes_through_to_client():
     client = MagicMock()
     backend = PostHogEventBackend(client)
     backend.capture("user-1", "evt", {"k": "v"})
+    # Pure kwargs only — see the comment in PostHogEventBackend.capture
+    # for the v3.x positional-order footgun this guards against.
     client.capture.assert_called_once_with(
-        "evt", distinct_id="user-1", properties={"k": "v"}
+        distinct_id="user-1", event="evt", properties={"k": "v"}
     )
+
+
+def test_posthog_backend_capture_uses_only_keyword_arguments():
+    """Regression test for the posthog-python 3.x positional-arg footgun.
+
+    The instance method ``Posthog.capture`` is ``(distinct_id, event, ...)``
+    while the module-level ``posthog.capture`` is ``(event, distinct_id=, ...)``
+    — opposite positional orders. Mixing positional ``event`` with a
+    ``distinct_id=`` kwarg lands distinct_id in two slots and raises
+    ``TypeError: got multiple values for argument 'distinct_id'``.
+
+    Pure keyword arguments are immune. This test fails loudly if anyone
+    refactors back to a positional-event call.
+    """
+    client = MagicMock()
+    backend = PostHogEventBackend(client)
+    backend.capture("user-1", "movie_swiped", {"direction": "next"})
+
+    call = client.capture.call_args
+    assert call.args == (), (
+        f"capture() must be called with keyword arguments only, got positional: {call.args!r}"
+    )
+    assert call.kwargs == {
+        "distinct_id": "user-1",
+        "event": "movie_swiped",
+        "properties": {"direction": "next"},
+    }
+
+
+def test_posthog_backend_capture_against_real_signature_v3():
+    """Cross-check our call against the v3 ``Posthog.capture`` signature.
+
+    ``MagicMock`` accepts any call shape, which is how the original v3.x
+    bug shipped to production undetected. To catch a future regression,
+    use a real callable with the documented v3 signature
+    (``distinct_id=None, event=None, properties=None, ...``). Mixing a
+    positional ``event`` with a ``distinct_id=`` kwarg would land
+    distinct_id in two slots and raise TypeError — the test surfaces it.
+    """
+    seen: dict = {}
+
+    def fake_capture_v3(distinct_id=None, event=None, properties=None, **_):
+        seen["distinct_id"] = distinct_id
+        seen["event"] = event
+        seen["properties"] = properties
+
+    client = MagicMock()
+    client.capture = fake_capture_v3  # plain function — enforces signature
+    backend = PostHogEventBackend(client)
+    backend.capture("user-42", "search_performed", {"result_count_bucket": "1-5"})
+
+    assert seen == {
+        "distinct_id": "user-42",
+        "event": "search_performed",
+        "properties": {"result_count_bucket": "1-5"},
+    }
+
+
+def test_posthog_backend_capture_against_real_signature_v7():
+    """Cross-check our call against the v7 ``Posthog.capture`` signature.
+
+    The pin moved to ``posthog>=7,<8``. v7's actual signature is
+    ``capture(self, event: str, **kwargs)`` — ``event`` is required and
+    positional-or-keyword, everything else (distinct_id, properties,
+    timestamp, groups, …) goes through ``**kwargs``. A pure-kwargs call
+    is still valid because ``event`` is positional-or-keyword.
+
+    If a future SDK version makes ``event`` positional-only or renames
+    a kwarg, this test fails before the bug reaches production.
+    """
+    seen: dict = {}
+
+    def fake_capture_v7(event: str, **kwargs):
+        seen["event"] = event
+        seen.update(kwargs)
+
+    client = MagicMock()
+    client.capture = fake_capture_v7
+    backend = PostHogEventBackend(client)
+    backend.capture("user-42", "search_performed", {"result_count_bucket": "1-5"})
+
+    assert seen["event"] == "search_performed"
+    assert seen["distinct_id"] == "user-42"
+    assert seen["properties"] == {"result_count_bucket": "1-5"}
 
 
 def test_posthog_backend_swallows_capture_exceptions():
@@ -153,9 +239,31 @@ def test_posthog_backend_swallows_capture_exceptions():
     backend.capture("user-1", "evt")  # must not raise
 
 
+def test_posthog_backend_identify_calls_client_set():
+    """The protocol method ``identify`` is implemented via ``client.set``.
+
+    posthog-python v7 removed ``Posthog.identify``; ``Posthog.set`` is the
+    documented replacement. Both v3.7+ and v7+ expose ``set`` with the
+    same ``(distinct_id=, properties=)`` kwargs, so this call works
+    across the entire pin range. If a future SDK version renames or
+    removes ``set``, this test fails loudly and the call site at
+    PostHogEventBackend.identify needs to be updated.
+    """
+    client = MagicMock()
+    backend = PostHogEventBackend(client)
+    backend.identify("user-1", {"auth_provider": "email"})
+
+    client.set.assert_called_once_with(
+        distinct_id="user-1", properties={"auth_provider": "email"}
+    )
+    client.identify.assert_not_called()
+
+
 def test_posthog_backend_swallows_identify_exceptions():
     client = MagicMock()
-    client.identify.side_effect = RuntimeError("posthog rejected")
+    # The backend now dispatches identify via client.set (v7-compatible);
+    # make sure that path's exceptions are still swallowed.
+    client.set.side_effect = RuntimeError("posthog rejected")
     backend = PostHogEventBackend(client)
     backend.identify("user-1", {"k": "v"})  # must not raise
 

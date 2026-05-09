@@ -33,7 +33,7 @@ python-dotenv==1.0.1             # Load environment variables from .env file
 # Monitoring & Observability
 # -------------------------
 prometheus-client==0.21.1        # Prometheus metrics collection
-posthog>=3.7.0,<4                # Product analytics — server-side event capture, identify, feature flags. Non-blocking by design.
+posthog>=7,<8                    # Product analytics — server-side event capture, set, alias, feature flags. Non-blocking by design. v7 dropped Posthog.identify; PostHogEventBackend.identify in infra/events.py uses Posthog.set instead (works on both v3 and v7).
 
 # Logging & Debugging (Optional but Recommended)
 # ----------------------------------------------
