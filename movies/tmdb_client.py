@@ -80,17 +80,28 @@ class _CircuitBreaker:
     def latency_ewma_seconds(self) -> float | None:
         return self._latency_ewma
 
+    def _maybe_recover_locked(self) -> None:
+        """Transition OPEN → HALF_OPEN if the recovery timeout has elapsed.
+
+        Caller must already hold ``self._lock``.
+        """
+        if self._state == self.OPEN:
+            if time.time() - self._last_failure_time >= self.recovery_timeout:
+                self._state = self.HALF_OPEN
+                self._half_open_count = 0
+
     async def attempt_recovery(self) -> None:
         """Transition OPEN → HALF_OPEN if the recovery timeout has elapsed."""
         async with self._lock:
-            if self._state == self.OPEN:
-                if time.time() - self._last_failure_time >= self.recovery_timeout:
-                    self._state = self.HALF_OPEN
-                    self._half_open_count = 0
+            self._maybe_recover_locked()
 
     async def allow_request(self) -> bool:
-        await self.attempt_recovery()
+        # Single critical section: recovery + probe-grant decision must be
+        # atomic, otherwise a concurrent ``record_failure`` between the two
+        # steps can flip the breaker back to OPEN and block a probe that
+        # should have been permitted.
         async with self._lock:
+            self._maybe_recover_locked()
             if self._state == self.CLOSED:
                 return True
             if self._state == self.HALF_OPEN:

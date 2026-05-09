@@ -1,9 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-from contextlib import asynccontextmanager
-
-from quart import Quart
 
 from infra.events import shutdown_event_backend
 from infra.runtime_schema import (
@@ -79,32 +76,18 @@ def register_lifecycle_handlers(
     movie_manager,
     shutdown_fn=shutdown_resources,
 ) -> None:
-    @asynccontextmanager
-    async def lifespan(app: Quart):
-        logger.info("Starting application lifecycle")
-        try:
-            await ensure_movie_manager_started()
-            await app.metrics_collector.start_collection()
-            logger.info("Metrics collection started")
-        except Exception as exc:
-            logger.error("Failed to start MovieManager: %s", exc)
-            raise
-
-        yield
-
-        logger.info("Shutting down application lifecycle")
-        try:
-            await shutdown_fn(app)
-        except Exception as exc:
-            logger.error("Critical error during shutdown: %s", exc)
-
-    app.lifespan = lifespan
-
     @app.before_serving
     async def startup():
         logger.info("Starting application warm-up...")
         await ensure_movie_manager_started()
         await assert_no_null_public_ids(movie_manager.db_pool)
+
+        try:
+            await app.metrics_collector.start_collection()
+            logger.info("Metrics collection started")
+        except Exception as exc:
+            logger.error("Failed to start metrics collection: %s", exc)
+            raise
 
         async def repair_fulltext_index():
             try:
@@ -129,3 +112,11 @@ def register_lifecycle_handlers(
             logger.warning("Failed to enqueue initial movie_candidates refresh: %s", exc)
 
         logger.info("Application warm-up complete")
+
+    @app.after_serving
+    async def shutdown():
+        logger.info("Shutting down application lifecycle")
+        try:
+            await shutdown_fn(app)
+        except Exception as exc:
+            logger.error("Critical error during shutdown: %s", exc)

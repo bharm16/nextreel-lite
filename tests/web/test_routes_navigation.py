@@ -146,6 +146,23 @@ class TestNextMovieRoute:
             assert response.status_code == 303
             assert response.headers["Location"].endswith("/movie/the-departed-2006-a8fk3j")
 
+    async def test_empty_queue_returns_redirect_not_plain_text(self):
+        """When the queue is exhausted, navigation must return a redirect.
+
+        Returning a 200 plain-text body to a form POST replaces the page with
+        featureless text, dropping all nav chrome.
+        """
+        app, manager = _make_app()
+        manager.next_movie = AsyncMock(return_value=None)
+        async with app.app_context():
+            client = app.test_client()
+            response = await client.post(
+                "/next_movie",
+                headers={"X-CSRFToken": "test-csrf-token"},
+            )
+            assert response.status_code == 303
+            assert "Location" in response.headers
+
     async def test_redirects_conflict_to_home_when_no_tconst(self):
         app, manager = _make_app()
         manager.next_movie = AsyncMock(

@@ -128,6 +128,38 @@ class TestCircuitBreakerLatency:
         breaker._last_failure_time = time.time() - 60
         assert await breaker.allow_request() is True
 
+    async def test_allow_request_acquires_lock_atomically(self):
+        """``allow_request`` must do its recovery + probe-grant decision in a
+        single critical section. The previous implementation released the lock
+        between ``attempt_recovery`` and the state read, which let a concurrent
+        ``record_failure`` flip the breaker back to OPEN and incorrectly block
+        the recovery probe.
+        """
+        breaker = _CircuitBreaker(failure_threshold=1, recovery_timeout=30.0)
+        breaker._state = _CircuitBreaker.OPEN
+        breaker._last_failure_time = time.time() - 60  # eligible for recovery
+
+        original_lock = breaker._lock
+        acquire_count = 0
+
+        class CountingLock:
+            async def __aenter__(self_inner):
+                nonlocal acquire_count
+                acquire_count += 1
+                await original_lock.acquire()
+                return self_inner
+
+            async def __aexit__(self_inner, exc_type, exc, tb):
+                original_lock.release()
+                return False
+
+        breaker._lock = CountingLock()
+
+        result = await breaker.allow_request()
+
+        assert result is True  # recovery probe permitted
+        assert acquire_count == 1  # one critical section, not two
+
     def test_invalid_env_var_ignored(self, monkeypatch):
         monkeypatch.setenv("TMDB_LATENCY_BREAKER_SECONDS", "not-a-float")
         breaker = _build_circuit_breaker()

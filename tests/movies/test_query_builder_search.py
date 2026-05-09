@@ -71,3 +71,22 @@ def test_build_search_query_handles_pipe_in_query():
     query_sql, params = build_search_query("a|b", limit=10)
     assert query_sql is not None
     assert any("a||b" in p for p in params if isinstance(p, str))
+
+
+def test_build_search_query_exact_match_param_is_unescaped():
+    """The exact-match parameter (``WHERE primaryTitle = %s``) must use the
+    cleaned (unescaped) form — LIKE-escape substitution turns ``%``/``_``/``|``
+    into multi-char sequences that will never equal the stored title via
+    SQL equality.
+    """
+    _, params = build_search_query("Catch_22", limit=10)
+    # WHERE exact (params[0]) and ORDER BY CASE exact (params[6]) compare with =,
+    # not LIKE — they must be the cleaned input, not the LIKE-escaped form.
+    assert params[0] == "Catch_22"
+    assert params[6] == "Catch_22"
+
+
+def test_build_search_query_exact_match_param_unescaped_for_percent():
+    _, params = build_search_query("50%", limit=10)
+    assert params[0] == "50%"
+    assert params[6] == "50%"

@@ -212,6 +212,22 @@ class MetricsCollector:
             self._collection_task = None
             self.logger.info("Metrics collection stopped")
 
+    def _evict_stale_users(self):
+        """Drop users whose last-seen timestamp is older than the timeout.
+
+        Uses ``.items()`` because ``LruExpiringMap.__iter__`` yields keys, not
+        (key, value) pairs — passing the map directly to ``dict()`` would
+        ``ValueError`` on any user id whose length isn't exactly 2.
+        """
+        now = time.time()
+        snapshot = dict(self._active_users.items())
+        stale = [
+            uid for uid, ts in snapshot.items() if now - ts > self._active_user_timeout
+        ]
+        for uid in stale:
+            self._active_users.pop(uid, None)
+        active_users.set(len(self._active_users))
+
     async def _collect_metrics(self):
         """Background task to collect metrics"""
         while True:
@@ -223,14 +239,7 @@ class MetricsCollector:
                 await self._collect_movie_metrics()
 
                 # Evict stale users and update active users count
-                now = time.time()
-                snapshot = dict(self._active_users)
-                stale = [
-                    uid for uid, ts in snapshot.items() if now - ts > self._active_user_timeout
-                ]
-                for uid in stale:
-                    self._active_users.pop(uid, None)
-                active_users.set(len(self._active_users))
+                self._evict_stale_users()
 
                 # Sleep for 10 seconds before next collection
                 await asyncio.sleep(10)

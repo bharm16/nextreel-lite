@@ -454,8 +454,15 @@ def _distinct_id_for(state) -> str:
 
 
 def _require_login():
-    """Return a redirect to login if the user is not authenticated, else None."""
+    """Return a redirect to login if the user is not authenticated, else None.
+
+    Preserves the current request path as ``?next=<path>`` so the login flow
+    can return the user to where they were going.
+    """
     if not _current_user_id():
+        next_path = request.full_path.rstrip("?") if request.full_path else request.path
+        if next_path and next_path.startswith("/") and not next_path.startswith("//"):
+            return redirect(url_for("main.login_page", next=next_path))
         return redirect(url_for("main.login_page"))
     return None
 

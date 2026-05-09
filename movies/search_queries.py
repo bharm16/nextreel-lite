@@ -87,10 +87,12 @@ def build_search_query(raw_query: str, limit: int = 10) -> tuple[str | None, lis
     )
 
     params = [
-        # WHERE: exact, prefix, contains, article_the, article_a, article_an
-        escaped, prefix, contains, article_the, article_a, article_an,
-        # CASE: exact, prefix, article_the, article_a, article_an
-        escaped, prefix, article_the, article_a, article_an,
+        # WHERE: exact uses cleaned (= comparison, no LIKE escaping); the
+        # remaining LIKE-based positions use the escaped form so metacharacters
+        # in user input are treated as literals.
+        cleaned, prefix, contains, article_the, article_a, article_an,
+        # CASE: exact uses cleaned (= comparison); LIKE positions use escaped.
+        cleaned, prefix, article_the, article_a, article_an,
         int(limit),
     ]
     return sql, params

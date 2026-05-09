@@ -101,3 +101,35 @@ async def test_with_timeout_awaits_cancelled_task(app):
         client = app.test_client()
         response = await client.get("/slow")
         assert response.status_code == 504
+
+
+async def test_with_timeout_does_not_let_handler_complete_after_504(app):
+    """The inner handler must not run to completion after a 504 has been
+    sent to the client. The previous ``shield(task)`` + ``task.cancel()``
+    pattern was contradictory; the simpler ``wait_for(fn(...), timeout)``
+    cancels cleanly without a window for late writes.
+    """
+    from infra.route_helpers import with_timeout
+
+    completed_normally = {"value": False}
+
+    @app.route("/slow")
+    @with_timeout(1)  # 1 second budget
+    async def slow():
+        await asyncio.sleep(0)  # let timeout schedule
+        await asyncio.sleep(10)  # well past the 1s budget
+        completed_normally["value"] = True
+        return "should-not-happen"
+
+    # Patch wait_for to a much smaller value so the test runs quickly.
+    original_wait_for = asyncio.wait_for
+
+    async def fast_wait_for(awaitable, timeout):
+        return await original_wait_for(awaitable, timeout=0.05)
+
+    with patch("infra.route_helpers.asyncio.wait_for", fast_wait_for):
+        async with app.test_request_context("/slow"):
+            client = app.test_client()
+            response = await client.get("/slow")
+    assert response.status_code == 504
+    assert completed_normally["value"] is False

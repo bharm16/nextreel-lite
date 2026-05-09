@@ -30,6 +30,28 @@ def collector():
 # ---------------------------------------------------------------------------
 
 
+class TestEvictStaleUsers:
+    def test_evict_stale_users_does_not_raise_on_real_user_ids(self, collector):
+        """The eviction snapshot path must not raise on user-ids of any length.
+
+        ``LruExpiringMap.__iter__`` yields plain string keys, not (k, v) pairs.
+        ``dict(lru_map)`` therefore tries to unpack each string key and raises
+        ``ValueError`` for any key whose length isn't exactly 2.
+        """
+        collector._active_users["user-42"] = time.time()
+        collector._active_users["a-much-longer-user-id"] = time.time() - 10_000
+        # Should not raise; should evict only the stale one.
+        collector._evict_stale_users()
+        assert "user-42" in collector._active_users
+        assert "a-much-longer-user-id" not in collector._active_users
+
+    def test_evict_stale_users_keeps_fresh_users(self, collector):
+        collector._active_user_timeout = 60
+        collector._active_users["fresh"] = time.time()
+        collector._evict_stale_users()
+        assert "fresh" in collector._active_users
+
+
 class TestTrackUserActivity:
     def test_tracks_user(self, collector):
         collector.track_user_activity("user-1")

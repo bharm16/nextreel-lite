@@ -30,4 +30,11 @@ async def test_projection_coordinator_delegates_enrichment_execution(monkeypatch
     result = await coordinator.enrich_projection("tt1", known_tmdb_id=123)
 
     assert result == {"title": "Ready"}
-    service.enrich_projection.assert_awaited_once_with("tt1", known_tmdb_id=123)
+    # Coordinator now passes tmdb_helper/timeout_seconds per-call instead of
+    # mutating shared service state.
+    service.enrich_projection.assert_awaited_once()
+    args, kwargs = service.enrich_projection.call_args
+    assert args == ("tt1",)
+    assert kwargs["known_tmdb_id"] == 123
+    assert kwargs["tmdb_helper"] is coordinator.tmdb_helper
+    assert kwargs["timeout_seconds"] == coordinator.ENRICHMENT_TIMEOUT_SECONDS

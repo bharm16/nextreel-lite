@@ -25,6 +25,10 @@ def resolve_redis_url(*, environment: str | None = None, environ=os.environ) -> 
             raise RuntimeError(
                 "REDIS_URL or UPSTASH_REDIS_HOST/UPSTASH_REDIS_PORT must be set in production"
             )
+        if not redis_pw:
+            raise RuntimeError(
+                "UPSTASH_REDIS_PASSWORD must be set when using UPSTASH_REDIS_HOST/PORT"
+            )
         return f"rediss://:{redis_pw}@{redis_host}:{redis_port}"
     return environ.get("REDIS_URL", "redis://localhost:6379")
 

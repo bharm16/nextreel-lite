@@ -87,7 +87,10 @@ class LruExpiringMap:
         entry = self._data.pop(key, None)
         if entry is None:
             return default
-        return entry[1]
+        expires_at, value = entry
+        if self._now() >= expires_at:
+            return default
+        return value
 
     def clear(self) -> None:
         self._data.clear()
@@ -130,7 +133,14 @@ class LruExpiringMap:
         return len(self._data)
 
     def __contains__(self, key) -> bool:
-        return self.get(key) is not None
+        entry = self._data.get(key)
+        if entry is None:
+            return False
+        expires_at, _ = entry
+        if self._now() >= expires_at:
+            self._data.pop(key, None)
+            return False
+        return True
 
 # Bump this whenever a cached payload's schema changes. Old entries are
 # read once as a fallback during the transition; writes always use the

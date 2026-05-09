@@ -75,6 +75,44 @@ async def test_schedule_local_enrichment_drops_when_backlog_full():
 
 
 @pytest.mark.asyncio
+async def test_coordinator_does_not_mutate_service_attributes_per_call():
+    """``ProjectionEnrichmentCoordinator.enrich_projection`` must NOT mutate
+    its inner ``ProjectionEnrichmentService`` per call. The shared service is
+    used concurrently (up to ``LOCAL_ENRICHMENT_CONCURRENCY``); per-call
+    attribute writes race when one coroutine yields at ``asyncio.wait_for``
+    and another rebinds ``tmdb_helper``.
+    """
+    store = MagicMock()
+    store.db_pool = MagicMock()
+    store.select_row = AsyncMock(return_value=None)
+    store.ensure_core_projection = AsyncMock(return_value={"title": "core"})
+    store.apply_enrichment_result = AsyncMock()
+
+    helper_a = MagicMock(name="helper_a")
+    coord = ProjectionEnrichmentCoordinator(
+        store=store, tmdb_helper=helper_a, enqueue_fn=None
+    )
+    coord.ENRICHMENT_TIMEOUT_SECONDS = 0.05
+
+    initial_helper = coord._enrichment_service.tmdb_helper
+    initial_timeout = coord._enrichment_service.timeout_seconds
+
+    # Simulate a race-style mid-flight rebind of the coordinator's helper.
+    async def _slow(*args, **kwargs):
+        coord.tmdb_helper = MagicMock(name="helper_b")
+        await asyncio.sleep(10)
+
+    with patch("movies.projection_enrichment.Movie") as MockMovie:
+        MockMovie.return_value.get_movie_data = AsyncMock(side_effect=_slow)
+        await coord.enrich_projection("tt1")
+
+    # The service's attributes must remain whatever they were configured as
+    # at construction time — not be rewritten by enrich_projection().
+    assert coord._enrichment_service.tmdb_helper is initial_helper
+    assert coord._enrichment_service.timeout_seconds == initial_timeout
+
+
+@pytest.mark.asyncio
 async def test_enrich_projection_timeout_increments_metric():
     """asyncio.TimeoutError path should increment enrichment_timeout_total."""
     store = MagicMock()

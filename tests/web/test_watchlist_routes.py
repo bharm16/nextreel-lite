@@ -39,13 +39,40 @@ def _install_services(app):
 async def test_watchlist_list_redirects_when_not_logged_in(app, monkeypatch):
     _install_services(app)
     monkeypatch.setattr(
-        "nextreel.web.routes.shared.url_for", lambda endpoint: "/login"
+        "nextreel.web.routes.shared.url_for",
+        lambda endpoint, **kwargs: (
+            "/login?next=" + kwargs["next"] if kwargs.get("next") else "/login"
+        ),
     )
     async with app.test_request_context("/watchlist"):
         g.navigation_state = _nav_state(user_id=None)
         response = await watchlist_routes.watchlist_page()
         # _require_login returns a redirect Response.
         assert response.status_code in (302, 303)
+
+
+@pytest.mark.asyncio
+async def test_watchlist_list_login_redirect_preserves_next_path(app, monkeypatch):
+    """Anonymous request to /watchlist should redirect to /login?next=/watchlist
+    so the user lands back on /watchlist after authenticating.
+    """
+    _install_services(app)
+    captured_kwargs: dict = {}
+
+    def fake_url_for(endpoint, **kwargs):
+        captured_kwargs.update(kwargs)
+        next_path = kwargs.get("next")
+        return "/login?next=" + next_path if next_path else "/login"
+
+    monkeypatch.setattr("nextreel.web.routes.shared.url_for", fake_url_for)
+
+    async with app.test_request_context("/watchlist"):
+        g.navigation_state = _nav_state(user_id=None)
+        response = await watchlist_routes.watchlist_page()
+
+    assert response.status_code in (302, 303)
+    assert captured_kwargs.get("next") == "/watchlist"
+    assert "/watchlist" in response.location
 
 
 @pytest.mark.asyncio

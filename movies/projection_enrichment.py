@@ -99,21 +99,29 @@ class ProjectionEnrichmentService:
         self,
         tconst: str,
         known_tmdb_id: int | None = None,
+        *,
+        tmdb_helper=None,
+        timeout_seconds: float | None = None,
     ) -> dict[str, Any] | None:
+        # Per-call overrides keep the shared service safe under concurrent
+        # use — the coordinator passes the current helper/timeout in rather
+        # than mutating ``self.tmdb_helper``/``self.timeout_seconds``.
+        helper = tmdb_helper if tmdb_helper is not None else self.tmdb_helper
+        effective_timeout = timeout_seconds if timeout_seconds is not None else self.timeout_seconds
         now = utcnow()
         row = await self.store.select_row(tconst)
         attempts = int(row.get("attempt_count", 0)) + 1 if row else 1
         tmdb_id = known_tmdb_id if known_tmdb_id is not None else (row or {}).get("tmdb_id")
         try:
-            movie = Movie(tconst, self.store.db_pool, tmdb_helper=self.tmdb_helper)
+            movie = Movie(tconst, self.store.db_pool, tmdb_helper=helper)
             try:
                 payload = await asyncio.wait_for(
                     movie.get_movie_data(known_tmdb_id=tmdb_id),
-                    timeout=self.timeout_seconds,
+                    timeout=effective_timeout,
                 )
             except asyncio.TimeoutError:
                 safe_emit(enrichment_timeout_total.inc)
-                raise RuntimeError("enrichment timeout after %ss" % self.timeout_seconds)
+                raise RuntimeError("enrichment timeout after %ss" % effective_timeout)
             if not payload:
                 raise RuntimeError("TMDB enrichment returned no payload")
 
@@ -468,11 +476,14 @@ class ProjectionEnrichmentCoordinator:
         tconst: str,
         known_tmdb_id: int | None = None,
     ) -> dict[str, Any] | None:
-        self._enrichment_service.tmdb_helper = self.tmdb_helper
-        self._enrichment_service.timeout_seconds = self.ENRICHMENT_TIMEOUT_SECONDS
+        # Pass per-call overrides instead of mutating shared service state —
+        # mutation races when LOCAL_ENRICHMENT_CONCURRENCY coroutines run
+        # this method concurrently.
         return await self._enrichment_service.enrich_projection(
             tconst,
             known_tmdb_id=known_tmdb_id,
+            tmdb_helper=self.tmdb_helper,
+            timeout_seconds=self.ENRICHMENT_TIMEOUT_SECONDS,
         )
 
     async def drain_pending(self, timeout: float = 5.0) -> None:

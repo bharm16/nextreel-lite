@@ -182,6 +182,7 @@ async def test_lifecycle_startup_schedules_candidate_refresh(app, monkeypatch):
     )
     app.background_tasks = set()
     app.enqueue_runtime_job = AsyncMock(return_value=object())
+    app.metrics_collector = SimpleNamespace(start_collection=AsyncMock())
     monkeypatch.setattr(
         "nextreel.web.lifecycle.ensure_movie_candidates_fulltext_index",
         AsyncMock(),
@@ -202,6 +203,85 @@ async def test_lifecycle_startup_schedules_candidate_refresh(app, monkeypatch):
 
     ensure_started.assert_awaited_once()
     app.enqueue_runtime_job.assert_awaited_once_with("refresh_movie_candidates")
+
+
+@pytest.mark.asyncio
+async def test_lifecycle_startup_starts_metrics_collection(app, monkeypatch):
+    """Metrics polling is registered as a before_serving hook so Quart actually runs it.
+
+    Quart's ASGILifespan calls only ``app.startup()``/``app.shutdown()`` which
+    iterate ``before_serving_funcs``/``after_serving_funcs``. An ``app.lifespan``
+    attribute is never read by Quart — putting startup logic only inside an
+    ``@asynccontextmanager`` named ``lifespan`` would leave it dead.
+    """
+    from nextreel.web.lifecycle import register_lifecycle_handlers
+
+    ensure_started = AsyncMock()
+    movie_manager = SimpleNamespace(
+        db_pool=MagicMock(),
+        candidate_store=SimpleNamespace(latest_refresh_at=AsyncMock(return_value=object())),
+    )
+    app.background_tasks = set()
+    app.enqueue_runtime_job = AsyncMock(return_value=object())
+    app.metrics_collector = SimpleNamespace(start_collection=AsyncMock())
+    monkeypatch.setattr(
+        "nextreel.web.lifecycle.ensure_movie_candidates_fulltext_index",
+        AsyncMock(),
+    )
+    monkeypatch.setattr(
+        "nextreel.web.lifecycle.assert_no_null_public_ids",
+        AsyncMock(),
+    )
+
+    register_lifecycle_handlers(
+        app,
+        ensure_movie_manager_started=ensure_started,
+        movie_manager=movie_manager,
+    )
+    await app.startup()
+
+    app.metrics_collector.start_collection.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_lifecycle_registers_shutdown_resources_on_after_serving(app, monkeypatch):
+    """Resource cleanup must run on shutdown — register via ``@app.after_serving``.
+
+    Quart's ``app.shutdown()`` iterates ``after_serving_funcs``. Code stuffed
+    only into an unused ``app.lifespan`` context manager is never invoked.
+    """
+    from nextreel.web.lifecycle import register_lifecycle_handlers
+
+    ensure_started = AsyncMock()
+    movie_manager = SimpleNamespace(
+        db_pool=MagicMock(),
+        candidate_store=SimpleNamespace(latest_refresh_at=AsyncMock(return_value=object())),
+    )
+    app.background_tasks = set()
+    app.enqueue_runtime_job = AsyncMock(return_value=object())
+    app.metrics_collector = SimpleNamespace(start_collection=AsyncMock())
+    monkeypatch.setattr(
+        "nextreel.web.lifecycle.ensure_movie_candidates_fulltext_index",
+        AsyncMock(),
+    )
+    monkeypatch.setattr(
+        "nextreel.web.lifecycle.assert_no_null_public_ids",
+        AsyncMock(),
+    )
+
+    shutdown_fn = AsyncMock()
+    register_lifecycle_handlers(
+        app,
+        ensure_movie_manager_started=ensure_started,
+        movie_manager=movie_manager,
+        shutdown_fn=shutdown_fn,
+    )
+
+    assert app.after_serving_funcs, "no after_serving hook registered"
+    for hook in app.after_serving_funcs:
+        await hook()
+
+    shutdown_fn.assert_awaited_once_with(app)
 
 
 async def test_startup_aborts_when_null_public_id_rows_exist():

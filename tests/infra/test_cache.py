@@ -94,6 +94,48 @@ def test_lru_expiring_map_stale_evicted_before_lru():
     assert m.get("b") is None
 
 
+def test_lru_expiring_map_pop_returns_default_for_expired_entry():
+    # pop() must agree with get() about whether an entry is expired —
+    # otherwise the two methods disagree on the same key after TTL elapses.
+    clock = _FakeClock()
+    m = LruExpiringMap(3, 10.0, time_func=clock)
+    m.set("a", 1)
+    clock.advance(11)
+    assert m.pop("a", "fallback") == "fallback"
+    assert len(m) == 0
+
+
+def test_lru_expiring_map_pop_returns_value_for_live_entry():
+    clock = _FakeClock()
+    m = LruExpiringMap(3, 60.0, time_func=clock)
+    m.set("a", 1)
+    assert m.pop("a") == 1
+    assert "a" not in m
+
+
+def test_lru_expiring_map_contains_stored_none_value():
+    # `key in lru_map` should reflect presence, not value-truthiness.
+    # Storing None for a key and then asking `key in m` must return True.
+    clock = _FakeClock()
+    m = LruExpiringMap(3, 60.0, time_func=clock)
+    m.set("a", None)
+    assert "a" in m
+
+
+def test_lru_expiring_map_contains_returns_false_for_missing_key():
+    clock = _FakeClock()
+    m = LruExpiringMap(3, 60.0, time_func=clock)
+    assert "missing" not in m
+
+
+def test_lru_expiring_map_contains_returns_false_for_expired_key():
+    clock = _FakeClock()
+    m = LruExpiringMap(3, 10.0, time_func=clock)
+    m.set("a", 1)
+    clock.advance(11)
+    assert "a" not in m
+
+
 def test_lru_expiring_map_validates_args():
     with pytest.raises(ValueError):
         LruExpiringMap(0, 60.0)
