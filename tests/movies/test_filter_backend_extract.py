@@ -47,3 +47,39 @@ def test_extract_all_fields():
         "genres": ["Action", "Drama"],
         "language": "fr",
     }
+
+
+class TestExcludeGenresExtraction:
+    def test_omitted_when_no_exclude_genres_submitted(self):
+        form = DummyForm({"genres[]": ["Action"]})
+        criteria = extract_movie_filter_criteria(form)
+        assert "exclude_genres" not in criteria
+
+    def test_populates_when_exclude_genres_submitted(self):
+        form = DummyForm({"exclude_genres[]": ["Drama", "War"]})
+        criteria = extract_movie_filter_criteria(form)
+        assert criteria["exclude_genres"] == ["Drama", "War"]
+
+    def test_filters_invalid_genres_against_allow_list(self):
+        """Reject names that aren't in VALID_GENRES — same allow-list as include path."""
+        form = DummyForm({"exclude_genres[]": ["Drama", "NotAGenre", "War"]})
+        criteria = extract_movie_filter_criteria(form)
+        assert criteria["exclude_genres"] == ["Drama", "War"]
+
+    def test_drops_non_string_entries(self):
+        form = DummyForm({"exclude_genres[]": ["Drama", None, 42, "War"]})
+        criteria = extract_movie_filter_criteria(form)
+        assert criteria["exclude_genres"] == ["Drama", "War"]
+
+    def test_empty_list_omits_key(self):
+        form = DummyForm({"exclude_genres[]": []})
+        criteria = extract_movie_filter_criteria(form)
+        assert "exclude_genres" not in criteria
+
+    def test_include_and_exclude_can_coexist(self):
+        form = DummyForm(
+            {"genres[]": ["Action"], "exclude_genres[]": ["Drama"]}
+        )
+        criteria = extract_movie_filter_criteria(form)
+        assert criteria["genres"] == ["Action"]
+        assert criteria["exclude_genres"] == ["Drama"]

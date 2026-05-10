@@ -59,34 +59,67 @@
   }
 
   // ── Genre chips ─────────────────────────────────────────
+  // Three-state chip cycle: default → include → exclude → default. The
+  // include set is emitted as ``genres[]`` (positive MATCH) and the
+  // exclude set as ``exclude_genres[]`` (NOT MATCH). The "All" chip
+  // resets every chip back to the default state.
   function attachGenreChips(form) {
-    var allGenres = [
-      "Action","Adventure","Animation","Biography","Comedy","Crime","Documentary",
-      "Drama","Fantasy","Horror","Musical","Sci-Fi","Sport","Thriller","War","Western"
-    ];
-    var hiddenContainer = form.querySelector("[data-genre-hidden-inputs]");
+    var hiddenInclude = form.querySelector("[data-genre-hidden-inputs]");
+    var hiddenExclude = form.querySelector("[data-exclude-genre-hidden-inputs]");
     var chipRow = form.querySelector('[data-filter-chips="genres"]');
-    if (!hiddenContainer || !chipRow) return;
+    if (!hiddenInclude || !chipRow) return;
+
+    function chipState(chip) {
+      if (chip.classList.contains("is-active")) return "include";
+      if (chip.classList.contains("is-excluded")) return "exclude";
+      return "default";
+    }
+    function setChipState(chip, state) {
+      chip.classList.toggle("is-active", state === "include");
+      chip.classList.toggle("is-excluded", state === "exclude");
+      chip.setAttribute("aria-pressed", state === "include" ? "true" : "false");
+      var name = chip.textContent.trim();
+      var label = name;
+      if (state === "include") label = name + " (included)";
+      else if (state === "exclude") label = name + " (excluded)";
+      chip.setAttribute("aria-label", label);
+    }
+    function nextState(state) {
+      if (state === "default") return "include";
+      if (state === "include") return "exclude";
+      return "default";
+    }
 
     function syncHidden() {
-      // Use replaceChildren() to clear safely (no innerHTML, no XSS surface)
-      hiddenContainer.replaceChildren();
-      var allActive = chipRow.querySelector('[data-genre-chip="__all__"]').classList.contains("is-active");
-      if (allActive) {
-        form.dispatchEvent(new CustomEvent("filter:changed"));
-        return;
-      }
+      // replaceChildren() clears safely without going through innerHTML.
+      hiddenInclude.replaceChildren();
+      if (hiddenExclude) hiddenExclude.replaceChildren();
+
+      var allChip = chipRow.querySelector('[data-genre-chip="__all__"]');
+      var anyNonDefault = false;
       chipRow.querySelectorAll('[data-genre-chip]').forEach(function (c) {
         var v = c.getAttribute("data-genre-chip");
         if (v === "__all__") return;
-        if (c.classList.contains("is-active")) {
-          var input = document.createElement("input");
-          input.type = "hidden";
+        var state = chipState(c);
+        if (state === "default") return;
+        anyNonDefault = true;
+        var input = document.createElement("input");
+        input.type = "hidden";
+        if (state === "include") {
           input.name = "genres[]";
           input.value = v;
-          hiddenContainer.appendChild(input);
+          hiddenInclude.appendChild(input);
+        } else if (state === "exclude" && hiddenExclude) {
+          input.name = "exclude_genres[]";
+          input.value = v;
+          hiddenExclude.appendChild(input);
         }
       });
+      // "All" reflects "no per-chip state set anywhere".
+      if (allChip) {
+        allChip.classList.toggle("is-active", !anyNonDefault);
+        allChip.setAttribute("aria-pressed", !anyNonDefault ? "true" : "false");
+      }
       form.dispatchEvent(new CustomEvent("filter:changed"));
     }
 
@@ -95,28 +128,13 @@
       if (!btn) return;
       var value = btn.getAttribute("data-genre-chip");
       if (value === "__all__") {
+        // "All" wipes everything back to default.
         chipRow.querySelectorAll('[data-genre-chip]').forEach(function (c) {
-          c.classList.remove("is-active");
-          c.setAttribute("aria-pressed", "false");
+          if (c === btn) return;
+          setChipState(c, "default");
         });
-        btn.classList.add("is-active");
-        btn.setAttribute("aria-pressed", "true");
       } else {
-        var allChip = chipRow.querySelector('[data-genre-chip="__all__"]');
-        allChip.classList.remove("is-active");
-        allChip.setAttribute("aria-pressed", "false");
-        btn.classList.toggle("is-active");
-        btn.setAttribute("aria-pressed", btn.classList.contains("is-active") ? "true" : "false");
-
-        var activeSpecifics = chipRow.querySelectorAll('[data-genre-chip].is-active:not([data-genre-chip="__all__"])');
-        if (activeSpecifics.length === 0 || activeSpecifics.length === allGenres.length) {
-          chipRow.querySelectorAll('[data-genre-chip]').forEach(function (c) {
-            c.classList.remove("is-active");
-            c.setAttribute("aria-pressed", "false");
-          });
-          allChip.classList.add("is-active");
-          allChip.setAttribute("aria-pressed", "true");
-        }
+        setChipState(btn, nextState(chipState(btn)));
       }
       syncHidden();
     });
@@ -315,6 +333,7 @@
         num_votes_max: parseInt(fd.get("num_votes_max") || "0", 10),
         language: fd.get("language") || "any",
         genres_selected: fd.getAll("genres[]").slice().sort(),
+        genres_excluded: fd.getAll("exclude_genres[]").slice().sort(),
         exclude_watched: fd.getAll("exclude_watched").indexOf("on") >= 0,
         exclude_watchlist: fd.getAll("exclude_watchlist").indexOf("on") >= 0,
       };
@@ -322,6 +341,7 @@
 
     function eq(cur, def) {
       var defGenres = (def.genres_selected || []).slice().sort();
+      var defExcluded = (def.genres_excluded || []).slice().sort();
       return (
         cur.year_min === def.year_min &&
         cur.year_max === def.year_max &&
@@ -331,6 +351,7 @@
         cur.num_votes_max === def.num_votes_max &&
         cur.language === def.language &&
         JSON.stringify(cur.genres_selected) === JSON.stringify(defGenres) &&
+        JSON.stringify(cur.genres_excluded) === JSON.stringify(defExcluded) &&
         cur.exclude_watched === def.exclude_watched &&
         cur.exclude_watchlist === def.exclude_watchlist
       );
@@ -357,16 +378,27 @@
       }
 
       var hiddenContainer = form.querySelector("[data-genre-hidden-inputs]");
+      var hiddenExclude = form.querySelector("[data-exclude-genre-hidden-inputs]");
       var chipRow = form.querySelector('[data-filter-chips="genres"]');
       if (hiddenContainer && chipRow) {
         hiddenContainer.replaceChildren();
+        if (hiddenExclude) hiddenExclude.replaceChildren();
         var defGenres = defaults.genres_selected || [];
-        var allActive = defGenres.length === 0;
+        var defExcluded = defaults.genres_excluded || [];
+        var allActive = defGenres.length === 0 && defExcluded.length === 0;
         chipRow.querySelectorAll("[data-genre-chip]").forEach(function (c) {
           var v = c.getAttribute("data-genre-chip");
-          var active = (v === "__all__" && allActive) || (v !== "__all__" && defGenres.indexOf(v) >= 0);
-          c.classList.toggle("is-active", active);
-          c.setAttribute("aria-pressed", active ? "true" : "false");
+          if (v === "__all__") {
+            c.classList.toggle("is-active", allActive);
+            c.classList.remove("is-excluded");
+            c.setAttribute("aria-pressed", allActive ? "true" : "false");
+            return;
+          }
+          var included = defGenres.indexOf(v) >= 0;
+          var excluded = defExcluded.indexOf(v) >= 0;
+          c.classList.toggle("is-active", included);
+          c.classList.toggle("is-excluded", excluded);
+          c.setAttribute("aria-pressed", included ? "true" : "false");
         });
         defGenres.forEach(function (g) {
           var input = document.createElement("input");
@@ -375,6 +407,15 @@
           input.value = g;
           hiddenContainer.appendChild(input);
         });
+        if (hiddenExclude) {
+          defExcluded.forEach(function (g) {
+            var input = document.createElement("input");
+            input.type = "hidden";
+            input.name = "exclude_genres[]";
+            input.value = g;
+            hiddenExclude.appendChild(input);
+          });
+        }
       }
 
       var ew = form.querySelector("#excludeWatched");

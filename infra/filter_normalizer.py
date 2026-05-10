@@ -31,6 +31,7 @@ def default_filter_state(current_year: int | None = None) -> FilterState:
         "num_votes_max": 2000000,
         "language": "any",
         "genres_selected": [],
+        "genres_excluded": [],
         "exclude_watched": True,
         "exclude_watchlist": True,
     }
@@ -55,6 +56,8 @@ def filters_from_criteria(criteria: MovieCriteria) -> FilterState:
         filters["language"] = criteria["language"]
     if criteria.get("genres"):
         filters["genres_selected"] = list(criteria["genres"])
+    if criteria.get("exclude_genres"):
+        filters["genres_excluded"] = list(criteria["exclude_genres"])
     return filters
 
 
@@ -68,11 +71,16 @@ class _StoredFilterForm:
         if key == "genres[]":
             genres = self._filters.get("genres_selected")
             return genres[0] if genres else default
+        if key == "exclude_genres[]":
+            excluded = self._filters.get("genres_excluded")
+            return excluded[0] if excluded else default
         return self._filters.get(key, default)
 
     def getlist(self, key: str) -> list[Any]:
         if key == "genres[]":
             return list(self._filters.get("genres_selected", []))
+        if key == "exclude_genres[]":
+            return list(self._filters.get("genres_excluded", []))
         value = self._filters.get(key)
         if value is None:
             return []
@@ -111,6 +119,13 @@ def normalize_filters(form_data) -> FilterState:
     filters["genres_selected"] = [
         genre[:MAX_FILTER_VALUE_LEN]
         for genre in raw_genres
+        if isinstance(genre, str) and genre in VALID_GENRES
+    ]
+
+    raw_excluded = form_data.getlist("exclude_genres[]")
+    filters["genres_excluded"] = [
+        genre[:MAX_FILTER_VALUE_LEN]
+        for genre in raw_excluded
         if isinstance(genre, str) and genre in VALID_GENRES
     ]
 

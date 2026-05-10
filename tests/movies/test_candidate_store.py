@@ -325,6 +325,64 @@ def test_genre_clause_single_genre(mock_db_pool):
 
 
 # ---------------------------------------------------------------------------
+# _build_movie_filter_clauses — exclude_genres integration
+# ---------------------------------------------------------------------------
+
+
+def test_build_movie_filter_clauses_appends_exclude_genre_clause(mock_db_pool):
+    """When criteria contains exclude_genres, the returned genre_clause
+    must contain a NOT MATCH fragment so Drama-tagged rows are rejected.
+
+    This is the bug the user reported: there was no way to exclude a
+    genre from results. The clause+params returned here are concatenated
+    onto the WHERE in ``_build_candidate_query`` and ``count_matching``.
+    """
+    store = _make_store(mock_db_pool)
+    _, _, genre_clause, genre_params = store._build_movie_filter_clauses(
+        {"exclude_genres": ["Drama"]}, use_fulltext=True
+    )
+
+    assert "NOT MATCH(genres)" in genre_clause
+    assert '+"Drama"' in genre_params
+
+
+def test_build_movie_filter_clauses_combines_include_and_exclude_genres(mock_db_pool):
+    """Both clauses must coexist — include picks the bucket, exclude trims it."""
+    store = _make_store(mock_db_pool)
+    _, _, genre_clause, genre_params = store._build_movie_filter_clauses(
+        {"genres": ["Action"], "exclude_genres": ["Drama"]}, use_fulltext=True
+    )
+
+    # Two separate MATCH expressions: one positive, one negated.
+    assert genre_clause.count("MATCH(genres)") == 2
+    assert "NOT MATCH(genres)" in genre_clause
+    # Param order matters — placeholders are positional in the concatenated SQL.
+    assert genre_params == ['+"Action"', '+"Drama"']
+
+
+def test_build_movie_filter_clauses_exclude_genres_uses_like_fallback(mock_db_pool):
+    """When use_fulltext=False, exclude clause uses NOT LIKE."""
+    store = _make_store(mock_db_pool)
+    _, _, genre_clause, genre_params = store._build_movie_filter_clauses(
+        {"exclude_genres": ["Drama"]}, use_fulltext=False
+    )
+
+    assert "genres NOT LIKE %s" in genre_clause
+    assert genre_params == ["%Drama%"]
+
+
+def test_build_movie_filter_clauses_no_genre_clause_when_neither_set(mock_db_pool):
+    """No exclude_genres and no genres → empty genre_clause (regression check)."""
+    store = _make_store(mock_db_pool)
+    _, _, genre_clause, genre_params = store._build_movie_filter_clauses(
+        {}, use_fulltext=True
+    )
+
+    assert genre_clause == ""
+    assert genre_params == []
+
+
+# ---------------------------------------------------------------------------
 # fetch_candidate_refs
 # ---------------------------------------------------------------------------
 

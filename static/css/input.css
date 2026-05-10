@@ -3337,6 +3337,28 @@
   border-color: var(--color-accent);
   color: #fff;
 }
+/* Excluded chip — third state in the include → exclude → default cycle.
+   Visually flagged with a strikethrough and a danger-tinted border so the
+   user can tell at a glance which genres are being filtered out. */
+.filter-chip.is-excluded {
+  background: color-mix(in srgb, #d94a4a 14%, transparent);
+  border-color: color-mix(in srgb, #d94a4a 70%, transparent);
+  color: color-mix(in srgb, #d94a4a 92%, var(--color-text) 10%);
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+}
+.filter-chip.is-excluded:hover {
+  background: color-mix(in srgb, #d94a4a 22%, transparent);
+  border-color: color-mix(in srgb, #d94a4a 85%, transparent);
+}
+
+/* Inline hint under a section heading (e.g. "tap once to include …"). */
+.filter-section-hint {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin: -0.25rem 0 0.75rem;
+}
 
 /* Dual-handle slider — two range inputs overlaid on a shared track.
    The track + range inputs are absolutely positioned within the 36px

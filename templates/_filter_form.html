@@ -38,26 +38,37 @@
 </section>
 {% endif %}
 
-{# Genres — chip cloud with explicit "All" #}
+{# Genres — chip cloud with explicit "All". Chips cycle through three states
+   on click: default → include (filled) → exclude (struck through) → default. #}
 <section class="filter-section" aria-labelledby="genres-heading">
   <h2 id="genres-heading" class="filter-section-heading">Genres</h2>
   {% if genres_notice %}<p class="drawer-error">{{ genres_notice }}</p>{% endif %}
   {% set selected_genres = current_filters.get('genres_selected', []) %}
-  {% set all_selected = selected_genres|length == 0 %}
+  {% set excluded_genres = current_filters.get('genres_excluded', []) %}
+  {% set all_selected = selected_genres|length == 0 and excluded_genres|length == 0 %}
+  <p class="filter-section-hint">Tap once to include · tap again to exclude · tap a third time to clear</p>
   <div class="filter-chip-row" data-filter-chips="genres">
     <button type="button" class="filter-chip {% if all_selected %}is-active{% endif %}"
             data-genre-chip="__all__" aria-pressed="{{ 'true' if all_selected else 'false' }}">All</button>
     {% set genres = ['Action','Adventure','Animation','Biography','Comedy','Crime','Documentary','Drama','Fantasy','Horror','Musical','Sci-Fi','Sport','Thriller','War','Western'] %}
     {% for g in genres %}
-    <button type="button" class="filter-chip {% if not all_selected and g in selected_genres %}is-active{% endif %}"
+      {% set is_included = g in selected_genres %}
+      {% set is_excluded = g in excluded_genres %}
+    <button type="button" class="filter-chip{% if is_included %} is-active{% endif %}{% if is_excluded %} is-excluded{% endif %}"
             data-genre-chip="{{ g }}"
-            aria-pressed="{{ 'true' if (not all_selected and g in selected_genres) else 'false' }}">{{ g }}</button>
+            aria-pressed="{{ 'true' if is_included else 'false' }}"
+            aria-label="{{ g }}{% if is_included %} (included){% elif is_excluded %} (excluded){% endif %}">{{ g }}</button>
     {% endfor %}
   </div>
   {# Hidden inputs — JS keeps these in sync with chip state. #}
   <div data-genre-hidden-inputs>
     {% for g in selected_genres %}
     <input type="hidden" name="genres[]" value="{{ g }}">
+    {% endfor %}
+  </div>
+  <div data-exclude-genre-hidden-inputs>
+    {% for g in excluded_genres %}
+    <input type="hidden" name="exclude_genres[]" value="{{ g }}">
     {% endfor %}
   </div>
 </section>

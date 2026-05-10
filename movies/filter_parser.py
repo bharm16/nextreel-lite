@@ -127,6 +127,15 @@ def extract_movie_filter_criteria(form_data):
     if genres:
         criteria["genres"] = genres
 
+    # Excluded genres — same allow-list as included genres. Emitted by the
+    # 3-state chip UI when the user marks a genre with the "exclude" state.
+    raw_excluded = form_data.getlist("exclude_genres[]")
+    excluded = [
+        g for g in raw_excluded if g and isinstance(g, str) and g in VALID_GENRES
+    ]
+    if excluded:
+        criteria["exclude_genres"] = excluded
+
     # Language — validate against ISO 639-1 pattern or "any"
     language = form_data.get("language", "en")
     if not isinstance(language, str) or (language != "any" and not _LANG_RE.match(language)):

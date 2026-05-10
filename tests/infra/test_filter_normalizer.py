@@ -264,6 +264,58 @@ def test_normalize_filters_exclude_watchlist_defaults_true_when_absent():
     assert result["exclude_watchlist"] is True
 
 
+class TestExcludeGenresThroughNormalizer:
+    """End-to-end normalizer support for the chip UI's ``exclude_genres[]``."""
+
+    def test_default_filter_state_includes_empty_genres_excluded(self):
+        state = default_filter_state()
+        assert state["genres_excluded"] == []
+
+    def test_normalize_filters_reads_exclude_genres(self):
+        class FakeForm:
+            def get(self, key, default=None):
+                return default
+
+            def getlist(self, key):
+                if key == "exclude_genres[]":
+                    return ["Drama", "War"]
+                return []
+
+        result = normalize_filters(FakeForm())
+        assert result["genres_excluded"] == ["Drama", "War"]
+
+    def test_normalize_filters_rejects_invalid_excluded_genre(self):
+        class FakeForm:
+            def get(self, key, default=None):
+                return default
+
+            def getlist(self, key):
+                if key == "exclude_genres[]":
+                    return ["Drama", "BogusGenre", "War"]
+                return []
+
+        result = normalize_filters(FakeForm())
+        # Only allow-listed genres survive.
+        assert result["genres_excluded"] == ["Drama", "War"]
+
+    def test_filters_from_criteria_round_trips_exclude_genres(self):
+        criteria = {"genres": ["Action"], "exclude_genres": ["Drama"]}
+        filters = filters_from_criteria(criteria)
+        assert filters["genres_selected"] == ["Action"]
+        assert filters["genres_excluded"] == ["Drama"]
+
+    def test_criteria_from_filters_round_trips_genres_excluded(self):
+        filters = default_filter_state()
+        filters["genres_excluded"] = ["Drama"]
+        criteria = criteria_from_filters(filters)
+        assert criteria.get("exclude_genres") == ["Drama"]
+
+    def test_criteria_from_filters_omits_exclude_genres_when_empty(self):
+        filters = default_filter_state()
+        criteria = criteria_from_filters(filters)
+        assert "exclude_genres" not in criteria
+
+
 def test_default_filter_state_uses_any_baselines():
     """OOTB defaults are permissive ("Any") for new users.
 

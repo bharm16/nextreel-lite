@@ -100,3 +100,72 @@ class MovieQueryBuilder:
         if not genre_conditions:
             return "", []
         return f" AND ({genre_conditions[0]})", genre_params
+
+    # ── Exclude-genre clauses ─────────────────────────────────────────
+    #
+    # The chip filter UI emits ``exclude_genres[]`` for genres the user
+    # has explicitly marked as exclusions (e.g. "no Drama, no War").
+    # FULLTEXT path: ``AND NOT MATCH(genres) AGAINST('"Drama" "War"' IN
+    # BOOLEAN MODE)`` — bare quoted terms (no leading ``+``) so OR
+    # semantics under MATCH; the outer NOT then rejects rows that match
+    # *any* excluded genre. LIKE fallback uses ``genres NOT LIKE %s``
+    # joined with AND so a row is rejected if *any* excluded term appears.
+
+    @staticmethod
+    def build_exclude_genre_conditions_fulltext(
+        criteria: dict[str, Any], use_cache: bool = False
+    ) -> tuple[str, list[Any]]:
+        excluded = criteria.get("exclude_genres")
+        if not excluded:
+            return "", []
+
+        table_alias = "" if use_cache else "tb."
+        _ft_unsafe = str.maketrans("", "", '+-<>()~*"@')
+        sanitized = [g.translate(_ft_unsafe) for g in excluded]
+
+        if len(sanitized) == 1:
+            # Single term: keep the leading ``+`` for parity with the
+            # include path so a one-term query still produces a strong
+            # match phrase.
+            phrase = f'+"{sanitized[0]}"'
+        else:
+            # Multi-term: bare quoted terms = OR semantics in BOOLEAN
+            # MODE. The outer NOT rejects rows that match any of them.
+            phrase = " ".join(f'"{g}"' for g in sanitized)
+
+        condition = f" AND NOT MATCH({table_alias}genres) AGAINST(%s IN BOOLEAN MODE)"
+        return condition, [phrase]
+
+    @staticmethod
+    def build_exclude_genre_conditions(
+        criteria: dict[str, Any], use_cache: bool = False
+    ) -> tuple[str, list[Any]]:
+        excluded = criteria.get("exclude_genres")
+        if not excluded:
+            return "", []
+
+        column = "genres" if use_cache else "tb.genres"
+        not_like_terms = [f"{column} NOT LIKE %s" for _ in excluded]
+        clause = " AND " + " AND ".join(not_like_terms)
+        params = ["%" + MovieQueryBuilder._escape_like(g) + "%" for g in excluded]
+        return clause, params
+
+    @staticmethod
+    def exclude_genre_clause(
+        criteria: dict[str, Any],
+        *,
+        use_fulltext: bool = True,
+        use_cache: bool = False,
+    ) -> tuple[str, list[Any]]:
+        """Unified exclude-genre clause builder.
+
+        Mirrors :meth:`genre_clause` but produces a NOT MATCH / NOT LIKE
+        clause that rejects rows containing any of the excluded genres.
+        Returns ``(clause, params)`` where *clause* is empty when nothing
+        is excluded.
+        """
+        if use_fulltext:
+            return MovieQueryBuilder.build_exclude_genre_conditions_fulltext(
+                criteria, use_cache=use_cache
+            )
+        return MovieQueryBuilder.build_exclude_genre_conditions(criteria, use_cache=use_cache)

@@ -234,6 +234,17 @@ class CandidateStore:
         """Genre clause built against the candidate-table column set."""
         return MovieQueryBuilder.genre_clause(criteria, use_fulltext=use_fulltext, use_cache=True)
 
+    def _exclude_genre_clause(
+        self,
+        criteria: dict[str, Any],
+        *,
+        use_fulltext: bool = True,
+    ) -> tuple[str, list[Any]]:
+        """Exclude-genre clause built against the candidate-table column set."""
+        return MovieQueryBuilder.exclude_genre_clause(
+            criteria, use_fulltext=use_fulltext, use_cache=True
+        )
+
     def _build_movie_filter_clauses(
         self,
         criteria: dict[str, Any],
@@ -307,6 +318,16 @@ class CandidateStore:
             params.extend(sorted(excluded))
 
         genre_clause, genre_params = self._genre_clause(criteria, use_fulltext=use_fulltext)
+        # Exclude clause (NOT MATCH / NOT LIKE) is appended onto the include
+        # clause so both share the FULLTEXT/LIKE retry path: if the include
+        # MATCH errors with a missing FULLTEXT index, the caller retries
+        # the whole genre fragment under use_fulltext=False.
+        exclude_clause, exclude_params = self._exclude_genre_clause(
+            criteria, use_fulltext=use_fulltext
+        )
+        if exclude_clause:
+            genre_clause = genre_clause + exclude_clause
+            genre_params = list(genre_params) + list(exclude_params)
         return clauses, params, genre_clause, genre_params
 
     def _build_candidate_query(

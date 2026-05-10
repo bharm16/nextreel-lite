@@ -19,6 +19,7 @@ class FilterState(TypedDict, total=False):
     num_votes_max: int | str
     language: str
     genres_selected: list[str]
+    genres_excluded: list[str]
     exclude_watched: bool
     exclude_watchlist: bool
 
@@ -33,3 +34,4 @@ class MovieCriteria(TypedDict, total=False):
     max_votes: int
     language: str
     genres: list[str]
+    exclude_genres: list[str]
